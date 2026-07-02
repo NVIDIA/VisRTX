@@ -58,6 +58,14 @@ bool buildProjectSavePlan(const ProjectSaveRequest &request,
     ProjectSaveResult &result,
     std::string *error = nullptr);
 
+// Overrides applied while staging a project open. They change only each
+// dataset's initial residency; the project opens dirty when an override
+// diverges from the manifest, so a subsequent save persists actual residency.
+struct ProjectOpenOptions
+{
+  bool openUnloaded{false};
+};
+
 struct ProjectOpenStage
 {
   Project project;
@@ -66,8 +74,10 @@ struct ProjectOpenStage
  private:
   std::shared_ptr<detail::ProjectOpenState> m_state;
 
-  friend bool stageProjectOpen(
-      const std::filesystem::path &, ProjectOpenStage &, std::string *);
+  friend bool stageProjectOpen(const std::filesystem::path &,
+      ProjectOpenStage &,
+      const ProjectOpenOptions &,
+      std::string *);
   friend bool applyProjectOpen(ProjectOpenStage &,
       tsd::scene::Scene &,
       tsd::animation::AnimationManager &,
@@ -76,6 +86,7 @@ struct ProjectOpenStage
 
 bool stageProjectOpen(const std::filesystem::path &directory,
     ProjectOpenStage &stage,
+    const ProjectOpenOptions &options = {},
     std::string *error = nullptr);
 bool applyProjectOpen(ProjectOpenStage &stage,
     tsd::scene::Scene &scene,

@@ -54,7 +54,10 @@ bool deserializeDatasetArchive(tsd::scene::Scene &scene,
     tsd::scene::LayerNodeRef &rootOut,
     std::string *error = nullptr);
 
-void removeDatasetRuntime(tsd::scene::Scene &scene,
+// Remove a dataset subtree together with its owned animations and the whole
+// object closure the subtree owns (objects still used elsewhere survive).
+// Returns false — removing nothing — when the subtree cannot be planned.
+bool removeDatasetRuntime(tsd::scene::Scene &scene,
     tsd::animation::AnimationManager &animationManager,
     tsd::scene::LayerNodeRef root);
 

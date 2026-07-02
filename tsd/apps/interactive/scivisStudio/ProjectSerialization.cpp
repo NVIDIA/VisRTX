@@ -139,6 +139,7 @@ void projectToNode(const Project &project, tsd::core::DataNode &node)
     auto &d = datasets.append();
     d["id"] = dataset.id;
     d["name"] = dataset.name;
+    d["residency"] = std::string(dataset::toString(dataset.residency));
   }
 
   auto &shots = node["shots"];
@@ -211,6 +212,9 @@ bool nodeToProject(tsd::core::DataNode &node, Project &project)
       dataset.id = d["id"].getValueOr<std::string>("");
       dataset.name = d["name"].getValueOr<std::string>(dataset.id);
       dataset.status = DatasetStatus::Unavailable;
+      // Manifests that predate residency (schema < 7) mean Loaded.
+      dataset.residency = dataset::residencyFromString(
+          d["residency"].getValueOr<std::string>("Loaded"));
       dataset.dirty = false;
       dataset.persistedName = dataset.name;
 

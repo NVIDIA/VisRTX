@@ -51,6 +51,65 @@ anari::Device loadFirstAvailableDevice(
 
 } // namespace
 
+bool makeShotDatasetsResident(ProjectContext &projectContext,
+    const Shot &shot,
+    ShotDatasetResidencyRestore &restore,
+    std::string *error)
+{
+  auto &project = projectContext.project();
+  restore.loadedForRender.clear();
+  restore.projectWasDirty = project.dirty;
+
+  for (const auto &binding : shot.datasetBindings) {
+    if (!binding.enabled)
+      continue;
+    auto *dataset = project::findDataset(project, binding.datasetId);
+    if (!dataset)
+      continue;
+    if (dataset->residency == DatasetResidency::Unloaded) {
+      std::string loadError;
+      if (!projectContext.loadDataset(dataset->id, &loadError)) {
+        restoreShotDatasetResidency(projectContext, restore);
+        if (error)
+          *error = loadError;
+        return false;
+      }
+      restore.loadedForRender.push_back(dataset->id);
+    }
+    if (dataset->status != DatasetStatus::Available) {
+      restoreShotDatasetResidency(projectContext, restore);
+      if (error) {
+        *error = "dataset '" + dataset->name
+            + "' is unavailable and cannot be rendered";
+      }
+      return false;
+    }
+  }
+  return true;
+}
+
+void restoreShotDatasetResidency(
+    ProjectContext &projectContext, const ShotDatasetResidencyRestore &restore)
+{
+  bool restored = true;
+  for (const auto &id : restore.loadedForRender) {
+    std::string error;
+    if (!projectContext.unloadDataset(id, &error)) {
+      tsd::core::logWarning(
+          "[SciVisStudio] Failed to restore residency of dataset '%s' after "
+          "rendering: %s",
+          id.c_str(),
+          error.c_str());
+      restored = false;
+    }
+  }
+  // Only a complete restore returns the project to its pre-render state; a
+  // partial one leaves residency diverged from the manifest and must stay
+  // dirty so the divergence remains visible and saveable.
+  if (restored)
+    projectContext.project().dirty = restore.projectWasDirty;
+}
+
 bool renderActiveShotToFrames(
     ProjectContext &projectContext, RenderShotProgress *progress)
 {
@@ -69,6 +128,28 @@ bool renderActiveShotToFrames(
     tsd::core::logError("[SciVisStudio] Active shot camera is missing");
     return false;
   }
+
+  // Final renders materialize shot intent: every bound, enabled dataset is
+  // made fully resident regardless of stored residency, and a dataset that
+  // cannot be made resident is a hard error before any frame is rendered.
+  ShotDatasetResidencyRestore residencyRestore;
+  {
+    std::string residencyError;
+    if (!makeShotDatasetsResident(
+            projectContext, *shot, residencyRestore, &residencyError)) {
+      tsd::core::logError("[SciVisStudio] %s", residencyError.c_str());
+      return false;
+    }
+  }
+  struct ResidencyGuard
+  {
+    ProjectContext &projectContext;
+    const ShotDatasetResidencyRestore &restore;
+    ~ResidencyGuard()
+    {
+      restoreShotDatasetResidency(projectContext, restore);
+    }
+  } residencyGuard{projectContext, residencyRestore};
 
   const auto outputDirectory =
       projectContext.project().projectDirectory / "renders" / shot->id;

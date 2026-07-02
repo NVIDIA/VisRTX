@@ -74,7 +74,45 @@ associated file animation; it is not authoritative stored state.
 A dataset that remains in the inventory and in shot associations but cannot
 currently recreate its runtime representation. Restoring or replacing its
 asset restores the existing project intent.
-_Avoid_: Deleted dataset
+_Avoid_: Deleted dataset, unloaded dataset
+
+**Dataset Residency**:
+The user-controlled choice of which runtime representation of a dataset is
+currently in the scene: Loaded or Unloaded. Residency is independent of
+Dataset Availability: availability assesses whether the asset could recreate
+the runtime representation; residency records whether the project has been
+asked to. Residency is a workstation memory concern and never alters shot
+intent: a final shot render materializes every bound dataset regardless of
+residency. Future representations (such as a SciVis proxy) would be
+additional residency states.
+
+**Loaded Dataset**:
+A dataset whose full runtime representation is currently in the scene.
+
+**Unloaded Dataset**:
+A dataset that remains in the inventory and in shot associations but whose
+runtime representation has been deliberately removed to reclaim memory. Unlike
+an Unavailable Dataset, unloading expresses user intent rather than failure;
+an Unloaded Dataset with a valid asset remains Available. An Unloaded Dataset
+is read-only as an asset: operations that would modify or serialize its asset
+require loading it first, while project bookkeeping such as shot bindings and
+Dataset Removal remains available.
+_Avoid_: Unavailable dataset, removed dataset
+
+**Dataset Load**:
+The recreation of an existing inventory dataset's runtime representation from
+its dataset asset, preserving its Dataset ID and shot associations. Distinct
+from Dataset Archive Load by direct object: loading an archive incorporates a
+new dataset; loading a dataset makes an existing one resident. A failed load
+changes nothing: the dataset remains Unloaded and is known to be Unavailable
+until its asset is restored.
+
+**Dataset Unload**:
+The deliberate removal of a clean dataset's runtime representation while
+keeping the dataset in the inventory and its shot associations intact. Unload
+never writes to disk and never discards unsaved changes: a Dirty Dataset must
+be saved before it can be unloaded.
+_Avoid_: Dataset removal
 
 **Dataset Discovery**:
 An explicit project operation that scans for valid dataset files not yet in the

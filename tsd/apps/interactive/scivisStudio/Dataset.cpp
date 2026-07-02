@@ -33,6 +33,17 @@ const char *toString(DatasetStatus status)
   return "Missing";
 }
 
+const char *toString(DatasetResidency residency)
+{
+  switch (residency) {
+  case DatasetResidency::Loaded:
+    return "Loaded";
+  case DatasetResidency::Unloaded:
+    return "Unloaded";
+  }
+  return "Loaded";
+}
+
 DatasetSourceKind sourceKindFromString(const std::string &s)
 {
   if (s == "FileAnimation" || s == "TimeSeries")
@@ -51,6 +62,28 @@ DatasetStatus statusFromString(const std::string &s)
   if (s == "ImportFailed")
     return DatasetStatus::ImportFailed;
   return DatasetStatus::Unavailable;
+}
+
+DatasetResidency residencyFromString(const std::string &s)
+{
+  return s == "Unloaded" ? DatasetResidency::Unloaded
+                         : DatasetResidency::Loaded;
+}
+
+const char *displayStatus(const Dataset &dataset)
+{
+  switch (dataset.status) {
+  case DatasetStatus::Importing:
+    return "Importing";
+  case DatasetStatus::ImportFailed:
+    return "Import Failed";
+  case DatasetStatus::Unavailable:
+    return "Unavailable";
+  case DatasetStatus::Available:
+    break;
+  }
+  return dataset.residency == DatasetResidency::Unloaded ? "Unloaded"
+                                                         : "Loaded";
 }
 
 } // namespace tsd::scivis_studio::dataset

@@ -18,7 +18,9 @@
 #include "tsd/scene/objects/Camera.hpp"
 
 #include <algorithm>
+#include <filesystem>
 #include <memory>
+#include <system_error>
 #include <utility>
 #include <vector>
 
@@ -223,6 +225,9 @@ struct ProjectOpenState
   std::shared_ptr<tsd::core::DataTree> manifest;
   Project manifestProject;
   int schemaVersion{0};
+  // An open-time residency override diverged from the manifest, so the
+  // project must open dirty.
+  bool residencyOverrideDirtied{false};
   StagedArchive cameras;
   StagedArchive renderers;
   std::vector<StagedCameraRig> cameraRigs;
@@ -306,6 +311,26 @@ void hydrateDatasets(const detail::ProjectOpenState &state,
   for (size_t i = 0; i < project.datasets.size(); ++i) {
     auto &inventoryEntry = project.datasets[i];
     const auto &staged = state.datasets[i];
+
+    // Opening hydrates only resident datasets. An Unloaded dataset stays out
+    // of the scene; a cheap existence check reveals a definitively missing
+    // asset, while the authoritative assessment remains the load attempt.
+    if (inventoryEntry.residency == DatasetResidency::Unloaded) {
+      inventoryEntry.dirty = false;
+      inventoryEntry.persistedName = inventoryEntry.name;
+      std::error_code ec;
+      const bool assetExists = std::filesystem::exists(
+          state.directory / "datasets" / (inventoryEntry.name + ".tsd"), ec);
+      inventoryEntry.status = (assetExists && !ec)
+          ? DatasetStatus::Available
+          : DatasetStatus::Unavailable;
+      if (inventoryEntry.status == DatasetStatus::Unavailable && logWarnings) {
+        tsd::core::logWarning(
+            "[SciVisStudio] Unloaded dataset '%s' has no asset on disk",
+            inventoryEntry.name.c_str());
+      }
+      continue;
+    }
     Dataset loaded;
     tsd::scene::LayerNodeRef loadedRoot;
     std::string datasetError = staged.error;
@@ -386,6 +411,8 @@ bool reconstructProject(const detail::ProjectOpenState &state,
 
   project.projectDirectory = state.directory;
   project.markClean();
+  if (state.residencyOverrideDirtied)
+    project.markDirty();
   if (state.schemaVersion < 2)
     migrateLegacyShotLights(project, scene);
   if (state.schemaVersion >= 4) {
@@ -427,6 +454,7 @@ bool stageRequiredPoolArchive(const std::filesystem::path &file,
 
 bool stageProjectOpen(const std::filesystem::path &directory,
     ProjectOpenStage &stage,
+    const ProjectOpenOptions &options,
     std::string *error)
 {
   stage.m_state.reset();
@@ -453,6 +481,25 @@ bool stageProjectOpen(const std::filesystem::path &directory,
   state->schemaVersion = metadata.found()
       ? metadata.metadata->schemaVersion
       : root["schemaVersion"].getValueOr<int>(1);
+
+  if (options.openUnloaded) {
+    // Pre-v5 projects embed dataset payloads in the manifest and hydrate them
+    // unconditionally, so an unloaded override would claim memory savings it
+    // cannot deliver and mark never-persisted datasets read-only.
+    if (state->schemaVersion >= 5) {
+      for (auto &dataset : state->manifestProject.datasets) {
+        if (dataset.residency != DatasetResidency::Unloaded) {
+          dataset.residency = DatasetResidency::Unloaded;
+          state->residencyOverrideDirtied = true;
+        }
+      }
+    } else {
+      tsd::core::logWarning(
+          "[SciVisStudio] --openUnloaded is ignored for legacy projects "
+          "(schema version %i)",
+          state->schemaVersion);
+    }
+  }
 
   if (state->schemaVersion >= DECOMPOSED_SCENE_SCHEMA_VERSION) {
     if (!stageRequiredPoolArchive(directory / "scene/cameras.tsd",
@@ -486,6 +533,12 @@ bool stageProjectOpen(const std::filesystem::path &directory,
   if (state->schemaVersion >= 5) {
     state->datasets.reserve(state->manifestProject.datasets.size());
     for (const auto &dataset : state->manifestProject.datasets) {
+      // Non-resident datasets are not even staged into memory; keeping them
+      // out of the open is the point of residency.
+      if (dataset.residency == DatasetResidency::Unloaded) {
+        state->datasets.emplace_back();
+        continue;
+      }
       state->datasets.push_back(
           stageArchive(directory / "datasets" / (dataset.name + ".tsd")));
     }

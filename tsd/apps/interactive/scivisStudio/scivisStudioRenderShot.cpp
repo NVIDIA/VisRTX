@@ -6,6 +6,7 @@
 #include "RenderShotCLI.h"
 
 #include "tsd/app/Context.h"
+#include "tsd/core/Logging.hpp"
 
 #include <csignal>
 #include <cstdio>
@@ -52,6 +53,10 @@ int main(int argc, const char **argv)
     std::cout << renderShotUsage(programName);
     return 0;
   }
+
+  // Surface status and error diagnostics on the terminal; without a logging
+  // callback they are silently dropped.
+  tsd::core::setLogToStdout();
 
   tsd::app::Context appContext;
   ProjectContext projectContext(&appContext);

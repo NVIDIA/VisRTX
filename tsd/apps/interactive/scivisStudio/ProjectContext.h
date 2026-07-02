@@ -4,6 +4,7 @@
 #pragma once
 
 #include "Project.h"
+#include "ProjectPersistence.h"
 
 #include "tsd/app/Context.h"
 #include "tsd/io/importers.hpp"
@@ -55,6 +56,16 @@ struct ProjectContext
       bool keepAssetFile = false,
       std::string *error = nullptr);
   bool reimportStaticDataset(const DatasetID &id, std::string *error = nullptr);
+  // Dataset Load/Unload flip an inventory dataset's residency. Unload requires
+  // a clean dataset and never touches disk; Load recreates the runtime from
+  // the managed asset and changes nothing when it fails. Both are no-ops when
+  // the dataset already has the requested residency.
+  bool loadDataset(const DatasetID &id, std::string *error = nullptr);
+  bool unloadDataset(const DatasetID &id, std::string *error = nullptr);
+  // Cheap on-demand availability hint for an Unloaded dataset: a missing
+  // asset file is definitively Unavailable. The check never upgrades status —
+  // the authoritative assessment is the load attempt itself.
+  void refreshUnloadedDatasetAvailability(Dataset &dataset) const;
   bool saveDatasetArchive(const DatasetID &id,
       const std::filesystem::path &file,
       std::string *error = nullptr);
@@ -76,7 +87,8 @@ struct ProjectContext
       tsd::core::DataNode *windowsOut = nullptr,
       std::string *layoutOut = nullptr,
       tsd::core::DataNode *settingsOut = nullptr,
-      std::string *error = nullptr);
+      std::string *error = nullptr,
+      const ProjectOpenOptions &options = {});
 
   tsd::scene::LayerNodeRef resolve(const SceneNodeRef &ref) const;
   tsd::scene::Object *resolve(const SceneObjectRef &ref) const;
@@ -144,6 +156,9 @@ struct ProjectContext
   Project m_project;
   std::vector<std::filesystem::path> m_pendingAssetRemovals;
   bool m_syncingAnimationManager{false};
+  // Residency operations rebuild or tear down whole dataset subtrees; the
+  // per-object dirty tracking is meaningless (and O(n^2)) while they run.
+  bool m_mutatingDatasetRuntime{false};
   tsd::scene::BaseUpdateDelegate *m_datasetDirtyDelegate{nullptr};
 };
 

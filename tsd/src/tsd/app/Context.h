@@ -58,6 +58,9 @@ struct CommandLineOptions
   std::string cameraFile;
   std::vector<std::string> ensightFields;
   std::string vtuProperty;
+  // SciVis Studio: open the project with every dataset's initial residency
+  // overridden to Unloaded.
+  bool openUnloaded{false};
 };
 
 struct TSDState

@@ -30,11 +30,18 @@ void ProjectWindow::buildUI()
   ImGui::SeparatorText("Datasets");
   if (project.datasets.empty())
     ImGui::TextDisabled("No datasets");
-  for (const auto &dataset : project.datasets)
-    ImGui::BulletText(
-        "%s  [%s]",
+  for (const auto &dataset : project.datasets) {
+    const bool unloaded = dataset.residency == DatasetResidency::Unloaded;
+    if (unloaded) {
+      ImGui::PushStyleColor(
+          ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+    }
+    ImGui::BulletText("%s  [%s]",
         dataset.name.c_str(),
-        dataset::toString(dataset.status));
+        dataset::displayStatus(dataset));
+    if (unloaded)
+      ImGui::PopStyleColor();
+  }
 
   ImGui::SeparatorText("Shots");
   for (auto &shot : project.shots) {

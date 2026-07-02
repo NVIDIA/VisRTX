@@ -181,7 +181,9 @@ tsd::ui::imgui::WindowArray Application::setupWindows()
       std::make_unique<AddFileAnimationDatasetDialog>(this, &m_projectContext);
 
   if (!m_initialProjectDirectory.empty()) {
-    if (!openProject(m_initialProjectDirectory)) {
+    ProjectOpenOptions options;
+    options.openUnloaded = ctx->commandLine.openUnloaded;
+    if (!openProject(m_initialProjectDirectory, options)) {
       m_projectContext.createUnsavedProject();
       m_keepBlankProjectCleanAfterViewportSetup = true;
       m_viewport->setLibraryToDefault();
@@ -257,7 +259,8 @@ bool Application::saveProjectAs(const std::filesystem::path &directory)
   return ok;
 }
 
-bool Application::openProject(const std::filesystem::path &directory)
+bool Application::openProject(
+    const std::filesystem::path &directory, const ProjectOpenOptions &options)
 {
   if (m_viewport)
     m_viewport->releaseSceneReferences();
@@ -269,7 +272,8 @@ bool Application::openProject(const std::filesystem::path &directory)
       &scratch.root()["windows"],
       &layout,
       &scratch.root()["settings"],
-      &error);
+      &error,
+      options);
   if (!ok) {
     tsd::core::logError("[SciVisStudio] Open failed: %s", error.c_str());
     if (m_viewport)
@@ -608,7 +612,9 @@ void Application::uiFrameStart()
     }
   }
 
-  if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_S))
+  // Saving while a background task mutates the project (dataset load,
+  // reimport, shot render) would persist transient state.
+  if (!modalActive && ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_S))
     saveProject();
 
   if (!modalActive && ImGui::IsKeyChordPressed(ImGuiKey_Escape))

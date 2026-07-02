@@ -34,14 +34,16 @@ struct DatasetEditor : public tsd::ui::imgui::Window
     Save
   };
 
-  struct ReimportResult
+  // Shared result slot for operations that run behind the task modal
+  // (Reimport, Dataset Load); only one can be pending at a time.
+  struct AsyncTaskResult
   {
     std::atomic_bool complete{false};
     std::string error;
   };
 
   void pollPendingFileIO();
-  void pollPendingReimport();
+  void pollPendingAsyncTask();
   void buildDiscoveryReview();
   void buildErrorPopup();
 
@@ -52,9 +54,11 @@ struct DatasetEditor : public tsd::ui::imgui::Window
   std::string m_pendingFilename;
   DatasetID m_pendingSaveDataset;
   DatasetID m_pendingRemoveDataset;
-  std::shared_ptr<ReimportResult> m_pendingReimport;
+  std::shared_ptr<AsyncTaskResult> m_pendingAsyncTask;
   bool m_keepRemovedAsset{false};
   DatasetID m_nameBufferDataset;
+  DatasetID m_availabilityCheckDataset;
+  double m_lastAvailabilityCheck{0.0};
   std::string m_nameBuffer;
   std::string m_nameError;
   std::string m_ioError;

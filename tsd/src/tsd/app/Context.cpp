@@ -60,6 +60,8 @@ void Context::parseCommandLine(std::vector<std::string> &args)
       setLogVerbose(true);
     else if (arg == "-e" || arg == "--echoOutput")
       setLogEchoOutput(true);
+    else if (arg == "--openUnloaded")
+      this->commandLine.openUnloaded = true;
     else if (arg == "-l" || arg == "--layer")
       this->commandLine.currentLayerName = args[++i];
     else if (arg == "-tsd") {

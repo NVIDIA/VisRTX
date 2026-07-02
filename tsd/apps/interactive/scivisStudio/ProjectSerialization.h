@@ -18,7 +18,9 @@ constexpr const char *PROJECT_SCHEMA = "tsd.scivis-studio.project";
 // v6: the manifest no longer embeds a residual Scene Archive. Camera and
 // renderer pools live in required Archives under scene/.
 constexpr int DECOMPOSED_SCENE_SCHEMA_VERSION = 6;
-constexpr int SCHEMA_VERSION = DECOMPOSED_SCENE_SCHEMA_VERSION;
+// v7: each manifest dataset records its residency (Loaded/Unloaded); an
+// absent field means Loaded, so v6 projects behave identically.
+constexpr int SCHEMA_VERSION = 7;
 constexpr const char *PROJECT_MANIFEST_FILENAME = "project.tsd";
 
 // Standalone rig Archive schemas, versioned independently of the project.

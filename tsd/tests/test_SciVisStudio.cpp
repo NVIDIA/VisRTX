@@ -9,6 +9,7 @@
 #include "ProjectContext.h"
 #include "ProjectPersistence.h"
 #include "ProjectSerialization.h"
+#include "RenderShot.h"
 #include "RenderShotCLI.h"
 
 #include "tsd/app/ApplicationDump.h"
@@ -115,7 +116,7 @@ SCENARIO("SciVis Studio persistence stages a project before applying it",
 
   ProjectOpenStage stage;
   std::string error;
-  REQUIRE(stageProjectOpen(root, stage, &error));
+  REQUIRE(stageProjectOpen(root, stage, {}, &error));
   REQUIRE(stage.project.name == "Staged Project");
   REQUIRE(stage.project.projectDirectory == root);
 
@@ -393,6 +394,52 @@ SCENARIO("SciVis Studio project model serialization", "[SciVisStudio]")
       REQUIRE(loaded.shots.front().renderSettings.rendererObjectIndex == 7);
       REQUIRE(loaded.shots.front().renderSettings.rendererSubtype
           == "dummy_test_renderer");
+    }
+  }
+}
+
+SCENARIO("SciVis Studio dataset residency round-trips through the manifest",
+    "[SciVisStudio]")
+{
+  GIVEN("A project with a Loaded and an Unloaded dataset")
+  {
+    Project project;
+    Dataset resident;
+    resident.id = "dataset_0001";
+    resident.name = "Resident";
+    project.datasets.push_back(std::move(resident));
+    Dataset parked;
+    parked.id = "dataset_0002";
+    parked.name = "Parked";
+    parked.residency = DatasetResidency::Unloaded;
+    project.datasets.push_back(std::move(parked));
+
+    tsd::core::DataTree tree;
+    projectToNode(project, tree.root());
+
+    THEN("Residency survives the manifest round trip")
+    {
+      Project loaded;
+      REQUIRE(nodeToProject(tree.root(), loaded));
+      REQUIRE(loaded.datasets.size() == 2);
+      REQUIRE(loaded.datasets[0].residency == DatasetResidency::Loaded);
+      REQUIRE(loaded.datasets[1].residency == DatasetResidency::Unloaded);
+    }
+  }
+
+  GIVEN("A manifest whose datasets predate residency")
+  {
+    tsd::core::DataTree legacy;
+    auto &d = legacy.root()["datasets"].append();
+    d["id"] = std::string("dataset_0001");
+    d["name"] = std::string("Old");
+
+    THEN("An absent residency field means Loaded")
+    {
+      Project loaded;
+      REQUIRE(nodeToProject(legacy.root(), loaded));
+      REQUIRE(loaded.datasets.size() == 1);
+      REQUIRE(loaded.datasets.front().residency == DatasetResidency::Loaded);
     }
   }
 }
@@ -754,6 +801,7 @@ SCENARIO("SciVis Studio shot dataset bindings update scene visibility",
       "OBJ",
       {},
       DatasetStatus::Available,
+      DatasetResidency::Loaded,
       projectContext.refFor("studio", datasetRoot)});
 
   auto &shot = *project::activeShot(project);
@@ -793,6 +841,7 @@ SCENARIO("SciVis Studio dataset binding resolves the dataset group by ID",
       "VTP",
       {},
       DatasetStatus::Available,
+      DatasetResidency::Loaded,
       projectContext.refFor("studio", partRoot)});
 
   auto &shot = *project::activeShot(project);
@@ -833,6 +882,7 @@ SCENARIO("SciVis Studio saved projects rebuild runtime refs from stable IDs",
         "VTP",
         {},
         DatasetStatus::Available,
+        DatasetResidency::Loaded,
         projectContext.refFor("studio", datasetRoot)});
     shot::setDatasetBinding(
         *project::activeShot(project), "dataset_0001", false);
@@ -930,7 +980,7 @@ SCENARIO("SciVis Studio projects store scene pools in required Archives",
     auto metadata = tsd::core::readDataTreeMetadata(manifest.root());
     REQUIRE(metadata.found());
     REQUIRE(metadata.metadata->schemaVersion == SCHEMA_VERSION);
-    REQUIRE(SCHEMA_VERSION == 6);
+    REQUIRE(SCHEMA_VERSION == 7);
     REQUIRE(manifest.root().child("context") == nullptr);
 
     tsd::core::DataTree cameras;
@@ -1437,6 +1487,582 @@ SCENARIO("SciVis Studio dataset lifecycle workflows preserve asset semantics",
   std::filesystem::remove_all(root);
   std::filesystem::remove(source);
   std::filesystem::remove(savedArchive);
+}
+
+SCENARIO("SciVis Studio unloads a clean dataset without touching its asset",
+    "[SciVisStudio]")
+{
+  const auto root = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_dataset_unload";
+  const auto source = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_dataset_unload.obj";
+  std::filesystem::remove_all(root);
+  std::filesystem::remove(source);
+  {
+    std::ofstream obj(source);
+    obj << "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n";
+  }
+
+  tsd::app::Context appContext;
+  ProjectContext projectContext(&appContext);
+  projectContext.createUnsavedProject();
+  auto *dataset = projectContext.addStaticDataset(
+      "Mesh", source, tsd::io::ImporterType::OBJ);
+  REQUIRE(dataset);
+  const auto datasetId = dataset->id;
+  REQUIRE(projectContext.saveProject(root));
+
+  auto &project = projectContext.project();
+  auto &record = project.datasets.front();
+  REQUIRE_FALSE(record.dirty);
+  REQUIRE_FALSE(project.dirty);
+  const auto assetFile = root / "datasets" / "Mesh.tsd";
+  const auto assetWriteTime = std::filesystem::last_write_time(assetFile);
+  const auto geometryCount =
+      appContext.tsd.scene.numberOfObjects(ANARI_GEOMETRY);
+  REQUIRE(geometryCount > 0);
+
+  std::string error;
+  REQUIRE(projectContext.unloadDataset(datasetId, &error));
+
+  THEN("The runtime representation is gone but the inventory entry remains")
+  {
+    REQUIRE(record.residency == DatasetResidency::Unloaded);
+    REQUIRE(record.status == DatasetStatus::Available);
+    REQUIRE_FALSE(projectContext.resolveDatasetRoot(record));
+    REQUIRE(appContext.tsd.scene.numberOfObjects(ANARI_GEOMETRY)
+        < geometryCount);
+    REQUIRE(record.id == datasetId);
+    REQUIRE_FALSE(record.dirty);
+    REQUIRE(
+        shot::findDatasetBinding(*project::activeShot(project), datasetId));
+  }
+
+  THEN("Unload marks the project dirty and never writes to disk")
+  {
+    REQUIRE(project.dirty);
+    REQUIRE(std::filesystem::last_write_time(assetFile) == assetWriteTime);
+  }
+
+  std::filesystem::remove_all(root);
+  std::filesystem::remove(source);
+}
+
+SCENARIO("SciVis Studio Dataset Load recreates the runtime from the asset",
+    "[SciVisStudio]")
+{
+  const auto root = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_dataset_load";
+  const auto source = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_dataset_load.obj";
+  std::filesystem::remove_all(root);
+  std::filesystem::remove(source);
+  {
+    std::ofstream obj(source);
+    obj << "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n";
+  }
+
+  tsd::app::Context appContext;
+  ProjectContext projectContext(&appContext);
+  projectContext.createUnsavedProject();
+  auto *dataset = projectContext.addStaticDataset(
+      "Mesh", source, tsd::io::ImporterType::OBJ);
+  REQUIRE(dataset);
+  const auto datasetId = dataset->id;
+  REQUIRE(projectContext.saveProject(root));
+
+  auto &project = projectContext.project();
+  auto &record = project.datasets.front();
+  const auto geometryCount =
+      appContext.tsd.scene.numberOfObjects(ANARI_GEOMETRY);
+  const auto savedFrameCount = project::activeShot(project)->frameCount;
+  const auto savedCurrentFrame = project::activeShot(project)->currentFrame;
+
+  std::string error;
+  REQUIRE(projectContext.unloadDataset(datasetId, &error));
+  REQUIRE(projectContext.loadDataset(datasetId, &error));
+
+  THEN("The dataset is resident again with its identity intact")
+  {
+    REQUIRE(record.residency == DatasetResidency::Loaded);
+    REQUIRE(record.status == DatasetStatus::Available);
+    REQUIRE(record.id == datasetId);
+    REQUIRE(record.name == "Mesh");
+    REQUIRE_FALSE(record.dirty);
+    auto datasetRoot = projectContext.resolveDatasetRoot(record);
+    REQUIRE(datasetRoot);
+    REQUIRE((*datasetRoot)->isEnabled());
+    REQUIRE(appContext.tsd.scene.numberOfObjects(ANARI_GEOMETRY)
+        == geometryCount);
+    REQUIRE(
+        shot::findDatasetBinding(*project::activeShot(project), datasetId));
+    REQUIRE(project.dirty);
+  }
+
+  THEN("Dataset Load never mutates shot state")
+  {
+    REQUIRE(project::activeShot(project)->frameCount == savedFrameCount);
+    REQUIRE(project::activeShot(project)->currentFrame == savedCurrentFrame);
+  }
+
+  THEN("Loading an already-loaded dataset is a no-op success")
+  {
+    REQUIRE(projectContext.loadDataset(datasetId, &error));
+    REQUIRE(appContext.tsd.scene.numberOfObjects(ANARI_GEOMETRY)
+        == geometryCount);
+  }
+
+  std::filesystem::remove_all(root);
+  std::filesystem::remove(source);
+}
+
+SCENARIO("SciVis Studio residency guards keep unloaded datasets read-only",
+    "[SciVisStudio]")
+{
+  const auto root = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_residency_guards";
+  const auto source = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_residency_guards.obj";
+  std::filesystem::remove_all(root);
+  std::filesystem::remove(source);
+  {
+    std::ofstream obj(source);
+    obj << "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n";
+  }
+
+  tsd::app::Context appContext;
+  ProjectContext projectContext(&appContext);
+  projectContext.createUnsavedProject();
+  auto *dataset = projectContext.addStaticDataset(
+      "Mesh", source, tsd::io::ImporterType::OBJ);
+  REQUIRE(dataset);
+  const auto datasetId = dataset->id;
+  REQUIRE(projectContext.saveProject(root));
+  auto &project = projectContext.project();
+  auto &record = project.datasets.front();
+
+  GIVEN("A dirty dataset")
+  {
+    record.dirty = true;
+
+    THEN("Unload refuses rather than discard unsaved changes")
+    {
+      std::string error;
+      REQUIRE_FALSE(projectContext.unloadDataset(datasetId, &error));
+      REQUIRE(error.find("save") != std::string::npos);
+      REQUIRE(record.residency == DatasetResidency::Loaded);
+      REQUIRE(projectContext.resolveDatasetRoot(record));
+    }
+  }
+
+  GIVEN("A dataset that is importing")
+  {
+    record.status = DatasetStatus::Importing;
+
+    THEN("Unload refuses")
+    {
+      std::string error;
+      REQUIRE_FALSE(projectContext.unloadDataset(datasetId, &error));
+      REQUIRE(record.residency == DatasetResidency::Loaded);
+    }
+  }
+
+  GIVEN("An unloaded dataset")
+  {
+    std::string error;
+    REQUIRE(projectContext.unloadDataset(datasetId, &error));
+
+    THEN("Operations that touch the asset require loading first")
+    {
+      REQUIRE_FALSE(projectContext.renameDataset(datasetId, "Other", &error));
+      REQUIRE(error.find("load") != std::string::npos);
+      REQUIRE(record.name == "Mesh");
+      REQUIRE_FALSE(projectContext.reimportStaticDataset(datasetId, &error));
+      const auto archive = root / "standalone.tsd";
+      REQUIRE_FALSE(
+          projectContext.saveDatasetArchive(datasetId, archive, &error));
+      REQUIRE_FALSE(std::filesystem::exists(archive));
+    }
+
+    THEN("Shot bindings and Dataset Removal remain available")
+    {
+      auto *shot = project::activeShot(project);
+      shot::setDatasetBinding(*shot, datasetId, false);
+      REQUIRE_FALSE(shot::findDatasetBinding(*shot, datasetId)->enabled);
+
+      REQUIRE(projectContext.removeDataset(datasetId, false, &error));
+      REQUIRE(project.datasets.empty());
+      REQUIRE_FALSE(std::filesystem::exists(root / "datasets" / "Mesh.tsd"));
+    }
+
+    THEN("A failed load changes nothing except revealing unavailability")
+    {
+      std::filesystem::remove(root / "datasets" / "Mesh.tsd");
+      const auto objectCount =
+          appContext.tsd.scene.numberOfObjects(ANARI_GEOMETRY);
+      REQUIRE_FALSE(projectContext.loadDataset(datasetId, &error));
+      REQUIRE(record.residency == DatasetResidency::Unloaded);
+      REQUIRE(record.status == DatasetStatus::Unavailable);
+      REQUIRE_FALSE(projectContext.resolveDatasetRoot(record));
+      REQUIRE(appContext.tsd.scene.numberOfObjects(ANARI_GEOMETRY)
+          == objectCount);
+    }
+  }
+
+  GIVEN("A loaded dataset whose asset file has vanished")
+  {
+    std::filesystem::remove(root / "datasets" / "Mesh.tsd");
+
+    THEN("Unload refuses rather than discard the only copy of the data")
+    {
+      std::string error;
+      REQUIRE_FALSE(projectContext.unloadDataset(datasetId, &error));
+      REQUIRE(error.find("missing") != std::string::npos);
+      REQUIRE(record.residency == DatasetResidency::Loaded);
+      REQUIRE(projectContext.resolveDatasetRoot(record));
+    }
+  }
+
+  std::filesystem::remove_all(root);
+  std::filesystem::remove(source);
+}
+
+SCENARIO("SciVis Studio dataset residency survives save and open",
+    "[SciVisStudio]")
+{
+  const auto root = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_residency_roundtrip";
+  const auto source = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_residency_roundtrip.obj";
+  std::filesystem::remove_all(root);
+  std::filesystem::remove(source);
+  {
+    std::ofstream obj(source);
+    obj << "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n";
+  }
+
+  DatasetID datasetId;
+  {
+    tsd::app::Context appContext;
+    ProjectContext projectContext(&appContext);
+    projectContext.createUnsavedProject();
+    auto *dataset = projectContext.addStaticDataset(
+        "Mesh", source, tsd::io::ImporterType::OBJ);
+    REQUIRE(dataset);
+    datasetId = dataset->id;
+    REQUIRE(projectContext.saveProject(root));
+    REQUIRE(projectContext.unloadDataset(datasetId));
+    // Saving with an unloaded dataset persists residency without needing the
+    // runtime.
+    REQUIRE(projectContext.saveProject(root));
+    REQUIRE_FALSE(projectContext.project().dirty);
+  }
+
+  {
+    tsd::app::Context appContext;
+    ProjectContext projectContext(&appContext);
+    REQUIRE(projectContext.openProject(root));
+    auto &project = projectContext.project();
+    REQUIRE(project.datasets.size() == 1);
+    auto &record = project.datasets.front();
+
+    THEN("Opening hydrates only resident datasets")
+    {
+      REQUIRE(record.residency == DatasetResidency::Unloaded);
+      REQUIRE(record.status == DatasetStatus::Available);
+      REQUIRE_FALSE(record.dirty);
+      REQUIRE_FALSE(project.dirty);
+      REQUIRE_FALSE(projectContext.resolveDatasetRoot(record));
+      REQUIRE(appContext.tsd.scene.numberOfObjects(ANARI_GEOMETRY) == 0);
+    }
+
+    THEN("An explicit Dataset Load brings it back into the scene")
+    {
+      REQUIRE(projectContext.loadDataset(datasetId));
+      REQUIRE(record.residency == DatasetResidency::Loaded);
+      REQUIRE(appContext.tsd.scene.numberOfObjects(ANARI_GEOMETRY) > 0);
+    }
+  }
+
+  std::filesystem::remove(root / "datasets" / "Mesh.tsd");
+  {
+    tsd::app::Context appContext;
+    ProjectContext projectContext(&appContext);
+    REQUIRE(projectContext.openProject(root));
+    auto &record = projectContext.project().datasets.front();
+
+    THEN("A missing asset makes an unloaded dataset definitively Unavailable")
+    {
+      REQUIRE(record.residency == DatasetResidency::Unloaded);
+      REQUIRE(record.status == DatasetStatus::Unavailable);
+    }
+  }
+
+  std::filesystem::remove_all(root);
+  std::filesystem::remove(source);
+}
+
+SCENARIO("SciVis Studio Save As requires every dataset to be loaded",
+    "[SciVisStudio]")
+{
+  const auto root = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_save_as_residency";
+  const auto destination = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_save_as_residency_destination";
+  const auto source = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_save_as_residency.obj";
+  std::filesystem::remove_all(root);
+  std::filesystem::remove_all(destination);
+  std::filesystem::remove(source);
+  {
+    std::ofstream obj(source);
+    obj << "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n";
+  }
+
+  tsd::app::Context appContext;
+  ProjectContext projectContext(&appContext);
+  projectContext.createUnsavedProject();
+  auto *dataset = projectContext.addStaticDataset(
+      "Mesh", source, tsd::io::ImporterType::OBJ);
+  REQUIRE(dataset);
+  const auto datasetId = dataset->id;
+  REQUIRE(projectContext.saveProject(root));
+  REQUIRE(projectContext.unloadDataset(datasetId));
+
+  std::string error;
+  REQUIRE_FALSE(
+      projectContext.saveProject(destination, nullptr, "", nullptr, &error));
+  REQUIRE(error.find("Mesh") != std::string::npos);
+  REQUIRE_FALSE(
+      std::filesystem::exists(destination / PROJECT_MANIFEST_FILENAME));
+
+  std::filesystem::remove_all(root);
+  std::filesystem::remove_all(destination);
+  std::filesystem::remove(source);
+}
+
+SCENARIO("SciVis Studio --openUnloaded overrides initial residency",
+    "[SciVisStudio]")
+{
+  GIVEN("The application command line")
+  {
+    tsd::app::Context appContext;
+    std::vector<std::string> args{
+        "scivisStudio", "--openUnloaded", "/some/project"};
+    appContext.parseCommandLine(args);
+
+    THEN("--openUnloaded is recognized alongside the project directory")
+    {
+      REQUIRE(appContext.commandLine.openUnloaded);
+      REQUIRE(appContext.commandLine.stateFile == "/some/project");
+    }
+  }
+
+  const auto root = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_open_unloaded";
+  const auto source = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_open_unloaded.obj";
+  std::filesystem::remove_all(root);
+  std::filesystem::remove(source);
+  {
+    std::ofstream obj(source);
+    obj << "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n";
+  }
+
+  {
+    tsd::app::Context appContext;
+    ProjectContext projectContext(&appContext);
+    projectContext.createUnsavedProject();
+    REQUIRE(projectContext.addStaticDataset(
+        "Mesh", source, tsd::io::ImporterType::OBJ));
+    REQUIRE(projectContext.saveProject(root));
+  }
+
+  ProjectOpenOptions openUnloaded;
+  openUnloaded.openUnloaded = true;
+
+  {
+    tsd::app::Context appContext;
+    ProjectContext projectContext(&appContext);
+    std::string error;
+    REQUIRE(projectContext.openProject(
+        root, nullptr, nullptr, nullptr, &error, openUnloaded));
+    auto &project = projectContext.project();
+    auto &record = project.datasets.front();
+
+    THEN("The override changes initial residency and dirties the project")
+    {
+      REQUIRE(record.residency == DatasetResidency::Unloaded);
+      REQUIRE(record.status == DatasetStatus::Available);
+      REQUIRE_FALSE(projectContext.resolveDatasetRoot(record));
+      REQUIRE(appContext.tsd.scene.numberOfObjects(ANARI_GEOMETRY) == 0);
+      REQUIRE(project.dirty);
+    }
+
+    // Session residency is the single source of truth: saving persists it.
+    REQUIRE(projectContext.saveProject(root));
+  }
+
+  {
+    tsd::app::Context appContext;
+    ProjectContext projectContext(&appContext);
+    std::string error;
+    REQUIRE(projectContext.openProject(
+        root, nullptr, nullptr, nullptr, &error, openUnloaded));
+
+    THEN("An override that changes nothing leaves the project clean")
+    {
+      auto &project = projectContext.project();
+      REQUIRE(
+          project.datasets.front().residency == DatasetResidency::Unloaded);
+      REQUIRE_FALSE(project.dirty);
+    }
+  }
+
+  GIVEN("A pre-v5 legacy project with an embedded dataset")
+  {
+    const auto legacyRoot = std::filesystem::temp_directory_path()
+        / "tsd_scivis_studio_open_unloaded_legacy";
+    std::filesystem::remove_all(legacyRoot);
+    std::filesystem::create_directories(legacyRoot);
+    {
+      tsd::app::Context legacyContext;
+      ProjectContext legacyProject(&legacyContext);
+      legacyProject.createUnsavedProject();
+      auto &project = legacyProject.project();
+      auto &scene = legacyContext.tsd.scene;
+      auto datasetsRoot =
+          findDirectChild(scene.layer("studio")->root(), "datasets");
+      auto datasetRoot = scene.insertChildNode(datasetsRoot, "dataset_0042");
+      auto geometry = scene.createObject<tsd::scene::Geometry>(
+          tsd::scene::tokens::geometry::sphere);
+      auto material = scene.createObject<tsd::scene::Material>(
+          tsd::scene::tokens::material::matte);
+      auto surface = scene.createSurface("legacy surface", geometry, material);
+      scene.insertChildObjectNode(datasetRoot, surface, "surface");
+      Dataset dataset;
+      dataset.id = "dataset_0042";
+      dataset.name = "Legacy Dataset";
+      dataset.status = DatasetStatus::Available;
+      dataset.rootNode = legacyProject.refFor("studio", datasetRoot);
+      project.datasets.push_back(dataset);
+
+      tsd::core::DataTree tree;
+      tsd::core::writeDataTreeMetadata(tree.root(),
+          {tsd::core::DATA_TREE_METADATA_ENVELOPE_VERSION,
+              PROJECT_FILE_TYPE,
+              PROJECT_SCHEMA,
+              4});
+      projectToNode(project, tree.root()["scivisStudio"]);
+      auto *datasetNode = tree.root()["scivisStudio"]["datasets"].child(0);
+      REQUIRE(datasetNode);
+      (*datasetNode)["sourceKind"] = "Static";
+      (*datasetNode)["importerType"] = "OBJ";
+      (*datasetNode)["status"] = "Available";
+      tsd::app::detail::serializeLegacyApplicationContext(
+          legacyContext, tree.root()["context"]);
+      REQUIRE(
+          tree.save((legacyRoot / PROJECT_MANIFEST_FILENAME).string().c_str()));
+    }
+
+    THEN("--openUnloaded is ignored and the project remains saveable")
+    {
+      tsd::app::Context appContext;
+      ProjectContext projectContext(&appContext);
+      std::string error;
+      REQUIRE(projectContext.openProject(
+          legacyRoot, nullptr, nullptr, nullptr, &error, openUnloaded));
+      auto &record = projectContext.project().datasets.front();
+      REQUIRE(record.residency == DatasetResidency::Loaded);
+      REQUIRE(record.status == DatasetStatus::Available);
+      REQUIRE(projectContext.saveProject(legacyRoot));
+    }
+    std::filesystem::remove_all(legacyRoot);
+  }
+
+  std::filesystem::remove_all(root);
+  std::filesystem::remove(source);
+}
+
+SCENARIO("SciVis Studio shot rendering materializes bound datasets",
+    "[SciVisStudio]")
+{
+  const auto root = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_render_residency";
+  const auto source = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_render_residency.obj";
+  std::filesystem::remove_all(root);
+  std::filesystem::remove(source);
+  {
+    std::ofstream obj(source);
+    obj << "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n";
+  }
+
+  tsd::app::Context appContext;
+  ProjectContext projectContext(&appContext);
+  projectContext.createUnsavedProject();
+  const auto firstId =
+      projectContext.addStaticDataset("First", source, tsd::io::ImporterType::OBJ)
+          ->id;
+  const auto secondId =
+      projectContext.addStaticDataset("Second", source, tsd::io::ImporterType::OBJ)
+          ->id;
+  const auto thirdId =
+      projectContext.addStaticDataset("Third", source, tsd::io::ImporterType::OBJ)
+          ->id;
+  REQUIRE(projectContext.saveProject(root));
+  REQUIRE(projectContext.unloadDataset(secondId));
+  REQUIRE(projectContext.unloadDataset(thirdId));
+  REQUIRE(projectContext.saveProject(root));
+
+  auto &project = projectContext.project();
+  auto *shot = project::activeShot(project);
+  shot::setDatasetBinding(*shot, thirdId, false);
+  auto *second = project::findDataset(project, secondId);
+  auto *third = project::findDataset(project, thirdId);
+
+  GIVEN("A bound, enabled dataset that is unloaded")
+  {
+    ShotDatasetResidencyRestore restore;
+    std::string error;
+    REQUIRE(makeShotDatasetsResident(projectContext, *shot, restore, &error));
+
+    THEN("It is materialized for the render and restored afterward")
+    {
+      REQUIRE(project::findDataset(project, firstId)->residency
+          == DatasetResidency::Loaded);
+      REQUIRE(second->residency == DatasetResidency::Loaded);
+      REQUIRE(second->status == DatasetStatus::Available);
+      // A disabled binding is not part of the shot's rendered intent.
+      REQUIRE(third->residency == DatasetResidency::Unloaded);
+      REQUIRE(restore.loadedForRender == std::vector<DatasetID>{secondId});
+
+      restoreShotDatasetResidency(projectContext, restore);
+      REQUIRE(second->residency == DatasetResidency::Unloaded);
+      REQUIRE_FALSE(projectContext.resolveDatasetRoot(*second));
+      // Temporary render loads never change what a save would persist.
+      REQUIRE_FALSE(project.dirty);
+    }
+  }
+
+  GIVEN("A bound, enabled dataset that cannot be made resident")
+  {
+    std::filesystem::remove(root / "datasets" / "Second.tsd");
+
+    THEN("Materialization hard-errors up front and restores what it loaded")
+    {
+      ShotDatasetResidencyRestore restore;
+      std::string error;
+      REQUIRE_FALSE(
+          makeShotDatasetsResident(projectContext, *shot, restore, &error));
+      REQUIRE(error.find("Second") != std::string::npos);
+      REQUIRE(second->residency == DatasetResidency::Unloaded);
+      REQUIRE_FALSE(project.dirty);
+    }
+  }
+
+  std::filesystem::remove_all(root);
+  std::filesystem::remove(source);
 }
 
 SCENARIO("SciVis Studio stages every dirty dataset before replacement",

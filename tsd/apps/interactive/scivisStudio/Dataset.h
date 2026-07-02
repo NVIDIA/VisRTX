@@ -49,6 +49,15 @@ enum class DatasetStatus
   ImportFailed
 };
 
+// Residency is a second axis alongside DatasetStatus: status assesses
+// availability and import progress, residency records whether the project has
+// been asked to keep the runtime representation in the scene.
+enum class DatasetResidency
+{
+  Loaded,
+  Unloaded
+};
+
 struct DatasetSourceMetadata
 {
   std::string sourcePath;
@@ -68,6 +77,7 @@ struct Dataset
   std::string importerType{"NONE"};
   DatasetSourceMetadata source;
   DatasetStatus status{DatasetStatus::Unavailable};
+  DatasetResidency residency{DatasetResidency::Loaded};
   SceneNodeRef rootNode;
   std::vector<DatasetSourceFile> sourceFiles;
 
@@ -82,8 +92,15 @@ namespace dataset {
 
 const char *toString(DatasetSourceKind kind);
 const char *toString(DatasetStatus status);
+const char *toString(DatasetResidency residency);
 DatasetSourceKind sourceKindFromString(const std::string &s);
 DatasetStatus statusFromString(const std::string &s);
+DatasetResidency residencyFromString(const std::string &s);
+
+// One derived status string for display: availability, import progress, and
+// residency collapse into Loaded / Unloaded / Unavailable / Importing /
+// Import Failed.
+const char *displayStatus(const Dataset &dataset);
 
 } // namespace dataset
 

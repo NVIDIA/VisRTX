@@ -65,15 +65,15 @@ void DatasetEditor::pollPendingFileIO()
     ImGui::OpenPopup("Dataset Archive Error");
 }
 
-void DatasetEditor::pollPendingReimport()
+void DatasetEditor::pollPendingAsyncTask()
 {
-  if (!m_pendingReimport
-      || !m_pendingReimport->complete.load(std::memory_order_acquire))
+  if (!m_pendingAsyncTask
+      || !m_pendingAsyncTask->complete.load(std::memory_order_acquire))
     return;
 
-  if (!m_pendingReimport->error.empty())
-    m_ioError = std::move(m_pendingReimport->error);
-  m_pendingReimport.reset();
+  if (!m_pendingAsyncTask->error.empty())
+    m_ioError = std::move(m_pendingAsyncTask->error);
+  m_pendingAsyncTask.reset();
   if (m_viewport)
     m_viewport->setRenderingEnabled(true);
 }
@@ -154,7 +154,7 @@ void DatasetEditor::buildUI()
     return;
 
   pollPendingFileIO();
-  pollPendingReimport();
+  pollPendingAsyncTask();
 
   if (ImGui::Button("Load Archive...")) {
     m_pendingFileIO = PendingFileIO::Load;
@@ -199,32 +199,54 @@ void DatasetEditor::buildUI()
   }
 
   auto &dataset = datasets[m_selectedDataset];
-  if (m_nameBufferDataset != dataset.id) {
-    m_nameBufferDataset = dataset.id;
-    m_nameBuffer = dataset.name;
-    m_nameError.clear();
-  }
-  std::vector<char> name(256, '\0');
-  std::strncpy(name.data(), m_nameBuffer.c_str(), name.size() - 1);
-  const bool submitted = ImGui::InputText(
-      "Name", name.data(), name.size(), ImGuiInputTextFlags_EnterReturnsTrue);
-  m_nameBuffer = name.data();
-  if (submitted || ImGui::IsItemDeactivatedAfterEdit()) {
-    std::string error;
-    if (m_nameBuffer == dataset.name)
-      m_nameError.clear();
-    else if (m_projectContext->renameDataset(dataset.id, m_nameBuffer, &error))
-      m_nameError.clear();
-    else {
-      m_nameError = error;
-      m_nameBuffer = dataset.name;
+  const bool unloaded = dataset.residency == DatasetResidency::Unloaded;
+  if (unloaded) {
+    // The availability hint stats the asset file; once a second is plenty and
+    // keeps a stalled network mount from hitching every frame.
+    const double now = ImGui::GetTime();
+    if (m_availabilityCheckDataset != dataset.id
+        || now - m_lastAvailabilityCheck >= 1.0) {
+      m_projectContext->refreshUnloadedDatasetAvailability(dataset);
+      m_availabilityCheckDataset = dataset.id;
+      m_lastAvailabilityCheck = now;
     }
   }
-  if (!m_nameError.empty())
-    ImGui::TextColored(ImVec4(1.f, 0.4f, 0.4f, 1.f), "%s", m_nameError.c_str());
+
+  // Unloaded datasets are read-only as assets, so content-editing controls
+  // (rename included: the asset stores the name) are hidden while Unloaded.
+  if (unloaded) {
+    ImGui::Text("Name: %s", dataset.name.c_str());
+  } else {
+    if (m_nameBufferDataset != dataset.id) {
+      m_nameBufferDataset = dataset.id;
+      m_nameBuffer = dataset.name;
+      m_nameError.clear();
+    }
+    std::vector<char> name(256, '\0');
+    std::strncpy(name.data(), m_nameBuffer.c_str(), name.size() - 1);
+    const bool submitted = ImGui::InputText(
+        "Name", name.data(), name.size(), ImGuiInputTextFlags_EnterReturnsTrue);
+    m_nameBuffer = name.data();
+    if (submitted || ImGui::IsItemDeactivatedAfterEdit()) {
+      std::string error;
+      if (m_nameBuffer == dataset.name)
+        m_nameError.clear();
+      else if (m_projectContext->renameDataset(
+                   dataset.id, m_nameBuffer, &error))
+        m_nameError.clear();
+      else {
+        m_nameError = error;
+        m_nameBuffer = dataset.name;
+      }
+    }
+    if (!m_nameError.empty()) {
+      ImGui::TextColored(
+          ImVec4(1.f, 0.4f, 0.4f, 1.f), "%s", m_nameError.c_str());
+    }
+  }
 
   ImGui::Text("ID: %s", dataset.id.c_str());
-  ImGui::Text("Status: %s", dataset::toString(dataset.status));
+  ImGui::Text("Status: %s", dataset::displayStatus(dataset));
   ImGui::Text("Source kind: %s", dataset::toString(dataset.sourceKind));
   ImGui::Text("Importer: %s", dataset.importerType.c_str());
   ImGui::TextWrapped("Source: %s", dataset.source.sourcePath.c_str());
@@ -248,11 +270,13 @@ void DatasetEditor::buildUI()
       ImGui::TreePop();
     }
   }
-  ImGui::Text("Root: %s/%zu",
-      dataset.rootNode.layerName.c_str(),
-      dataset.rootNode.nodeIndex);
+  if (!unloaded) {
+    ImGui::Text("Root: %s/%zu",
+        dataset.rootNode.layerName.c_str(),
+        dataset.rootNode.nodeIndex);
+  }
 
-  ImGui::BeginDisabled(dataset.status != DatasetStatus::Available);
+  ImGui::BeginDisabled(unloaded || dataset.status != DatasetStatus::Available);
   if (ImGui::Button("Save Archive...")) {
     m_pendingFileIO = PendingFileIO::Save;
     m_pendingSaveDataset = dataset.id;
@@ -262,15 +286,16 @@ void DatasetEditor::buildUI()
   }
   ImGui::EndDisabled();
   ImGui::SameLine();
-  ImGui::BeginDisabled(dataset.sourceKind != DatasetSourceKind::Static
+  ImGui::BeginDisabled(unloaded
+      || dataset.sourceKind != DatasetSourceKind::Static
       || dataset.source.sourcePath.empty());
   if (ImGui::Button("Reimport")) {
     const auto datasetId = dataset.id;
-    m_pendingReimport = std::make_shared<ReimportResult>();
+    m_pendingAsyncTask = std::make_shared<AsyncTaskResult>();
     if (m_viewport)
       m_viewport->setRenderingEnabled(false);
     m_app->showTaskModal(
-        [ctx = m_projectContext, datasetId, result = m_pendingReimport]() {
+        [ctx = m_projectContext, datasetId, result = m_pendingAsyncTask]() {
           try {
             ctx->reimportStaticDataset(datasetId, &result->error);
           } catch (const std::exception &e) {
@@ -283,6 +308,50 @@ void DatasetEditor::buildUI()
         "Reimporting Dataset...");
   }
   ImGui::EndDisabled();
+  ImGui::SameLine();
+  if (unloaded) {
+    if (ImGui::Button("Load")) {
+      const auto datasetId = dataset.id;
+      m_pendingAsyncTask = std::make_shared<AsyncTaskResult>();
+      if (m_viewport)
+        m_viewport->setRenderingEnabled(false);
+      m_app->showTaskModal(
+          [ctx = m_projectContext, datasetId, result = m_pendingAsyncTask]() {
+            try {
+              ctx->loadDataset(datasetId, &result->error);
+            } catch (const std::exception &e) {
+              result->error = std::string("dataset load failed: ") + e.what();
+            } catch (...) {
+              result->error = "dataset load failed";
+            }
+            result->complete.store(true, std::memory_order_release);
+          },
+          "Loading Dataset...");
+    }
+  } else {
+    const char *unloadBlockedReason = nullptr;
+    if (dataset.dirty) {
+      unloadBlockedReason =
+          "The dataset has unsaved changes. Save the project first; "
+          "unloading never discards changes.";
+    } else if (dataset.status == DatasetStatus::Importing) {
+      unloadBlockedReason = "The dataset is still importing.";
+    } else if (dataset.persistedName.empty()) {
+      unloadBlockedReason =
+          "The dataset has never been saved, so there is no asset to load "
+          "it back from.";
+    }
+    ImGui::BeginDisabled(unloadBlockedReason != nullptr);
+    if (ImGui::Button("Unload")) {
+      std::string error;
+      if (!m_projectContext->unloadDataset(dataset.id, &error))
+        m_ioError = error;
+    }
+    ImGui::EndDisabled();
+    if (unloadBlockedReason
+        && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+      ImGui::SetTooltip("%s", unloadBlockedReason);
+  }
   ImGui::SameLine();
   if (ImGui::Button("Remove...")) {
     m_pendingRemoveDataset = dataset.id;

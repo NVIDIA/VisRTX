@@ -207,14 +207,18 @@ bool buildProjectSavePlan(const ProjectSaveRequest &request,
     return fail("target directory already contains project.tsd", error);
 
   if (!savingCurrent) {
-    std::vector<std::string> unavailable;
+    // Save As serializes every dataset from its runtime, so each one must be
+    // available and resident; unloaded datasets are read-only as assets.
+    std::vector<std::string> notWritable;
     for (const auto &dataset : request.project.datasets) {
-      if (dataset.status != DatasetStatus::Available)
-        unavailable.push_back(dataset.name);
+      if (dataset.status != DatasetStatus::Available
+          || dataset.residency == DatasetResidency::Unloaded)
+        notWritable.push_back(dataset.name);
     }
-    if (!unavailable.empty()) {
-      std::string message = "Save As requires every dataset to be available:";
-      for (const auto &name : unavailable)
+    if (!notWritable.empty()) {
+      std::string message =
+          "Save As requires every dataset to be loaded and available:";
+      for (const auto &name : notWritable)
         message += "\n- " + name;
       return fail(std::move(message), error);
     }
@@ -260,6 +264,11 @@ bool buildProjectSavePlan(const ProjectSaveRequest &request,
         || liveDataset.persistedName != savedDataset.name;
     if (!needsWrite)
       continue;
+    if (savedDataset.residency == DatasetResidency::Unloaded) {
+      return fail("dataset '" + savedDataset.name
+              + "' is unloaded and cannot be rewritten",
+          error);
+    }
     if (savedDataset.status != DatasetStatus::Available) {
       return fail("dataset '" + savedDataset.name
               + "' is unavailable and cannot be saved",

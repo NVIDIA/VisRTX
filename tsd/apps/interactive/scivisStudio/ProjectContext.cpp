@@ -264,6 +264,7 @@ void ProjectContext::installDatasetDirtyDelegate()
 void ProjectContext::markDatasetDirtyForObject(const tsd::scene::Object *object)
 {
   if (!m_ctx || !object || m_syncingAnimationManager
+      || m_mutatingDatasetRuntime
       || m_ctx->tsd.animationMgr.isApplyingAnimations())
     return;
   for (auto &dataset : m_project.datasets) {
@@ -1004,6 +1005,11 @@ Dataset *ProjectContext::addFileAnimationDataset(const std::string &name,
 bool ProjectContext::renameDataset(
     const DatasetID &id, const std::string &newName, std::string *error)
 {
+  // The asset stores the name and open cross-checks it, so renaming must be
+  // able to rewrite the asset: unloaded datasets are read-only.
+  if (auto *dataset = project::findDataset(m_project, id);
+      dataset && dataset->residency == DatasetResidency::Unloaded)
+    return fail("dataset must be loaded to rename it", error);
   if (!renameAssetImpl(m_project.datasets, id, newName, "dataset", error))
     return false;
   auto *dataset = project::findDataset(m_project, id);
@@ -1011,6 +1017,143 @@ bool ProjectContext::renameDataset(
       || dataset->name != dataset->persistedName;
   m_project.markDirty();
   return true;
+}
+
+bool ProjectContext::loadDataset(const DatasetID &id, std::string *error)
+{
+  if (!m_ctx)
+    return fail("missing TSD application context", error);
+  auto *dataset = project::findDataset(m_project, id);
+  if (!dataset)
+    return fail("dataset not found", error);
+  if (dataset->residency == DatasetResidency::Loaded)
+    return true;
+  if (m_project.projectDirectory.empty() || dataset->persistedName.empty())
+    return fail("dataset has no saved asset to load", error);
+
+  const auto file = m_project.projectDirectory / "datasets"
+      / (dataset->persistedName + ".tsd");
+  Dataset loaded;
+  tsd::scene::LayerNodeRef loadedRoot;
+  std::string loadError;
+  m_mutatingDatasetRuntime = true;
+  const bool loadedAsset = loadDatasetArchiveFile(m_ctx->tsd.scene,
+      m_ctx->tsd.animationMgr,
+      file,
+      ensureDatasetsRoot(),
+      loaded,
+      loadedRoot,
+      &loadError);
+  if (!loadedAsset) {
+    m_mutatingDatasetRuntime = false;
+    // A failed load changes nothing: the dataset stays Unloaded and is now
+    // known to be Unavailable until its asset is restored.
+    dataset->status = DatasetStatus::Unavailable;
+    return fail(
+        "failed to load dataset '" + dataset->name + "': " + loadError, error);
+  }
+
+  if (loaded.name != dataset->name) {
+    removeDatasetRuntime(m_ctx->tsd.scene, m_ctx->tsd.animationMgr, loadedRoot);
+    m_mutatingDatasetRuntime = false;
+    dataset->status = DatasetStatus::Unavailable;
+    return fail("dataset asset name '" + loaded.name
+            + "' does not match inventory name '" + dataset->name + "'",
+        error);
+  }
+  m_mutatingDatasetRuntime = false;
+
+  loaded.id = dataset->id;
+  loaded.persistedName = dataset->persistedName;
+  loaded.dirty = false;
+  loaded.residency = DatasetResidency::Loaded;
+  (*loadedRoot)->name() = loaded.id;
+  loaded.rootNode = refFor("studio", loadedRoot);
+  *dataset = std::move(loaded);
+  m_project.markDirty();
+  syncAnimationManagerToActiveShot();
+  applyActiveShot();
+  return true;
+}
+
+bool ProjectContext::unloadDataset(const DatasetID &id, std::string *error)
+{
+  if (!m_ctx)
+    return fail("missing TSD application context", error);
+  auto *dataset = project::findDataset(m_project, id);
+  if (!dataset)
+    return fail("dataset not found", error);
+  if (dataset->residency == DatasetResidency::Unloaded)
+    return true;
+  if (dataset->status == DatasetStatus::Importing)
+    return fail("dataset is importing and cannot be unloaded", error);
+  if (dataset->dirty)
+    return fail(
+        "dataset has unsaved changes; save the project before unloading",
+        error);
+  if (dataset->persistedName.empty())
+    return fail("dataset has no saved asset to load it back from", error);
+
+  // Never discard the only copy of the data: the managed asset must still be
+  // on disk before the runtime representation is destroyed.
+  {
+    std::error_code ec;
+    const bool assetExists = !m_project.projectDirectory.empty()
+        && std::filesystem::exists(m_project.projectDirectory / "datasets"
+                / (dataset->persistedName + ".tsd"),
+            ec)
+        && !ec;
+    if (!assetExists) {
+      dataset->status = DatasetStatus::Unavailable;
+      return fail("dataset asset '" + dataset->persistedName
+              + ".tsd' is missing on disk; unloading would discard the only "
+                "copy of the data",
+          error);
+    }
+  }
+
+  if (auto root = resolveDatasetRoot(*dataset)) {
+    // Selection holds plain layer-node refs that would dangle once the
+    // subtree is gone; only a selection inside this dataset is affected.
+    const auto &selected = m_ctx->tsd.selectedNodes;
+    auto *layer = (*root)->layer();
+    const bool selectionInDataset = std::any_of(
+        selected.begin(), selected.end(), [&](tsd::scene::LayerNodeRef node) {
+          return node && (*node)->layer() == layer
+              && (node == root || layer->isAncestorOf(root, node));
+        });
+    if (selectionInDataset)
+      m_ctx->clearSelected();
+
+    m_mutatingDatasetRuntime = true;
+    const bool removed =
+        removeDatasetRuntime(m_ctx->tsd.scene, m_ctx->tsd.animationMgr, root);
+    m_mutatingDatasetRuntime = false;
+    if (!removed) {
+      return fail(
+          "failed to release the dataset's runtime representation "
+          "(see log for details)",
+          error);
+    }
+  }
+  dataset->rootNode = {};
+  dataset->residency = DatasetResidency::Unloaded;
+  m_project.markDirty();
+  applyActiveShot();
+  return true;
+}
+
+void ProjectContext::refreshUnloadedDatasetAvailability(Dataset &dataset) const
+{
+  if (dataset.residency != DatasetResidency::Unloaded
+      || m_project.projectDirectory.empty() || dataset.persistedName.empty())
+    return;
+  std::error_code ec;
+  const bool exists = std::filesystem::exists(m_project.projectDirectory
+          / "datasets" / (dataset.persistedName + ".tsd"),
+      ec);
+  if (!exists || ec)
+    dataset.status = DatasetStatus::Unavailable;
 }
 
 bool ProjectContext::removeDataset(
@@ -1033,8 +1176,11 @@ bool ProjectContext::removeDataset(
   }
 
   if (m_ctx) {
-    if (auto root = resolveDatasetRoot(*itr))
+    if (auto root = resolveDatasetRoot(*itr)) {
+      m_mutatingDatasetRuntime = true;
       removeDatasetRuntime(m_ctx->tsd.scene, m_ctx->tsd.animationMgr, root);
+      m_mutatingDatasetRuntime = false;
+    }
   }
   for (auto &shot : m_project.shots) {
     shot.datasetBindings.erase(std::remove_if(shot.datasetBindings.begin(),
@@ -1058,6 +1204,8 @@ bool ProjectContext::saveDatasetArchive(
   auto *dataset = project::findDataset(m_project, id);
   if (!dataset)
     return fail("dataset not found", error);
+  if (dataset->residency == DatasetResidency::Unloaded)
+    return fail("dataset must be loaded to save an Archive", error);
   if (dataset->status != DatasetStatus::Available)
     return fail("dataset is unavailable", error);
   auto root = resolveDatasetRoot(*dataset);
@@ -1192,6 +1340,8 @@ bool ProjectContext::reimportStaticDataset(
   auto *dataset = project::findDataset(m_project, id);
   if (!dataset)
     return fail("dataset not found", error);
+  if (dataset->residency == DatasetResidency::Unloaded)
+    return fail("dataset must be loaded to reimport it", error);
   if (dataset->sourceKind != DatasetSourceKind::Static)
     return fail("only static datasets can be reimported", error);
   if (dataset->source.sourcePath.empty())
@@ -1405,13 +1555,14 @@ bool ProjectContext::openProject(const std::filesystem::path &directory,
     tsd::core::DataNode *windowsOut,
     std::string *layoutOut,
     tsd::core::DataNode *settingsOut,
-    std::string *error)
+    std::string *error,
+    const ProjectOpenOptions &options)
 {
   if (!m_ctx)
     return fail("missing TSD application context", error);
 
   ProjectOpenStage stage;
-  if (!stageProjectOpen(directory, stage, error))
+  if (!stageProjectOpen(directory, stage, options, error))
     return false;
 
   m_ctx->clearSelected();

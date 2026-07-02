@@ -77,7 +77,8 @@ class Application : public tsd::ui::imgui::Application
 
   bool saveProject();
   bool saveProjectAs(const std::filesystem::path &directory);
-  bool openProject(const std::filesystem::path &directory);
+  bool openProject(const std::filesystem::path &directory,
+      const ProjectOpenOptions &options = {});
   void newProject();
   void saveDefaultLayoutFile() const;
   void saveWindowSettings(tsd::core::DataNode &node);

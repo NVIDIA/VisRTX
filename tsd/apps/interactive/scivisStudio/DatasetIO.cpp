@@ -334,26 +334,53 @@ bool deserializeDatasetArchive(tsd::scene::Scene &scene,
   return true;
 }
 
-void removeDatasetRuntime(tsd::scene::Scene &scene,
+bool removeDatasetRuntime(tsd::scene::Scene &scene,
     tsd::animation::AnimationManager &animationManager,
     tsd::scene::LayerNodeRef root)
 {
   if (!root)
-    return;
+    return true;
 
   tsd::io::ArchivePlanOptions options;
   options.animationManager = &animationManager;
   const auto result = tsd::io::plan_SubtreeArchive(scene, root, options);
   if (!result.accepted()) {
     tsd::core::logError("[removeDatasetRuntime] %s", result.message.c_str());
-    return;
+    return false;
   }
 
   for (auto it = result.plan.ownedAnimations.rbegin();
        it != result.plan.ownedAnimations.rend();
        ++it)
     animationManager.removeAnimation(*it);
-  scene.removeNode(root, true);
+
+  scene.removeNode(root, false);
+
+  // Erase the subtree's whole object closure, not just the objects its leaf
+  // nodes referenced: a dataset owns everything reachable from its subtree
+  // (that is what its Archive serializes), and reclaiming that memory is the
+  // point of teardown. Objects still used elsewhere — e.g. the scene default
+  // material shared into an imported mesh — must survive, so only erase
+  // objects whose use count has dropped to zero, iterating to a fixpoint as
+  // dependents release their references.
+  std::vector<tsd::scene::Object *> pending;
+  pending.reserve(result.plan.objects.size());
+  for (const auto &object : result.plan.objects) {
+    if (object.source)
+      pending.push_back(object.source);
+  }
+  for (bool erased = true; erased && !pending.empty();) {
+    erased = false;
+    for (auto it = pending.begin(); it != pending.end();) {
+      if ((*it)->totalUseCount() == 0) {
+        scene.removeObject(*it);
+        it = pending.erase(it);
+        erased = true;
+      } else
+        ++it;
+    }
+  }
+  return true;
 }
 
 bool datasetRuntimeContainsObject(tsd::scene::Scene &scene,
