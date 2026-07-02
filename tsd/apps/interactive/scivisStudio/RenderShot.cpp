@@ -64,8 +64,14 @@ bool makeShotDatasetsResident(ProjectContext &projectContext,
     if (!binding.enabled)
       continue;
     auto *dataset = project::findDataset(project, binding.datasetId);
-    if (!dataset)
-      continue;
+    if (!dataset) {
+      restoreShotDatasetResidency(projectContext, restore);
+      if (error) {
+        *error = "enabled shot binding references a missing dataset: "
+            + binding.datasetId;
+      }
+      return false;
+    }
     if (dataset->residency == DatasetResidency::Unloaded) {
       std::string loadError;
       if (!projectContext.loadDataset(dataset->id, &loadError)) {

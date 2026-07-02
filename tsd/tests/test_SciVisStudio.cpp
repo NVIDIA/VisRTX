@@ -2061,6 +2061,42 @@ SCENARIO("SciVis Studio shot rendering materializes bound datasets",
     }
   }
 
+  GIVEN("A bound, enabled dataset that is missing from the project")
+  {
+    const DatasetID missingId = "dataset_missing";
+    shot::setDatasetBinding(*shot, missingId, true);
+
+    THEN("Materialization hard-errors up front and restores what it loaded")
+    {
+      ShotDatasetResidencyRestore restore;
+      std::string error;
+      REQUIRE_FALSE(
+          makeShotDatasetsResident(projectContext, *shot, restore, &error));
+      REQUIRE(error
+          == "enabled shot binding references a missing dataset: " + missingId);
+      REQUIRE(second->residency == DatasetResidency::Unloaded);
+      REQUIRE_FALSE(project.dirty);
+    }
+  }
+
+  GIVEN("A bound, disabled dataset that is missing from the project")
+  {
+    shot::setDatasetBinding(*shot, "dataset_missing", false);
+
+    THEN("It does not prevent materialization")
+    {
+      ShotDatasetResidencyRestore restore;
+      std::string error;
+      REQUIRE(makeShotDatasetsResident(projectContext, *shot, restore, &error));
+      REQUIRE(error.empty());
+      REQUIRE(second->residency == DatasetResidency::Loaded);
+
+      restoreShotDatasetResidency(projectContext, restore);
+      REQUIRE(second->residency == DatasetResidency::Unloaded);
+      REQUIRE_FALSE(project.dirty);
+    }
+  }
+
   std::filesystem::remove_all(root);
   std::filesystem::remove(source);
 }
