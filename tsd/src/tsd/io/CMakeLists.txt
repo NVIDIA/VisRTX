@@ -69,6 +69,7 @@ PRIVATE
   procedural/generate_cylinders.cpp
   procedural/generate_default_lights.cpp
   procedural/generate_emissive_geometries.cpp
+  procedural/generate_emissive_materialx_comparison.cpp
   procedural/generate_emissive_mdl_comparison.cpp
   procedural/generate_hdri_dome.cpp
   procedural/generate_hdri_test_image.cpp
@@ -149,6 +150,10 @@ endif()
 if (TSD_USE_USD)
   find_package(OpenGL)
   find_package(X11)
+  # Resolve MaterialX before pxr so its config is shared. A bare, failing
+  # find_package would cache MaterialX_DIR=NOTFOUND and block pxrConfig's own
+  # find_dependency(MaterialX) fallback.
+  find_package(MaterialX 1.39 CONFIG REQUIRED)
   find_package(pxr REQUIRED sdf usd usdGeom tf gf usdShade usdLux)
   project_compile_definitions(PRIVATE -DTSD_USE_USD=1)
   project_link_libraries(PRIVATE ${PXR_LIBRARIES})

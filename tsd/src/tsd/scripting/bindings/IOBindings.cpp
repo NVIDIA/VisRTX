@@ -465,6 +465,14 @@ void registerIOBindings(sol::state &lua)
         tsd::io::generate_emissive_geometries(s, loc);
       });
 
+  io["generateEmissiveMaterialXComparison"] = sol::overload(
+      [](scene::Scene &s) {
+        tsd::io::generate_emissive_materialx_comparison(s);
+      },
+      [](scene::Scene &s, scene::LayerNodeRef loc) {
+        tsd::io::generate_emissive_materialx_comparison(s, loc);
+      });
+
   io["generateEmissiveMdlComparison"] = sol::overload(
       [](scene::Scene &s) { tsd::io::generate_emissive_mdl_comparison(s); },
       [](scene::Scene &s, scene::LayerNodeRef loc) {
