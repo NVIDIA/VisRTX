@@ -31,10 +31,28 @@
 
 #include "Cone.h"
 
+#include "gpu/intersectPrimitives.h"
+
 namespace visrtx {
 
+// ANARI caps string -> per-endpoint bitmask (none/first/second/both).
+static uint8_t parseCapFlags(const std::string &s)
+{
+  if (s == "both")
+    return CAP_FIRST | CAP_SECOND;
+  if (s == "first")
+    return CAP_FIRST;
+  if (s == "second")
+    return CAP_SECOND;
+  return 0; // "none"
+}
+
 Cone::Cone(DeviceGlobalState *d)
-    : Geometry(d), m_index(this), m_radius(this), m_vertex(this)
+    : Geometry(d),
+      m_index(this),
+      m_radius(this),
+      m_vertex(this),
+      m_vertexCaps(this)
 {}
 
 Cone::~Cone() = default;
@@ -44,7 +62,8 @@ void Cone::commitParameters()
   Geometry::commitParameters();
   m_index = getParamObject<Array1D>("primitive.index");
   m_radius = getParamObject<Array1D>("vertex.radius");
-  m_caps = getParamString("caps", "none") != "none";
+  m_defaultCapFlags = parseCapFlags(getParamString("caps", "none"));
+  m_vertexCaps = getParamObject<Array1D>("vertex.cap");
   m_vertex = getParamObject<Array1D>("vertex.position");
   commitAttributes("vertex.", m_vertexAttributes);
 }
@@ -92,10 +111,8 @@ void Cone::finalize()
       indices.begin(), indices.end(), m_aabbs.begin(), [&](const uvec2 &c) {
         const vec3 &v0 = posBegin[c.x];
         const vec3 &v1 = posBegin[c.y];
-        const float &r0 = radius[c.x];
-        const float &r1 = radius[c.y];
-        return box3(glm::min(v0, v1) - glm::max(r0, r1),
-            glm::max(v0, v1) + glm::max(r0, r1));
+        const float r = glm::max(std::abs(radius[c.x]), std::abs(radius[c.y]));
+        return box3(glm::min(v0, v1) - r, glm::max(v0, v1) + r);
       });
 
   m_aabbs.upload();
@@ -136,6 +153,9 @@ GeometryGPUData Cone::gpuData() const
   cone.vertices = m_vertex->beginAs<vec3>(AddressSpace::GPU);
   cone.indices = m_index ? m_index->beginAs<uvec2>(AddressSpace::GPU) : nullptr;
   cone.radii = m_radius->beginAs<float>(AddressSpace::GPU);
+  cone.defaultCapFlags = m_defaultCapFlags;
+  cone.vertexCaps =
+      m_vertexCaps ? m_vertexCaps->beginAs<uint8_t>(AddressSpace::GPU) : nullptr;
   populateAttributeDataSet(m_vertexAttributes, cone.vertexAttr);
 
   return retval;

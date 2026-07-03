@@ -31,10 +31,28 @@
 
 #include "Cylinder.h"
 
+#include "gpu/intersectPrimitives.h"
+
 namespace visrtx {
 
+// ANARI caps string -> per-endpoint bitmask (none/first/second/both).
+static uint8_t parseCapFlags(const std::string &s)
+{
+  if (s == "both")
+    return CAP_FIRST | CAP_SECOND;
+  if (s == "first")
+    return CAP_FIRST;
+  if (s == "second")
+    return CAP_SECOND;
+  return 0; // "none"
+}
+
 Cylinder::Cylinder(DeviceGlobalState *d)
-    : Geometry(d), m_index(this), m_radius(this), m_vertex(this)
+    : Geometry(d),
+      m_index(this),
+      m_radius(this),
+      m_vertex(this),
+      m_vertexCaps(this)
 {}
 
 Cylinder::~Cylinder() = default;
@@ -44,7 +62,8 @@ void Cylinder::commitParameters()
   Geometry::commitParameters();
   m_index = getParamObject<Array1D>("primitive.index");
   m_radius = getParamObject<Array1D>("primitive.radius");
-  m_caps = getParamString("caps", "none") != "none";
+  m_defaultCapFlags = parseCapFlags(getParamString("caps", "none"));
+  m_vertexCaps = getParamObject<Array1D>("vertex.cap");
   m_vertex = getParamObject<Array1D>("vertex.position");
   m_globalRadius = getParam<float>("radius", 1.f);
   commitAttributes("vertex.", m_vertexAttributes);
@@ -131,7 +150,9 @@ GeometryGPUData Cylinder::gpuData() const
   cylinder.radii =
       m_radius ? m_radius->beginAs<float>(AddressSpace::GPU) : nullptr;
   cylinder.radius = m_globalRadius;
-  cylinder.caps = m_caps;
+  cylinder.defaultCapFlags = m_defaultCapFlags;
+  cylinder.vertexCaps =
+      m_vertexCaps ? m_vertexCaps->beginAs<uint8_t>(AddressSpace::GPU) : nullptr;
   populateAttributeDataSet(m_vertexAttributes, cylinder.vertexAttr);
 
   return retval;

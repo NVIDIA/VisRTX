@@ -211,6 +211,10 @@ struct QuadGeometryData
   bool cullBackfaces;
 };
 
+// Cap enablement is a per-endpoint bitmask (bit0 = first/p0 end,
+// bit1 = second/p1 end; see CapBit in intersectPrimitives.h). vertexCaps, when
+// non-null, overrides defaultCapFlags per endpoint: element!=0 enables that
+// endpoint's cap (spec vertex.cap: 0=no cap, 1=flat).
 struct CylinderGeometryData
 {
   const uvec2 *indices;
@@ -218,7 +222,8 @@ struct CylinderGeometryData
   AttributeDataSet vertexAttr;
   const float *radii;
   float radius;
-  bool caps;
+  uint8_t defaultCapFlags;
+  const uint8_t *vertexCaps;
 };
 
 struct ConeGeometryData
@@ -227,6 +232,8 @@ struct ConeGeometryData
   const vec3 *vertices;
   const float *radii;
   AttributeDataSet vertexAttr;
+  uint8_t defaultCapFlags;
+  const uint8_t *vertexCaps;
 };
 
 struct CurveGeometryData

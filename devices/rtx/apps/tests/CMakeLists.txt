@@ -34,3 +34,4 @@ if (NOT VISRTX_BUILD_TESTS)
 endif()
 
 add_subdirectory(api)
+add_subdirectory(unit)

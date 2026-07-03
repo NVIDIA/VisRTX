@@ -88,7 +88,7 @@ void Sphere::finalize()
         thrust::device_pointer_cast<box3>((box3 *)m_aabbs.ptr()),
         [=] __device__(uint32_t i) {
           const auto &v = vertices[i];
-          const float r = radii ? radii[i] : globalRadius;
+          const float r = glm::abs(radii ? radii[i] : globalRadius);
           return box3(v - r, v + r);
         });
   } else {
@@ -104,7 +104,7 @@ void Sphere::finalize()
         thrust::device_pointer_cast<box3>((box3 *)m_aabbs.ptr()),
         [=] __device__(uint32_t i) {
           const auto &v = vertices[i];
-          const float r = radii ? radii[i] : globalRadius;
+          const float r = glm::abs(radii ? radii[i] : globalRadius);
           return box3(v - r, v + r);
         });
   }

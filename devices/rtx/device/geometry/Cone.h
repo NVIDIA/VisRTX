@@ -55,12 +55,13 @@ struct Cone : public Geometry
   helium::ChangeObserverPtr<Array1D> m_index;
   helium::ChangeObserverPtr<Array1D> m_radius;
   helium::ChangeObserverPtr<Array1D> m_vertex;
+  helium::ChangeObserverPtr<Array1D> m_vertexCaps;
   GeometryAttributes m_vertexAttributes;
 
   HostDeviceArray<box3> m_aabbs;
   CUdeviceptr m_aabbsBufferPtr{};
 
-  bool m_caps{false};
+  uint8_t m_defaultCapFlags{0};
 };
 
 } // namespace visrtx
