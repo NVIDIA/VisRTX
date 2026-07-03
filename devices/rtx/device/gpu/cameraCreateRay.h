@@ -84,7 +84,7 @@ VISRTX_DEVICE Ray makePrimaryRay(
   const uint32_t haltonIdx =
       sampleIdx + haltonPixelHash(ss.pixel.x, ss.pixel.y);
   const ::float4 r = halton4D(haltonIdx);
-  ss.screen = (centerPixel ? vec2(ss.pixel.x, ss.pixel.y)
+  ss.screen = (centerPixel ? vec2(ss.pixel.x + 0.5f, ss.pixel.y + 0.5f)
                            : vec2(ss.pixel.x + r.x, ss.pixel.y + r.y))
       * ss.frameData->fb.invSize;
   return cameraCreateRay(ss.frameData->camera, ss.screen, {r.z, r.w});
