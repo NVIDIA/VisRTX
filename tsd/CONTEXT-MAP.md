@@ -6,6 +6,8 @@
   representations and persists native TSD state
 - [TSD App](./src/tsd/app/CONTEXT.md) — composes reusable application state
   around TSD scenes, animations, rendering, and interaction
+- [TSD Rendering](./src/tsd/rendering/CONTEXT.md) — turns TSD scenes into
+  images via render indexes and an image pipeline of composable passes
 - [SciVis Studio](./apps/interactive/scivisStudio/CONTEXT.md) — organizes
   scientific-visualization assets into projects and shots
 

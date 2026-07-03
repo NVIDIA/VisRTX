@@ -5,6 +5,7 @@
 #include "catch.hpp"
 // tsd_algorithms
 #include "tsd/algorithms/cpu/autoExposure.hpp"
+#include "tsd/algorithms/cpu/boxOutline.hpp"
 #include "tsd/algorithms/cpu/clearBuffers.hpp"
 #include "tsd/algorithms/cpu/convertColorBuffer.hpp"
 #include "tsd/algorithms/cpu/depthCompositeFrame.hpp"
@@ -279,6 +280,218 @@ SCENARIO("Host AOV visualization converts buffers into display colors",
         REQUIRE(idColor[1] == packColor({0.f, 0.f, 0.f, 1.f}));
         REQUIRE(idColor[0] == idColor[2]);
         REQUIRE(idColor[0] != idColor[3]);
+      }
+    }
+  }
+}
+
+SCENARIO("Host box outlining rasterizes only the projected box edges",
+    "[Algorithms]")
+{
+  GIVEN("An 8x8 frame and a box that projects onto known pixel centers")
+  {
+    // Identity projView acts as an orthographic camera at the origin looking
+    // down -z: NDC == world xy. Corners at +/-0.375 land on the pixel
+    // centers of columns/rows 2 and 5 in an 8x8 image.
+    const math::mat4 projView = math::IDENTITY_MAT4;
+    const math::box3 box{{-0.375f, -0.375f, -1.f}, {0.375f, 0.375f, -0.5f}};
+    const math::float3 eye(0.f, 0.f, 0.f);
+    const math::float3 dir(0.f, 0.f, -1.f);
+
+    const uint32_t baseColor = packColor({0.2f, 0.4f, 0.6f, 1.f});
+    const uint32_t boxColor = packColor({1.f, 0.f, 0.f, 1.f});
+    std::vector<uint32_t> color(64, baseColor);
+
+    WHEN("The box outline is drawn without a depth buffer")
+    {
+      cpu::boxOutline(
+          box, projView, eye, dir, true, nullptr, color.data(), boxColor, 1u,
+          8u, 8u);
+
+      THEN("Border pixels of the projected rectangle are shaded")
+      {
+        auto at = [&](uint32_t x, uint32_t y) { return color[y * 8 + x]; };
+        REQUIRE(at(2, 2) == boxColor); // corner
+        REQUIRE(at(4, 2) == boxColor); // bottom edge
+        REQUIRE(at(5, 5) == boxColor); // corner
+        REQUIRE(at(2, 3) == boxColor); // left edge
+        REQUIRE(at(5, 4) == boxColor); // right edge
+        REQUIRE(at(3, 5) == boxColor); // top edge
+      }
+
+      THEN("Interior and exterior pixels are untouched")
+      {
+        auto at = [&](uint32_t x, uint32_t y) { return color[y * 8 + x]; };
+        REQUIRE(at(3, 3) == baseColor);
+        REQUIRE(at(4, 4) == baseColor);
+        REQUIRE(at(0, 0) == baseColor);
+        REQUIRE(at(7, 7) == baseColor);
+        REQUIRE(at(4, 0) == baseColor);
+      }
+    }
+  }
+}
+
+SCENARIO("Host box outlining respects the depth buffer", "[Algorithms]")
+{
+  GIVEN("A box one unit in front of an orthographic camera plane")
+  {
+    const math::mat4 projView = math::IDENTITY_MAT4;
+    const math::box3 box{{-0.375f, -0.375f, -1.f}, {0.375f, 0.375f, -1.f}};
+    const math::float3 eye(0.f, 0.f, 0.f);
+    const math::float3 dir(0.f, 0.f, -1.f);
+
+    const uint32_t baseColor = packColor({0.2f, 0.4f, 0.6f, 1.f});
+    const uint32_t boxColor = packColor({1.f, 0.f, 0.f, 1.f});
+    std::vector<uint32_t> color(64, baseColor);
+
+    WHEN("Everything in the depth buffer is nearer than the box")
+    {
+      std::vector<float> depth(64, 0.5f);
+      cpu::boxOutline(box, projView, eye, dir, true, depth.data(),
+          color.data(), boxColor, 1u, 8u, 8u);
+
+      THEN("No pixels are shaded")
+      {
+        REQUIRE(std::all_of(color.begin(), color.end(), [&](uint32_t c) {
+          return c == baseColor;
+        }));
+      }
+    }
+
+    WHEN("Everything in the depth buffer is farther than the box")
+    {
+      std::vector<float> depth(64, 2.f);
+      cpu::boxOutline(box, projView, eye, dir, true, depth.data(),
+          color.data(), boxColor, 1u, 8u, 8u);
+
+      THEN("Edge pixels are shaded")
+      {
+        REQUIRE(color[2 * 8 + 2] == boxColor);
+      }
+    }
+
+    WHEN("Occluding depth exists but no depth buffer is passed")
+    {
+      cpu::boxOutline(box, projView, eye, dir, true, nullptr, color.data(),
+          boxColor, 1u, 8u, 8u);
+
+      THEN("The outline is drawn as an overlay anyway")
+      {
+        REQUIRE(color[2 * 8 + 2] == boxColor);
+      }
+    }
+
+    WHEN("The depth buffer exactly matches the box (touching geometry)")
+    {
+      std::vector<float> depth(64, 1.f);
+      cpu::boxOutline(box, projView, eye, dir, true, depth.data(),
+          color.data(), boxColor, 1u, 8u, 8u);
+
+      THEN("The relative bias keeps the outline visible")
+      {
+        REQUIRE(color[2 * 8 + 2] == boxColor);
+      }
+    }
+  }
+}
+
+SCENARIO(
+    "Host box outlining clips edges behind a perspective camera",
+    "[Algorithms]")
+{
+  GIVEN("A perspective camera at the origin looking down -z")
+  {
+    const math::float3 eye(0.f, 0.f, 0.f);
+    const math::float3 dir(0.f, 0.f, -1.f);
+    const math::float3 up(0.f, 1.f, 0.f);
+    const auto view = linalg::lookat_matrix(eye, eye + dir, up);
+
+    const float fovy = math::radians(60.f);
+    const float oneOverTanFov = 1.f / std::tan(fovy / 2.f);
+    const float near = 0.1f, far = 100.f;
+    const math::mat4 proj{{oneOverTanFov, 0.f, 0.f, 0.f},
+        {0.f, oneOverTanFov, 0.f, 0.f},
+        {0.f, 0.f, -(far + near) / (far - near), -1.f},
+        {0.f, 0.f, -2.f * far * near / (far - near), 0.f}};
+    const auto projView = math::mul(proj, view);
+
+    const uint32_t baseColor = packColor({0.2f, 0.4f, 0.6f, 1.f});
+    const uint32_t boxColor = packColor({1.f, 0.f, 0.f, 1.f});
+    std::vector<uint32_t> color(64, baseColor);
+
+    WHEN("The box is entirely behind the camera")
+    {
+      const math::box3 box{{-1.f, -1.f, 1.f}, {1.f, 1.f, 2.f}};
+      cpu::boxOutline(box, projView, eye, dir, false, nullptr, color.data(),
+          boxColor, 1u, 8u, 8u);
+
+      THEN("Nothing is drawn")
+      {
+        REQUIRE(std::all_of(color.begin(), color.end(), [&](uint32_t c) {
+          return c == baseColor;
+        }));
+      }
+    }
+
+    WHEN("The box straddles the eye plane")
+    {
+      const math::box3 box{{-1.f, -1.f, -4.f}, {1.f, 1.f, 1.f}};
+      cpu::boxOutline(box, projView, eye, dir, false, nullptr, color.data(),
+          boxColor, 1u, 8u, 8u);
+
+      THEN("The part in front of the camera is still drawn")
+      {
+        REQUIRE(std::any_of(color.begin(), color.end(), [&](uint32_t c) {
+          return c == boxColor;
+        }));
+      }
+    }
+
+    WHEN("The box is fully in front of the camera")
+    {
+      const math::box3 box{{-1.f, -1.f, -4.f}, {1.f, 1.f, -2.f}};
+      cpu::boxOutline(box, projView, eye, dir, false, nullptr, color.data(),
+          boxColor, 1u, 8u, 8u);
+
+      THEN("The projected front-face corners land at the expected pixels")
+      {
+        // Front face at z=-2: ndc = (+/-1 * oneOverTanFov) / 2 ~= +/-0.866;
+        // pixel = (ndc*0.5+0.5)*8 -> ~0.54 and ~7.46.
+        REQUIRE(color[1 * 8 + 0] != baseColor);
+        REQUIRE(color[6 * 8 + 7] != baseColor);
+      }
+    }
+
+    WHEN("A depth buffer nearer than the box is provided")
+    {
+      // Nearest box point (0, 0, -2) is 2 units from the eye (Euclidean).
+      const math::box3 box{{-1.f, -1.f, -4.f}, {1.f, 1.f, -2.f}};
+      std::vector<float> depth(64, 1.f);
+      cpu::boxOutline(box, projView, eye, dir, false, depth.data(),
+          color.data(), boxColor, 1u, 8u, 8u);
+
+      THEN("The Euclidean eye-distance test rejects every fragment")
+      {
+        REQUIRE(std::all_of(color.begin(), color.end(), [&](uint32_t c) {
+          return c == baseColor;
+        }));
+      }
+    }
+
+    WHEN("A depth buffer farther than the box is provided")
+    {
+      // Farthest box point is sqrt(1+1+16) ~= 4.24 units from the eye.
+      const math::box3 box{{-1.f, -1.f, -4.f}, {1.f, 1.f, -2.f}};
+      std::vector<float> depth(64, 50.f);
+      cpu::boxOutline(box, projView, eye, dir, false, depth.data(),
+          color.data(), boxColor, 1u, 8u, 8u);
+
+      THEN("The outline is drawn")
+      {
+        REQUIRE(std::any_of(color.begin(), color.end(), [&](uint32_t c) {
+          return c == boxColor;
+        }));
       }
     }
   }

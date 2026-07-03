@@ -13,6 +13,7 @@ PRIVATE
   pipeline/passes/AnariAxesRenderPass.cpp
   pipeline/passes/AnariSceneRenderPass.cpp
   pipeline/passes/AutoExposurePass.cpp
+  pipeline/passes/BoxOutlineRenderPass.cpp
   pipeline/passes/ClearBuffersPass.cpp
   pipeline/passes/CopyFromColorBufferPass.cpp
   pipeline/passes/CopyToColorBufferPass.cpp
@@ -46,6 +47,7 @@ if (TSD_USE_CUDA)
     pipeline/passes/AnariAxesRenderPass.cpp
     pipeline/passes/AnariSceneRenderPass.cpp
     pipeline/passes/AutoExposurePass.cpp
+    pipeline/passes/BoxOutlineRenderPass.cpp
     pipeline/passes/ClearBuffersPass.cpp
     pipeline/passes/ImagePass.cpp
     pipeline/passes/OutlineRenderPass.cpp

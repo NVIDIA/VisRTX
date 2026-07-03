@@ -12,6 +12,7 @@
 #include "tsd/rendering/pipeline/ImagePipeline.h"
 #include "tsd/rendering/pipeline/passes/AnariSceneRenderPass.h"
 #include "tsd/rendering/pipeline/passes/AutoExposurePass.h"
+#include "tsd/rendering/pipeline/passes/BoxOutlineRenderPass.h"
 #include "tsd/rendering/pipeline/passes/CopyToSDLTexturePass.h"
 #include "tsd/rendering/pipeline/passes/OutlineRenderPass.h"
 #include "tsd/rendering/pipeline/passes/PrimitiveOutlineRenderPass.h"
@@ -74,6 +75,7 @@ struct Viewport : public BaseViewport
 
   void updateFrame();
   void updateImage();
+  void updateBoundsOutlinePass();
   void syncImagePassState();
   void updateDisplayPassState();
 
@@ -102,6 +104,9 @@ struct Viewport : public BaseViewport
   bool m_highlightSelection{true};
   bool m_outlinePrimitives{false};
   bool m_showOnlySelected{false};
+  bool m_showWorldBounds{false};
+  tsd::math::float4 m_worldBoundsColor{0.8f, 0.8f, 0.8f, 1.f};
+  int m_worldBoundsWidth{1};
   std::optional<float> m_frameProgress{0.f};
   bool m_deviceSupportsPrimitiveId{false};
 
@@ -141,6 +146,7 @@ struct Viewport : public BaseViewport
   tsd::rendering::OutputTransformPass *m_outputTransformPass{nullptr};
   tsd::rendering::PrimitiveOutlineRenderPass *m_primitiveOutlinePass{nullptr};
   tsd::rendering::OutlineRenderPass *m_outlinePass{nullptr};
+  tsd::rendering::BoxOutlineRenderPass *m_boundsOutlinePass{nullptr};
   tsd::rendering::CopyToSDLTexturePass *m_outputPass{nullptr};
   tsd::rendering::SaveToFilePass *m_saveToFilePass{nullptr};
 

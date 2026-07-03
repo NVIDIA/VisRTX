@@ -11,6 +11,7 @@ project_sources(PRIVATE
   cpu/autoExposure.cpp
   cpu/outputTransform.cpp
   cpu/visualizeAOV.cpp
+  cpu/boxOutline.cpp
   cpu/outline.cpp
   cpu/clearBuffers.cpp
   cpu/convertColorBuffer.cpp
@@ -42,6 +43,7 @@ if (TSD_USE_CUDA)
     cuda/autoExposure.cu
     cuda/outputTransform.cu
     cuda/visualizeAOV.cu
+    cuda/boxOutline.cu
     cuda/outline.cu
     cuda/clearBuffers.cu
     cuda/convertColorBuffer.cu

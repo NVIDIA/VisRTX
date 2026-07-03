@@ -339,6 +339,9 @@ void Viewport::saveSettings(tsd::core::DataNode &root)
   root["showOnlySelected"] = m_showOnlySelected;
   root["highlightSelection"] = m_highlightSelection;
   root["outlinePrimitives"] = m_outlinePrimitives;
+  root["showWorldBounds"] = m_showWorldBounds;
+  root["worldBoundsColor"] = m_worldBoundsColor;
+  root["worldBoundsWidth"] = m_worldBoundsWidth;
   root["visualizeAOV"] = static_cast<int>(m_visualizeAOV);
   root["depthVisualMinimum"] = m_depthVisualMinimum;
   root["depthVisualMaximum"] = m_depthVisualMaximum;
@@ -368,6 +371,9 @@ void Viewport::loadSettings(tsd::core::DataNode &root)
   root["showOnlySelected"].getValue(ANARI_BOOL, &m_showOnlySelected);
   root["highlightSelection"].getValue(ANARI_BOOL, &m_highlightSelection);
   root["outlinePrimitives"].getValue(ANARI_BOOL, &m_outlinePrimitives);
+  root["showWorldBounds"].getValue(ANARI_BOOL, &m_showWorldBounds);
+  root["worldBoundsColor"].getValue(ANARI_FLOAT32_VEC4, &m_worldBoundsColor);
+  root["worldBoundsWidth"].getValue(ANARI_INT32, &m_worldBoundsWidth);
   int aovType = static_cast<int>(m_visualizeAOV);
   root["visualizeAOV"].getValue(ANARI_INT32, &aovType);
   m_visualizeAOV = static_cast<tsd::rendering::AOVType>(aovType);
@@ -526,6 +532,9 @@ void Viewport::imagePipeline_populate(tsd::rendering::ImagePipeline &p)
 
   m_outlinePass = p.emplace_back<tsd::rendering::OutlineRenderPass>();
 
+  m_boundsOutlinePass = p.emplace_back<tsd::rendering::BoxOutlineRenderPass>();
+  m_boundsOutlinePass->setEnabled(false);
+
   m_outputPass = p.emplace_back<tsd::rendering::CopyToSDLTexturePass>(
       m_app->sdlRenderer());
 
@@ -642,6 +651,7 @@ void Viewport::teardownDevice()
   m_outputTransformPass = nullptr;
   m_primitiveOutlinePass = nullptr;
   m_outlinePass = nullptr;
+  m_boundsOutlinePass = nullptr;
   m_outputPass = nullptr;
   m_saveToFilePass = nullptr;
 
@@ -744,6 +754,8 @@ void Viewport::updateImage()
   }
   m_outlinePass->setOutlineId(id);
 
+  updateBoundsOutlinePass();
+
   auto start = std::chrono::steady_clock::now();
   BaseViewport::imagePipeline_render();
   if (m_autoExposurePass)
@@ -757,6 +769,52 @@ void Viewport::updateImage()
   m_latestAnariFL = duration * 1000;
   m_minFL = m_minFL ? std::min(*m_minFL, m_latestAnariFL) : m_latestAnariFL;
   m_maxFL = m_maxFL ? std::max(*m_maxFL, m_latestAnariFL) : m_latestAnariFL;
+}
+
+void Viewport::updateBoundsOutlinePass()
+{
+  if (!m_boundsOutlinePass)
+    return;
+
+  const auto subtype =
+      m_camera.current ? m_camera.current->subtype() : tsd::core::Token();
+  const bool supportedCamera = subtype == scene::tokens::camera::perspective
+      || subtype == scene::tokens::camera::orthographic;
+  const bool enabled = m_showWorldBounds && supportedCamera;
+  m_boundsOutlinePass->setEnabled(enabled);
+  if (!enabled)
+    return;
+
+  tsd::math::box3 bounds;
+  anariGetProperty(m_device,
+      m_rIdx->world(),
+      "bounds",
+      ANARI_FLOAT32_BOX3,
+      &bounds,
+      sizeof(bounds),
+      ANARI_WAIT);
+  m_boundsOutlinePass->setBox(bounds);
+
+  m_boundsOutlinePass->setColor(m_worldBoundsColor);
+  m_boundsOutlinePass->setWidth(uint32_t(std::max(1, m_worldBoundsWidth)));
+
+  if (subtype == scene::tokens::camera::perspective) {
+    const float fovy =
+        m_camera.current->parameterValueAs<float>("fovy").value_or(
+            math::radians(40.f));
+    m_boundsOutlinePass->setPerspectiveView(m_camera.arcball->eye(),
+        m_camera.arcball->dir(),
+        m_camera.arcball->up(),
+        fovy);
+  } else {
+    // Eye and height must match updateCameraParametersOrthographic so the
+    // outline lands on the same image as the rendered scene.
+    m_boundsOutlinePass->setOrthographicView(
+        m_camera.arcball->eye_FixedDistance(),
+        m_camera.arcball->dir(),
+        m_camera.arcball->up(),
+        m_camera.arcball->distance() * 0.75f);
+  }
 }
 
 void Viewport::syncImagePassState()
@@ -1102,6 +1160,19 @@ void Viewport::ui_menubar_Viewport()
 void Viewport::ui_menubar_World()
 {
   if (ImGui::BeginMenu("World")) {
+    ImGui::Checkbox("Show Bounds", &m_showWorldBounds);
+
+    ImGui::BeginDisabled(!m_showWorldBounds);
+    ImGui::Indent(INDENT_AMOUNT);
+    ImGui::ColorEdit4(
+        "Color##worldBounds", &m_worldBoundsColor.x, ImGuiColorEditFlags_NoInputs);
+    if (ImGui::DragInt("Width##worldBounds", &m_worldBoundsWidth, 0.25f, 1, 16))
+      m_worldBoundsWidth = std::max(1, m_worldBoundsWidth);
+    ImGui::Unindent(INDENT_AMOUNT);
+    ImGui::EndDisabled();
+
+    ImGui::Separator();
+
     if (ImGui::MenuItem("Print Bounds")) {
       tsd::math::float3 bounds[2];
 

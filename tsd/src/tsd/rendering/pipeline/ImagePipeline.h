@@ -5,6 +5,7 @@
 
 #include "passes/AnariAxesRenderPass.h"
 #include "passes/AnariSceneRenderPass.h"
+#include "passes/BoxOutlineRenderPass.h"
 #include "passes/ClearBuffersPass.h"
 #if ENABLE_SDL
 #include "passes/CopyToSDLTexturePass.h"
