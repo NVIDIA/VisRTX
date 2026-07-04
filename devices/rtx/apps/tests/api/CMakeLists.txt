@@ -48,4 +48,5 @@ make_test(TestEvictGPUArray)
 make_test(TestMultiThreadedObjectCreation)
 make_test(TestSpheres)
 make_test(TestCylinderCaps)
+make_test(TestIsosurfaceRamp)
 
