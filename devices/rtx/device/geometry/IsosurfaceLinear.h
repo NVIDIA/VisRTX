@@ -3,6 +3,7 @@
 
 #include "gpu/gpu_decl.h"  // VISRTX_DEVICE (== inline on host)
 #include <glm/glm.hpp>
+#include <cmath>  // fabsf/sqrtf/fminf/fmaxf — self-contained, not via glm's transitive include
 #include <cstdint>
 
 namespace visrtx {
