@@ -7,6 +7,11 @@ subtree.
 
 The `devices/rtx/` subdirectory contains the OptiX-based GPU ray-tracing ANARI device (`libanari_library_visrtx`). See the repo-root `AGENTS.md` for project-wide context.
 
+## Domain Docs
+
+- [`CONTEXT-MAP.md`](./CONTEXT-MAP.md) — bounded contexts and how they relate; each context has its own `CONTEXT.md` glossary ([Frontend](./device/CONTEXT.md), [Render Pipeline](./device/renderer/CONTEXT.md), [World](./device/world/CONTEXT.md), [MDL](./libmdl/CONTEXT.md)). Use these terms in code and docs.
+- [`docs/adr/`](./docs/adr/) — architecture decision records (callable-based shading, pipeline-per-renderer, embedded PTX, split surface/volume TLAS). Read before "fixing" any of these designs.
+
 ## Build
 
 ```bash
