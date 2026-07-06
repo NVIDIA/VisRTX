@@ -83,6 +83,21 @@ constexpr float kRelEps = 1e-6f;
 // by two surface patches.
 constexpr float kDedupRelEps = 4e-6f;
 
+// Noise floor for the quadratic discriminant, relative to its operands' scale
+// (~32 fp32 ulps). Near tangency the discriminant is a catastrophic
+// cancellation of ~equal squared terms, so below this floor its SIGN is fp
+// noise. That matters for rays grazing their own origin surface: secondary
+// rays are lifted only ~1e-6*|P| off the surface (epsilonFrom), which puts the
+// true discriminant (~ -2*r*lift for a sphere of radius r) inside the noise
+// band, and a false-positive root pair yields a phantom back-facing EXIT
+// crossing at t up to ~1e-3*r — far beyond any tmin, self-shadowing the
+// primitive (concentric acne rings on large ground spheres). Exit crossings
+// are therefore only emitted when the discriminant clears this floor; entry
+// crossings stay ungated (a phantom entry lies behind the origin and is culled
+// by tmin, a genuine graze entry shades correctly). The cost is real exits
+// within ~sqrt(kGrazeRelEps) ≈ 0.1 degree of tangency — visually nil.
+constexpr float kGrazeRelEps = 4e-6f;
+
 // True for finite floats only: the comparison is false for both inf and NaN
 // (NaN compares false to everything). Works identically on host and device
 // without pulling in <cmath>/isfinite intrinsics.
@@ -198,8 +213,12 @@ VISRTX_HOST_DEVICE void forEachSphereCrossing(const vec3 &ro,
   DedupT dedup;
   emitCrossing(
       dedup, report, PrimHit{t0, (ro + t0 * rd - center) / radius, 0.f});
-  emitCrossing(
-      dedup, report, PrimHit{t1, (ro + t1 * rd - center) / radius, 0.f});
+  // t1 is always the exit; gate it on the discriminant noise floor (see
+  // kGrazeRelEps) so a graze of the ray's own origin sphere can't emit a
+  // phantom self-shadowing exit.
+  if (halfChord2 > kGrazeRelEps * radius * radius)
+    emitCrossing(
+        dedup, report, PrimHit{t1, (ro + t1 * rd - center) / radius, 0.f});
 }
 
 // Cylinder: curved wall (within the axis span) + enabled flat caps. radius is
@@ -238,7 +257,11 @@ VISRTX_HOST_DEVICE void forEachCylinderCrossing(const vec3 &ro,
     if (cc >= 0.f) {
       const float td = glm::sqrt(cc * ra);
       const float tw[2] = {ts - td, ts + td};
-      for (int i = 0; i < 2; ++i) {
+      // tw[1] is always the exit; gate it on the discriminant noise floor (see
+      // kGrazeRelEps) so a graze of the ray's own origin wall can't emit a
+      // phantom self-shadowing exit.
+      const int nw = cc > kGrazeRelEps * radius * radius * s2 ? 2 : 1;
+      for (int i = 0; i < nw; ++i) {
         const vec3 h = ro + tw[i] * rd;
         const float u = glm::dot(h - p0, s) / s2;
         if (u >= 0.f && u <= 1.f)
@@ -301,6 +324,11 @@ VISRTX_HOST_DEVICE void forEachConeCrossing(const vec3 &ro,
 
   float tn0 = 0.f, tn1 = 0.f;
   int nroots = 0;
+  // Exit-side reliability of the quadratic solve; see kGrazeRelEps. The exit
+  // root isn't positionally fixed for a cone (k2's sign orders the roots), so
+  // the gate is applied by facing in emitBody below. The linear (k2~0) path
+  // has no discriminant and keeps its single root.
+  bool exitReliable = true;
   const float k2scale = glm::max(m0 * m0, glm::abs(m3 * m3 * hy));
   if (glm::abs(k2) <= kRelEps * k2scale) {
     // Near-parallel to the slant generator: 2 k1 t + k0 = 0. Gate |k1| against
@@ -320,6 +348,7 @@ VISRTX_HOST_DEVICE void forEachConeCrossing(const vec3 &ro,
       tn0 = qq / k2;
       tn1 = k0 / qq; // qq==0 -> non-finite -> dropped by emitCrossing
       nroots = 2;
+      exitReliable = h > kGrazeRelEps * glm::max(k1 * k1, glm::abs(k2 * k0));
     }
   }
 
@@ -330,6 +359,8 @@ VISRTX_HOST_DEVICE void forEachConeCrossing(const vec3 &ro,
     if (y > 0.f && y < m0) {
       const vec3 nrm = glm::normalize(
           m0 * (m0 * (oa + tn * rdn) + rr * ba * ra) - ba * hy * y);
+      if (!exitReliable && glm::dot(nrm, rdn) > 0.f)
+        return; // graze-noise exit: phantom self-shadow (see kGrazeRelEps)
       emitCrossing(dedup, report, PrimHit{tn / rlen, nrm, y / m0});
     }
   };

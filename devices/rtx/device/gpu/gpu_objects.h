@@ -289,6 +289,11 @@ struct GeometryGPUData
   AttributeDataSet attr;
   AttributeDataSetUniform attrUniform;
   const uint32_t *primitiveId;
+  // Object-space coordinate magnitude the analytic intersectors' arithmetic
+  // runs at (max |AABB corner| over the geometry's primitives); 0 when unused.
+  // Floors hit.epsilon so secondary-ray offsets clear the solve's fp noise
+  // band even where the hitpoint's own coordinates are small (populateHit.h).
+  float epsilonScale{0.f};
   union
   {
     TriangleGeometryData tri{};
@@ -550,7 +555,8 @@ struct NVdbRectilinearData
   const void *gridData;
   bool cellCentered;
   SpatialFieldFilter filter;
-  cudaTextureObject_t axisLUT[3]; // normalized uniform index -> rectilinear index
+  cudaTextureObject_t
+      axisLUT[3]; // normalized uniform index -> rectilinear index
   cudaTextureObject_t invAxisLUT[3]; // inverse (isosurface voxel-DDA)
   vec3 invAvgVoxelSize;
 
@@ -834,10 +840,12 @@ struct RendererGPUData
   float occlusionDistance;
   bool cullTriangleBF;
   bool premultiplyBackground;
-  FireflyFilterMode fireflyFilterMode; // per-sample outlier suppression strategy
+  FireflyFilterMode
+      fireflyFilterMode; // per-sample outlier suppression strategy
   float fireflyFilterSigma; // CLAMP/TRIM: k in threshold = mean + k*stddev
   int fireflyFilterWarmup; // CLAMP mode: samples before the Welford cap engages
-  int fireflyFilterTrim; // TRIM mode: count of brightest samples tracked/trimmed
+  int fireflyFilterTrim; // TRIM mode: count of brightest samples
+                         // tracked/trimmed
   glm::vec4 cutPlane; // cutting plane (nx,ny,nz,d); disabled when all zero (GPU
                       // default)
 };
@@ -856,8 +864,8 @@ enum class FrameFormat
 // channel so a single-channel (chromatic) outlier is caught even when its
 // luminance is unremarkable. `n` is the shared sample count — kept here because
 // checkerboarding makes frameID a poor proxy for "how many samples this pixel
-// has seen". CLAMP uses all three channels; TRIM uses only the luminance Welford
-// in channel x and reads n as its sample divisor.
+// has seen". CLAMP uses all three channels; TRIM uses only the luminance
+// Welford in channel x and reads n as its sample divisor.
 struct PixelLumStats
 {
   glm::vec3 mean; // per-channel running mean

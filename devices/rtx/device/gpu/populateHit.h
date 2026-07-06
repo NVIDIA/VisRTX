@@ -393,6 +393,16 @@ VISRTX_DEVICE void cullCutPlane()
     optixIgnoreIntersection();
 }
 
+// hit.epsilon floor for analytic primitives, in units of the geometry's
+// object-space coordinate scale (GeometryGPUData::epsilonScale). The
+// intersectors' quadratics run at that scale, so their fp noise band is
+// ~tens of ulps OF THAT SCALE; a secondary ray must clear it or phantom
+// self-hits shadow the surface (acne rings on large ground spheres).
+// epsilonFrom alone under-lifts wherever the hitpoint's own coordinates are
+// small (e.g. near the origin on a giant sphere centered at -r*Y). ~64 fp32
+// ulps.
+constexpr float kAnalyticEpsilonScale = 0x1.p-17f;
+
 VISRTX_DEVICE void populateSurfaceHit(SurfaceHit &hit)
 {
   const auto &ss = ray::screenSample();
@@ -417,6 +427,14 @@ VISRTX_DEVICE void populateSurfaceHit(SurfaceHit &hit)
   hit.objID = sd.id;
   hit.instID = isd.id;
   hit.epsilon = epsilonFrom(ray::hitpoint(), ray::direction(), ray::t());
+  if (gd.epsilonScale > 0.f) {
+    // Object-space scale -> world units via the object->world distance ratio
+    // along the ray (same construction as the isosurface branch below).
+    const vec3 wdir = ray::direction();
+    const vec3 odir = mat3(hit.instance->worldToObject) * wdir;
+    hit.epsilon = fmaxf(hit.epsilon,
+        gd.epsilonScale * kAnalyticEpsilonScale * length(wdir) / length(odir));
+  }
   if (gd.type == GeometryType::ISOSURFACE) {
     // Isosurface hits lie on a voxel-resolution surface — exact voxel faces for
     // the nearest voxel-DDA, bisection-localized for the marched linear/custom

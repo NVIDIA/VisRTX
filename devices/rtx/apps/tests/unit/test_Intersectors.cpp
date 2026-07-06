@@ -64,8 +64,7 @@ static bool isUnit(const vec3 &v)
 
 // Return the crossing with smallest t among those with t >= tmin (forward hit),
 // or nullptr. Mirrors what OptiX closest-hit would keep.
-static const PrimHit *nearestForward(
-    const PrimHit *h, int n, float tmin = 0.f)
+static const PrimHit *nearestForward(const PrimHit *h, int n, float tmin = 0.f)
 {
   const PrimHit *best = nullptr;
   for (int i = 0; i < n; ++i)
@@ -103,7 +102,8 @@ static void testSphere()
       ++forward;
   CHECK(forward == 1);
 
-  // Non-unit direction (instance-scale analogue): t rescales, hitpoint invariant.
+  // Non-unit direction (instance-scale analogue): t rescales, hitpoint
+  // invariant.
   n = solveSphere(vec3(0, 0, -5), vec3(0, 0, 2), c, 1.f, h);
   const PrimHit *nf = nearestForward(h, n);
   CHECK(nf && nearf(nf->t, 2.f)); // 2*(0,0,2) from -5 => z=-1 (entry)
@@ -123,8 +123,8 @@ static void testCylinder()
   CHECK(near && isUnit(near->Ng) && nearf(near->Ng.x, -1.f));
 
   // Axis-parallel into caps=both: THE regression. Was 0 hits; must be 2.
-  n = solveCylinder(vec3(0, 0, -5), vec3(0, 0, 1), p0, p1, r,
-      CAP_FIRST | CAP_SECOND, h);
+  n = solveCylinder(
+      vec3(0, 0, -5), vec3(0, 0, 1), p0, p1, r, CAP_FIRST | CAP_SECOND, h);
   CHECK(n == 2);
   const PrimHit *cnear = nearestForward(h, n);
   CHECK(cnear && nearf(cnear->t, 5.f) && nearf(cnear->u, 0.f));
@@ -142,23 +142,23 @@ static void testCylinder()
   CHECK(n == 1 && nearf(h[0].u, 1.f));
 
   // Perpendicular ray (sd==0): caps can't be hit; wall still gives 2.
-  n = solveCylinder(vec3(-5, 0, 1), vec3(1, 0, 0), p0, p1, r,
-      CAP_FIRST | CAP_SECOND, h);
+  n = solveCylinder(
+      vec3(-5, 0, 1), vec3(1, 0, 0), p0, p1, r, CAP_FIRST | CAP_SECOND, h);
   CHECK(n == 2);
 
   // Cap-edge clip: end-on but outside radius -> miss even with caps.
-  CHECK(solveCylinder(vec3(3, 0, -5), vec3(0, 0, 1), p0, p1, r,
-            CAP_FIRST | CAP_SECOND, h)
+  CHECK(solveCylinder(
+            vec3(3, 0, -5), vec3(0, 0, 1), p0, p1, r, CAP_FIRST | CAP_SECOND, h)
       == 0);
 
   // Degenerate p0==p1 -> no hit, no crash/NaN.
-  CHECK(solveCylinder(vec3(-5, 0, 0), vec3(1, 0, 0), p0, p0, r,
-            CAP_FIRST | CAP_SECOND, h)
+  CHECK(solveCylinder(
+            vec3(-5, 0, 0), vec3(1, 0, 0), p0, p0, r, CAP_FIRST | CAP_SECOND, h)
       == 0);
 
   // Every reported normal is unit.
-  n = solveCylinder(vec3(0, 0, -5), vec3(0, 0, 1), p0, p1, r,
-      CAP_FIRST | CAP_SECOND, h);
+  n = solveCylinder(
+      vec3(0, 0, -5), vec3(0, 0, 1), p0, p1, r, CAP_FIRST | CAP_SECOND, h);
   for (int i = 0; i < n; ++i)
     CHECK(isUnit(h[i].Ng));
 }
@@ -180,21 +180,27 @@ static void testCone()
   // MISS. caps=none -> 0 crossings; caps=both -> 2 cap crossings.
   const vec3 q0(0, 0, 0), q1(0, 0, 2);
   CHECK(solveCone(vec3(0, 0, -5), vec3(0, 0, 1), q0, q1, 1.f, 1.f, 0, h) == 0);
-  n = solveCone(vec3(0, 0, -5), vec3(0, 0, 1), q0, q1, 1.f, 1.f,
-      CAP_FIRST | CAP_SECOND, h);
+  n = solveCone(vec3(0, 0, -5),
+      vec3(0, 0, 1),
+      q0,
+      q1,
+      1.f,
+      1.f,
+      CAP_FIRST | CAP_SECOND,
+      h);
   CHECK(n == 2);
 
   // caps=none on the truncated cone with a cap-crossing axis ray still shows
   // no cap; caps=both adds the base disk.
   n = solveCone(vec3(0, 0, -5), vec3(0, 0, 1), p0, apex, 1.f, 0.f, 0, h);
   const int bodyOnly = n;
-  n = solveCone(vec3(0, 0, -5), vec3(0, 0, 1), p0, apex, 1.f, 0.f,
-      CAP_FIRST, h);
+  n = solveCone(
+      vec3(0, 0, -5), vec3(0, 0, 1), p0, apex, 1.f, 0.f, CAP_FIRST, h);
   CHECK(n == bodyOnly + 1); // base cap at p0 added
 
   // Zero-radius apex end requests a cap -> degenerate disk, no cap hit.
-  n = solveCone(vec3(0, 0, 9), vec3(0, 0, -1), p0, apex, 1.f, 0.f,
-      CAP_SECOND, h);
+  n = solveCone(
+      vec3(0, 0, 9), vec3(0, 0, -1), p0, apex, 1.f, 0.f, CAP_SECOND, h);
   for (int i = 0; i < n; ++i)
     CHECK(!nearf(h[i].u, 1.f)); // no p1 (apex) cap emitted
 
@@ -209,11 +215,120 @@ static void testCone()
     CHECK(isUnit(h[i].Ng));
 }
 
+// Regression for phantom self-shadowing exits at grazing incidence (acne rings
+// on large ground spheres): shadow rays start ~1e-6*|P| above their origin
+// surface (epsilonFrom's lift) and run nearly tangent to it toward the light.
+// Near tangency the quadratic discriminant is fp noise, and before the
+// kGrazeRelEps gate a false-positive root pair emitted a back-facing exit at
+// t up to ~1e-3*r — far past tmin, shadowing the surface in rings. Scans many
+// surface points and above-horizon directions on RTOW-scale primitives and
+// requires that no forward crossing survives.
+static void testGrazeSelfShadow()
+{
+  constexpr float r = 1000.f; // RTOW ground-sphere scale
+  // epsilonFrom's lift for |P| ~ r: max(|P|,t*|dir|) * 0x1.fp-21
+  const float lift = r * 0x1.fp-21f;
+  const float tmin = lift; // renderers also set tmin = hit.epsilon
+
+  int phantoms = 0;
+  const auto countForward = [&](const PrimHit *h, int n) {
+    for (int i = 0; i < n; ++i)
+      if (h[i].t >= tmin)
+        ++phantoms;
+  };
+
+  // Sphere: surface points around the top of a giant ground sphere, shadow
+  // directions above the local horizon (any hit is geometrically impossible).
+  {
+    const vec3 c(0.f, -r, 0.f);
+    PrimHit h[2];
+    for (int ia = 0; ia < 100; ++ia) {
+      const float alpha = 0.0007f * float(ia); // polar angle from +y
+      const vec3 N(std::sin(alpha), std::cos(alpha), 0.f);
+      const vec3 T1(std::cos(alpha), -std::sin(alpha), 0.f);
+      const vec3 T2(0.f, 0.f, 1.f);
+      const vec3 org = c + (r + lift) * N;
+      for (int it = 0; it < 20; ++it) {
+        const float theta = 0.0005f + 0.0025f * float(it); // elevation
+        for (int ip = 0; ip < 8; ++ip) {
+          const float phi = 0.7853982f * float(ip);
+          const vec3 dir =
+              std::cos(theta) * (std::cos(phi) * T1 + std::sin(phi) * T2)
+              + std::sin(theta) * N;
+          countForward(h, solveSphere(org, dir, c, r, h));
+        }
+      }
+    }
+  }
+
+  // Cylinder wall: same scan on a giant cylinder, tangent-plane directions.
+  {
+    const vec3 p0(0.f, -r, -r), p1(0.f, -r, r);
+    PrimHit h[4];
+    for (int ia = 0; ia < 100; ++ia) {
+      const float alpha = 0.0007f * float(ia);
+      const vec3 N(std::sin(alpha), std::cos(alpha), 0.f);
+      const vec3 T1(std::cos(alpha), -std::sin(alpha), 0.f);
+      const vec3 T2(0.f, 0.f, 1.f);
+      const vec3 org = vec3(0.f, -r, 0.f) + (r + lift) * N;
+      for (int it = 0; it < 20; ++it) {
+        const float theta = 0.0005f + 0.0025f * float(it);
+        for (int ip = 0; ip < 8; ++ip) {
+          const float phi = 0.7853982f * float(ip);
+          const vec3 dir =
+              std::cos(theta) * (std::cos(phi) * T1 + std::sin(phi) * T2)
+              + std::sin(theta) * N;
+          countForward(h, solveCylinder(org, dir, p0, p1, r, 0, h));
+        }
+      }
+    }
+  }
+
+  // Cone slant: giant near-cylindrical truncated cone, directions above the
+  // slant surface's tangent plane.
+  {
+    const vec3 p0(0.f, -r, -r), p1(0.f, -r, r);
+    const float r0 = r, r1 = 0.9f * r;
+    // Slant makes angle beta with the axis plane; outward normal tilts by beta.
+    const float beta = std::atan((r0 - r1) / (2.f * r));
+    PrimHit h[4];
+    for (int ia = 0; ia < 100; ++ia) {
+      const float alpha = 0.0007f * float(ia);
+      const vec3 radial(std::sin(alpha), std::cos(alpha), 0.f);
+      const vec3 T1(std::cos(alpha), -std::sin(alpha), 0.f);
+      const vec3 axis(0.f, 0.f, 1.f);
+      const vec3 N = std::cos(beta) * radial + std::sin(beta) * axis;
+      const vec3 T2 = std::cos(beta) * axis - std::sin(beta) * radial;
+      const float rz = 0.5f * (r0 + r1); // radius at the axis midpoint (z=0)
+      const vec3 org = vec3(0.f, -r, 0.f) + rz * radial + lift * N;
+      for (int it = 0; it < 20; ++it) {
+        const float theta = 0.0005f + 0.0025f * float(it);
+        for (int ip = 0; ip < 8; ++ip) {
+          const float phi = 0.7853982f * float(ip);
+          const vec3 dir =
+              std::cos(theta) * (std::cos(phi) * T1 + std::sin(phi) * T2)
+              + std::sin(theta) * N;
+          countForward(h, solveCone(org, dir, p0, p1, r0, r1, 0, h));
+        }
+      }
+    }
+  }
+
+  if (phantoms) {
+    std::printf("FAIL %s:%d  %d phantom grazing self-shadow crossing(s)\n",
+        __FILE__,
+        __LINE__,
+        phantoms);
+    ++g_failures;
+  }
+}
+
 int main()
 {
   testSphere();
   testCylinder();
   testCone();
+  testGrazeSelfShadow();
   if (g_failures) {
     std::printf("%d CHECK(s) failed\n", g_failures);
     return 1;

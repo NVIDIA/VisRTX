@@ -32,8 +32,10 @@
 #include "Sphere.h"
 // thrust
 #include <thrust/device_ptr.h>
+#include <thrust/functional.h>
 #include <thrust/sequence.h>
 #include <thrust/transform.h>
+#include <thrust/transform_reduce.h>
 
 namespace visrtx {
 
@@ -110,6 +112,21 @@ void Sphere::finalize()
   }
 
   m_aabbsBufferPtr = (CUdeviceptr)m_aabbs.ptr();
+
+  // Coordinate scale of the intersector's arithmetic; floors hit.epsilon so
+  // secondary rays clear the solve's fp noise band (see
+  // GeometryGPUData::epsilonScale).
+  auto aabbsBegin = thrust::device_pointer_cast<box3>((box3 *)m_aabbs.ptr());
+  m_epsilonScale = thrust::transform_reduce(
+      thrust::cuda::par.on(state.stream),
+      aabbsBegin,
+      aabbsBegin + m_numSpheres,
+      [] __device__(const box3 &b) -> float {
+        const vec3 m = glm::max(glm::abs(b.lower), glm::abs(b.upper));
+        return glm::max(m.x, glm::max(m.y, m.z));
+      },
+      0.f,
+      thrust::maximum<float>());
 
   upload();
 }

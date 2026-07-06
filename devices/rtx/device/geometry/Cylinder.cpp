@@ -117,6 +117,16 @@ void Cylinder::finalize()
   m_aabbs.upload();
   m_aabbsBufferPtr = (CUdeviceptr)m_aabbs.dataDevice();
 
+  // Coordinate scale of the intersector's arithmetic; floors hit.epsilon so
+  // secondary rays clear the solve's fp noise band (see
+  // GeometryGPUData::epsilonScale).
+  m_epsilonScale = 0.f;
+  for (auto it = m_aabbs.begin(); it != m_aabbs.end(); ++it) {
+    const vec3 m = glm::max(glm::abs(it->lower), glm::abs(it->upper));
+    m_epsilonScale =
+        std::max(m_epsilonScale, std::max(m.x, std::max(m.y, m.z)));
+  }
+
   upload();
 }
 
@@ -151,8 +161,9 @@ GeometryGPUData Cylinder::gpuData() const
       m_radius ? m_radius->beginAs<float>(AddressSpace::GPU) : nullptr;
   cylinder.radius = m_globalRadius;
   cylinder.defaultCapFlags = m_defaultCapFlags;
-  cylinder.vertexCaps =
-      m_vertexCaps ? m_vertexCaps->beginAs<uint8_t>(AddressSpace::GPU) : nullptr;
+  cylinder.vertexCaps = m_vertexCaps
+      ? m_vertexCaps->beginAs<uint8_t>(AddressSpace::GPU)
+      : nullptr;
   populateAttributeDataSet(m_vertexAttributes, cylinder.vertexAttr);
 
   return retval;
