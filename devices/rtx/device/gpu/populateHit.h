@@ -250,12 +250,10 @@ VISRTX_DEVICE void computeTangentSpace(
     const bool hasTangentsFV = ggd.tri.vertexTangentsFV != nullptr;
     const bool hasTangentsV = ggd.tri.vertexTangents != nullptr;
     if (hasTangentsFV || hasTangentsV) {
-      const uvec3 tIdx = hasTangentsFV
-          ? uvec3(0, 1, 2) + (hit.primID * 3)
-          : idx;
-      const vec4 *tArr = hasTangentsFV
-          ? ggd.tri.vertexTangentsFV
-          : ggd.tri.vertexTangents;
+      const uvec3 tIdx =
+          hasTangentsFV ? uvec3(0, 1, 2) + (hit.primID * 3) : idx;
+      const vec4 *tArr =
+          hasTangentsFV ? ggd.tri.vertexTangentsFV : ggd.tri.vertexTangents;
       const vec4 t0 = tArr[tIdx.x];
       const vec4 t1 = tArr[tIdx.y];
       const vec4 t2 = tArr[tIdx.z];
@@ -313,9 +311,22 @@ VISRTX_DEVICE void computeTangentSpace(
   case GeometryType::NEURAL:
   case GeometryType::CYLINDER:
   case GeometryType::SDF: {
-    hit.Ng = hit.Ns = vec3(bit_cast<float>(optixGetAttribute_1()),
+    vec3 n = vec3(bit_cast<float>(optixGetAttribute_1()),
         bit_cast<float>(optixGetAttribute_2()),
         bit_cast<float>(optixGetAttribute_3()));
+    // Analytic intersectors report entry AND exit crossings with the outward
+    // normal; orient it toward the ray and record facing, mirroring the
+    // triangle convention above. Derive facing here from the normal itself
+    // rather than the hit kind — isosurfaces reuse the kind for the isovalue
+    // index, and their (like SDF/neural) normals already face the ray, so
+    // they land on isFrontFace == true unchanged.
+    // optixGetObjectRayDirection() is illegal in CH; get the object-space
+    // direction through the instance's worldToObject map instead.
+    const vec3 objDir = mat3(hit.instance->worldToObject) * ray::direction();
+    hit.isFrontFace = dot(n, objDir) < 0.f;
+    if (!hit.isFrontFace)
+      n = -n;
+    hit.Ng = hit.Ns = n;
     auto tangentSpace = computeOrthonormalBasis(hit.Ng);
     hit.tU = tangentSpace[0];
     hit.tV = tangentSpace[1];
@@ -411,12 +422,13 @@ VISRTX_DEVICE void populateSurfaceHit(SurfaceHit &hit)
     // the nearest voxel-DDA, bisection-localized for the marched linear/custom
     // path. Either way the surface has voxel-scale relief, so a secondary ray
     // offset by less than a voxel grazes into adjacent voxels and self-occludes
-    // (AO/shadow acne; on blocky nearest surfaces, a per-voxel waffle). stepSize
-    // is half the smallest voxel, so 2*stepSize lifts the ray clear by one.
-    // stepSize is object-space but hit.epsilon is world-space, so under a scaled
-    // instance scale the lift by the object->world distance ratio along the ray:
-    // |worldDir|/|objDir|. optixGetObjectRayDirection is illegal in closest-hit,
-    // so derive objDir from the stored worldToObject linear map instead.
+    // (AO/shadow acne; on blocky nearest surfaces, a per-voxel waffle).
+    // stepSize is half the smallest voxel, so 2*stepSize lifts the ray clear by
+    // one. stepSize is object-space but hit.epsilon is world-space, so under a
+    // scaled instance scale the lift by the object->world distance ratio along
+    // the ray: |worldDir|/|objDir|. optixGetObjectRayDirection is illegal in
+    // closest-hit, so derive objDir from the stored worldToObject linear map
+    // instead.
     const vec3 wdir = ray::direction();
     const vec3 odir = mat3(hit.instance->worldToObject) * wdir;
     hit.epsilon = fmaxf(hit.epsilon,

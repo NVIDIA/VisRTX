@@ -34,11 +34,12 @@
 // forEach*Crossing enumerates a solid's boundary crossings (entry AND exit) and
 // emits them straight into `report`, unclipped by tmin/tmax and in no
 // particular order (no per-thread hit buffer to spill in the IS hot path). The
-// OptiX IS wrapper applies the rendering policy — it reports only the
-// front-facing (entry) crossing (see reportEntryCrossing). The solve* array
-// overloads collect all crossings for host unit tests. Normals are outward and
-// unit. Cap enablement is a per-endpoint bitmask (bit0 = the p0 end / "first",
-// bit1 = the p1 end / "second").
+// OptiX IS wrapper reports every crossing — entry and exit — tagging each with
+// its facing (see reportCrossing); OptiX keeps the nearest in [tmin, tmax], so
+// interiors and transmission exits resolve like triangle back faces. The
+// solve* array overloads collect all crossings for host unit tests. Normals
+// are outward and unit. Cap enablement is a per-endpoint bitmask (bit0 = the
+// p0 end / "first", bit1 = the p1 end / "second").
 //
 // Capped cylinders/cones are convex solids: a ray has at most 2 true boundary
 // crossings. Up to 4 *candidates* exist before span/disk clipping and

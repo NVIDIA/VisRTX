@@ -49,25 +49,39 @@ namespace visrtx {
 
 // Helper functions ///////////////////////////////////////////////////////////
 
-VISRTX_DEVICE void reportIntersection(float t, const vec3 &normal, float u)
+// Analytic-primitive hit kinds: facing in bit 0 so front/back survives into
+// AH/CH (and optixIsFrontFaceHit's custom-primitive LSB convention matches).
+// The CH side re-derives facing from the outward normal regardless
+// (populateHit.h), so nothing correctness-critical rides on the OptiX LSB
+// behavior.
+constexpr uint32_t HIT_KIND_FRONT = 0u;
+constexpr uint32_t HIT_KIND_BACK = 1u;
+
+VISRTX_DEVICE void reportIntersection(
+    float t, const vec3 &normal, float u, uint32_t hitKind = HIT_KIND_FRONT)
 {
   optixReportIntersection(t,
-      0,
+      hitKind,
       bit_cast<uint32_t>(u),
       bit_cast<uint32_t>(normal.x),
       bit_cast<uint32_t>(normal.y),
       bit_cast<uint32_t>(normal.z));
 }
 
-// Report only front-facing (entry) crossings of an analytic solid. For a ray
-// from outside a convex primitive the entry crossing is the visible surface;
-// the back-facing exit crossing is never nearest and, for a ray grazing its own
-// origin surface, is a spurious self-occlusion. rd is the (object-space) ray
-// direction the crossing normal is tested against.
-VISRTX_DEVICE void reportEntryCrossing(const PrimHit &h, const vec3 &rd)
+// Report every boundary crossing of an analytic solid — entry (front-facing)
+// and exit (back-facing) alike — and let OptiX keep the nearest in
+// [tmin, tmax]. Back-facing crossings make interiors visible (camera inside a
+// primitive, cut planes) and give transmission rays their exit event. The
+// normal stays outward; the CH side orients it toward the ray and records
+// facing (populateHit.h), mirroring the triangle convention. A secondary ray
+// grazing its own origin surface can reach the surface's own exit crossing —
+// the hit.epsilon origin offset + tmin guards against it, exactly as for
+// triangles. rd is the (object-space) ray direction the facing is tested
+// against.
+VISRTX_DEVICE void reportCrossing(const PrimHit &h, const vec3 &rd)
 {
-  if (dot(h.Ng, rd) < 0.f)
-    reportIntersection(h.t, h.Ng, h.u);
+  const bool isFront = dot(h.Ng, rd) < 0.f;
+  reportIntersection(h.t, h.Ng, h.u, isFront ? HIT_KIND_FRONT : HIT_KIND_BACK);
 }
 
 VISRTX_DEVICE void reportIntersection(float t)
@@ -126,11 +140,10 @@ VISRTX_DEVICE void intersectSphere(const GeometryGPUData &geometryData)
       sphereData.radii ? sphereData.radii[primID] : sphereData.radius;
 
   const vec3 rd = ray::localDirection();
-  forEachSphereCrossing(ray::localOrigin(),
-      rd,
-      center,
-      radius,
-      [&](const PrimHit &h) { reportEntryCrossing(h, rd); });
+  forEachSphereCrossing(
+      ray::localOrigin(), rd, center, radius, [&](const PrimHit &h) {
+        reportCrossing(h, rd);
+      });
 }
 
 VISRTX_DEVICE void intersectCylinder(const GeometryGPUData &geometryData)
@@ -149,13 +162,10 @@ VISRTX_DEVICE void intersectCylinder(const GeometryGPUData &geometryData)
       cylinderData.defaultCapFlags, cylinderData.vertexCaps, pidx);
 
   const vec3 rd = ray::localDirection();
-  forEachCylinderCrossing(ray::localOrigin(),
-      rd,
-      p0,
-      p1,
-      radius,
-      caps,
-      [&](const PrimHit &h) { reportEntryCrossing(h, rd); });
+  forEachCylinderCrossing(
+      ray::localOrigin(), rd, p0, p1, radius, caps, [&](const PrimHit &h) {
+        reportCrossing(h, rd);
+      });
 }
 
 VISRTX_DEVICE void intersectCone(const GeometryGPUData &geometryData)
@@ -175,14 +185,10 @@ VISRTX_DEVICE void intersectCone(const GeometryGPUData &geometryData)
       resolveCapBits(coneData.defaultCapFlags, coneData.vertexCaps, pidx);
 
   const vec3 rd = ray::localDirection();
-  forEachConeCrossing(ray::localOrigin(),
-      rd,
-      p0,
-      p1,
-      r0,
-      r1,
-      caps,
-      [&](const PrimHit &h) { reportEntryCrossing(h, rd); });
+  forEachConeCrossing(
+      ray::localOrigin(), rd, p0, p1, r0, r1, caps, [&](const PrimHit &h) {
+        reportCrossing(h, rd);
+      });
 }
 
 VISRTX_DEVICE bool rayBoxIntersection(
