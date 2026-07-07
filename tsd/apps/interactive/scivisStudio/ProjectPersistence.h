@@ -58,12 +58,17 @@ bool buildProjectSavePlan(const ProjectSaveRequest &request,
     ProjectSaveResult &result,
     std::string *error = nullptr);
 
-// Overrides applied while staging a project open. They change only each
-// dataset's initial residency; the project opens dirty when an override
+// Overrides applied while staging a project open. openUnloaded changes each
+// dataset's initial residency; the project opens dirty when that override
 // diverges from the manifest, so a subsequent save persists actual residency.
+// bookkeeping instead opens without building any dataset runtime
+// representation while leaving recorded residency untouched and the project
+// clean: residency records intent, not process state, so a bookkeeping open
+// must round-trip it unchanged. bookkeeping wins when both are set.
 struct ProjectOpenOptions
 {
   bool openUnloaded{false};
+  bool bookkeeping{false};
 };
 
 struct ProjectOpenStage

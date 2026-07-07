@@ -3,6 +3,7 @@
 
 #include "DatasetIO.h"
 
+#include "ProjectAssetTransaction.h"
 #include "ProjectSerialization.h"
 
 #include "tsd/animation/Animation.hpp"
@@ -11,10 +12,12 @@
 #include "tsd/io/animation/SpatialFieldFileBinding.hpp"
 #include "tsd/io/archives/SubtreeArchiveContent.hpp"
 #include "tsd/io/archives/detail/ArchivePlan.hpp"
+#include "tsd/io/importers.hpp"
 #include "tsd/scene/objects/Volume.hpp"
 
 #include <algorithm>
 #include <fstream>
+#include <memory>
 #include <vector>
 
 namespace tsd::scivis_studio {
@@ -116,6 +119,24 @@ bool nodeToDatasetMetadata(
   return true;
 }
 
+// True when the archive serializes any scene content at all — an object or a
+// subtree node below the root. A Declared Dataset's asset has neither
+// (ADR 0014).
+bool datasetArchiveHasSceneRepresentation(tsd::core::DataNode &archive)
+{
+  bool hasContent = false;
+  if (auto *objectDB = archive.child("objectDB")) {
+    objectDB->foreach_child([&](tsd::core::DataNode &typeNode) {
+      hasContent |= typeNode.numChildren() != 0;
+    });
+  }
+  if (auto *subtree = archive.child("subtree")) {
+    if (auto *children = subtree->child("children"))
+      hasContent |= children->numChildren() != 0;
+  }
+  return hasContent;
+}
+
 tsd::scene::Volume *findDatasetVolume(tsd::scene::LayerNodeRef root)
 {
   if (!root)
@@ -156,6 +177,63 @@ bool recreateFileAnimation(const Dataset &dataset,
       animationManager.addAnimation(dataset.name + " file animation");
   animation.emplaceFileBinding<tsd::io::SpatialFieldFileBinding>(
       &scene, volume, field->self(), std::move(files));
+  return true;
+}
+
+// Dataset Materialization: the first successful Dataset Load of a Declared
+// Dataset builds its runtime representation by importing from the Source
+// List (ADR 0014). The dataset comes back dirty so the next save records the
+// scene representation, upgrading the asset in place. A failed
+// materialization changes nothing.
+bool materializeDeclaredDataset(tsd::scene::Scene &scene,
+    tsd::animation::AnimationManager &animationManager,
+    Dataset &&dataset,
+    tsd::scene::LayerNodeRef destinationParent,
+    Dataset &datasetOut,
+    tsd::scene::LayerNodeRef &rootOut,
+    std::string *error)
+{
+  std::vector<std::string> files;
+  files.reserve(dataset.sourceFiles.size());
+  for (const auto &source : dataset.sourceFiles) {
+    files.push_back(
+        source.resolvedPath.empty() ? source.path : source.resolvedPath);
+  }
+
+  auto root = scene.insertChildNode(destinationParent, dataset.name.c_str());
+  auto discardRuntime = [&]() {
+    removeDatasetRuntime(scene, animationManager, root);
+  };
+  try {
+    // Validation restricts file-animation datasets to the VOLUME_ANIMATION
+    // importer, so materialization is a volume-animation import.
+    tsd::io::import_animations(scene,
+        animationManager,
+        {{tsd::io::ImporterType::VOLUME_ANIMATION, files}},
+        root);
+  } catch (const std::exception &e) {
+    discardRuntime();
+    return fail(
+        std::string("declared dataset materialization failed: ") + e.what(),
+        error);
+  } catch (...) {
+    discardRuntime();
+    return fail("declared dataset materialization failed", error);
+  }
+
+  if (!findDatasetVolume(root)) {
+    discardRuntime();
+    return fail(
+        "declared dataset materialization created no volume; check that the "
+        "Source List File's entries resolve on this machine",
+        error);
+  }
+
+  dataset.declared = false;
+  dataset.dirty = true;
+  datasetOut = std::move(dataset);
+  datasetOut.status = DatasetStatus::Available;
+  rootOut = root;
   return true;
 }
 
@@ -242,6 +320,111 @@ bool datasetArchiveUsesSourceListFile(tsd::core::DataNode &archive)
   return !files || files->numChildren() == 0;
 }
 
+bool readDatasetSourceListEntries(const std::filesystem::path &datasetFile,
+    std::vector<std::string> &entries,
+    std::string *error)
+{
+  entries.clear();
+  auto validation = validateDatasetArchiveFile(datasetFile);
+  if (!validation.ok)
+    return fail(validation.error, error);
+  if (validation.dataset.sourceKind != DatasetSourceKind::FileAnimation) {
+    return fail("dataset '" + validation.dataset.name
+            + "' is not a file-animation dataset",
+        error);
+  }
+
+  if (validation.dataset.pendingSourceListMigration) {
+    for (const auto &source : validation.dataset.sourceFiles)
+      entries.push_back(source.path);
+    return true;
+  }
+
+  std::vector<DatasetSourceFile> sourceList;
+  if (!readSourceListFile(sourceListFilePath(datasetFile), sourceList, error))
+    return false;
+  for (const auto &source : sourceList)
+    entries.push_back(source.path);
+  return true;
+}
+
+bool writeDatasetSourceListEdit(const std::filesystem::path &datasetFile,
+    const std::vector<std::string> &entries,
+    std::string *error)
+{
+  auto tree = std::make_shared<tsd::core::DataTree>();
+  if (!tree->load(datasetFile.string().c_str())) {
+    return fail(
+        "failed to load Dataset Archive: " + datasetFile.string(), error);
+  }
+  auto validation = validateDatasetArchive(tree->root());
+  if (!validation.ok)
+    return fail(validation.error, error);
+  if (validation.dataset.sourceKind != DatasetSourceKind::FileAnimation) {
+    return fail("dataset '" + validation.dataset.name
+            + "' is not a file-animation dataset",
+        error);
+  }
+
+  std::vector<DatasetSourceFile> sourceList;
+  sourceList.reserve(entries.size());
+  for (const auto &entry : entries)
+    sourceList.push_back({entry});
+
+  ProjectSavePlan plan;
+  plan.directory = datasetFile.parent_path();
+  const auto expectedName = validation.dataset.name;
+
+  // The Source List File carries the edit and installs last.
+  plan.manifest.description =
+      "dataset '" + expectedName + "' Source List File";
+  plan.manifest.target = sourceListFilePath(datasetFile).filename();
+  plan.manifest.ownedTarget = plan.manifest.target;
+  plan.manifest.writer = [sourceList](const std::filesystem::path &file,
+                             std::string *writeError) {
+    return writeSourceListFile(file, sourceList, writeError);
+  };
+  plan.manifest.validator = [](const std::filesystem::path &file,
+                                std::string *validationError) {
+    std::vector<DatasetSourceFile> staged;
+    return readSourceListFile(file, staged, validationError);
+  };
+
+  if (validation.dataset.pendingSourceListMigration) {
+    // Migrate the legacy asset in place: the same edit that externalizes the
+    // list rewrites the dataset file without it, as the pair transaction.
+    tree->root()["dataset"].remove("sourceFiles");
+    ProjectAssetWrite datasetWrite;
+    datasetWrite.description = "dataset '" + expectedName + "'";
+    datasetWrite.target = datasetFile.filename();
+    datasetWrite.ownedTarget = datasetWrite.target;
+    datasetWrite.writer = [tree](const std::filesystem::path &file,
+                              std::string *writeError) {
+      if (tree->save(file.string().c_str()))
+        return true;
+      return fail("failed to rewrite Dataset Archive", writeError);
+    };
+    datasetWrite.validator = [expectedName](const std::filesystem::path &file,
+                                 std::string *validationError) {
+      auto staged = validateDatasetArchiveFile(file);
+      if (!staged.ok)
+        return fail(staged.error, validationError);
+      if (staged.dataset.name != expectedName) {
+        return fail("dataset name does not match target", validationError);
+      }
+      if (staged.dataset.pendingSourceListMigration) {
+        return fail(
+            "staged dataset file still embeds sourceFiles", validationError);
+      }
+      return true;
+    };
+    plan.assets.push_back(std::move(datasetWrite));
+  }
+
+  AssetTransaction transaction;
+  return transaction.commit(plan, error);
+}
+
 DatasetAssetValidationResult validateDatasetAsset(
     const std::filesystem::path &file)
 {
@@ -288,12 +471,25 @@ DatasetAssetValidationResult validateDatasetArchive(
   if (!nodeToDatasetMetadata(*metadata, result.dataset, &result.error))
     return result;
 
+  const bool hasRepresentation = datasetArchiveHasSceneRepresentation(archive);
+  if (result.dataset.sourceKind == DatasetSourceKind::Static
+      && !hasRepresentation) {
+    // A static dataset without its content is a contradiction; only
+    // file-animation datasets have a declared, representation-less flavor
+    // (ADR 0014).
+    result.error = "static datasets require a scene representation";
+    return result;
+  }
   if (result.dataset.sourceKind == DatasetSourceKind::FileAnimation) {
-    auto *volumes = archive["objectDB"].child("volume");
-    if (!volumes || volumes->numChildren() != 1) {
-      result.error =
-          "file-animation datasets require exactly one volume target";
-      return result;
+    if (!hasRepresentation) {
+      result.dataset.declared = true;
+    } else {
+      auto *volumes = archive["objectDB"].child("volume");
+      if (!volumes || volumes->numChildren() != 1) {
+        result.error =
+            "file-animation datasets require exactly one volume target";
+        return result;
+      }
     }
   }
 
@@ -378,6 +574,42 @@ bool saveDatasetArchiveFile(const Dataset &dataset,
   return true;
 }
 
+bool saveDeclaredDatasetArchiveFile(
+    const Dataset &dataset, const std::filesystem::path &file, std::string *error)
+{
+  if (dataset.sourceKind != DatasetSourceKind::FileAnimation) {
+    return fail("only file-animation datasets can be declared", error);
+  }
+  if (!validateRigName(dataset.name, error))
+    return false;
+
+  // The declared asset is an ordinary Dataset Archive whose subtree is empty:
+  // serialize a fresh root with no children and no objects.
+  tsd::scene::Scene stagingScene;
+  auto *layer = stagingScene.addLayer("staging");
+  if (!layer)
+    return fail("failed to stage declared dataset subtree", error);
+  auto root = stagingScene.insertChildNode(layer->root(), dataset.name.c_str());
+
+  tsd::core::DataTree tree;
+  if (!tsd::io::serialize_SubtreeArchiveContent(
+          root, tree.root(), DATASET_DESC, dataset.name)) {
+    return fail("failed to serialize declared dataset subtree", error);
+  }
+
+  datasetMetadataToNode(dataset, tree.root()["dataset"]);
+  tree.root()["subtree"]["name"] = dataset.name;
+  if (!tree.save(file.string().c_str()))
+    return fail("failed to write dataset metadata", error);
+
+  auto validation = validateDatasetArchiveFile(file);
+  if (!validation.ok)
+    return fail("dataset validation failed: " + validation.error, error);
+  if (!validation.dataset.declared)
+    return fail("declared dataset asset has a scene representation", error);
+  return true;
+}
+
 bool loadDatasetArchiveFile(tsd::scene::Scene &scene,
     tsd::animation::AnimationManager &animationManager,
     const std::filesystem::path &file,
@@ -430,6 +662,16 @@ bool deserializeDatasetArchive(tsd::scene::Scene &scene,
           "file-animation dataset requires its Source List File", error);
     }
     validation.dataset.sourceFiles = *sourceList;
+  }
+
+  if (validation.dataset.declared) {
+    return materializeDeclaredDataset(scene,
+        animationManager,
+        std::move(validation.dataset),
+        destinationParent,
+        datasetOut,
+        rootOut,
+        error);
   }
 
   tsd::io::SubtreeArchiveContentOptions options;

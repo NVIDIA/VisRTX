@@ -44,6 +44,27 @@ bool writeSourceListFile(const std::filesystem::path &file,
 // sibling Source List File, i.e. it carries no legacy embedded sourceFiles.
 bool datasetArchiveUsesSourceListFile(tsd::core::DataNode &archive);
 
+// Read the raw Source List entries of a managed file-animation dataset asset
+// without touching any runtime: from the sibling Source List File, or from
+// the legacy embedded sourceFiles when the dataset file still embeds its
+// list.
+bool readDatasetSourceListEntries(const std::filesystem::path &datasetFile,
+    std::vector<std::string> &entries,
+    std::string *error = nullptr);
+
+// Rewrite a managed file-animation dataset asset's Source List as an
+// external-tool edit (ADR 0013): the Source List File is rewritten verbatim,
+// no runtime is touched, no entry is validated, and the edit works regardless
+// of the dataset's residency and availability, taking effect at the next
+// Dataset Load. A legacy asset that still embeds sourceFiles migrates in
+// place as part of the edit: the Source List File is written and the dataset
+// file is rewritten without the embedded list at datatree level (the scene
+// representation copied through untouched), staged together as one ADR 0004
+// pair transaction.
+bool writeDatasetSourceListEdit(const std::filesystem::path &datasetFile,
+    const std::vector<std::string> &entries,
+    std::string *error = nullptr);
+
 struct DatasetAssetValidationResult
 {
   bool ok{false};
@@ -65,6 +86,14 @@ DatasetAssetValidationResult validateDatasetArchive(
 bool saveDatasetArchiveFile(const Dataset &dataset,
     tsd::scene::LayerNodeRef root,
     tsd::animation::AnimationManager &animationManager,
+    const std::filesystem::path &file,
+    std::string *error = nullptr);
+
+// Serialize a Declared Dataset's asset: importer metadata and an empty
+// subtree, no scene representation (ADR 0014). The sibling Source List File
+// is staged separately by the caller that owns the pair. Only file-animation
+// datasets can be declared.
+bool saveDeclaredDatasetArchiveFile(const Dataset &dataset,
     const std::filesystem::path &file,
     std::string *error = nullptr);
 

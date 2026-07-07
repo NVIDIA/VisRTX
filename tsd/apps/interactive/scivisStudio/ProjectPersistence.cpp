@@ -338,15 +338,48 @@ bool buildProjectSavePlan(const ProjectSaveRequest &request,
           / (liveDataset.persistedName + ".tsd");
     }
 
+    bool copyManagedAsset = false;
     if (liveDataset.residency == DatasetResidency::Unloaded) {
-      if (savingCurrent) {
+      if (liveDataset.declared && liveDataset.persistedName.empty()) {
+        // First save of a Declared Dataset: the asset is serialized from the
+        // dataset record alone — importer metadata and no scene
+        // representation (ADR 0014).
+        const auto dataset = savedDataset;
+        write.writer = [dataset](const std::filesystem::path &file,
+                           std::string *writeError) {
+          return saveDeclaredDatasetArchiveFile(dataset, file, writeError);
+        };
+      } else if (savingCurrent) {
         return fail("unloaded dataset '" + savedDataset.name
                 + "' is read-only and cannot be rewritten",
             error);
+      } else {
+        copyManagedAsset = true;
       }
+    } else if (auto datasetRoot = resolveProjectAssetRoot(
+                   request.scene, "datasets", liveDataset.id, liveDataset.rootNode)) {
+      const auto dataset = savedDataset;
+      auto *animationManager = &request.animationManager;
+      write.writer = [dataset, datasetRoot, animationManager](
+                         const std::filesystem::path &file,
+                         std::string *writeError) {
+        return saveDatasetArchiveFile(
+            dataset, datasetRoot, *animationManager, file, writeError);
+      };
+    } else if (savingCurrent && !liveDataset.persistedName.empty()) {
+      // A bookkeeping open records the dataset Loaded without building its
+      // runtime; rewriting the asset (e.g. for a rename) falls back to a
+      // datatree-level copy of the managed asset, scene representation
+      // untouched.
+      copyManagedAsset = true;
+    } else {
+      return fail(
+          "dataset '" + savedDataset.name + "' has no scene subtree", error);
+    }
+    if (copyManagedAsset) {
       if (request.project.projectDirectory.empty()
           || liveDataset.persistedName.empty()) {
-        return fail("unloaded dataset '" + savedDataset.name
+        return fail("dataset '" + savedDataset.name
                 + "' has no managed asset to copy",
             error);
       }
@@ -359,21 +392,6 @@ bool buildProjectSavePlan(const ProjectSaveRequest &request,
                          std::string *writeError) {
         return copyDatasetArchiveFile(
             source, sourceName, targetName, file, writeError);
-      };
-    } else {
-      auto datasetRoot = resolveProjectAssetRoot(
-          request.scene, "datasets", liveDataset.id, liveDataset.rootNode);
-      if (!datasetRoot) {
-        return fail(
-            "dataset '" + savedDataset.name + "' has no scene subtree", error);
-      }
-      const auto dataset = savedDataset;
-      auto *animationManager = &request.animationManager;
-      write.writer = [dataset, datasetRoot, animationManager](
-                         const std::filesystem::path &file,
-                         std::string *writeError) {
-        return saveDatasetArchiveFile(
-            dataset, datasetRoot, *animationManager, file, writeError);
       };
     }
     const auto expectedName = savedDataset.name;
@@ -398,16 +416,28 @@ bool buildProjectSavePlan(const ProjectSaveRequest &request,
     // unrelated reasons (ADR 0013).
     const auto sourcesTarget = std::filesystem::path("datasets")
         / (savedDataset.name + SOURCE_LIST_FILE_EXTENSION);
-    if (liveDataset.residency == DatasetResidency::Unloaded) {
+    if (copyManagedAsset) {
+      // The copy carries the managed pair as-is: the sibling comes over
+      // verbatim when there is one, and a sibling already at the target (a
+      // same-name bookkeeping rewrite) is never rewritten, so external edits
+      // survive (ADR 0013).
       const auto sourceSibling =
           sourceListFilePath(request.project.projectDirectory / "datasets"
               / (liveDataset.persistedName + ".tsd"));
       std::error_code ec;
-      if (std::filesystem::exists(sourceSibling, ec) && !ec) {
+      const bool siblingInPlace = savingCurrent
+          && std::filesystem::exists(request.directory / sourcesTarget, ec)
+          && !ec;
+      if (!siblingInPlace && std::filesystem::exists(sourceSibling, ec)
+          && !ec) {
         ProjectAssetWrite sourcesWrite;
         sourcesWrite.description =
             "dataset '" + savedDataset.name + "' Source List File";
         sourcesWrite.target = sourcesTarget;
+        if (savingCurrent) {
+          sourcesWrite.ownedTarget = std::filesystem::path("datasets")
+              / (liveDataset.persistedName + SOURCE_LIST_FILE_EXTENSION);
+        }
         sourcesWrite.writer = copySourceListFileWriter(sourceSibling);
         sourcesWrite.validator = validateStagedSourceList;
         plan.assets.push_back(std::move(sourcesWrite));

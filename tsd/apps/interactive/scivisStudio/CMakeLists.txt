@@ -16,6 +16,7 @@ add_library(tsd_scivis_studio_model STATIC
   RenderShot.cpp
   RenderShotCLI.cpp
   Shot.cpp
+  StudioCLI.cpp
 )
 
 target_include_directories(tsd_scivis_studio_model
@@ -76,6 +77,15 @@ add_executable(scivisStudioRenderShot
 )
 
 target_link_libraries(scivisStudioRenderShot
+PRIVATE
+  tsd_scivis_studio_model
+)
+
+add_executable(scivisStudioCLI
+  scivisStudioCLI.cpp
+)
+
+target_link_libraries(scivisStudioCLI
 PRIVATE
   tsd_scivis_studio_model
 )

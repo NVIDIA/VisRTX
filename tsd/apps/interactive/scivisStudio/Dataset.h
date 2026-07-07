@@ -91,6 +91,11 @@ struct Dataset
   // IDs or these bookkeeping fields.
   bool dirty{true};
   bool pendingExtraction{false};
+  // A Declared Dataset: the asset records the importer settings and the
+  // Source List File but no scene representation. The first successful
+  // Dataset Load materializes it (ADR 0014). Only meaningful for
+  // file-animation datasets.
+  bool declared{false};
   // The dataset file carries legacy embedded sourceFiles: the next explicit
   // save of the loaded dataset writes the Source List File and rewrites the
   // dataset file without paths (ADR 0013).

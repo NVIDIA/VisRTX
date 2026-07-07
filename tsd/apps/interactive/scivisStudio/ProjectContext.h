@@ -49,6 +49,14 @@ struct ProjectContext
       const std::vector<std::filesystem::path> &sourcePaths,
       tsd::io::ImporterType importerType,
       const FileAnimationDatasetOptions &options = {});
+  // Create a Declared Dataset from its Source List alone: no source file is
+  // read — not even an existence check — so declaring behaves identically on
+  // every machine (ADR 0014). The dataset records Unloaded residency; the
+  // first successful Dataset Load materializes it.
+  Dataset *addDeclaredFileAnimationDataset(const std::string &name,
+      const std::vector<std::string> &sourceList,
+      tsd::io::ImporterType importerType,
+      const FileAnimationDatasetOptions &options = {});
   bool renameDataset(const DatasetID &id,
       const std::string &newName,
       std::string *error = nullptr);
@@ -133,6 +141,12 @@ struct ProjectContext
 
  private:
   friend struct DatasetDirtyDelegate;
+  // Shot semantics shared by eager and declared file-animation creates: bind
+  // the new dataset to every shot, enabled only in the active one, and drive
+  // the active shot's frame count from the source-list length.
+  void applyFileAnimationShotSemantics(const Dataset &record,
+      size_t frameCount,
+      const FileAnimationDatasetOptions &options);
   void installDatasetDirtyDelegate();
   void markDatasetDirtyForObject(const tsd::scene::Object *object);
   Dataset *loadDatasetArchiveImpl(const std::filesystem::path &file,

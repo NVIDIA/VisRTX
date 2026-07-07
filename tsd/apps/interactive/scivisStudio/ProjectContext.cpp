@@ -948,36 +948,7 @@ Dataset *ProjectContext::addFileAnimationDataset(const std::string &name,
           record.name.c_str());
     } else {
       record.status = DatasetStatus::Available;
-      if (auto *activeShot = project::activeShot(m_project)) {
-        for (const auto &dataset : m_project.datasets) {
-          if (dataset.id == record.id
-              || dataset.sourceKind != DatasetSourceKind::FileAnimation)
-            continue;
-          const auto *binding =
-              shot::findDatasetBinding(*activeShot, dataset.id);
-          if (binding && binding->enabled
-              && dataset.sourceFiles.size() != sourcePaths.size()) {
-            tsd::core::logWarning(
-                "[SciVisStudio] Enabled file animation datasets have different frame counts: '%s' has %zu frames, '%s' has %zu frames",
-                dataset.name.c_str(),
-                dataset.sourceFiles.size(),
-                record.name.c_str(),
-                sourcePaths.size());
-          }
-        }
-      }
-      for (auto &shot : m_project.shots)
-        shot::setDatasetBinding(
-            shot, record.id, &shot == project::activeShot(m_project));
-
-      if (auto *activeShot = project::activeShot(m_project)) {
-        if (options.setActiveShotFrameCount)
-          activeShot->frameCount = static_cast<int>(sourcePaths.size());
-        activeShot->currentFrame = 0;
-        activeShot->playing = false;
-      }
-      syncAnimationManagerToActiveShot();
-      m_ctx->tsd.animationMgr.setAnimationFrame(0);
+      applyFileAnimationShotSemantics(record, sourcePaths.size(), options);
       tsd::core::logStatus(
           "[SciVisStudio] Imported file animation dataset '%s' (%zu frames)",
           record.name.c_str(),
@@ -999,6 +970,83 @@ Dataset *ProjectContext::addFileAnimationDataset(const std::string &name,
   m_project.markDirty();
   record.dirty = record.status == DatasetStatus::Available;
   applyActiveShot();
+  return &record;
+}
+
+void ProjectContext::applyFileAnimationShotSemantics(const Dataset &record,
+    size_t frameCount,
+    const FileAnimationDatasetOptions &options)
+{
+  if (auto *activeShot = project::activeShot(m_project)) {
+    for (const auto &dataset : m_project.datasets) {
+      if (dataset.id == record.id
+          || dataset.sourceKind != DatasetSourceKind::FileAnimation)
+        continue;
+      const auto *binding = shot::findDatasetBinding(*activeShot, dataset.id);
+      if (binding && binding->enabled
+          && dataset.sourceFiles.size() != frameCount) {
+        tsd::core::logWarning(
+            "[SciVisStudio] Enabled file animation datasets have different frame counts: '%s' has %zu frames, '%s' has %zu frames",
+            dataset.name.c_str(),
+            dataset.sourceFiles.size(),
+            record.name.c_str(),
+            frameCount);
+      }
+    }
+  }
+  for (auto &shot : m_project.shots)
+    shot::setDatasetBinding(
+        shot, record.id, &shot == project::activeShot(m_project));
+  if (auto *activeShot = project::activeShot(m_project)) {
+    if (options.setActiveShotFrameCount)
+      activeShot->frameCount = static_cast<int>(frameCount);
+    activeShot->currentFrame = 0;
+    activeShot->playing = false;
+  }
+  syncAnimationManagerToActiveShot();
+  m_ctx->tsd.animationMgr.setAnimationFrame(0);
+}
+
+Dataset *ProjectContext::addDeclaredFileAnimationDataset(
+    const std::string &name,
+    const std::vector<std::string> &sourceList,
+    tsd::io::ImporterType importerType,
+    const FileAnimationDatasetOptions &options)
+{
+  if (!m_ctx || sourceList.empty())
+    return nullptr;
+
+  Dataset dataset;
+  dataset.id = project::nextDatasetId(m_project);
+  dataset.name = makeValidUniqueAssetName(
+      m_project.datasets, name.empty() ? dataset.id : name);
+  dataset.sourceKind = DatasetSourceKind::FileAnimation;
+  dataset.importerType = toString(importerType);
+  dataset.source.sourcePath = sourceList.front();
+  dataset.sourceFiles.reserve(sourceList.size());
+  for (const auto &entry : sourceList)
+    dataset.sourceFiles.push_back({entry});
+  // Entries are opaque and never preflighted, so availability cannot be
+  // assessed here; the authoritative assessment is the load attempt. The
+  // dataset records Unloaded residency until materialized.
+  dataset.status = DatasetStatus::Available;
+  dataset.residency = DatasetResidency::Unloaded;
+  dataset.declared = true;
+  dataset.dirty = true;
+
+  m_project.datasets.push_back(std::move(dataset));
+  auto &record = m_project.datasets.back();
+
+  // Shot semantics mirror the eager create; the frame count is known from
+  // the Source List length without reading a single file.
+  applyFileAnimationShotSemantics(record, record.sourceFiles.size(), options);
+
+  m_project.markDirty();
+  applyActiveShot();
+  tsd::core::logStatus(
+      "[SciVisStudio] Declared file animation dataset '%s' (%zu frames)",
+      record.name.c_str(),
+      record.sourceFiles.size());
   return &record;
 }
 
@@ -1065,7 +1113,8 @@ bool ProjectContext::loadDataset(const DatasetID &id, std::string *error)
 
   loaded.id = dataset->id;
   loaded.persistedName = dataset->persistedName;
-  loaded.dirty = false;
+  // loaded.dirty stays as deserialized: clean for an ordinary asset, dirty
+  // when a Declared Dataset just materialized (ADR 0014).
   loaded.residency = DatasetResidency::Loaded;
   (*loadedRoot)->name() = loaded.id;
   loaded.rootNode = refFor("studio", loadedRoot);
