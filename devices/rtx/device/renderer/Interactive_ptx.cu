@@ -88,8 +88,13 @@ struct InteractiveShadingPolicy
         : 1.f;
 
     vec3 contrib = materialEvaluateEmission(shadingState, -ray.dir);
-    contrib += rendererParams.ambientColor * rendererParams.ambientIntensity
-        * materialEvaluateTint(shadingState);
+
+    // AO modulates ONLY the ambient (sky) term. Direct lights carry their own
+    // shadow attenuation and emission is never occluded, so scaling the whole
+    // contribution by aoFactor (as before) blacked out surfaces enclosed by
+    // geometry.
+    contrib += aoFactor * rendererParams.ambientColor
+        * rendererParams.ambientIntensity * materialEvaluateTint(shadingState);
 
     const vec3 shadowOrigin = shadingHitpoint(hit) + hit.Ng * hit.epsilon;
     for (size_t i = 0; i < world.numLightInstances; i++) {
@@ -135,8 +140,6 @@ struct InteractiveShadingPolicy
       contrib += thisLightContrib * attenuation;
     }
 
-    contrib *= aoFactor;
-
     // Single indirect bounce — REFLECTION only. Transmission/refraction is
     // owned by the flat compositing loop, so a through-surface continuation is
     // discarded here to avoid double-counting the transmitted background.
@@ -144,8 +147,8 @@ struct InteractiveShadingPolicy
     if (!continuesThroughSurface(nextRay)
         && glm::any(glm::greaterThan(
             nextRay.contributionWeight, glm::vec3(MIN_CONTRIBUTION_EPSILON)))) {
-      Ray bounceRay = {hit.hitpoint + hit.Ng * hit.epsilon,
-          normalize(nextRay.direction)};
+      Ray bounceRay = {
+          hit.hitpoint + hit.Ng * hit.epsilon, normalize(nextRay.direction)};
 
       SurfaceHit bounceHit;
       bounceHit.foundHit = false;
@@ -165,13 +168,12 @@ struct InteractiveShadingPolicy
         vec3 hdri;
         if (getBackgroundLight(frameData, bounceRay.dir, hdri)) {
           // Env MIS escape side: weight the BSDF-sampled escape by the same
-          // balance heuristic as the NEE loop (pLight = envPdf, no 1/numLights).
-          // A delta / through-surface lobe reports +inf => wBsdf = 1; here the
-          // bounce is reflection-only so nextRay.pdf is finite.
+          // balance heuristic as the NEE loop (pLight = envPdf, no
+          // 1/numLights). A delta / through-surface lobe reports +inf => wBsdf
+          // = 1; here the bounce is reflection-only so nextRay.pdf is finite.
           const float pLight = envPdf(frameData, bounceRay.dir);
-          const float wBsdf = isinf(nextRay.pdf)
-              ? 1.0f
-              : nextRay.pdf / (nextRay.pdf + pLight);
+          const float wBsdf =
+              isinf(nextRay.pdf) ? 1.0f : nextRay.pdf / (nextRay.pdf + pLight);
           contrib += wBsdf * hdri * nextRay.contributionWeight;
         }
       }
@@ -218,7 +220,8 @@ VISRTX_GLOBAL void __anyhit__shadow()
 
     transmittance *= (1.0f - alpha * (1.0f - T));
 
-    if (glm::all(glm::lessThanEqual(transmittance, vec3(1.f - OPACITY_THRESHOLD))))
+    if (glm::all(
+            glm::lessThanEqual(transmittance, vec3(1.f - OPACITY_THRESHOLD))))
       optixTerminateRay();
     else
       optixIgnoreIntersection();
