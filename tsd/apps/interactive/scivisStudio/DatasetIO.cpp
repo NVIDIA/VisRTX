@@ -14,6 +14,7 @@
 #include "tsd/scene/objects/Volume.hpp"
 
 #include <algorithm>
+#include <fstream>
 #include <vector>
 
 namespace tsd::scivis_studio {
@@ -45,11 +46,9 @@ void datasetMetadataToNode(const Dataset &dataset, tsd::core::DataNode &node)
   if (dataset.sourceKind == DatasetSourceKind::Static) {
     auto &provenance = node["provenance"];
     provenance["sourcePath"] = dataset.source.sourcePath;
-  } else if (dataset.sourceKind == DatasetSourceKind::FileAnimation) {
-    auto &files = node["sourceFiles"];
-    for (const auto &source : dataset.sourceFiles)
-      files.append() = source.path;
   }
+  // A File Animation Dataset's source list is persisted only in its sibling
+  // Source List File; dataset files no longer embed it (ADR 0013).
 }
 
 bool nodeToDatasetMetadata(
@@ -91,18 +90,22 @@ bool nodeToDatasetMetadata(
     if (auto *files = node.child("sourceFiles"); files && files->numChildren())
       return fail("static datasets cannot contain a source-file list", error);
   } else {
-    auto *files = node.child("sourceFiles");
-    if (!files || files->numChildren() == 0)
-      return fail("file-animation datasets require sourceFiles", error);
-    files->foreach_child([&](tsd::core::DataNode &entry) {
-      dataset.sourceFiles.push_back({entry.getValueOr<std::string>("")});
-    });
-    if (std::any_of(dataset.sourceFiles.begin(),
-            dataset.sourceFiles.end(),
-            [](const DatasetSourceFile &source) {
-              return source.path.empty();
-            }))
-      return fail("file-animation source paths cannot be empty", error);
+    // A new-format dataset file carries no paths (the sibling Source List
+    // File is the only persisted list); legacy embedded sourceFiles still
+    // load unmodified and mark the dataset for migration (ADR 0013).
+    if (auto *files = node.child("sourceFiles");
+        files && files->numChildren() != 0) {
+      files->foreach_child([&](tsd::core::DataNode &entry) {
+        dataset.sourceFiles.push_back({entry.getValueOr<std::string>("")});
+      });
+      if (std::any_of(dataset.sourceFiles.begin(),
+              dataset.sourceFiles.end(),
+              [](const DatasetSourceFile &source) {
+                return source.path.empty();
+              }))
+        return fail("file-animation source paths cannot be empty", error);
+      dataset.pendingSourceListMigration = true;
+    }
     if (dataset.importerType != "VOLUME_ANIMATION")
       return fail("unsupported file-animation importerType", error);
   }
@@ -144,8 +147,10 @@ bool recreateFileAnimation(const Dataset &dataset,
 
   std::vector<std::string> files;
   files.reserve(dataset.sourceFiles.size());
-  for (const auto &source : dataset.sourceFiles)
-    files.push_back(source.path);
+  for (const auto &source : dataset.sourceFiles) {
+    files.push_back(
+        source.resolvedPath.empty() ? source.path : source.resolvedPath);
+  }
 
   auto &animation =
       animationManager.addAnimation(dataset.name + " file animation");
@@ -156,7 +161,101 @@ bool recreateFileAnimation(const Dataset &dataset,
 
 } // namespace
 
+std::filesystem::path sourceListFilePath(
+    const std::filesystem::path &datasetFile)
+{
+  auto path = datasetFile;
+  path.replace_extension(SOURCE_LIST_FILE_EXTENSION);
+  return path;
+}
+
+bool readSourceListFile(const std::filesystem::path &file,
+    std::vector<DatasetSourceFile> &sourceList,
+    std::string *error)
+{
+  sourceList.clear();
+  std::ifstream in(file, std::ios::binary);
+  if (!in) {
+    return fail(
+        "Source List File is missing or unreadable: " + file.string(), error);
+  }
+
+  const auto anchor = file.parent_path();
+  std::string line;
+  while (std::getline(in, line)) {
+    const auto first = line.find_first_not_of(" \t\r\n");
+    if (first == std::string::npos)
+      continue;
+    const auto last = line.find_last_not_of(" \t\r\n");
+    DatasetSourceFile entry;
+    entry.path = line.substr(first, last - first + 1);
+    if (std::filesystem::path(entry.path).is_relative())
+      entry.resolvedPath = (anchor / entry.path).string();
+    sourceList.push_back(std::move(entry));
+  }
+  if (in.bad()) {
+    sourceList.clear();
+    return fail("Source List File is unreadable: " + file.string(), error);
+  }
+  if (sourceList.empty())
+    return fail("Source List File is empty: " + file.string(), error);
+  return true;
+}
+
+bool writeSourceListFile(const std::filesystem::path &file,
+    const std::vector<DatasetSourceFile> &sourceList,
+    std::string *error)
+{
+  if (sourceList.empty())
+    return fail("File Animation Source List is empty", error);
+  for (const auto &source : sourceList) {
+    if (source.path.empty())
+      return fail("file-animation source paths cannot be empty", error);
+    if (source.path.find_first_of("\r\n") != std::string::npos) {
+      return fail(
+          "file-animation source paths cannot contain line breaks", error);
+    }
+  }
+
+  std::ofstream out(file, std::ios::binary | std::ios::trunc);
+  if (!out) {
+    return fail(
+        "failed to open Source List File for writing: " + file.string(),
+        error);
+  }
+  for (const auto &source : sourceList)
+    out << source.path << '\n';
+  out.flush();
+  if (!out)
+    return fail("failed to write Source List File: " + file.string(), error);
+  return true;
+}
+
+bool datasetArchiveUsesSourceListFile(tsd::core::DataNode &archive)
+{
+  auto *metadata = archive.child("dataset");
+  if (!metadata
+      || (*metadata)["sourceKind"].getValueOr<std::string>("")
+          != dataset::toString(DatasetSourceKind::FileAnimation))
+    return false;
+  auto *files = metadata->child("sourceFiles");
+  return !files || files->numChildren() == 0;
+}
+
 DatasetAssetValidationResult validateDatasetAsset(
+    const std::filesystem::path &file)
+{
+  auto result = validateDatasetArchiveFile(file);
+  if (result.ok
+      && result.dataset.sourceKind == DatasetSourceKind::FileAnimation
+      && !result.dataset.pendingSourceListMigration) {
+    result.ok = readSourceListFile(
+        sourceListFilePath(file), result.dataset.sourceFiles, &result.error);
+  }
+  return result;
+}
+
+DatasetAssetValidationResult validateDatasetArchiveFile(
     const std::filesystem::path &file)
 {
   tsd::core::DataTree tree;
@@ -271,7 +370,9 @@ bool saveDatasetArchiveFile(const Dataset &dataset,
   if (!tree.save(file.string().c_str()))
     return fail("failed to write dataset metadata", error);
 
-  auto validation = validateDatasetAsset(file);
+  // Only the dataset file is validated here: the sibling Source List File is
+  // written, staged, and validated by the caller that owns the pair.
+  auto validation = validateDatasetArchiveFile(file);
   if (!validation.ok)
     return fail("dataset validation failed: " + validation.error, error);
   return true;
@@ -289,10 +390,21 @@ bool loadDatasetArchiveFile(tsd::scene::Scene &scene,
   if (!tree.load(file.string().c_str()))
     return fail("failed to load Dataset Archive", error);
 
+  // Dataset Load is the one moment the Source List File is read; the load
+  // fails cleanly when the sibling is missing, unreadable, or empty.
+  std::vector<DatasetSourceFile> sourceList;
+  const std::vector<DatasetSourceFile> *sourceListPtr = nullptr;
+  if (datasetArchiveUsesSourceListFile(tree.root())) {
+    if (!readSourceListFile(sourceListFilePath(file), sourceList, error))
+      return false;
+    sourceListPtr = &sourceList;
+  }
+
   return deserializeDatasetArchive(scene,
       animationManager,
       tree.root(),
       destinationParent,
+      sourceListPtr,
       datasetOut,
       rootOut,
       error);
@@ -302,6 +414,7 @@ bool deserializeDatasetArchive(tsd::scene::Scene &scene,
     tsd::animation::AnimationManager &animationManager,
     tsd::core::DataNode &archive,
     tsd::scene::LayerNodeRef destinationParent,
+    const std::vector<DatasetSourceFile> *sourceList,
     Dataset &datasetOut,
     tsd::scene::LayerNodeRef &rootOut,
     std::string *error)
@@ -309,6 +422,15 @@ bool deserializeDatasetArchive(tsd::scene::Scene &scene,
   auto validation = validateDatasetArchive(archive);
   if (!validation.ok)
     return fail(validation.error, error);
+
+  if (validation.dataset.sourceKind == DatasetSourceKind::FileAnimation
+      && validation.dataset.sourceFiles.empty()) {
+    if (!sourceList || sourceList->empty()) {
+      return fail(
+          "file-animation dataset requires its Source List File", error);
+    }
+    validation.dataset.sourceFiles = *sourceList;
+  }
 
   tsd::io::SubtreeArchiveContentOptions options;
   options.animationManager = &animationManager;

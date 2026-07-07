@@ -66,7 +66,13 @@ struct DatasetSourceMetadata
 
 struct DatasetSourceFile
 {
+  // The raw entry as authored; entries are opaque and are written back
+  // verbatim (ADR 0013).
   std::string path;
+  // Runtime-only: a relative entry anchored once, at read, to its Source List
+  // File's directory. Empty when the raw entry is used as-is (an absolute
+  // entry or a legacy embedded one).
+  std::string resolvedPath;
 };
 
 struct Dataset
@@ -85,6 +91,10 @@ struct Dataset
   // IDs or these bookkeeping fields.
   bool dirty{true};
   bool pendingExtraction{false};
+  // The dataset file carries legacy embedded sourceFiles: the next explicit
+  // save of the loaded dataset writes the Source List File and rewrites the
+  // dataset file without paths (ADR 0013).
+  bool pendingSourceListMigration{false};
   std::string persistedName;
 };
 

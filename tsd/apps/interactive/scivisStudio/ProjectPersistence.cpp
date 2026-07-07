@@ -207,6 +207,26 @@ bool isSavingCurrentProject(
       && !ec;
 }
 
+bool validateStagedSourceList(
+    const std::filesystem::path &file, std::string *error)
+{
+  std::vector<DatasetSourceFile> entries;
+  return readSourceListFile(file, entries, error);
+}
+
+ProjectAssetWriter copySourceListFileWriter(const std::filesystem::path &from)
+{
+  return [from](const std::filesystem::path &file, std::string *writeError) {
+    std::error_code ec;
+    std::filesystem::copy_file(from, file, ec);
+    if (ec) {
+      return fail(
+          "failed to copy Source List File: " + ec.message(), writeError);
+    }
+    return true;
+  };
+}
+
 void addRemoval(ProjectSavePlan &plan, const std::filesystem::path &path)
 {
   const bool alreadyAdded = std::any_of(
@@ -288,8 +308,13 @@ bool buildProjectSavePlan(const ProjectSaveRequest &request,
   for (size_t i = 0; i < result.project.datasets.size(); ++i) {
     auto &savedDataset = result.project.datasets[i];
     const auto &liveDataset = request.project.datasets[i];
+    // A pending source-list migration rewrites the asset on the next explicit
+    // save, but only while the dataset is loaded: an Unloaded dataset is
+    // read-only and keeps its legacy embedded sourceFiles until loaded again.
+    const bool migrateSourceList = liveDataset.pendingSourceListMigration
+        && liveDataset.residency == DatasetResidency::Loaded;
     const bool needsWrite = !savingCurrent || liveDataset.dirty
-        || liveDataset.pendingExtraction
+        || liveDataset.pendingExtraction || migrateSourceList
         || liveDataset.persistedName != savedDataset.name;
     if (!needsWrite)
       continue;
@@ -301,6 +326,8 @@ bool buildProjectSavePlan(const ProjectSaveRequest &request,
 
     savedDataset.persistedName = savedDataset.name;
     savedDataset.pendingExtraction = false;
+    if (migrateSourceList)
+      savedDataset.pendingSourceListMigration = false;
     savedDataset.dirty = false;
     ProjectAssetWrite write;
     write.description = "dataset '" + savedDataset.name + "'";
@@ -350,9 +377,11 @@ bool buildProjectSavePlan(const ProjectSaveRequest &request,
       };
     }
     const auto expectedName = savedDataset.name;
+    // The staged dataset file is validated alone: its sibling Source List
+    // File is staged and validated as its own transaction entry.
     write.validator = [expectedName](const std::filesystem::path &file,
                           std::string *validationError) {
-      auto validation = validateDatasetAsset(file);
+      auto validation = validateDatasetArchiveFile(file);
       if (!validation.ok)
         return fail(validation.error, validationError);
       if (validation.dataset.name != expectedName)
@@ -360,6 +389,70 @@ bool buildProjectSavePlan(const ProjectSaveRequest &request,
       return true;
     };
     plan.assets.push_back(std::move(write));
+
+    // The dataset file and its sibling Source List File are one asset: the
+    // transaction stages and installs the pair together. The sibling is
+    // written only when the target lacks one (Save As, first save, rename) or
+    // a migration is pending; a sibling already in place is never rewritten,
+    // so external edits survive saves that rewrite the dataset file for
+    // unrelated reasons (ADR 0013).
+    const auto sourcesTarget = std::filesystem::path("datasets")
+        / (savedDataset.name + SOURCE_LIST_FILE_EXTENSION);
+    if (liveDataset.residency == DatasetResidency::Unloaded) {
+      const auto sourceSibling =
+          sourceListFilePath(request.project.projectDirectory / "datasets"
+              / (liveDataset.persistedName + ".tsd"));
+      std::error_code ec;
+      if (std::filesystem::exists(sourceSibling, ec) && !ec) {
+        ProjectAssetWrite sourcesWrite;
+        sourcesWrite.description =
+            "dataset '" + savedDataset.name + "' Source List File";
+        sourcesWrite.target = sourcesTarget;
+        sourcesWrite.writer = copySourceListFileWriter(sourceSibling);
+        sourcesWrite.validator = validateStagedSourceList;
+        plan.assets.push_back(std::move(sourcesWrite));
+      }
+    } else if (savedDataset.sourceKind == DatasetSourceKind::FileAnimation) {
+      std::error_code ec;
+      const bool siblingInPlace = savingCurrent
+          && std::filesystem::exists(request.directory / sourcesTarget, ec)
+          && !ec;
+      if (!siblingInPlace || migrateSourceList) {
+        ProjectAssetWrite sourcesWrite;
+        sourcesWrite.description =
+            "dataset '" + savedDataset.name + "' Source List File";
+        sourcesWrite.target = sourcesTarget;
+        if (savingCurrent && !liveDataset.persistedName.empty()) {
+          sourcesWrite.ownedTarget = std::filesystem::path("datasets")
+              / (liveDataset.persistedName + SOURCE_LIST_FILE_EXTENSION);
+        }
+
+        // A rename is not a source-list edit: when the previously persisted
+        // sibling is on disk, carry it over verbatim so external edits
+        // survive. Serialize the in-memory entries only when there is no
+        // sibling to carry (first save, Save As, repair) or a migration
+        // externalizes the legacy embedded sourceFiles.
+        const auto persistedSibling =
+            savingCurrent && !liveDataset.persistedName.empty()
+            ? request.directory / "datasets"
+                / (liveDataset.persistedName + SOURCE_LIST_FILE_EXTENSION)
+            : std::filesystem::path();
+        const bool carrySibling = !migrateSourceList
+            && !persistedSibling.empty()
+            && std::filesystem::exists(persistedSibling, ec) && !ec;
+        if (carrySibling) {
+          sourcesWrite.writer = copySourceListFileWriter(persistedSibling);
+        } else {
+          const auto sourceList = savedDataset.sourceFiles;
+          sourcesWrite.writer = [sourceList](const std::filesystem::path &file,
+                                    std::string *writeError) {
+            return writeSourceListFile(file, sourceList, writeError);
+          };
+        }
+        sourcesWrite.validator = validateStagedSourceList;
+        plan.assets.push_back(std::move(sourcesWrite));
+      }
+    }
   }
 
   for (size_t i = 0; i < result.project.cameraRigs.size(); ++i) {
@@ -469,6 +562,11 @@ bool buildProjectSavePlan(const ProjectSaveRequest &request,
           && !assetNamesEqual(oldName, result.project.datasets[i].name)) {
         addRemoval(
             plan, std::filesystem::path("datasets") / (oldName + ".tsd"));
+        // Renaming renames the pair: retire the old sibling Source List File
+        // with the old dataset file (a missing sibling is skipped).
+        addRemoval(plan,
+            std::filesystem::path("datasets")
+                / (oldName + SOURCE_LIST_FILE_EXTENSION));
       }
     }
     for (size_t i = 0; i < result.project.cameraRigs.size(); ++i) {

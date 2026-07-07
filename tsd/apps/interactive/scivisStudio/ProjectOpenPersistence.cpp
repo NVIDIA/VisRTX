@@ -41,6 +41,19 @@ struct StagedCameraRig
   std::string error;
 };
 
+/*
+ * A staged dataset is the archive plus — for a new-format file-animation
+ * dataset — its sibling Source List File, read once while staging so the
+ * stage-and-validate open works from one consistent snapshot (ADR 0013).
+ */
+struct StagedDataset
+{
+  StagedArchive archive;
+  bool sourceListLoaded{false};
+  std::vector<DatasetSourceFile> sourceList;
+  std::string sourceListError;
+};
+
 bool fail(std::string message, std::string *error)
 {
   if (error)
@@ -232,7 +245,7 @@ struct ProjectOpenState
   StagedArchive renderers;
   std::vector<StagedCameraRig> cameraRigs;
   std::vector<StagedArchive> lightRigs;
-  std::vector<StagedArchive> datasets;
+  std::vector<StagedDataset> datasets;
 };
 
 } // namespace detail
@@ -333,16 +346,19 @@ void hydrateDatasets(const detail::ProjectOpenState &state,
     }
     Dataset loaded;
     tsd::scene::LayerNodeRef loadedRoot;
-    std::string datasetError = staged.error;
-    const bool loadedAsset = staged.tree
+    std::string datasetError = staged.archive.error;
+    const bool loadedAsset = staged.archive.tree
         && deserializeDatasetArchive(scene,
             animationManager,
-            staged.tree->root(),
+            staged.archive.tree->root(),
             destination,
+            staged.sourceListLoaded ? &staged.sourceList : nullptr,
             loaded,
             loadedRoot,
             &datasetError);
     if (!loadedAsset) {
+      if (!staged.sourceListError.empty())
+        datasetError = staged.sourceListError;
       inventoryEntry.status = DatasetStatus::Unavailable;
       inventoryEntry.dirty = false;
       inventoryEntry.persistedName = inventoryEntry.name;
@@ -539,8 +555,16 @@ bool stageProjectOpen(const std::filesystem::path &directory,
         state->datasets.emplace_back();
         continue;
       }
-      state->datasets.push_back(
-          stageArchive(directory / "datasets" / (dataset.name + ".tsd")));
+      const auto file = directory / "datasets" / (dataset.name + ".tsd");
+      StagedDataset staged;
+      staged.archive = stageArchive(file);
+      if (staged.archive.tree
+          && datasetArchiveUsesSourceListFile(staged.archive.tree->root())) {
+        staged.sourceListLoaded = readSourceListFile(sourceListFilePath(file),
+            staged.sourceList,
+            &staged.sourceListError);
+      }
+      state->datasets.push_back(std::move(staged));
     }
   }
 

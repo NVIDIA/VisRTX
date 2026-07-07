@@ -20,7 +20,11 @@ constexpr const char *PROJECT_SCHEMA = "tsd.scivis-studio.project";
 constexpr int DECOMPOSED_SCENE_SCHEMA_VERSION = 6;
 // v7: each manifest dataset records its residency (Loaded/Unloaded); an
 // absent field means Loaded, so v6 projects behave identically.
-constexpr int SCHEMA_VERSION = 7;
+// v8: a File Animation Dataset persists its source list only in a sibling
+// Source List File (datasets/<name>.sources); dataset files no longer embed
+// sourceFiles, though legacy embedded sourceFiles still load and migrate on
+// the next explicit save (ADR 0013).
+constexpr int SCHEMA_VERSION = 8;
 constexpr const char *PROJECT_MANIFEST_FILENAME = "project.tsd";
 
 // Standalone rig Archive schemas, versioned independently of the project.

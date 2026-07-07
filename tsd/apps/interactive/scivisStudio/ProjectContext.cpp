@@ -1167,12 +1167,15 @@ bool ProjectContext::removeDataset(
 
   if (!keepAssetFile && !m_project.projectDirectory.empty()
       && !itr->persistedName.empty()) {
+    const auto assetFile =
+        m_project.projectDirectory / "datasets" / (itr->persistedName + ".tsd");
     std::error_code ec;
-    std::filesystem::remove(
-        m_project.projectDirectory / "datasets" / (itr->persistedName + ".tsd"),
-        ec);
+    std::filesystem::remove(assetFile, ec);
     if (ec)
       return fail("failed to remove Dataset Archive: " + ec.message(), error);
+    std::filesystem::remove(sourceListFilePath(assetFile), ec);
+    if (ec)
+      return fail("failed to remove Source List File: " + ec.message(), error);
   }
 
   if (m_ctx) {
@@ -1211,8 +1214,43 @@ bool ProjectContext::saveDatasetArchive(
   auto root = resolveDatasetRoot(*dataset);
   if (!root)
     return fail("dataset has no scene subtree", error);
-  return saveDatasetArchiveFile(
-      *dataset, root, m_ctx->tsd.animationMgr, file, error);
+  if (dataset->sourceKind != DatasetSourceKind::FileAnimation) {
+    return saveDatasetArchiveFile(
+        *dataset, root, m_ctx->tsd.animationMgr, file, error);
+  }
+
+  // For a File Animation Dataset the Archive is the pair: stage both files
+  // and install them together, so a failed save cannot leave half a pair or
+  // destroy a valid pair already at the target.
+  const auto sources = sourceListFilePath(file);
+  const auto stageName = [](const std::filesystem::path &target) {
+    return target.parent_path()
+        / ("." + target.filename().string() + ".stage");
+  };
+  const auto stagedFile = stageName(file);
+  const auto stagedSources = stageName(sources);
+  auto discardStages = [&]() {
+    std::error_code ec;
+    std::filesystem::remove(stagedFile, ec);
+    std::filesystem::remove(stagedSources, ec);
+  };
+
+  if (!saveDatasetArchiveFile(
+          *dataset, root, m_ctx->tsd.animationMgr, stagedFile, error)
+      || !writeSourceListFile(stagedSources, dataset->sourceFiles, error)) {
+    discardStages();
+    return false;
+  }
+
+  std::error_code ec;
+  std::filesystem::rename(stagedFile, file, ec);
+  if (!ec)
+    std::filesystem::rename(stagedSources, sources, ec);
+  if (ec) {
+    discardStages();
+    return fail("failed to install Dataset Archive: " + ec.message(), error);
+  }
+  return true;
 }
 
 Dataset *ProjectContext::loadDatasetArchiveImpl(

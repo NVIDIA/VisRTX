@@ -31,6 +31,7 @@
 #include "tsd/scene/objects/SpatialField.hpp"
 #include "tsd/scene/objects/Volume.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -64,6 +65,52 @@ tsd::scene::LayerNodeRef findDirectChild(
     child = child->sibling();
   }
   return {};
+}
+
+// Build the minimal file-animation dataset runtime — a volume with an initial
+// spatial field plus one runtime file animation over the given paths — and
+// return its dataset metadata.
+Dataset makeFileAnimationDatasetRuntime(tsd::scene::Scene &scene,
+    tsd::animation::AnimationManager &animations,
+    tsd::scene::LayerNodeRef parent,
+    const std::string &id,
+    const std::string &name,
+    const std::vector<std::string> &paths,
+    tsd::scene::LayerNodeRef *rootOut = nullptr)
+{
+  auto field = scene.createObject<tsd::scene::SpatialField>(
+      tsd::scene::tokens::spatial_field::structuredRegular);
+  auto voxels = scene.createArray(ANARI_FLOAT32, 1, 1, 1);
+  *voxels->mapAs<float>() = 1.f;
+  voxels->unmap();
+  field->setParameterObject("data", *voxels);
+  auto volume = scene.createObject<tsd::scene::Volume>(
+      tsd::scene::tokens::volume::transferFunction1D);
+  volume->setParameterObject("value", *field);
+  auto root = scene.insertChildNode(parent, id.c_str());
+  scene.insertChildObjectNode(root, volume, "volume");
+  animations.addAnimation(name + " file animation")
+      .emplaceFileBinding<tsd::io::SpatialFieldFileBinding>(
+          &scene, volume.data(), field, paths);
+  if (rootOut)
+    *rootOut = root;
+
+  Dataset dataset;
+  dataset.id = id;
+  dataset.name = name;
+  dataset.sourceKind = DatasetSourceKind::FileAnimation;
+  dataset.importerType = "VOLUME_ANIMATION";
+  for (const auto &path : paths)
+    dataset.sourceFiles.push_back({path});
+  return dataset;
+}
+
+std::string fileContents(const std::filesystem::path &file)
+{
+  std::ifstream in(file, std::ios::binary);
+  std::stringstream contents;
+  contents << in.rdbuf();
+  return contents.str();
 }
 
 } // namespace
@@ -216,7 +263,8 @@ SCENARIO("SciVis Studio static Dataset Archives are self-contained",
   std::filesystem::remove(file);
 }
 
-SCENARIO("SciVis Studio file-animation Dataset Archives preserve source paths",
+SCENARIO("SciVis Studio file-animation Dataset Archives externalize their "
+         "source list",
     "[SciVisStudio]")
 {
   const auto file = std::filesystem::temp_directory_path()
@@ -224,36 +272,21 @@ SCENARIO("SciVis Studio file-animation Dataset Archives preserve source paths",
   const auto corruptFile = std::filesystem::temp_directory_path()
       / "tsd_scivis_studio_file_animation_dataset_corrupt.tsd";
   std::filesystem::remove(file);
+  std::filesystem::remove(sourceListFilePath(file));
   std::filesystem::remove(corruptFile);
 
   tsd::scene::Scene source;
   tsd::animation::AnimationManager sourceAnimations(&source);
-  auto field = source.createObject<tsd::scene::SpatialField>(
-      tsd::scene::tokens::spatial_field::structuredRegular);
-  auto voxels = source.createArray(ANARI_FLOAT32, 1, 1, 1);
-  *voxels->mapAs<float>() = 1.f;
-  voxels->unmap();
-  field->setParameterObject("data", *voxels);
-  auto volume = source.createObject<tsd::scene::Volume>(
-      tsd::scene::tokens::volume::transferFunction1D);
-  volume->setParameterObject("value", *field);
-  auto root =
-      source.insertChildNode(source.defaultLayer()->root(), "dataset_0001");
-  source.insertChildObjectNode(root, volume, "volume");
-
   const std::vector<std::string> paths = {
       "relative/frame 01.raw", "/missing/../opaque/frame02.raw"};
-  sourceAnimations.addAnimation("runtime file animation")
-      .emplaceFileBinding<tsd::io::SpatialFieldFileBinding>(
-          &source, volume.data(), field, paths);
-
-  Dataset dataset;
-  dataset.id = "dataset_0001";
-  dataset.name = "Opaque Frames";
-  dataset.sourceKind = DatasetSourceKind::FileAnimation;
-  dataset.importerType = "VOLUME_ANIMATION";
-  for (const auto &path : paths)
-    dataset.sourceFiles.push_back({path});
+  tsd::scene::LayerNodeRef root;
+  auto dataset = makeFileAnimationDatasetRuntime(source,
+      sourceAnimations,
+      source.defaultLayer()->root(),
+      "dataset_0001",
+      "Opaque Frames",
+      paths,
+      &root);
   Dataset invalidStatic = dataset;
   invalidStatic.sourceKind = DatasetSourceKind::Static;
   invalidStatic.importerType = "VOLUME";
@@ -281,6 +314,36 @@ SCENARIO("SciVis Studio file-animation Dataset Archives preserve source paths",
   REQUIRE(corruptValidation.error.find("derived runtime file bindings")
       != std::string::npos);
 
+  // New-format dataset files persist importer settings but no frame paths.
+  tsd::core::DataTree serialized;
+  REQUIRE(serialized.load(file.string().c_str()));
+  REQUIRE(serialized.root()["dataset"].child("sourceFiles") == nullptr);
+  REQUIRE(datasetArchiveUsesSourceListFile(serialized.root()));
+
+  // Dataset Archive Load fails cleanly without the sibling Source List File.
+  {
+    tsd::scene::Scene target;
+    tsd::animation::AnimationManager targetAnimations(&target);
+    Dataset missingDataset;
+    tsd::scene::LayerNodeRef missingRoot;
+    std::string missingError;
+    REQUIRE_FALSE(loadDatasetArchiveFile(target,
+        targetAnimations,
+        file,
+        target.defaultLayer()->root(),
+        missingDataset,
+        missingRoot,
+        &missingError));
+    REQUIRE(missingError.find("Source List File") != std::string::npos);
+    REQUIRE(target.numberOfObjects(ANARI_VOLUME) == 0);
+    REQUIRE_FALSE(validateDatasetAsset(file).ok);
+  }
+
+  REQUIRE(writeSourceListFile(sourceListFilePath(file), dataset.sourceFiles));
+  auto pairValidation = validateDatasetAsset(file);
+  REQUIRE(pairValidation.ok);
+  REQUIRE(pairValidation.dataset.sourceFiles.size() == paths.size());
+
   tsd::scene::Scene target;
   tsd::animation::AnimationManager targetAnimations(&target);
   Dataset loadedDataset;
@@ -291,9 +354,16 @@ SCENARIO("SciVis Studio file-animation Dataset Archives preserve source paths",
       target.defaultLayer()->root(),
       loadedDataset,
       importedRoot));
+  REQUIRE_FALSE(loadedDataset.pendingSourceListMigration);
   REQUIRE(loadedDataset.sourceFiles.size() == paths.size());
   REQUIRE(loadedDataset.sourceFiles[0].path == paths[0]);
   REQUIRE(loadedDataset.sourceFiles[1].path == paths[1]);
+  // The relative entry is anchored once, at read, to the Source List File's
+  // directory; the absolute entry stays opaque.
+  const auto anchored =
+      (std::filesystem::temp_directory_path() / paths[0]).string();
+  REQUIRE(loadedDataset.sourceFiles[0].resolvedPath == anchored);
+  REQUIRE(loadedDataset.sourceFiles[1].resolvedPath.empty());
   REQUIRE(targetAnimations.animations().size() == 1);
   REQUIRE(targetAnimations.animations().front().fileBindings().size() == 1);
 
@@ -301,12 +371,157 @@ SCENARIO("SciVis Studio file-animation Dataset Archives preserve source paths",
   targetAnimations.animations().front().fileBindings().front()->toDataNode(
       binding.root());
   REQUIRE(
-      binding.root()["files"].child(0)->getValueAs<std::string>() == paths[0]);
+      binding.root()["files"].child(0)->getValueAs<std::string>() == anchored);
   REQUIRE(
       binding.root()["files"].child(1)->getValueAs<std::string>() == paths[1]);
 
   std::filesystem::remove(file);
+  std::filesystem::remove(sourceListFilePath(file));
   std::filesystem::remove(corruptFile);
+}
+
+SCENARIO("SciVis Studio Source List Files hold one trimmed path per line",
+    "[SciVisStudio]")
+{
+  const auto directory = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_source_list_files";
+  std::filesystem::remove_all(directory);
+  std::filesystem::create_directories(directory);
+  const auto file = directory / "Frames.sources";
+
+  GIVEN("A hand-written Source List File")
+  {
+    {
+      std::ofstream out(file);
+      out << "\n";
+      out << "  relative/frame 01.raw \t\n";
+      out << "\t\n";
+      out << "/absolute/frame02.raw\n";
+      out << "trailing/frame03.raw"; // no final newline
+    }
+
+    THEN("Entries read back trimmed, in line order, skipping blanks")
+    {
+      std::vector<DatasetSourceFile> entries;
+      REQUIRE(readSourceListFile(file, entries));
+      REQUIRE(entries.size() == 3);
+      REQUIRE(entries[0].path == "relative/frame 01.raw");
+      REQUIRE(entries[1].path == "/absolute/frame02.raw");
+      REQUIRE(entries[2].path == "trailing/frame03.raw");
+      REQUIRE(entries[0].resolvedPath
+          == (directory / "relative/frame 01.raw").string());
+      REQUIRE(entries[1].resolvedPath.empty());
+
+      AND_THEN("Writing the entries back reproduces the raw lines verbatim")
+      {
+        const auto rewritten = directory / "Rewritten.sources";
+        REQUIRE(writeSourceListFile(rewritten, entries));
+        std::ifstream in(rewritten);
+        std::stringstream contents;
+        contents << in.rdbuf();
+        REQUIRE(contents.str()
+            == "relative/frame 01.raw\n/absolute/frame02.raw\n"
+               "trailing/frame03.raw\n");
+      }
+    }
+  }
+
+  GIVEN("A missing, empty, or blank Source List File")
+  {
+    THEN("Reading fails with a clear error")
+    {
+      std::vector<DatasetSourceFile> entries;
+      std::string error;
+      REQUIRE_FALSE(
+          readSourceListFile(directory / "Missing.sources", entries, &error));
+      REQUIRE_FALSE(error.empty());
+
+      const auto blank = directory / "Blank.sources";
+      {
+        std::ofstream out(blank);
+        out << " \n\t\n";
+      }
+      error.clear();
+      REQUIRE_FALSE(readSourceListFile(blank, entries, &error));
+      REQUIRE(error.find("empty") != std::string::npos);
+    }
+  }
+
+  GIVEN("An empty File Animation Source List")
+  {
+    THEN("Writing refuses to produce an unloadable dataset")
+    {
+      std::string error;
+      REQUIRE_FALSE(writeSourceListFile(file, {}, &error));
+    }
+  }
+
+  std::filesystem::remove_all(directory);
+}
+
+SCENARIO(
+    "SciVis Studio legacy embedded sourceFiles load and mark migration",
+    "[SciVisStudio]")
+{
+  const auto file = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_legacy_embedded_dataset.tsd";
+  std::filesystem::remove(file);
+  std::filesystem::remove(sourceListFilePath(file));
+
+  tsd::scene::Scene source;
+  tsd::animation::AnimationManager sourceAnimations(&source);
+  const std::vector<std::string> paths = {
+      "legacy/frame01.raw", "/legacy/frame02.raw"};
+  tsd::scene::LayerNodeRef root;
+  auto dataset = makeFileAnimationDatasetRuntime(source,
+      sourceAnimations,
+      source.defaultLayer()->root(),
+      "dataset_0001",
+      "Legacy Frames",
+      paths,
+      &root);
+  REQUIRE(saveDatasetArchiveFile(dataset, root, sourceAnimations, file));
+
+  // Recreate the legacy on-disk format: the dataset file embeds the list.
+  {
+    tsd::core::DataTree legacy;
+    REQUIRE(legacy.load(file.string().c_str()));
+    auto &files = legacy.root()["dataset"]["sourceFiles"];
+    for (const auto &path : paths)
+      files.append() = path;
+    REQUIRE_FALSE(datasetArchiveUsesSourceListFile(legacy.root()));
+    REQUIRE(legacy.save(file.string().c_str()));
+  }
+
+  auto validation = validateDatasetAsset(file);
+  REQUIRE(validation.ok);
+  REQUIRE(validation.dataset.pendingSourceListMigration);
+  REQUIRE(validation.dataset.sourceFiles.size() == paths.size());
+
+  tsd::scene::Scene target;
+  tsd::animation::AnimationManager targetAnimations(&target);
+  Dataset loadedDataset;
+  tsd::scene::LayerNodeRef importedRoot;
+  REQUIRE(loadDatasetArchiveFile(target,
+      targetAnimations,
+      file,
+      target.defaultLayer()->root(),
+      loadedDataset,
+      importedRoot));
+  REQUIRE(loadedDataset.pendingSourceListMigration);
+  REQUIRE(loadedDataset.sourceFiles.size() == paths.size());
+  REQUIRE(loadedDataset.sourceFiles[0].path == paths[0]);
+  // Legacy entries stay opaque: no read-time anchoring is applied.
+  REQUIRE(loadedDataset.sourceFiles[0].resolvedPath.empty());
+  REQUIRE(targetAnimations.animations().size() == 1);
+
+  tsd::core::DataTree binding;
+  targetAnimations.animations().front().fileBindings().front()->toDataNode(
+      binding.root());
+  REQUIRE(
+      binding.root()["files"].child(0)->getValueAs<std::string>() == paths[0]);
+
+  std::filesystem::remove(file);
 }
 
 SCENARIO("SciVis Studio project model serialization", "[SciVisStudio]")
@@ -980,7 +1195,7 @@ SCENARIO("SciVis Studio projects store scene pools in required Archives",
     auto metadata = tsd::core::readDataTreeMetadata(manifest.root());
     REQUIRE(metadata.found());
     REQUIRE(metadata.metadata->schemaVersion == SCHEMA_VERSION);
-    REQUIRE(SCHEMA_VERSION == 7);
+    REQUIRE(SCHEMA_VERSION == 8);
     REQUIRE(manifest.root().child("context") == nullptr);
 
     tsd::core::DataTree cameras;
@@ -1179,6 +1394,252 @@ SCENARIO(
     REQUIRE(project.shots.front().datasetBindings.size() == 1);
     REQUIRE(project.shots.front().datasetBindings.front().datasetId
         == "dataset_0001");
+  }
+
+  std::filesystem::remove_all(root);
+}
+
+SCENARIO("SciVis Studio projects persist file-animation source lists in "
+         "sibling Source List Files",
+    "[SciVisStudio]")
+{
+  const auto root = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_source_list_pair";
+  const auto copy = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_source_list_pair_copy";
+  std::filesystem::remove_all(root);
+  std::filesystem::remove_all(copy);
+
+  const std::vector<std::string> paths = {"frames/a.raw", "frames/b.raw"};
+  const auto datasetFile = root / "datasets" / "Frames.tsd";
+  const auto sourcesFile = root / "datasets" / "Frames.sources";
+
+  {
+    tsd::app::Context appContext;
+    ProjectContext projectContext(&appContext);
+    projectContext.createUnsavedProject();
+    auto &project = projectContext.project();
+    auto &scene = appContext.tsd.scene;
+    auto datasetsRoot =
+        findDirectChild(scene.layer("studio")->root(), "datasets");
+    auto dataset = makeFileAnimationDatasetRuntime(scene,
+        appContext.tsd.animationMgr,
+        datasetsRoot,
+        "dataset_0001",
+        "Frames",
+        paths);
+    dataset.status = DatasetStatus::Available;
+    dataset.rootNode = projectContext.refFor(
+        "studio", findDirectChild(datasetsRoot, "dataset_0001"));
+    project.datasets.push_back(std::move(dataset));
+    shot::setDatasetBinding(project.shots.front(), "dataset_0001", true);
+    project.markDirty();
+
+    // The ADR 0004 transaction stages the pair together: the plan carries
+    // both files, and a failure while installing leaves neither behind.
+    {
+      struct : AssetTransactionFailureInjector
+      {
+        bool fail(AssetTransactionPhase phase,
+            const std::filesystem::path &,
+            std::string &message) override
+        {
+          if (phase != AssetTransactionPhase::ManifestInstall)
+            return false;
+          message = "injected manifest failure";
+          return true;
+        }
+      } injector;
+      ProjectSaveRequest request(
+          project, scene, appContext.tsd.animationMgr, root);
+      ProjectSaveResult result;
+      REQUIRE(buildProjectSavePlan(request, result));
+      const auto hasTarget = [&](const char *target) {
+        return std::any_of(result.plan.assets.begin(),
+            result.plan.assets.end(),
+            [&](const ProjectAssetWrite &write) {
+              return write.target == std::filesystem::path(target);
+            });
+      };
+      REQUIRE(hasTarget("datasets/Frames.tsd"));
+      REQUIRE(hasTarget("datasets/Frames.sources"));
+      AssetTransaction transaction(&injector);
+      std::string error;
+      REQUIRE_FALSE(transaction.commit(result.plan, &error));
+      REQUIRE_FALSE(std::filesystem::exists(datasetFile));
+      REQUIRE_FALSE(std::filesystem::exists(sourcesFile));
+    }
+
+    REQUIRE(projectContext.saveProject(root));
+    REQUIRE(std::filesystem::exists(datasetFile));
+    REQUIRE(fileContents(sourcesFile) == "frames/a.raw\nframes/b.raw\n");
+    tsd::core::DataTree assetTree;
+    REQUIRE(assetTree.load(datasetFile.string().c_str()));
+    REQUIRE(assetTree.root()["dataset"].child("sourceFiles") == nullptr);
+  }
+
+  {
+    tsd::app::Context appContext;
+    ProjectContext projectContext(&appContext);
+    REQUIRE(projectContext.openProject(root));
+    auto &project = projectContext.project();
+    REQUIRE(project.datasets.front().status == DatasetStatus::Available);
+    REQUIRE(project.datasets.front().sourceFiles.size() == 2);
+    REQUIRE(project.datasets.front().sourceFiles[0].path == "frames/a.raw");
+    REQUIRE(project.datasets.front().sourceFiles[0].resolvedPath
+        == (root / "datasets" / "frames/a.raw").string());
+
+    // Saves that do not touch the source list never rewrite the sibling, so
+    // external edits survive: an unrelated project edit...
+    const auto sentinel =
+        std::filesystem::file_time_type::clock::now() - std::chrono::hours(1);
+    std::filesystem::last_write_time(sourcesFile, sentinel);
+    project.shots.front().name = "Unrelated Shot Edit";
+    project.markDirty();
+    REQUIRE(projectContext.saveProject(root));
+    REQUIRE(std::filesystem::last_write_time(sourcesFile) == sentinel);
+
+    // ...and a save that rewrites a dirty dataset file for unrelated reasons.
+    project.datasets.front().dirty = true;
+    project.markDirty();
+    REQUIRE(projectContext.saveProject(root));
+    REQUIRE(std::filesystem::last_write_time(sourcesFile) == sentinel);
+  }
+
+  {
+    // A hand-edited Source List File takes effect on the next Dataset Load.
+    std::ofstream out(sourcesFile, std::ios::trunc);
+    out << "\n  frames/b.raw\nframes/c.raw\nframes/a.raw\n";
+  }
+
+  {
+    tsd::app::Context appContext;
+    ProjectContext projectContext(&appContext);
+    REQUIRE(projectContext.openProject(root));
+    auto &project = projectContext.project();
+    const auto &dataset = project.datasets.front();
+    REQUIRE(dataset.status == DatasetStatus::Available);
+    REQUIRE(dataset.sourceFiles.size() == 3);
+    REQUIRE(dataset.sourceFiles[0].path == "frames/b.raw");
+    REQUIRE(dataset.sourceFiles[1].path == "frames/c.raw");
+    REQUIRE(dataset.sourceFiles[2].path == "frames/a.raw");
+
+    // Save As writes the pair into the new project.
+    REQUIRE(projectContext.saveProject(copy));
+    REQUIRE(std::filesystem::exists(copy / "datasets" / "Frames.tsd"));
+    REQUIRE(fileContents(copy / "datasets" / "Frames.sources")
+        == "frames/b.raw\nframes/c.raw\nframes/a.raw\n");
+  }
+  std::filesystem::remove_all(copy);
+
+  {
+    tsd::app::Context appContext;
+    ProjectContext projectContext(&appContext);
+    REQUIRE(projectContext.openProject(root));
+    auto &project = projectContext.project();
+    const auto id = project.datasets.front().id;
+
+    // Renaming the dataset renames the pair. A rename is not a source-list
+    // edit, so an external edit made after the load is carried over verbatim
+    // rather than clobbered by the in-memory entries.
+    {
+      std::ofstream out(sourcesFile, std::ios::trunc);
+      out << "frames/hand-edited-after-load.raw\n";
+    }
+    REQUIRE(projectContext.renameDataset(id, "Renamed Frames"));
+    REQUIRE(projectContext.saveProject(root));
+    REQUIRE(std::filesystem::exists(root / "datasets" / "Renamed Frames.tsd"));
+    REQUIRE(fileContents(root / "datasets" / "Renamed Frames.sources")
+        == "frames/hand-edited-after-load.raw\n");
+    REQUIRE_FALSE(std::filesystem::exists(datasetFile));
+    REQUIRE_FALSE(std::filesystem::exists(sourcesFile));
+
+    // Dataset Removal deletes the pair with the asset.
+    REQUIRE(projectContext.removeDataset(id));
+    REQUIRE_FALSE(
+        std::filesystem::exists(root / "datasets" / "Renamed Frames.tsd"));
+    REQUIRE_FALSE(
+        std::filesystem::exists(root / "datasets" / "Renamed Frames.sources"));
+  }
+
+  std::filesystem::remove_all(root);
+}
+
+SCENARIO(
+    "SciVis Studio migrates legacy embedded sourceFiles on explicit save",
+    "[SciVisStudio]")
+{
+  const auto root = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_source_list_migration";
+  std::filesystem::remove_all(root);
+
+  const std::vector<std::string> paths = {"legacy/a.raw", "/legacy/b.raw"};
+  const auto datasetFile = root / "datasets" / "Frames.tsd";
+  const auto sourcesFile = root / "datasets" / "Frames.sources";
+
+  {
+    tsd::app::Context appContext;
+    ProjectContext projectContext(&appContext);
+    projectContext.createUnsavedProject();
+    auto &project = projectContext.project();
+    auto &scene = appContext.tsd.scene;
+    auto datasetsRoot =
+        findDirectChild(scene.layer("studio")->root(), "datasets");
+    auto dataset = makeFileAnimationDatasetRuntime(scene,
+        appContext.tsd.animationMgr,
+        datasetsRoot,
+        "dataset_0001",
+        "Frames",
+        paths);
+    dataset.status = DatasetStatus::Available;
+    dataset.rootNode = projectContext.refFor(
+        "studio", findDirectChild(datasetsRoot, "dataset_0001"));
+    project.datasets.push_back(std::move(dataset));
+    shot::setDatasetBinding(project.shots.front(), "dataset_0001", true);
+    project.markDirty();
+    REQUIRE(projectContext.saveProject(root));
+  }
+
+  // Rewrite the managed asset into the legacy embedded-sourceFiles format.
+  {
+    tsd::core::DataTree legacy;
+    REQUIRE(legacy.load(datasetFile.string().c_str()));
+    auto &files = legacy.root()["dataset"]["sourceFiles"];
+    for (const auto &path : paths)
+      files.append() = path;
+    REQUIRE(legacy.save(datasetFile.string().c_str()));
+    std::filesystem::remove(sourcesFile);
+  }
+
+  {
+    tsd::app::Context appContext;
+    ProjectContext projectContext(&appContext);
+    REQUIRE(projectContext.openProject(root));
+    auto &project = projectContext.project();
+    REQUIRE(project.datasets.front().status == DatasetStatus::Available);
+    REQUIRE(project.datasets.front().pendingSourceListMigration);
+    REQUIRE_FALSE(project.datasets.front().dirty);
+    // Merely opening never migrates.
+    REQUIRE_FALSE(std::filesystem::exists(sourcesFile));
+
+    // The next explicit save writes the Source List File verbatim and
+    // rewrites the dataset file without paths.
+    REQUIRE(projectContext.saveProject(root));
+    REQUIRE(fileContents(sourcesFile) == "legacy/a.raw\n/legacy/b.raw\n");
+    tsd::core::DataTree migrated;
+    REQUIRE(migrated.load(datasetFile.string().c_str()));
+    REQUIRE(migrated.root()["dataset"].child("sourceFiles") == nullptr);
+    REQUIRE_FALSE(project.datasets.front().pendingSourceListMigration);
+
+    // The migrated pair is now stable across further saves.
+    const auto sentinel =
+        std::filesystem::file_time_type::clock::now() - std::chrono::hours(1);
+    std::filesystem::last_write_time(sourcesFile, sentinel);
+    std::filesystem::last_write_time(datasetFile, sentinel);
+    project.markDirty();
+    REQUIRE(projectContext.saveProject(root));
+    REQUIRE(std::filesystem::last_write_time(sourcesFile) == sentinel);
+    REQUIRE(std::filesystem::last_write_time(datasetFile) == sentinel);
   }
 
   std::filesystem::remove_all(root);
@@ -1489,6 +1950,124 @@ SCENARIO("SciVis Studio dataset lifecycle workflows preserve asset semantics",
   std::filesystem::remove_all(root);
   std::filesystem::remove(source);
   std::filesystem::remove(savedArchive);
+}
+
+SCENARIO("SciVis Studio treats the file-animation pair as one dataset asset",
+    "[SciVisStudio]")
+{
+  const auto root = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_source_list_asset";
+  const auto archiveDir = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_source_list_archives";
+  std::filesystem::remove_all(root);
+  std::filesystem::remove_all(archiveDir);
+  std::filesystem::create_directories(archiveDir);
+
+  tsd::app::Context appContext;
+  ProjectContext projectContext(&appContext);
+  projectContext.createUnsavedProject();
+  auto &project = projectContext.project();
+  auto &scene = appContext.tsd.scene;
+  auto datasetsRoot =
+      findDirectChild(scene.layer("studio")->root(), "datasets");
+  auto dataset = makeFileAnimationDatasetRuntime(scene,
+      appContext.tsd.animationMgr,
+      datasetsRoot,
+      "dataset_0001",
+      "Frames",
+      {"frames/a.raw", "frames/b.raw"});
+  dataset.status = DatasetStatus::Available;
+  dataset.rootNode = projectContext.refFor(
+      "studio", findDirectChild(datasetsRoot, "dataset_0001"));
+  project.datasets.push_back(std::move(dataset));
+  shot::setDatasetBinding(project.shots.front(), "dataset_0001", true);
+  project.markDirty();
+  REQUIRE(projectContext.saveProject(root));
+  const auto id = project.datasets.front().id;
+
+  // Dataset Archive Save writes the pair.
+  const auto archiveFile = archiveDir / "Archived.tsd";
+  REQUIRE(projectContext.saveDatasetArchive(id, archiveFile));
+  REQUIRE(std::filesystem::exists(archiveFile));
+  REQUIRE(fileContents(archiveDir / "Archived.sources")
+      == "frames/a.raw\nframes/b.raw\n");
+
+  // Dataset Archive Load incorporates the pair with a fresh identity...
+  std::string error;
+  auto *incorporated = projectContext.loadDatasetArchive(archiveFile, &error);
+  REQUIRE(incorporated);
+  REQUIRE(incorporated->sourceFiles.size() == 2);
+  REQUIRE(incorporated->sourceFiles[0].resolvedPath
+      == (archiveDir / "frames/a.raw").string());
+  REQUIRE(projectContext.removeDataset(incorporated->id));
+
+  // ...and fails cleanly without the sibling.
+  std::filesystem::remove(archiveDir / "Archived.sources");
+  const auto datasetCount = project.datasets.size();
+  REQUIRE(projectContext.loadDatasetArchive(archiveFile, &error) == nullptr);
+  REQUIRE(error.find("Source List File") != std::string::npos);
+  REQUIRE(project.datasets.size() == datasetCount);
+
+  // Dataset Load re-reads the Source List File, so a hand edit made while the
+  // dataset was Unloaded takes effect when it is loaded back.
+  REQUIRE(projectContext.unloadDataset(id, &error));
+  {
+    std::ofstream out(root / "datasets" / "Frames.sources", std::ios::trunc);
+    out << "frames/z.raw\n";
+  }
+  REQUIRE(projectContext.loadDataset(id, &error));
+  REQUIRE(project::findDataset(project, id)->sourceFiles.size() == 1);
+  REQUIRE(project::findDataset(project, id)->sourceFiles[0].path
+      == "frames/z.raw");
+
+  // Discovery scans only dataset files, and a file-animation dataset file
+  // without its sibling is not a valid Dataset Candidate.
+  {
+    std::error_code ec;
+    std::filesystem::copy_file(
+        archiveFile, root / "datasets" / "Orphan.tsd", ec);
+    REQUIRE_FALSE(ec);
+    std::ofstream stray(root / "datasets" / "Stray.sources");
+    stray << "frames/a.raw\n";
+  }
+  REQUIRE(projectContext.discoverDatasetCandidates().empty());
+  {
+    std::ofstream sibling(root / "datasets" / "Orphan.sources");
+    sibling << "frames/a.raw\n";
+  }
+  auto candidates = projectContext.discoverDatasetCandidates();
+  REQUIRE(candidates.size() == 1);
+  REQUIRE(candidates.front().file.filename() == "Orphan.tsd");
+
+  // A missing Source List File makes the dataset Unavailable at open; the
+  // project itself still opens.
+  std::filesystem::remove(root / "datasets" / "Frames.sources");
+  {
+    tsd::app::Context reopenedContext;
+    ProjectContext reopened(&reopenedContext);
+    REQUIRE(reopened.openProject(root));
+    REQUIRE(reopened.project().datasets.front().status
+        == DatasetStatus::Unavailable);
+  }
+
+  // Save As copies an Unloaded dataset's pair without loading it.
+  const auto destination = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_source_list_asset_save_as";
+  std::filesystem::remove_all(destination);
+  {
+    std::ofstream out(root / "datasets" / "Frames.sources", std::ios::trunc);
+    out << "frames/z.raw\n";
+  }
+  REQUIRE(projectContext.unloadDataset(id, &error));
+  REQUIRE(
+      projectContext.saveProject(destination, nullptr, "", nullptr, &error));
+  REQUIRE(validateDatasetAsset(destination / "datasets" / "Frames.tsd").ok);
+  REQUIRE(fileContents(destination / "datasets" / "Frames.sources")
+      == "frames/z.raw\n");
+
+  std::filesystem::remove_all(root);
+  std::filesystem::remove_all(destination);
+  std::filesystem::remove_all(archiveDir);
 }
 
 SCENARIO("SciVis Studio unloads a clean dataset without touching its asset",

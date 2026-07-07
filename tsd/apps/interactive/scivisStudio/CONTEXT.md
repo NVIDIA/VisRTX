@@ -37,7 +37,8 @@ _Avoid_: Automatic refresh
 
 **Dataset Archive**:
 A portable native TSD representation of a Dataset without its project-local
-Dataset ID.
+Dataset ID. For a File Animation Dataset, the Archive is the dataset file and
+its sibling Source List File together.
 
 **Dataset Archive Load**:
 The incorporation of a Dataset Archive as an independent project-owned Dataset
@@ -139,9 +140,18 @@ Its portability depends on its recorded paths remaining valid.
 _Avoid_: Time-series dataset
 
 **File Animation Source List**:
-The authoritative, persisted, ordered opaque path strings owned by a File
-Animation Dataset. The runtime file binding implements this list but does not
-own it; importer settings belong to the dataset rather than individual entries.
+The authoritative ordered path entries owned by a File Animation Dataset and
+persisted only in its Source List File. Relative entries are anchored once, at
+read, to the Source List File's directory and are opaque thereafter; importer
+settings belong to the dataset rather than individual entries.
+_Avoid_: Manifest, embedded source list
+
+**Source List File**:
+The human-editable sibling text file that persists a File Animation Dataset's
+Source List, named after its dataset file. It is part of the dataset asset:
+Studio manages it with the dataset, and a missing or empty Source List File
+makes the dataset Unavailable.
+_Avoid_: Manifest, frame list
 
 **File Animation**:
 A derived core TSD runtime animation that loads and unloads individual source
