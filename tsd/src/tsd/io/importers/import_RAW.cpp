@@ -75,6 +75,13 @@ SpatialFieldRef import_RAW(Scene &scene, const char *filepath)
   auto *voxelData = voxelArray->map();
 
   auto fileHandle = std::fopen(filepath, "rb");
+  if (!fileHandle) {
+    logError("[import_RAW] unable to open RAW file: '%s'", file.c_str());
+    voxelArray->unmap();
+    scene.removeObject(voxelArray.data());
+    scene.removeObject(field.data());
+    return {};
+  }
   size_t size = dimX * size_t(dimY) * dimZ * anari::sizeOf(type);
   if (!std::fread((char *)voxelData, size, 1, fileHandle)) {
     logError("[import_RAW] unable to open RAW file: '%s'", file.c_str());
