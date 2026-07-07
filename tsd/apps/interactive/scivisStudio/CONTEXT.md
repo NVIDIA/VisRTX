@@ -69,12 +69,16 @@ in the project directory does not add it to the inventory.
 **Dataset Availability**:
 The runtime assessment of whether a dataset can currently be loaded. It is
 derived from whether the dataset asset can recreate its layer subtree and any
-associated file animation; it is not authoritative stored state.
+associated file animation; it is not authoritative stored state. Availability
+is machine-relative: the same asset can be Available on one machine and
+Unavailable on another where its source paths do not resolve.
 
 **Unavailable Dataset**:
 A dataset that remains in the inventory and in shot associations but cannot
 currently recreate its runtime representation. Restoring or replacing its
-asset restores the existing project intent.
+asset restores the existing project intent. Unavailability is not always a
+fault: a Declared Dataset is expectedly Unavailable on machines where its
+source paths do not resolve.
 _Avoid_: Deleted dataset, unloaded dataset
 
 **Dataset Residency**:
@@ -83,9 +87,12 @@ currently in the scene: Loaded or Unloaded. Residency is independent of
 Dataset Availability: availability assesses whether the asset could recreate
 the runtime representation; residency records whether the project has been
 asked to. Residency is a workstation memory concern and never alters shot
-intent: a final shot render materializes every bound dataset regardless of
+intent: a final shot render loads every bound dataset regardless of
 residency. Future representations (such as a SciVis proxy) would be
-additional residency states.
+additional residency states. Residency records intent, not process state: a
+tool that opens a project without building runtime representations neither
+changes nor persists a different residency; residency changes only through an
+explicit Dataset Load or Dataset Unload.
 
 **Loaded Dataset**:
 A dataset whose full runtime representation is currently in the scene.
@@ -94,10 +101,12 @@ A dataset whose full runtime representation is currently in the scene.
 A dataset that remains in the inventory and in shot associations but whose
 runtime representation has been deliberately removed to reclaim memory. Unlike
 an Unavailable Dataset, unloading expresses user intent rather than failure;
-an Unloaded Dataset with a valid asset remains Available. An Unloaded Dataset
-is read-only as an asset: operations that would modify or serialize its asset
-require loading it first, while project bookkeeping such as shot bindings and
-Dataset Removal remains available.
+an Unloaded Dataset with a valid asset remains Available. An Unloaded
+Dataset's dataset file is read-only: operations that would modify or serialize
+its scene representation require loading it first, while project bookkeeping
+such as shot bindings and Dataset Removal remains available. Its Source List
+File is not covered by this rule: it remains externally editable, with edits
+taking effect at the next Dataset Load.
 _Avoid_: Unavailable dataset, removed dataset
 
 **Dataset Load**:
@@ -150,8 +159,26 @@ _Avoid_: Manifest, embedded source list
 The human-editable sibling text file that persists a File Animation Dataset's
 Source List, named after its dataset file. It is part of the dataset asset:
 Studio manages it with the dataset, and a missing or empty Source List File
-makes the dataset Unavailable.
+makes the dataset Unavailable. External tools may rewrite it regardless of the
+dataset's residency or availability; such edits take effect at the next
+Dataset Load. An explicit source-list edit of a dataset that still embeds its
+list migrates it to the Source List File form as part of that edit.
 _Avoid_: Manifest, frame list
+
+**Declared Dataset**:
+A File Animation Dataset created from a Source List alone, without reading any
+source files. Its asset records the importer settings and the Source List File
+but no scene representation, so it is Unavailable wherever its paths do not
+resolve — an expected condition, not a fault. Only a File Animation Dataset
+can be declared; a Static Dataset without its content is a contradiction.
+_Avoid_: Blind dataset, stub dataset, placeholder dataset
+
+**Dataset Materialization**:
+The first successful Dataset Load of a Declared Dataset, which builds its
+runtime representation by importing from the Source List. Materialization
+marks the dataset dirty; the next save records the scene representation,
+making it an ordinary File Animation Dataset. A failed materialization changes
+nothing.
 
 **File Animation**:
 A derived core TSD runtime animation that loads and unloads individual source
