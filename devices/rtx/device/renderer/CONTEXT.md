@@ -40,3 +40,17 @@ during volume integration.
 **Parameter Source**:
 Where a material parameter gets its value: an inline constant, a geometry
 attribute, or a sampler.
+
+**Light Pick**:
+Choosing the one pick candidate — a light instance or the ambient term — a
+next-event-estimation (NEE) sample is drawn from, with probability
+proportional to Pick Power. The pick probability folds into the light
+sample's pdf, so multiple-importance-sampling (MIS) weights see the joint
+pdf on both estimator sides.
+
+**Pick Power**:
+A scalar estimate of a pick candidate's emitted power, used only to weight
+the Light Pick. Any nonzero approximation costs variance, never bias — a
+candidate with nonzero contribution must keep nonzero Pick Power. Infinite
+candidates (directional, HDRI, ambient) are weighted by irradiance times
+the scene bounding-sphere cross-section.
