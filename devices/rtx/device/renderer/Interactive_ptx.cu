@@ -77,8 +77,11 @@ struct InteractiveShadingPolicy
     const auto &interactiveParams = rendererParams.params.interactive;
     auto &world = frameData.world;
 
-    // Ambient occlusion (uses vec3 surface shadow transmittance via adapter).
-    const float aoFactor = interactiveParams.aoSamples > 0
+    // AO modulates only the ambient term below, so the shadow-ray batch is
+    // pure waste when ambient can't contribute.
+    const bool ambientVisible = rendererParams.ambientIntensity > 0.f
+        && luminance(rendererParams.ambientColor) > 0.f;
+    const float aoFactor = (ambientVisible && interactiveParams.aoSamples > 0)
         ? computeAO(ss,
               ray,
               hit,
