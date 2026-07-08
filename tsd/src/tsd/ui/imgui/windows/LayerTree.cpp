@@ -732,6 +732,11 @@ void LayerTree::buildUI_objectSceneMenu()
           clearSelectedNode = true;
         }
 
+        if (ImGui::MenuItem("emissive geometries")) {
+          tsd::io::generate_emissive_geometries(scene, menuNode);
+          clearSelectedNode = true;
+        }
+
         if (ImGui::MenuItem("material orb")) {
           tsd::io::generate_material_orb(scene, menuNode);
           clearSelectedNode = true;

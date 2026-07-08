@@ -14,6 +14,7 @@ using namespace tsd::scene;
 
 void generate_cylinders(Scene &scene, LayerNodeRef location = {}, bool useDefaultMaterial = false);
 void generate_default_lights(Scene &scene);
+void generate_emissive_geometries(Scene &scene, LayerNodeRef location = {});
 void generate_hdri_dome(Scene &scene, LayerNodeRef location = {});
 void generate_hdri_test_image(Scene &scene, LayerNodeRef location = {});
 void generate_material_orb(Scene &scene, LayerNodeRef location = {});

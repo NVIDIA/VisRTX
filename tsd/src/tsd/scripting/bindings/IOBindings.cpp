@@ -459,6 +459,12 @@ void registerIOBindings(sol::state &lua)
     tsd::io::generate_default_lights(s);
   };
 
+  io["generateEmissiveGeometries"] = sol::overload(
+      [](scene::Scene &s) { tsd::io::generate_emissive_geometries(s); },
+      [](scene::Scene &s, scene::LayerNodeRef loc) {
+        tsd::io::generate_emissive_geometries(s, loc);
+      });
+
   io["generateHdriDome"] =
       sol::overload([](scene::Scene &s) { tsd::io::generate_hdri_dome(s); },
           [](scene::Scene &s, scene::LayerNodeRef loc) {
