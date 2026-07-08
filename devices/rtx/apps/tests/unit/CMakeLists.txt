@@ -24,3 +24,21 @@ target_link_libraries(${PROJECT_NAME} PRIVATE visrtx::glm)
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_17)
 
 add_test(NAME rtx::IsosurfaceLinear COMMAND ${PROJECT_NAME})
+
+# lightPickPower operates on the GPU LightGPUData struct, so this host test pulls
+# the OptiX/CUDA/nanovdb/anari headers its definition transitively needs.
+project(rtx_test_LightPickPower LANGUAGES CXX)
+
+add_executable(${PROJECT_NAME} test_LightPickPower.cpp)
+target_include_directories(${PROJECT_NAME} PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}/../../../device
+  ${CMAKE_CURRENT_LIST_DIR}/../../../external/nanovdb/include
+  ${OptiX_ROOT_DIR}/include)
+target_link_libraries(${PROJECT_NAME} PRIVATE
+  visrtx::glm
+  anari::anari_headers
+  CUDA::cudart)
+target_compile_definitions(${PROJECT_NAME} PRIVATE GLM_ENABLE_EXPERIMENTAL)
+target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_17)
+
+add_test(NAME rtx::LightPickPower COMMAND ${PROJECT_NAME})

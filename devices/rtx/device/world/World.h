@@ -111,6 +111,12 @@ struct World : public Object
 
   HostDeviceArray<InstanceLightGPUData> m_instanceLightGPUData;
   HostDeviceArray<InstanceLightGPUData> m_instanceHdriLightGPUData;
+
+  // Power-proportional Light Pick, rebuilt with the light instances.
+  HostDeviceArray<float> m_lightPickCdf;
+  float m_totalLightPower{0.f};
+  float m_hdriPower{0.f};
+  float m_sceneRadius{0.f};
 };
 
 } // namespace visrtx

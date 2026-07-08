@@ -197,6 +197,11 @@ WorldGPUData World::gpuData() const
   retval.hdriLightInstances = m_instanceHdriLightGPUData.dataDevice();
   retval.numHdriLightInstances = m_instanceHdriLightGPUData.size();
 
+  retval.lightPickCdf = m_lightPickCdf.dataDevice();
+  retval.totalLightPower = m_totalLightPower;
+  retval.hdriPower = m_hdriPower;
+  retval.sceneRadius = m_sceneRadius;
+
   return retval;
 }
 
@@ -512,9 +517,34 @@ void World::buildInstanceLightGPUData()
   // Allocate both arrays
   m_instanceLightGPUData.resize(totalLights);
   m_instanceHdriLightGPUData.resize(totalHdriLights);
+  m_lightPickCdf.resize(totalLights);
+
+  // Bounding-sphere radius over the committed scene, sizing the infinite
+  // lights' Pick Power. Fall back to unit radius so an empty scene still
+  // weights them nonzero.
+  box3 sceneBounds = m_surfaceBounds;
+  if (!empty(m_volumeBounds)) {
+    if (empty(sceneBounds))
+      sceneBounds = m_volumeBounds;
+    else {
+      sceneBounds.lower = glm::min(sceneBounds.lower, m_volumeBounds.lower);
+      sceneBounds.upper = glm::max(sceneBounds.upper, m_volumeBounds.upper);
+    }
+  }
+  m_sceneRadius = empty(sceneBounds)
+      ? 1.0f
+      : 0.5f * glm::length(sceneBounds.upper - sceneBounds.lower);
+  if (m_sceneRadius <= 0.0f)
+    m_sceneRadius = 1.0f;
 
   size_t lightIndex = 0;
   size_t hdriIndex = 0;
+
+  // Filled with each instance's raw Pick Power, then normalized into the
+  // cumulative CDF in place once the total is known.
+  auto *pickCdf = m_lightPickCdf.dataHost();
+  m_totalLightPower = 0.0f;
+  m_hdriPower = 0.0f;
 
   std::for_each(m_instances.begin(), m_instances.end(), [&](auto *inst) {
     auto *group = inst->group();
@@ -532,17 +562,35 @@ void World::buildInstanceLightGPUData()
       for (auto *light : group->lights()) {
         const auto lightIdx = light->index();
 
+        const float power = light->pickPower(xfm, m_sceneRadius);
+        pickCdf[lightIndex] = power;
+        m_totalLightPower += power;
+
         lights[lightIndex++] = {lightIdx, xfm};
 
         // HDRI lights also go into hdriLights
-        if (light->isHDRI())
+        if (light->isHDRI()) {
+          m_hdriPower += power;
           hdris[hdriIndex++] = {lightIdx, xfm};
+        }
       }
     }
   });
 
+  // Turn the per-instance Pick Powers into a normalized cumulative CDF in place.
+  // A zero total (every light dark) leaves the CDF unused: the renderer falls
+  // back to a uniform pick.
+  if (m_totalLightPower > 0.0f) {
+    float cumulative = 0.0f;
+    for (size_t i = 0; i < totalLights; ++i) {
+      cumulative += pickCdf[i];
+      pickCdf[i] = cumulative / m_totalLightPower;
+    }
+  }
+
   m_instanceLightGPUData.upload();
   m_instanceHdriLightGPUData.upload();
+  m_lightPickCdf.upload();
 }
 
 } // namespace visrtx

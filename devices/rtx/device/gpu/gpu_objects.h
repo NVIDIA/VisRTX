@@ -769,6 +769,15 @@ struct WorldGPUData
 
   const InstanceLightGPUData *hdriLightInstances;
   size_t numHdriLightInstances;
+
+  // Power-proportional Light Pick (built in World::buildInstanceLightGPUData).
+  // Normalized cumulative Pick Power over lightInstances (length
+  // numLightInstances, last entry == 1); pick a slot with inverseSampleCDF. The
+  // slot's discrete pick probability is lightPickCdf[i]-lightPickCdf[i-1].
+  const float *lightPickCdf;
+  float totalLightPower; // sum of un-normalized instance Pick Powers
+  float hdriPower; // subset sum over HDRI instances (env-MIS pick probability)
+  float sceneRadius; // bounding-sphere radius, for the ambient term's power
 };
 
 // Renderer //

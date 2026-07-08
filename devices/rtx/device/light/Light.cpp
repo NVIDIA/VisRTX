@@ -30,6 +30,7 @@
  */
 
 #include "Light.h"
+#include "gpu/lightPickPower.h"
 // specific types
 #include "Directional.h"
 #include "HDRI.h"
@@ -50,6 +51,12 @@ Light::Light(DeviceGlobalState *s)
 void Light::commitParameters()
 {
   m_color = getParam<vec3>("color", vec3(1.f));
+}
+
+void Light::markFinalized()
+{
+  Object::markFinalized();
+  deviceState()->objectUpdates.lastLightSetChange = helium::newTimeStamp();
 }
 
 LightGPUData Light::gpuData() const
@@ -80,6 +87,11 @@ Light *Light::createInstance(std::string_view subtype, DeviceGlobalState *d)
 bool Light::isHDRI() const
 {
   return false;
+}
+
+float Light::pickPower(const mat4 &xfm, float sceneRadius) const
+{
+  return lightPickPower(gpuData(), xfm, sceneRadius);
 }
 
 } // namespace visrtx

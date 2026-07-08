@@ -51,6 +51,8 @@ make_test(TestCylinderCaps)
 make_test(TestIsosurfaceRamp)
 make_test(TestPrimitiveInterior)
 make_test(TestGroundSphereShadows)
+make_test(TestPowerLightPick)
+make_test(TestPowerLightPickEnv)
 make_test(TestEmissionRadianceScale)
 # The raw `mdl` material type only exists with MDL support compiled in.
 if (VISRTX_ENABLE_MDL_SUPPORT)

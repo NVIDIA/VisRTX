@@ -135,85 +135,158 @@ struct SurfaceLightSample
   bool isEnv;
 };
 
+// Power (relative flux) of the ambient term, treated as an infinite hemisphere
+// light so it competes in the same Pick Power currency as the light instances
+// (irradiance × scene cross-section, matching lightPickPower's infinite lights).
+VISRTX_DEVICE float ambientPickPower(const FrameGPUData &frameData)
+{
+  const auto &r = frameData.renderer;
+  if (r.ambientIntensity <= 0.0f)
+    return 0.0f;
+  const float radius = frameData.world.sceneRadius;
+  // Irradiance from a constant-radiance ambient hemisphere is pi * L; times the
+  // scene cross-section pi * R^2 for the flux the pick weights compare.
+  return luminance(r.ambientColor) * r.ambientIntensity * kPi * kPi * radius
+      * radius;
+}
+
+// Pick a light instance ∝ Pick Power via the world's cumulative CDF. Clamped so
+// float rounding at u≈1 cannot index past the last instance.
+VISRTX_DEVICE size_t pickLightInstance(const WorldGPUData &world, float u)
+{
+  const size_t n = world.numLightInstances;
+  const size_t idx =
+      size_t(detail::inverseSampleCDF(world.lightPickCdf, int(n), u));
+  return glm::min(idx, n - 1);
+}
+
+// Discrete probability that pickLightInstance selected `idx`, folded with the
+// ambient stratum so P(pick) sums to 1 across every pick candidate. The CDF is
+// normalized by totalLightPower, so its per-slot delta is power_i/totalLightPower.
+VISRTX_DEVICE float instancePickProbability(
+    const WorldGPUData &world, size_t idx, float totalPower)
+{
+  const float lo = idx > 0 ? world.lightPickCdf[idx - 1] : 0.0f;
+  const float conditional = world.lightPickCdf[idx] - lo;
+  return conditional * world.totalLightPower / totalPower;
+}
+
+// Aggregate probability that the Light Pick lands on the HDRI environment. Both
+// env-MIS sides fold this into the env light density. Falls back to the uniform
+// stratum fraction when no light carries Pick Power (matching sampleLights).
+VISRTX_DEVICE float envPickProbability(const FrameGPUData &frameData)
+{
+  const auto &world = frameData.world;
+  const float ambientPower = ambientPickPower(frameData);
+  const float totalPower = world.totalLightPower + ambientPower;
+  if (totalPower > 0.0f)
+    return world.hdriPower / totalPower;
+  // All-dark fallback: mirror sampleLights' uniform stratum count exactly
+  // (ambient counted iff it carries Pick Power) so both MIS sides agree.
+  const size_t numStrata = world.numLightInstances + (ambientPower > 0.0f ? 1 : 0);
+  return numStrata > 0
+      ? float(world.numHdriLightInstances) / float(numStrata)
+      : 0.0f;
+}
+
+// One Light Pick: which candidate (a light instance or the ambient term) was
+// drawn, and its discrete pick probability folded into the returned pdf. Shared
+// by the surface and volume samplers, which differ only in how they turn the
+// ambient stratum into a direction.
+struct PickedCandidate
+{
+  bool valid; // false when there are no candidates at all
+  bool isAmbient;
+  size_t instance; // index into world.lightInstances (when !isAmbient)
+  float pickPdf; // probability of this pick, ∝ Pick Power
+};
+
+VISRTX_DEVICE PickedCandidate pickCandidate(
+    ScreenSample &ss, const FrameGPUData &frameData)
+{
+  const auto &world = frameData.world;
+  const float ambientPower = ambientPickPower(frameData);
+  const bool hasAmbient = ambientPower > 0.0f;
+
+  if (world.numLightInstances == 0 && !hasAmbient)
+    return {false, false, 0, 0.0f};
+
+  const float totalPower = world.totalLightPower + ambientPower;
+
+  // Fallback when no candidate carries Pick Power (all dark): uniform pick keeps
+  // the estimator unbiased and avoids a divide-by-zero.
+  if (!(totalPower > 0.0f)) {
+    const size_t numStrata = world.numLightInstances + (hasAmbient ? 1 : 0);
+    const size_t selected =
+        glm::min(size_t(pcg_uniform(&ss.rs) * float(numStrata)), numStrata - 1);
+    const float pickPdf = 1.0f / float(numStrata);
+    if (hasAmbient && selected == world.numLightInstances)
+      return {true, true, 0, pickPdf};
+    return {true, false, selected, pickPdf};
+  }
+
+  if (hasAmbient && pcg_uniform(&ss.rs) * totalPower < ambientPower)
+    return {true, true, 0, ambientPower / totalPower};
+
+  const size_t selected = pickLightInstance(world, pcg_uniform(&ss.rs));
+  return {true,
+      false,
+      selected,
+      instancePickProbability(world, selected, totalPower)};
+}
+
 VISRTX_DEVICE SurfaceLightSample sampleLights(ScreenSample &ss,
     const FrameGPUData &frameData,
     const vec3 &origin,
     const vec3 &normal)
 {
-  const auto &world = frameData.world;
-  bool hasAmbientLight = frameData.renderer.ambientIntensity > 0.0f;
-  auto numLights = world.numLightInstances + hasAmbientLight;
-
-  if (numLights == 0)
+  const PickedCandidate pick = pickCandidate(ss, frameData);
+  if (!pick.valid)
     return {};
 
-  // pcg_uniform * numLights ∈ [0, numLights). The glm::min clamp is
-  // defensive against float rounding to numLights at the boundary.
-  const size_t selectedIdx =
-      glm::min(size_t(pcg_uniform(&ss.rs) * float(numLights)), numLights - 1);
-
-  // Uniform light pick: P(light) = 1/numLights. Fold that into the returned
-  // pdf rather than into radiance so MIS weights see the full joint pdf
-  // P(dir, light) = P(dir | light) * (1/numLights).
-  const float lightPickPdf = 1.0f / float(numLights);
-
-  // last index is reserved for ambient light if it exists
-  if (selectedIdx == world.numLightInstances) {
-    const auto &rendererParams = frameData.renderer;
-    // Fold the hemisphere-sample pdf cos(theta)/pi with the uniform light pick.
+  if (pick.isAmbient) {
+    // Cosine-weighted hemisphere sample; pdf cos(theta)/pi folded with the pick
+    // probability so MIS weights see the full joint pdf.
+    const auto &rp = frameData.renderer;
     const vec3 dir = sampleHemisphere(ss.rs, normal);
     const float cosNs = fmaxf(0.f, dot(dir, normal));
-    return {LightSample{
-                rendererParams.ambientColor * rendererParams.ambientIntensity,
+    return {LightSample{rp.ambientColor * rp.ambientIntensity,
                 dir,
                 std::numeric_limits<float>::max(),
-                lightPickPdf * cosNs * kInvPi,
-            },
+                pick.pickPdf * cosNs * kInvPi},
         false};
-  } else {
-    const auto &lightInstance = world.lightInstances[selectedIdx];
-    auto ls =
-        sampleLight(ss, origin, lightInstance.lightIndex, lightInstance.xfm);
-    ls.pdf *= lightPickPdf;
-    const bool isEnv = frameData.registry.lights[lightInstance.lightIndex].type
-        == LightType::HDRI;
-    return {ls, isEnv};
   }
+
+  const auto &li = frameData.world.lightInstances[pick.instance];
+  auto ls = sampleLight(ss, origin, li.lightIndex, li.xfm);
+  ls.pdf *= pick.pickPdf;
+  const bool isEnv =
+      frameData.registry.lights[li.lightIndex].type == LightType::HDRI;
+  return {ls, isEnv};
 }
 
 VISRTX_DEVICE LightSample sampleLightsVolume(
     ScreenSample &ss, const FrameGPUData &frameData, const vec3 &origin)
 {
-  const auto &world = frameData.world;
-  const bool hasAmbientLight = frameData.renderer.ambientIntensity > 0.0f;
-  const auto numLights = world.numLightInstances + hasAmbientLight;
-
-  if (numLights == 0)
+  const PickedCandidate pick = pickCandidate(ss, frameData);
+  if (!pick.valid)
     return {};
 
-  const size_t selectedIdx =
-      glm::min(size_t(pcg_uniform(&ss.rs) * float(numLights)), numLights - 1);
-
-  const float lightPickPdf = 1.0f / float(numLights);
-
-  if (selectedIdx == world.numLightInstances) {
-    const auto &rendererParams = frameData.renderer;
+  if (pick.isAmbient) {
+    // Uniform-sphere sample (pdf 1/(4π)) to match the isotropic phase function.
     constexpr float INV_4PI = 1.0f / (4.0f * kPi);
+    const auto &rp = frameData.renderer;
     const vec3 dir = randomDir(ss.rs);
-    return LightSample{
-        rendererParams.ambientColor * rendererParams.ambientIntensity,
+    return LightSample{rp.ambientColor * rp.ambientIntensity,
         dir,
         std::numeric_limits<float>::max(),
-        lightPickPdf * INV_4PI,
-    };
-  } else {
-    // Ambient sampled uniform-sphere (pdf 1/(4π)) to match the isotropic phase.
-    const auto &lightInstance = world.lightInstances[selectedIdx];
-    auto ls =
-        sampleLight(ss, origin, lightInstance.lightIndex, lightInstance.xfm);
-    ls.pdf *= lightPickPdf;
-    return ls;
+        pick.pickPdf * INV_4PI};
   }
+
+  const auto &li = frameData.world.lightInstances[pick.instance];
+  auto ls = sampleLight(ss, origin, li.lightIndex, li.xfm);
+  ls.pdf *= pick.pickPdf;
+  return ls;
 }
 
 VISRTX_DEVICE
@@ -340,10 +413,10 @@ VISRTX_GLOBAL void __raygen__()
     // starts at +inf => w_bsdf = 1.
     float bsdfPdf = INFINITY;
 
-    // Number of NEE light strata (instances + ambient), matching sampleLights'
-    // uniform pick. Folded into the env light density on both MIS sides.
-    const float numLights = float(frameData.world.numLightInstances
-        + (frameData.renderer.ambientIntensity > 0.0f));
+    // Probability the power-proportional Light Pick lands on the environment,
+    // matching sampleLights. Folded into the env light density on both MIS
+    // sides so wNee and wBsdf use identical pdf functions.
+    const float envPickProb = envPickProbability(frameData);
 
     // Coverage pass-throughs are not light-transport events, so they track a
     // separate, generous budget instead of spending bounceDepth — a deep stack
@@ -371,8 +444,12 @@ VISRTX_GLOBAL void __raygen__()
         {
           LightSample lightSample =
               sampleLightsVolume(ss, frameData, scatterPos);
-          if (lightSample.pdf >= ATTENUATION_EPSILON
-              && lightSample.dist > 0.0f) {
+          // Gate on a positive pdf, NOT a fixed epsilon: a dim light's pick
+          // probability can make the joint pdf legitimately tiny, and dividing
+          // by it stays unbiased. An epsilon floor would drop those samples and
+          // render the dim light black — the very bright+dim case the power pick
+          // targets.
+          if (lightSample.pdf > 0.0f && lightSample.dist > 0.0f) {
             constexpr float INV_4PI = 1.0f / (4.0f * kPi);
             const vec3 directLight = volumeSample.albedo * lightSample.radiance
                 * INV_4PI / lightSample.pdf;
@@ -480,7 +557,10 @@ VISRTX_GLOBAL void __raygen__()
         const SurfaceLightSample lightPick =
             sampleLights(ss, frameData, shadowOrigin, surfaceHit.Ns);
         const LightSample &lightSample = lightPick.ls;
-        if (lightSample.pdf >= ATTENUATION_EPSILON && lightSample.dist > 0.0f) {
+        // Positive-pdf gate (not an epsilon): a dim light's tiny pick
+        // probability keeps NEE unbiased; an epsilon floor would drop it and
+        // render it black in bright+dim scenes.
+        if (lightSample.pdf > 0.0f && lightSample.dist > 0.0f) {
           // Gate on the shading normal so the terminator follows the smooth
           // surface; gating on Ng would carve the per-triangle facet shape
           // into the lit/unlit boundary at grazing light angles.
@@ -494,13 +574,15 @@ VISRTX_GLOBAL void __raygen__()
             // not lightSample.pdf, so wNee and wBsdf use identical pdf functions
             // and partition to 1 exactly — unbiased regardless of how closely
             // envPdf tracks the NEE importance pdf (the NEE estimator still
-            // divides by its true lightSample.pdf inside materialShadeSurface).
+            // divides by its true lightSample.pdf, which carries the same
+            // envPickProb, inside materialShadeSurface).
             // Other light types: p_bsdf = 0 => w_nee = 1 (behaviour unchanged).
             float wNee = 1.0f;
             if (lightPick.isEnv) {
               const float pBsdf =
                   materialEvalPdf(shadingState, -ray.dir, lightSample.dir);
-              const float pLight = envPdf(frameData, lightSample.dir) / numLights;
+              const float pLight =
+                  envPdf(frameData, lightSample.dir) * envPickProb;
               wNee = pLight / (pLight + pBsdf);
             }
             const vec3 contribUpper =
@@ -556,11 +638,10 @@ VISRTX_GLOBAL void __raygen__()
       if (!surfaceHit.foundHit && !volumeSample.didScatter) {
         // Deposit the environment, MIS-weighted against NEE. pLight mirrors the
         // NEE env density: the HDRI importance pdf (envPdf) folded with the same
-        // uniform 1/numLights light pick sampleLights applied. bsdfPdf == +inf
-        // (delta / transmission / primary ray) => w_bsdf = 1.
+        // power-proportional env pick probability sampleLights applied. bsdfPdf
+        // == +inf (delta / transmission / primary ray) => w_bsdf = 1.
         if (vec3 hdri; getBackgroundLight(frameData, ray.dir, hdri)) {
-          const float pLight =
-              numLights > 0.0f ? envPdf(frameData, ray.dir) / numLights : 0.0f;
+          const float pLight = envPdf(frameData, ray.dir) * envPickProb;
           const float wBsdf =
               isinf(bsdfPdf) ? 1.0f : bsdfPdf / (bsdfPdf + pLight);
           sample.color += wBsdf * sampleContribution * hdri;

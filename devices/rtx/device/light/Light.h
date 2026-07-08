@@ -41,10 +41,18 @@ struct Light : public RegisteredObject<LightGPUData>
   ~Light() = default;
 
   void commitParameters() override;
+  // Any authored-light change (params or a swap) must rebuild the world's light
+  // instances and pick CDF — those derive from live light state and would
+  // otherwise go stale until an unrelated edit forces a rebuild.
+  void markFinalized() override;
 
   static Light *createInstance(std::string_view subtype, DeviceGlobalState *d);
 
   virtual bool isHDRI() const;
+
+  // Pick Power of this light under an instance transform, for the
+  // power-proportional Light Pick. sceneRadius sizes the infinite lights.
+  float pickPower(const mat4 &xfm, float sceneRadius) const;
 
  protected:
   virtual LightGPUData gpuData() const override = 0;
