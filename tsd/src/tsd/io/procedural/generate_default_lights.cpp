@@ -15,7 +15,7 @@ void generate_default_lights(Scene &scene)
   light->setName("mainDistantLight");
   light->setParameter("direction", tsd::math::float2(0.f, 240.f));
 
-  lightsRoot->insert_first_child({layer, light});
+  scene.insertChildObjectNode(lightsRoot, light);
 }
 
 } // namespace tsd::io
