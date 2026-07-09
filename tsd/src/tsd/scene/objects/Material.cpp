@@ -32,7 +32,7 @@ Material::Material(Token subtype) : Object(ANARI_MATERIAL, subtype)
         .setMin(0.f)
         .setMax(1.f);
     injectAlphaMode();
-  } else if (subtype == tokens::material::physicallyBased) {
+  } else if (subtype == tokens::material::physicallyBased || subtype == tokens::material::physicallyBasedMDL) {
     addParameter("baseColor")
         .setValue(float3(0.8f, 0.8f, 0.8f))
         .setDescription("base color")
@@ -162,6 +162,7 @@ namespace tokens::material {
 
 Token const matte = "matte";
 Token const physicallyBased = "physicallyBased";
+Token const physicallyBasedMDL = "physicallyBasedMDL";
 Token const mdl = "mdl";
 
 } // namespace tokens::material
