@@ -76,6 +76,9 @@ struct Group : public Object
 
   // Triangle surfaces, the Stage 1 candidates for Geometry Light synthesis.
   const std::vector<Surface *> &surfacesTriangle() const;
+  // Custom-primitive surfaces (spheres, cylinders, cones, …); the area-samplable
+  // ones (Stage 1.5: Sphere) are also Geometry Light candidates.
+  const std::vector<Surface *> &surfacesUser() const;
 
   void rebuildSurfaceBVHs();
   void rebuildVolumeBVH();

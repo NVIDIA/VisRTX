@@ -203,29 +203,55 @@ VISRTX_DEVICE float geometryLightHitPdf(const FrameGPUData &frameData,
     const vec3 &rayDir,
     const vec3 &emission)
 {
-  // Only a constant-emissive TRIANGLE surface is a Stage 1 Geometry Light. The
-  // type guard is load-bearing: GeometryGPUData is a union, so reading `.tri` on
-  // a non-triangle emissive surface (never NEE-sampled) would misread it and
-  // wrongly down-weight the deposit.
-  if (!hit.material->emissionIsConstant
-      || hit.geometry->type != GeometryType::TRIANGLE)
+  // Only a constant-emissive area-samplable surface is a Geometry Light. The
+  // type guard is load-bearing: GeometryGPUData is a union, so reading `.tri`/
+  // `.sphere` on the wrong type (never NEE-sampled) would misread it and wrongly
+  // down-weight the deposit.
+  if (!hit.material->emissionIsConstant)
     return 0.0f;
-  const auto &tri = hit.geometry->tri;
-  if (tri.totalArea <= 0.0f || tri.numPrimitives == 0)
-    return 0.0f;
-
-  const uvec3 idx = detail::triangleIndices(tri, hit.primID);
-  const vec3 v0 = tri.vertices[idx.x];
-  const vec3 e1o = tri.vertices[idx.y] - v0;
-  const vec3 e2o = tri.vertices[idx.z] - v0;
   const mat3 o2w = mat3(hit.instance->objectToWorld);
-  const float worldTwice = length(cross(o2w * e1o, o2w * e2o));
   const float cosTheta = fabsf(dot(hit.Ng, rayDir));
-  if (worldTwice <= 0.0f || cosTheta <= 0.0f)
+  if (cosTheta <= 0.0f)
     return 0.0f;
 
-  const float solidAnglePdf = detail::geometryLightSolidAnglePdf(
-      length(cross(e1o, e2o)), worldTwice, tri.totalArea, hit.t, cosTheta);
+  // Per-type: the exact solid-angle pdf the NEE sampler would report for this
+  // hit, plus the object-space total area feeding the pick probability. Kept
+  // identical to the samplers in sampleLight.h so wNee and wBsdf partition to 1.
+  float solidAnglePdf = 0.0f;
+  float totalArea = 0.0f;
+
+  if (hit.geometry->type == GeometryType::TRIANGLE) {
+    const auto &tri = hit.geometry->tri;
+    if (tri.totalArea <= 0.0f || tri.numPrimitives == 0)
+      return 0.0f;
+    const uvec3 idx = detail::triangleIndices(tri, hit.primID);
+    const vec3 v0 = tri.vertices[idx.x];
+    const vec3 e1o = tri.vertices[idx.y] - v0;
+    const vec3 e2o = tri.vertices[idx.z] - v0;
+    const float worldTwice = length(cross(o2w * e1o, o2w * e2o));
+    if (worldTwice <= 0.0f)
+      return 0.0f;
+    solidAnglePdf = detail::geometryLightSolidAnglePdf(
+        length(cross(e1o, e2o)), worldTwice, tri.totalArea, hit.t, cosTheta);
+    totalArea = tri.totalArea;
+  } else if (hit.geometry->type == GeometryType::SPHERE) {
+    const auto &sph = hit.geometry->sphere;
+    if (sph.totalArea <= 0.0f || sph.numPrimitives == 0)
+      return 0.0f;
+    const uint32_t vi = sph.indices ? sph.indices[hit.primID] : hit.primID;
+    const vec3 pObj = xfmPoint(hit.instance->worldToObject, hit.hitpoint);
+    const vec3 nObj = normalize(pObj - sph.centers[vi]);
+    const mat3 basis = computeOrthonormalBasis(nObj);
+    const float worldAreaScale =
+        length(cross(o2w * basis[0], o2w * basis[1]));
+    if (worldAreaScale <= 0.0f)
+      return 0.0f;
+    solidAnglePdf = detail::geometryLightSolidAnglePdf(
+        1.0f, worldAreaScale, sph.totalArea, hit.t, cosTheta);
+    totalArea = sph.totalArea;
+  } else {
+    return 0.0f;
+  }
 
   const float totalPower =
       frameData.world.totalLightPower + ambientPickPower(frameData);
@@ -236,7 +262,7 @@ VISRTX_DEVICE float geometryLightHitPdf(const FrameGPUData &frameData,
   ld.type = LightType::GEOMETRY;
   ld.geometry.geometryIndex = -1; // unused by lightPickPower
   ld.geometry.radiance = emission;
-  ld.geometry.area = tri.totalArea;
+  ld.geometry.area = totalArea;
   const float pickProb =
       lightPickPower(ld, mat4(o2w), frameData.world.sceneRadius) / totalPower;
 

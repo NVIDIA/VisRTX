@@ -128,7 +128,66 @@ void Sphere::finalize()
       0.f,
       thrust::maximum<float>());
 
+  // Radii may have changed. Rebuild the Geometry Light CDF if a surface has ever
+  // requested it (order-independent of the surface commit), else drop stale data.
+  m_areaDataValid = false;
+  if (m_areaDataWanted)
+    buildAreaData();
+  else {
+    m_totalArea = 0.f;
+    m_primAreaCdf.clear();
+  }
+
   upload();
+}
+
+void Sphere::buildAreaData()
+{
+  const float *radii =
+      m_vertexRadius ? m_vertexRadius->beginAs<float>(AddressSpace::HOST) : nullptr;
+  const uint32_t *indices =
+      m_index ? m_index->beginAs<uint32_t>(AddressSpace::HOST) : nullptr;
+
+  m_primAreaCdf.resize(m_numSpheres);
+  auto *cdf = m_primAreaCdf.dataHost();
+
+  double cumulative = 0.0;
+  for (size_t i = 0; i < m_numSpheres; ++i) {
+    const uint32_t vi = indices ? indices[i] : uint32_t(i);
+    const float r = glm::abs(radii ? radii[vi] : m_globalRadius);
+    cumulative += 4.0 * double(kPi) * double(r) * double(r);
+    cdf[i] = float(cumulative);
+  }
+  m_totalArea = float(cumulative);
+
+  // Normalize to a cumulative CDF ending at 1. A degenerate (zero-area) set
+  // leaves totalArea 0; callers gate on that.
+  if (m_totalArea > 0.f) {
+    for (size_t i = 0; i < m_numSpheres; ++i)
+      cdf[i] /= m_totalArea;
+  }
+
+  m_primAreaCdf.upload();
+  m_areaDataValid = true;
+}
+
+bool Sphere::isAreaSamplingSupported() const
+{
+  return true;
+}
+
+void Sphere::ensureAreaData()
+{
+  m_areaDataWanted = true;
+  if (m_areaDataValid)
+    return;
+  buildAreaData();
+  upload(); // republish gpuData() so the CDF pointers reach the device
+}
+
+float Sphere::totalArea() const
+{
+  return m_totalArea;
 }
 
 bool Sphere::isValid() const
@@ -164,6 +223,11 @@ GeometryGPUData Sphere::gpuData() const
     sphere.radii = m_vertexRadius->beginAs<float>(AddressSpace::GPU);
   sphere.radius = m_globalRadius;
   populateAttributeDataSet(m_vertexAttributes, sphere.vertexAttr);
+
+  // Geometry Light sampling data; null/zero until ensureAreaData() runs.
+  sphere.primAreaCdf = m_primAreaCdf.dataDevice();
+  sphere.numPrimitives = uint32_t(m_primAreaCdf.size());
+  sphere.totalArea = m_totalArea;
 
   return retval;
 }

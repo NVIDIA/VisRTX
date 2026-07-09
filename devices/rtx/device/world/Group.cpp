@@ -200,6 +200,11 @@ const std::vector<Surface *> &Group::surfacesTriangle() const
   return m_surfacesTriangle;
 }
 
+const std::vector<Surface *> &Group::surfacesUser() const
+{
+  return m_surfacesUser;
+}
+
 void Group::rebuildSurfaceBVHs()
 {
   const auto &state = *deviceState();

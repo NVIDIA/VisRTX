@@ -256,6 +256,13 @@ struct SphereGeometryData
   AttributeDataSet vertexAttr;
   const float *radii;
   float radius;
+  // Geometry Light sampling: normalized cumulative object-space area CDF over
+  // primitives (per-sphere 4πr²); null unless this geometry backs an Emissive
+  // Surface. numPrimitives is the CDF length (0 until ensureAreaData runs), NOT
+  // the sphere count; only the light path reads it. Name mirrors Triangle.
+  const float *primAreaCdf;
+  uint32_t numPrimitives;
+  float totalArea; // object-space
 };
 
 // Value-only bisection steps used to refine an isosurface crossing within one

@@ -499,33 +499,43 @@ size_t World::countGeometryLights(Group *group) const
   for (auto *surface : group->surfacesTriangle())
     if (surface->geometryLight())
       ++n;
+  for (auto *surface : group->surfacesUser())
+    if (surface->geometryLight())
+      ++n;
   return n;
 }
 
 void World::synthesizeGeometryLights()
 {
-  // Configure or drop each triangle surface's Geometry Light from current
-  // material + geometry state. Object-space, so done once per group; the fill
-  // pass instances it per transform like an authored light.
+  // Configure or drop each candidate surface's Geometry Light from current
+  // material + geometry state. Runs over triangle and user (custom-primitive,
+  // e.g. sphere) surfaces; isConstantEmitter gates out non-area-samplable ones.
+  // Object-space, so done once per group; the fill pass instances it per
+  // transform like an authored light.
+  auto configure = [](Surface *surface) {
+    if (surface->isConstantEmitter()) {
+      auto *geometry = surface->geometry();
+      geometry->ensureAreaData();
+      const float area = geometry->totalArea();
+      if (area > 0.0f) {
+        surface->ensureGeometryLight()->configure(geometry->index(),
+            surface->material()->emissionRadiance(),
+            area);
+        return;
+      }
+    }
+    surface->clearGeometryLight();
+  };
+
   std::set<Group *> visited;
   for (auto *inst : m_instances) {
     auto *group = inst->group();
     if (!visited.insert(group).second)
       continue;
-    for (auto *surface : group->surfacesTriangle()) {
-      if (surface->isConstantEmitter()) {
-        auto *geometry = surface->geometry();
-        geometry->ensureAreaData();
-        const float area = geometry->totalArea();
-        if (area > 0.0f) {
-          surface->ensureGeometryLight()->configure(geometry->index(),
-              surface->material()->emissionRadiance(),
-              area);
-          continue;
-        }
-      }
-      surface->clearGeometryLight();
-    }
+    for (auto *surface : group->surfacesTriangle())
+      configure(surface);
+    for (auto *surface : group->surfacesUser())
+      configure(surface);
   }
 }
 
@@ -619,6 +629,10 @@ void World::buildInstanceLightGPUData()
 
       // Synthesized Geometry Lights, instanced exactly like authored lights.
       for (auto *surface : group->surfacesTriangle()) {
+        if (auto *gl = surface->geometryLight())
+          appendLight(gl, xfm);
+      }
+      for (auto *surface : group->surfacesUser()) {
         if (auto *gl = surface->geometryLight())
           appendLight(gl, xfm);
       }

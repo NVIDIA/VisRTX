@@ -352,14 +352,13 @@ VISRTX_DEVICE float geometryLightSolidAnglePdf(float objTwiceArea,
 // pdf via geometryLightSolidAnglePdf, so the estimator stays unbiased under any
 // affine instance transform (non-uniform scale included). Double-sided,
 // matching the view-independent constant emission the hit deposit uses.
-VISRTX_DEVICE LightSample sampleGeometryLight(const LightGPUData &ld,
+VISRTX_DEVICE LightSample sampleTriangleGeometryLight(const LightGPUData &ld,
+    const TriangleGeometryData &tri,
     const mat4 &xfm,
     const vec3 &origin,
     ScreenSample &ss)
 {
   LightSample ls{};
-  const auto &tri =
-      ss.frameData->registry.geometries[ld.geometry.geometryIndex].tri;
   if (tri.numPrimitives == 0 || ld.geometry.area <= 0.0f)
     return ls;
 
@@ -398,6 +397,91 @@ VISRTX_DEVICE LightSample sampleGeometryLight(const LightGPUData &ld,
       cosTheta);
 
   return ls;
+}
+
+// Sample a point on a sphere-set Geometry Light. Picks a sphere by its
+// object-space area (4πr²), samples that sphere's surface uniformly (Marsaglia),
+// and reports the EXACT solid-angle pdf. The world-space area element and normal
+// come from two transformed object-space tangents (cross product), so the pdf is
+// exact under any affine instance transform — the same Jacobian machinery the
+// triangle path uses. SINGLE-sided (outward only): a closed sphere self-occludes
+// its far hemisphere, so far-side samples are culled, matching the analytic
+// sphere light.
+VISRTX_DEVICE LightSample sampleSphereGeometryLight(const LightGPUData &ld,
+    const SphereGeometryData &sph,
+    const mat4 &xfm,
+    const vec3 &origin,
+    ScreenSample &ss)
+{
+  LightSample ls{};
+  if (sph.numPrimitives == 0 || ld.geometry.area <= 0.0f)
+    return ls;
+
+  const uint32_t primID = glm::min(
+      uint32_t(inverseSampleCDF(
+          sph.primAreaCdf, int(sph.numPrimitives), pcg_uniform(&ss.rs))),
+      sph.numPrimitives - 1);
+  const uint32_t vi = sph.indices ? sph.indices[primID] : primID;
+  const vec3 c = sph.centers[vi];
+  const float r = fabsf(sph.radii ? sph.radii[vi] : sph.radius);
+
+  // Uniform point on the object-space unit sphere (Marsaglia); nObj is the unit
+  // outward object-space normal there.
+  const float z = 1.0f - 2.0f * pcg_uniform(&ss.rs);
+  const float rho = sqrtf(fmaxf(0.0f, 1.0f - z * z));
+  const float phi = kTwoPi * pcg_uniform(&ss.rs);
+  const vec3 nObj = vec3(rho * cosf(phi), rho * sinf(phi), z);
+  const vec3 pObj = c + nObj * r;
+
+  ls.dir = xfmPoint(xfm, pObj) - origin;
+  ls.dist = length(ls.dir);
+  ls.dir /= ls.dist;
+
+  // World area element and surface normal from two transformed orthonormal
+  // object tangents. |cross(M t1, M t2)| is world-area-per-unit-object-area;
+  // its direction is the (ellipsoid-correct) world normal.
+  const mat3 basis = computeOrthonormalBasis(nObj);
+  vec3 nWorld = cross(xfmVec(xfm, basis[0]), xfmVec(xfm, basis[1]));
+  const float worldAreaScale = length(nWorld);
+  if (worldAreaScale <= 0.0f)
+    return ls;
+  nWorld /= worldAreaScale;
+  // Orient outward so back-facing (far-side) samples are culled. M·(pObj-c) =
+  // r·M·nObj, and r>0, so xfmVec(xfm, nObj) carries the same sign.
+  if (dot(nWorld, xfmVec(xfm, nObj)) < 0.0f)
+    nWorld = -nWorld;
+
+  const float cosTheta = dot(nWorld, -ls.dir);
+  if (cosTheta <= 0.0f)
+    return ls; // far side; self-occluded, contributes nothing
+
+  ls.radiance = ld.geometry.radiance;
+  // Object-area element is 1 (orthonormal tangents); world element is
+  // worldAreaScale. geometryLightSolidAnglePdf folds pick(1/totalArea) and the
+  // area→solid-angle Jacobian identically to the triangle path.
+  ls.pdf = geometryLightSolidAnglePdf(
+      1.0f, worldAreaScale, ld.geometry.area, ls.dist, cosTheta);
+
+  return ls;
+}
+
+// Dispatch a Geometry Light sample by the backing geometry's type. The geometry
+// carries its own type, so GeometryLightGPUData needs no discriminator.
+VISRTX_DEVICE LightSample sampleGeometryLight(const LightGPUData &ld,
+    const mat4 &xfm,
+    const vec3 &origin,
+    ScreenSample &ss)
+{
+  const auto &geom =
+      ss.frameData->registry.geometries[ld.geometry.geometryIndex];
+  switch (geom.type) {
+  case GeometryType::TRIANGLE:
+    return sampleTriangleGeometryLight(ld, geom.tri, xfm, origin, ss);
+  case GeometryType::SPHERE:
+    return sampleSphereGeometryLight(ld, geom.sphere, xfm, origin, ss);
+  default:
+    return {};
+  }
 }
 
 VISRTX_DEVICE LightSample sampleHDRILight(
