@@ -65,6 +65,11 @@ Sampler *Sampler::createInstance(std::string_view subtype, DeviceGlobalState *d)
     return new UnknownSampler(subtype, d);
 }
 
+vec4 Sampler::averageValue() const
+{
+  return vec4(1.f);
+}
+
 void Sampler::commitParameters()
 {
   m_inAttribute = getParamString("inAttribute", "attribute0");

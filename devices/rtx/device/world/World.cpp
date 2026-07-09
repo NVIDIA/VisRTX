@@ -509,17 +509,20 @@ void World::synthesizeGeometryLights()
 {
   // Configure or drop each candidate surface's Geometry Light from current
   // material + geometry state. Runs over triangle and user (custom-primitive,
-  // e.g. sphere) surfaces; isConstantEmitter gates out non-area-samplable ones.
+  // e.g. sphere) surfaces; isSampleableEmitter gates out non-area-samplable ones.
   // Object-space, so done once per group; the fill pass instances it per
-  // transform like an authored light.
+  // transform like an authored light. The light carries the material's mean
+  // radiance (Pick Power); the sampler evaluates the material at the sampled
+  // point when its emission is not constant.
   auto configure = [](Surface *surface) {
-    if (surface->isConstantEmitter()) {
+    if (surface->isSampleableEmitter()) {
       auto *geometry = surface->geometry();
       geometry->ensureAreaData();
       const float area = geometry->totalArea();
       if (area > 0.0f) {
         surface->ensureGeometryLight()->configure(geometry->index(),
-            surface->material()->emissionRadiance(),
+            surface->material()->index(),
+            surface->material()->emissionAverage(),
             area);
         return;
       }

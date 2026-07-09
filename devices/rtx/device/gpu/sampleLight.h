@@ -31,6 +31,7 @@
 
 #pragma once
 
+#include "gpu/evalEmission.h" // evaluateSurfaceEmission (Stage 2 sampled emission)
 #include "gpu/gpu_math.h"
 #include "gpu/gpu_objects.h"
 #include "gpu/gpu_util.h"
@@ -354,6 +355,52 @@ VISRTX_DEVICE float geometryLightSolidAnglePdf(float objTwiceArea,
       / absCosTheta;
 }
 
+// Radiance emitted by a Geometry Light at the sampled surface point, toward the
+// shading point. A constant emitter uses the baked average (fast path); a
+// sampler/attribute emitter is evaluated through the material's own emission
+// entry point at a SYNTHETIC hit, so next-event radiance matches the path-hit
+// deposit exactly (MIS stays unbiased). `uvw` is the geometry's parametric
+// coordinate at the sample (see the per-geometry samplers). Stage 2a carries no
+// instance-uniform attributes, so a per-sample instance holding only the
+// transform suffices; the real surface-instance link is Stage 2.5.
+VISRTX_DEVICE vec3 evalGeometryLightEmission(ScreenSample &ss,
+    const LightGPUData &ld,
+    const mat4 &xfm,
+    uint32_t primID,
+    const vec3 &uvw,
+    const vec3 &worldPoint,
+    const vec3 &nsWorld,
+    const vec3 &outgoingDir)
+{
+  const auto &registry = ss.frameData->registry;
+  const auto &md = registry.materials[ld.geometry.materialIndex];
+  if (md.emissionIsConstant)
+    return ld.geometry.radiance;
+
+  SurfaceHit hit{};
+  hit.geometry = &registry.geometries[ld.geometry.geometryIndex];
+  hit.material = &md;
+  hit.primID = primID;
+  hit.uvw = uvw;
+  hit.hitpoint = worldPoint;
+  hit.Ng = hit.Ns = nsWorld;
+  const mat3 basis = computeOrthonormalBasis(nsWorld);
+  hit.tU = basis[0];
+  hit.tV = basis[1];
+  hit.objID = 0;
+  hit.instID = 0;
+  hit.t = 0.0f;
+  hit.epsilon = 0.0f;
+  hit.isFrontFace = true;
+
+  InstanceSurfaceGPUData instance{};
+  instance.objectToWorld = glm::transpose(mat4x3(xfm));
+  instance.worldToObject = glm::transpose(mat4x3(glm::inverse(xfm)));
+  hit.instance = &instance;
+
+  return evaluateSurfaceEmission(*ss.frameData, md, hit, outgoingDir);
+}
+
 // Sample a point on a triangle Geometry Light. Picks a primitive by its
 // object-space area, samples it uniformly, and reports the EXACT solid-angle
 // pdf via geometryLightSolidAnglePdf, so the estimator stays unbiased under any
@@ -378,25 +425,37 @@ VISRTX_DEVICE LightSample sampleTriangleGeometryLight(const LightGPUData &ld,
   const vec3 e1o = tri.vertices[idx.y] - v0;
   const vec3 e2o = tri.vertices[idx.z] - v0;
 
-  // Uniform barycentric sample of the triangle.
+  // Uniform barycentric sample of the triangle; b0/b1/b2 weight v0/v1/v2 and are
+  // the hit's uvw for attribute/texcoord interpolation at the sampled point.
   const float su = sqrtf(pcg_uniform(&ss.rs));
   const float u2 = pcg_uniform(&ss.rs);
-  const vec3 pObj = v0 + e1o * (su * (1.0f - u2)) + e2o * (su * u2);
+  const float b1 = su * (1.0f - u2);
+  const float b2 = su * u2;
+  const vec3 pObj = v0 + e1o * b1 + e2o * b2;
 
-  const vec3 nWorld = cross(xfmVec(xfm, e1o), xfmVec(xfm, e2o));
+  vec3 nWorld = cross(xfmVec(xfm, e1o), xfmVec(xfm, e2o));
   const float worldTriTwiceArea = length(nWorld);
 
-  ls.dir = xfmPoint(xfm, pObj) - origin;
+  const vec3 worldPoint = xfmPoint(xfm, pObj);
+  ls.dir = worldPoint - origin;
   ls.dist = length(ls.dir);
   ls.dir /= ls.dist;
 
-  const float cosTheta = worldTriTwiceArea > 0.0f
-      ? fabsf(dot(nWorld / worldTriTwiceArea, -ls.dir))
-      : 0.0f;
+  if (worldTriTwiceArea <= 0.0f)
+    return ls;
+  nWorld /= worldTriTwiceArea;
+  const float cosTheta = fabsf(dot(nWorld, -ls.dir));
   if (cosTheta <= 0.0f)
     return ls; // radiance/pdf left zero
 
-  ls.radiance = ld.geometry.radiance;
+  ls.radiance = evalGeometryLightEmission(ss,
+      ld,
+      xfm,
+      primID,
+      vec3(1.0f - b1 - b2, b1, b2),
+      worldPoint,
+      nWorld,
+      -ls.dir);
   ls.pdf = geometryLightSolidAnglePdf(length(cross(e1o, e2o)),
       worldTriTwiceArea,
       ld.geometry.area,
@@ -407,22 +466,25 @@ VISRTX_DEVICE LightSample sampleTriangleGeometryLight(const LightGPUData &ld,
 }
 
 // Finish a SINGLE-sided (outward) Geometry Light area sample from an object-space
-// surface point and its OUTWARD object normal: world direction/distance and the
-// EXACT affine solid-angle pdf. The world area element and normal come from two
-// transformed orthonormal object tangents (|cross(M t1, M t2)|), so it is exact
-// under any affine instance transform — the same Jacobian the triangle path uses.
-// Shared by the sphere/cylinder/cone samplers; the pdf must match
-// geometryLightHitPdf on the deposit side for MIS to partition to 1. Radiance/pdf
-// are left zero when the sample faces away (far side, self-occluded).
-VISRTX_DEVICE LightSample finishAreaLightSample(const vec3 &radiance,
+// surface point and its OUTWARD object normal: world direction/distance, the
+// emitted radiance at the point, and the EXACT affine solid-angle pdf. The world
+// area element and normal come from two transformed orthonormal object tangents
+// (|cross(M t1, M t2)|), so it is exact under any affine instance transform — the
+// same Jacobian the triangle path uses. Shared by the sphere/cylinder/cone
+// samplers; the pdf must match geometryLightHitPdf on the deposit side for MIS to
+// partition to 1. Radiance/pdf are left zero when the sample faces away.
+VISRTX_DEVICE LightSample finishAreaLightSample(ScreenSample &ss,
+    const LightGPUData &ld,
     const mat4 &xfm,
     const vec3 &origin,
     const vec3 &pObj,
     const vec3 &nObjOut,
-    float totalObjArea)
+    uint32_t primID,
+    const vec3 &uvw)
 {
   LightSample ls{};
-  ls.dir = xfmPoint(xfm, pObj) - origin;
+  const vec3 worldPoint = xfmPoint(xfm, pObj);
+  ls.dir = worldPoint - origin;
   ls.dist = length(ls.dir);
   ls.dir /= ls.dist;
 
@@ -441,12 +503,13 @@ VISRTX_DEVICE LightSample finishAreaLightSample(const vec3 &radiance,
   if (cosTheta <= 0.0f)
     return ls; // far side; self-occluded, contributes nothing
 
-  ls.radiance = radiance;
+  ls.radiance = evalGeometryLightEmission(
+      ss, ld, xfm, primID, uvw, worldPoint, nWorld, -ls.dir);
   // Object-area element is 1 (orthonormal tangents); world element is
   // worldAreaScale. geometryLightSolidAnglePdf folds pick(1/totalArea) and the
   // area→solid-angle Jacobian identically to the triangle path.
   ls.pdf = geometryLightSolidAnglePdf(
-      1.0f, worldAreaScale, totalObjArea, ls.dist, cosTheta);
+      1.0f, worldAreaScale, ld.geometry.area, ls.dist, cosTheta);
   return ls;
 }
 
@@ -477,8 +540,10 @@ VISRTX_DEVICE LightSample sampleSphereGeometryLight(const LightGPUData &ld,
   const float phi = kTwoPi * pcg_uniform(&ss.rs);
   const vec3 nObj = vec3(rho * cosf(phi), rho * sinf(phi), z);
 
-  return finishAreaLightSample(
-      ld.geometry.radiance, xfm, origin, c + nObj * r, nObj, ld.geometry.area);
+  // Sphere attributes are per-primitive (no interpolation); uvw = (0,0,1) matches
+  // the intersector's constant sphere parameter.
+  return finishAreaLightSample(ss, ld, xfm, origin, c + nObj * r, nObj, primID,
+      vec3(0.0f, 0.0f, 1.0f));
 }
 
 // Per-endpoint cap enablement, matching the intersector's resolveCapBits: a
@@ -539,20 +604,26 @@ VISRTX_DEVICE LightSample sampleCylinderGeometryLight(const LightGPUData &ld,
   float pick = pcg_uniform(&ss.rs)
       * (latArea + (cap0 ? capArea : 0.0f) + (cap1 ? capArea : 0.0f));
   vec3 pObj, nObj;
+  float axialU; // axial fraction along p0→p1; the hit's uvw parameter
   if (pick < latArea) {
+    axialU = pcg_uniform(&ss.rs);
     const float phi = kTwoPi * pcg_uniform(&ss.rs);
     const vec3 rho = cosf(phi) * basis[0] + sinf(phi) * basis[1];
-    pObj = p0 + pcg_uniform(&ss.rs) * axis + r * rho;
+    pObj = p0 + axialU * axis + r * rho;
     nObj = rho;
   } else if (cap0 && pick < latArea + capArea) {
     pObj = sampleDisk(p0, basis[0], basis[1], r, ss);
     nObj = -axisN;
+    axialU = 0.0f;
   } else {
     pObj = sampleDisk(p1, basis[0], basis[1], r, ss);
     nObj = axisN;
+    axialU = 1.0f;
   }
-  return finishAreaLightSample(
-      ld.geometry.radiance, xfm, origin, pObj, nObj, ld.geometry.area);
+  // uvw = (0, u, 1-u): u weights endpoint p1, (1-u) weights p0 (see the
+  // intersector and readAttributeValue's cylinder branch).
+  return finishAreaLightSample(ss, ld, xfm, origin, pObj, nObj, primID,
+      vec3(0.0f, axialU, 1.0f - axialU));
 }
 
 // Sample a point on a cone-set Geometry Light: pick a cone by object area (frustum
@@ -596,25 +667,27 @@ VISRTX_DEVICE LightSample sampleConeGeometryLight(const LightGPUData &ld,
 
   float pick = pcg_uniform(&ss.rs) * (latArea + cap0Area + cap1Area);
   vec3 pObj, nObj;
+  float axialT; // axial fraction along p0→p1; the hit's uvw parameter
   if (pick < latArea) {
     const float u = pcg_uniform(&ss.rs);
     const float rt = sqrtf((1.0f - u) * r0 * r0 + u * r1 * r1); // radius at t
-    const float t =
-        (fabsf(r1 - r0) > CONE_TAPER_EPSILON) ? (rt - r0) / (r1 - r0) : u;
+    axialT = (fabsf(r1 - r0) > CONE_TAPER_EPSILON) ? (rt - r0) / (r1 - r0) : u;
     const float phi = kTwoPi * pcg_uniform(&ss.rs);
     const vec3 rho = cosf(phi) * basis[0] + sinf(phi) * basis[1];
-    pObj = p0 + t * axis + rt * rho;
+    pObj = p0 + axialT * axis + rt * rho;
     // Outward slant normal: radial tilted toward the axis by the taper slope.
     nObj = normalize(rho + ((r0 - r1) / len) * axisN);
   } else if (cap0Area > 0.0f && pick < latArea + cap0Area) {
     pObj = sampleDisk(p0, basis[0], basis[1], r0, ss);
     nObj = -axisN;
+    axialT = 0.0f;
   } else {
     pObj = sampleDisk(p1, basis[0], basis[1], r1, ss);
     nObj = axisN;
+    axialT = 1.0f;
   }
-  return finishAreaLightSample(
-      ld.geometry.radiance, xfm, origin, pObj, nObj, ld.geometry.area);
+  return finishAreaLightSample(ss, ld, xfm, origin, pObj, nObj, primID,
+      vec3(0.0f, axialT, 1.0f - axialT));
 }
 
 // Dispatch a Geometry Light sample by the backing geometry's type. The geometry

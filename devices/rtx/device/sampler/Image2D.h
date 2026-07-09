@@ -47,11 +47,18 @@ struct Image2D : public Sampler
   bool isValid() const override;
 
   int numChannels() const override;
+  vec4 averageValue() const override;
 
   cudaTextureObject_t textureObject() const;
 
  private:
   SamplerGPUData gpuData() const override;
+
+  // Mean linear texel for emissive Pick Power. computeAverageValue() is the host
+  // scan; computeAverageValueGPU() is the intended device-side reduction over the
+  // already-resident texels (stubbed — currently delegates to the host scan).
+  vec4 computeAverageValue() const;
+  vec4 computeAverageValueGPU() const;
 
   void cleanupImageCudaArray();
   void cleanupImageTextureObjects();
@@ -63,6 +70,14 @@ struct Image2D : public Sampler
 
   cudaTextureObject_t m_texture{};
   cudaTextureObject_t m_texels{};
+
+  // Mean linear texel, consumed only by the emissive Pick-Power path. Computed
+  // lazily on the first averageValue() query and memoized against the image's
+  // lastDataModified stamp: non-emissive samplers (base color, normal, roughness,
+  // ...) never query it and so never scan, and a no-op recommit (filter/wrap
+  // change, scene churn) does not rescan. mutable: filled from the const query.
+  mutable vec4 m_averageValue{1.f};
+  mutable helium::TimeStamp m_averageValueStamp{0};
 };
 
 } // namespace visrtx

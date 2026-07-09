@@ -96,16 +96,22 @@ bool Surface::isVisible() const
   return m_visible;
 }
 
-bool Surface::isConstantEmitter() const
+bool Surface::isSampleableEmitter() const
 {
-  return m_material && m_material->emissionIsConstant() && m_geometry
+  return m_material && m_material->emissionIsSampleable() && m_geometry
       && m_geometry->isAreaSamplingSupported();
 }
 
 GeometryLight *Surface::ensureGeometryLight()
 {
-  if (!m_geometryLight)
+  if (!m_geometryLight) {
     m_geometryLight = new GeometryLight(deviceState());
+    // RefCounted starts at PUBLIC=1; the IntrusivePtr owns the only reference we
+    // need. Drop the birth PUBLIC ref so clearGeometryLight() actually frees the
+    // light and releases its registry.lights slot (mirrors World.cpp's zero
+    // group/instance).
+    m_geometryLight->refDec(helium::RefType::PUBLIC);
+  }
   return m_geometryLight.ptr;
 }
 

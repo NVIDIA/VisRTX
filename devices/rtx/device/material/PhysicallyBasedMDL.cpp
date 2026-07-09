@@ -140,7 +140,17 @@ bool PhysicallyBasedMDL::emissionIsConstant() const
   return m_emissionIsConstant;
 }
 
-vec3 PhysicallyBasedMDL::emissionRadiance() const
+bool PhysicallyBasedMDL::emissionIsSampleable() const
+{
+  // MDL emission is evaluated through the compiled EDF, which needs a real hit
+  // context; a synthetic hit from the light sampler does not reproduce it. So
+  // only CONSTANT emission is a Geometry Light here (Stage 1 behaviour). Textured
+  // MDL emission is deferred to Stage 3 (general MDL); it still deposits on
+  // path-hit via the EDF, just without next-event sampling.
+  return m_emissionIsConstant;
+}
+
+vec3 PhysicallyBasedMDL::emissionAverage() const
 {
   return m_emissionRadiance;
 }

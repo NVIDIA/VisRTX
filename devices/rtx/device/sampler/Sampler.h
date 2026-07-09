@@ -43,6 +43,11 @@ struct Sampler : public RegisteredObject<SamplerGPUData>
 
   virtual int numChannels() const = 0;
 
+  // Average sampled value, used only to size a textured emitter's Pick Power
+  // (variance, never bias). The default assumes a fully-lit unit value so an
+  // un-averaged sampler is still picked; Image2D overrides with the mean texel.
+  virtual vec4 averageValue() const;
+
   static Sampler *createInstance(
       std::string_view subtype, DeviceGlobalState *d);
 

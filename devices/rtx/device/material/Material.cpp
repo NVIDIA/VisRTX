@@ -57,21 +57,26 @@ bool Material::emissionIsConstant() const
   return false;
 }
 
-vec3 Material::emissionRadiance() const
+bool Material::emissionIsSampleable() const
+{
+  return false;
+}
+
+vec3 Material::emissionAverage() const
 {
   return vec3(0.f);
 }
 
 void Material::refreshEmissionLightSet()
 {
-  const bool nowConstant = emissionIsConstant();
-  const vec3 nowRadiance = emissionRadiance();
-  if (nowConstant != m_emissionWasConstant
-      || (nowConstant && nowRadiance != m_lastEmissionRadiance)) {
+  const bool nowSampleable = emissionIsSampleable();
+  const vec3 nowAverage = emissionAverage();
+  if (nowSampleable != m_emissionWasSampleable
+      || (nowSampleable && nowAverage != m_lastEmissionAverage)) {
     deviceState()->objectUpdates.lastLightSetChange = helium::newTimeStamp();
   }
-  m_emissionWasConstant = nowConstant;
-  m_lastEmissionRadiance = nowRadiance;
+  m_emissionWasSampleable = nowSampleable;
+  m_lastEmissionAverage = nowAverage;
 }
 
 Material *Material::createInstance(

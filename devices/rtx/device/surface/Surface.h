@@ -55,9 +55,10 @@ struct Surface : public RegisteredObject<SurfaceGPUData>
 
   OptixBuildInput buildInput() const;
 
-  // True when this surface is a Stage 1 Geometry Light: its material emits a
-  // nonzero constant and its geometry can be area-sampled.
-  bool isConstantEmitter() const;
+  // True when this surface is a Geometry Light: its material's emission is not
+  // provably zero (constant, sampler, or attribute bound) and its geometry can
+  // be area-sampled.
+  bool isSampleableEmitter() const;
 
   // Geometry Light ownership. The synthesized light lives here (per ADR 0005),
   // but the World configures its content each rebuild from current material and

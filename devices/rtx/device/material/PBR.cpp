@@ -149,15 +149,31 @@ void PBR::commitParameters()
   refreshEmissionLightSet();
 }
 
-bool PBR::emissionIsConstant() const
+static bool emissiveIsBound(const Sampler *sampler, const std::string &attribute)
 {
-  const bool bound = (m_emissiveSampler && m_emissiveSampler->isValid())
-      || !m_emissiveAttribute.empty();
-  return !bound && glm::any(glm::greaterThan(vec3(m_emissive), vec3(0.f)));
+  return (sampler && sampler->isValid()) || !attribute.empty();
 }
 
-vec3 PBR::emissionRadiance() const
+bool PBR::emissionIsConstant() const
 {
+  return !emissiveIsBound(m_emissiveSampler.get(), m_emissiveAttribute)
+      && glm::any(glm::greaterThan(vec3(m_emissive), vec3(0.f)));
+}
+
+bool PBR::emissionIsSampleable() const
+{
+  return glm::any(glm::greaterThan(emissionAverage(), vec3(0.f)));
+}
+
+vec3 PBR::emissionAverage() const
+{
+  // Sampler-bound: mean texel (variance-only Pick Power). Attribute-bound: the
+  // per-primitive/vertex values are not known here, so assume lit — a coarse,
+  // non-zero estimate (Pick Power is variance-only). Otherwise the constant.
+  if (m_emissiveSampler && m_emissiveSampler->isValid())
+    return vec3(m_emissiveSampler->averageValue());
+  if (!m_emissiveAttribute.empty())
+    return vec3(1.f);
   return vec3(m_emissive);
 }
 
@@ -168,6 +184,8 @@ MaterialGPUData PBR::gpuData() const
 
   retval.callableBaseIndex = static_cast<uint32_t>(SbtCallableEntryPoints::PBR);
   retval.emissionIsConstant = emissionIsConstant();
+  retval.emissionIsSampleable = emissionIsSampleable();
+  retval.emissionAverage = emissionAverage();
 
   populateMaterialParameter(
       pb.baseColor, m_color, m_colorSampler.get(), m_colorAttribute);

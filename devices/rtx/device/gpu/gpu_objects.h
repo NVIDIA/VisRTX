@@ -499,10 +499,19 @@ struct MaterialGPUData
   // sampler. Shadow anyhit short-circuits via optixTerminateRay.
   bool isFullyOpaque{false};
 
-  // Emission is a nonzero constant (not attribute/sampler bound). Gates the
-  // hit-side Geometry Light MIS weight without a per-surface lookup; kept in
-  // sync by the material's own commit, so it is never stale.
+  // Emission is a nonzero constant (not attribute/sampler bound). The NEE
+  // sampler fast-path uses it to bake the radiance instead of evaluating the
+  // material at the sampled point.
   bool emissionIsConstant{false};
+
+  // Emission is not provably zero (constant, sampler, or attribute bound). The
+  // hit-side Geometry Light MIS gate; kept in sync by the material's own commit,
+  // so it is never stale.
+  bool emissionIsSampleable{false};
+
+  // Mean emitted radiance, sizing the Geometry Light Pick Power on both the
+  // CDF-build and hit-pdf sides (reachable from the hit, so the two agree).
+  vec3 emissionAverage{0.f};
 
   union MaterialData
   {
@@ -740,7 +749,11 @@ struct HDRILightGPUData
 struct GeometryLightGPUData
 {
   DeviceObjectIndex geometryIndex; // index into registry.geometries[]
-  vec3 radiance; // baked constant emitted radiance (Stage 1)
+  DeviceObjectIndex materialIndex; // index into registry.materials[] (Stage 2:
+                                   // evaluate emission at the sampled point)
+  vec3 radiance; // mean emitted radiance (== the constant for a constant
+                 // emitter); sizes Pick Power and is the sampler's fast-path
+                 // value when the material's emission is constant
   float area; // object-space total area
 };
 

@@ -473,6 +473,8 @@ MaterialGPUData MDL::gpuData() const
   MaterialGPUData retval = {};
 
   retval.emissionIsConstant = emissionIsConstant();
+  retval.emissionIsSampleable = emissionIsSampleable();
+  retval.emissionAverage = emissionAverage();
 
   retval.callableBaseIndex = m_implementationIndex == mdl::MaterialRegistry::INVALID_IMPLEMENTATION_INDEX ?
       ~0u :

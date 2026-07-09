@@ -31,7 +31,14 @@
 
 #include "Image2D.h"
 
+#include "utility/AnariTypeHelpers.h"
+
 namespace visrtx {
+
+static float srgbToLinear(float v)
+{
+  return v <= 0.04045f ? v / 12.92f : powf((v + 0.055f) / 1.055f, 2.4f);
+}
 
 Image2D::Image2D(DeviceGlobalState *d) : Sampler(d), m_image(this) {}
 
@@ -83,12 +90,95 @@ void Image2D::finalize()
   m_texels = makeCudaTexelObject2D(
       cuArray, !isFp, "nearest", m_wrap1, m_wrap2, m_borderColor);
 
+  // The mean texel is NOT computed here: it is only needed by the emissive
+  // Pick-Power path, so averageValue() scans lazily on first query and memoizes
+  // against the image stamp (see m_averageValue).
+
   upload();
 }
 
 bool Image2D::isValid() const
 {
   return m_image;
+}
+
+vec4 Image2D::averageValue() const
+{
+  // Lazy + guarded: recompute only when the bound image's data actually changed.
+  // A fresh (0) stamp forces the first compute; a filter/wrap recommit leaves the
+  // image stamp untouched and returns the cache. Non-emissive samplers never
+  // reach here at all.
+  const helium::TimeStamp stamp =
+      m_image ? m_image->lastDataModified() : helium::TimeStamp{0};
+  if (stamp != m_averageValueStamp) {
+    m_averageValue = computeAverageValueGPU();
+    m_averageValueStamp = stamp;
+  }
+  return m_averageValue;
+}
+
+// Mean linear texel, used only to size a textured emitter's Pick Power
+// (variance, never bias). Reads the retained host pixels; sRGB byte data is
+// linearized to match the hardware sampler. Unsupported element types fall back
+// to the fully-lit default so the emitter is still picked. Computed lazily and
+// memoized; see averageValue() / m_averageValue.
+vec4 Image2D::computeAverageValue() const
+{
+  if (!m_image)
+    return Sampler::averageValue();
+
+  const ANARIDataType t = m_image->elementType();
+  const int nc = numANARIChannels(t);
+  const size_t count = size_t(m_image->size().x) * m_image->size().y;
+  const void *host = m_image->data(AddressSpace::HOST);
+  if (nc == 0 || count == 0 || !host)
+    return Sampler::averageValue();
+
+  // sRGB 8-bit formats carry a linear alpha in the LAST channel (present for the
+  // RGBA/RA variants, i.e. even channel counts); only the color channels are
+  // gamma-encoded.
+  const bool srgb = isSrgb8(t);
+  const int colorChannels = (srgb && (nc == 2 || nc == 4)) ? nc - 1 : nc;
+
+  glm::dvec4 sum(0.0);
+  if (isFloat32(t)) {
+    const auto *p = static_cast<const float *>(host);
+    for (size_t i = 0; i < count; ++i)
+      for (int c = 0; c < nc; ++c)
+        sum[c] += double(p[i * nc + c]);
+  } else if (isFixed8(t) || srgb) {
+    const auto *p = static_cast<const uint8_t *>(host);
+    for (size_t i = 0; i < count; ++i)
+      for (int c = 0; c < nc; ++c) {
+        const float v = p[i * nc + c] / 255.0f;
+        sum[c] += double((srgb && c < colorChannels) ? srgbToLinear(v) : v);
+      }
+  } else {
+    return Sampler::averageValue(); // uncommon type for emission; coarse fallback
+  }
+
+  glm::dvec4 avg = sum / double(count);
+  // Broadcast 1/2-channel textures to RGB so a grayscale emissive texture still
+  // yields a sensible average color.
+  if (nc == 1)
+    return vec4(float(avg.x), float(avg.x), float(avg.x), 1.f);
+  if (nc == 2)
+    return vec4(float(avg.x), float(avg.x), float(avg.x), float(avg.y));
+  if (nc == 3)
+    return vec4(float(avg.x), float(avg.y), float(avg.z), 1.f);
+  return vec4(avg);
+}
+
+// TODO(perf): reduce over the resident texels on the device instead of the host
+// scan above — the image is already uploaded as a cudaArray for sampling
+// (m_texels), so a device reduction (cf. the thrust::reduce-over-image in
+// light/sampling/CDF.cu) avoids the host readback entirely for large emissive
+// textures. The kernel must reproduce computeAverageValue()'s per-channel
+// sRGB->linear (color channels only) and the 1/2-channel broadcast, then read
+// back a single vec4. Stubbed: delegates to the host scan for now.
+vec4 Image2D::computeAverageValueGPU() const
+{
+  return computeAverageValue();
 }
 
 int Image2D::numChannels() const

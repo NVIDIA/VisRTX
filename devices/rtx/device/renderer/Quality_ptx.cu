@@ -197,19 +197,25 @@ VISRTX_DEVICE float envPickProbability(const FrameGPUData &frameData)
 // Jacobian the sampler uses and the same isotropic pick probability the CDF
 // used — so wNee and wBsdf evaluate one pdf function and partition to 1.
 // Returns 0 when the hit surface is not a Geometry Light (deposit stays weight
-// 1). `emission` is the surface's evaluated constant radiance.
+// 1). Pick Power uses the same emission the CDF was built from so the two sides
+// agree: the material's mean emission for a textured emitter, and the hit's own
+// (constant) emission otherwise. `emission` is the surface's evaluated radiance.
 VISRTX_DEVICE float geometryLightHitPdf(const FrameGPUData &frameData,
     const SurfaceHit &hit,
     const vec3 &rayDir,
     const vec3 &emission)
 {
-  // Only a constant-emissive area-samplable surface is a Geometry Light. The
+  // Only a sampleable-emissive area-samplable surface is a Geometry Light. The
   // type guard is load-bearing: GeometryGPUData is a union, so reading `.tri`/
   // `.sphere` on the wrong type (never NEE-sampled) would misread it and wrongly
   // down-weight the deposit.
-  if (!hit.material->emissionIsConstant)
+  if (!hit.material->emissionIsSampleable)
     return 0.0f;
-  const mat3 o2w = mat3(hit.instance->objectToWorld);
+  // objectToWorld is a row-stored mat3x4 (glm column i = OptiX row i of M), so
+  // mat3(objectToWorld) is Mᵀ; transpose it back to M — the linear map the NEE
+  // sampler uses via xfmVec — or the area Jacobian is wrong under a non-symmetric
+  // instance transform (rotation + non-uniform scale).
+  const mat3 o2w = transpose(mat3(hit.instance->objectToWorld));
   const float cosTheta = fabsf(dot(hit.Ng, rayDir));
   if (cosTheta <= 0.0f)
     return 0.0f;
@@ -272,7 +278,12 @@ VISRTX_DEVICE float geometryLightHitPdf(const FrameGPUData &frameData,
   LightGPUData ld{};
   ld.type = LightType::GEOMETRY;
   ld.geometry.geometryIndex = -1; // unused by lightPickPower
-  ld.geometry.radiance = emission;
+  // A constant emitter's CDF weight is its own radiance (== emissionAverage for
+  // the native path); a textured emitter's varies per point, so its CDF was
+  // built from the mean — use that here so pick probabilities match.
+  ld.geometry.radiance = hit.material->emissionIsConstant
+      ? emission
+      : hit.material->emissionAverage;
   ld.geometry.area = totalArea;
   const float pickProb =
       lightPickPower(ld, mat4(o2w), frameData.world.sceneRadius) / totalPower;
@@ -643,8 +654,8 @@ VISRTX_GLOBAL void __raygen__()
         // NEE cannot reach it, as do non-sampled emissive surfaces (pNee == 0).
         float wEmission = 1.0f;
         if (!isinf(bsdfPdf)) {
-          const float pNee =
-              geometryLightHitPdf(frameData, surfaceHit, ray.dir, materialEmission);
+          const float pNee = geometryLightHitPdf(
+              frameData, surfaceHit, ray.dir, materialEmission);
           if (pNee > 0.0f)
             wEmission = bsdfPdf / (bsdfPdf + pNee);
         }

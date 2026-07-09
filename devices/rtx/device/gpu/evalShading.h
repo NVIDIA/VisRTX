@@ -32,31 +32,13 @@
 #pragma once
 
 #include <optix_device.h>
+#include "gpu/evalEmission.h" // materialInitShading, materialEvaluateEmission
 #include "gpu/gpu_objects.h"
 #include "gpu/sampleLight.h"
 #include "gpu/sbt.h"
 #include "shadingState.h"
 
 namespace visrtx {
-
-VISRTX_DEVICE bool materialInitShading(MaterialShadingState *shadingState,
-    const FrameGPUData &fd,
-    const MaterialGPUData &md,
-    const SurfaceHit &hit)
-{
-  if (md.callableBaseIndex == ~DeviceObjectIndex(0)) {
-    shadingState->callableBaseIndex = ~0;
-    return false;
-  }
-
-  shadingState->callableBaseIndex = md.callableBaseIndex;
-
-  return optixDirectCall<bool>(shadingState->callableBaseIndex,
-      &shadingState->data,
-      &fd,
-      &hit,
-      &md.materialData);
-}
 
 VISRTX_DEVICE vec3 materialEvaluateTint(
     const MaterialShadingState &shadingState)
@@ -78,18 +60,6 @@ VISRTX_DEVICE float materialEvaluateOpacity(
   return optixDirectCall<float>(shadingState.callableBaseIndex
           + int(SurfaceShaderEntryPoints::EvaluateOpacity),
       &shadingState.data);
-}
-
-VISRTX_DEVICE vec3 materialEvaluateEmission(
-    const MaterialShadingState &shadingState, const vec3 &outgoingDir)
-{
-  if (shadingState.callableBaseIndex == ~DeviceObjectIndex(0))
-    return vec3(0.0f, 0.0f, 0.0f); // Default emission color
-
-  return optixDirectCall<vec3>(shadingState.callableBaseIndex
-          + int(SurfaceShaderEntryPoints::EvaluateEmission),
-      &shadingState.data,
-      &outgoingDir);
 }
 
 VISRTX_DEVICE vec3 materialEvaluateTransmission(

@@ -43,9 +43,15 @@ struct GeometryLight : public Light
 {
   GeometryLight(DeviceGlobalState *d);
 
-  // Configure from the owning surface's geometry and baked constant radiance,
-  // then publish to the registry. area is the geometry's object-space total.
-  void configure(DeviceObjectIndex geometry, const vec3 &radiance, float area);
+  // Configure from the owning surface's geometry + material and mean radiance,
+  // then publish to the registry. `radiance` is the emission average (== the
+  // constant for a constant emitter); the sampler evaluates the material at the
+  // sampled point when its emission is not constant. area is the geometry's
+  // object-space total.
+  void configure(DeviceObjectIndex geometry,
+      DeviceObjectIndex material,
+      const vec3 &radiance,
+      float area);
 
   // Unlike an authored light, a Geometry Light is (re)configured by the World
   // DURING the light-set rebuild, so it must NOT bump lastLightSetChange — that
@@ -57,6 +63,7 @@ struct GeometryLight : public Light
   LightGPUData gpuData() const override;
 
   DeviceObjectIndex m_geometry{-1};
+  DeviceObjectIndex m_material{-1};
   vec3 m_radiance{0.f};
   float m_area{0.f};
 };

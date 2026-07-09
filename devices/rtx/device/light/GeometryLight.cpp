@@ -41,10 +41,13 @@ void GeometryLight::markFinalized()
   Object::markFinalized();
 }
 
-void GeometryLight::configure(
-    DeviceObjectIndex geometry, const vec3 &radiance, float area)
+void GeometryLight::configure(DeviceObjectIndex geometry,
+    DeviceObjectIndex material,
+    const vec3 &radiance,
+    float area)
 {
   m_geometry = geometry;
+  m_material = material;
   m_radiance = radiance;
   m_area = area;
   upload();
@@ -56,6 +59,7 @@ LightGPUData GeometryLight::gpuData() const
   retval.type = LightType::GEOMETRY;
   retval.color = vec3(1.f); // radiance carries the color for geometry lights
   retval.geometry.geometryIndex = m_geometry;
+  retval.geometry.materialIndex = m_material;
   retval.geometry.radiance = m_radiance;
   retval.geometry.area = m_area;
   return retval;
