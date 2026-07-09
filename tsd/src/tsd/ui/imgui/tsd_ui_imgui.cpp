@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/ui/imgui/tsd_ui_imgui.h"
+#include "tsd/scene/objects/Material.hpp"
 #include "tsd/ui/imgui/ArrayPreview.h"
 // tsd_core
 #include "tsd/core/ColorMapUtil.hpp"
@@ -236,6 +237,11 @@ static void buildUI_parameter_contextMenu(
             if (ImGui::MenuItem("mdl")) {
               m = scene.createObject<tsd::scene::Material>(
                   tsd::scene::tokens::material::mdl);
+            }
+
+            if (ImGui::MenuItem("physicallyBasedMDL")) {
+              m = scene.createObject<tsd::scene::Material>(
+                  tsd::scene::tokens::material::physicallyBasedMDL);
             }
 
             if (m)
