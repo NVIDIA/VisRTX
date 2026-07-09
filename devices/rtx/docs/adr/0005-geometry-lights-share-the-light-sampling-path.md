@@ -22,7 +22,16 @@ equivalent.
   the environment. Every renderer that deposits path-hit emission must
   generalize its environment-only MIS weighting, or next-event estimation
   plus the hit deposit double-counts the emitter. The hit-side weight
-  requires a reverse lookup from the hit surface to its light instance.
+  recomputes the next-event pdf from data already at the hit — the geometry's
+  area, the material's constant radiance, the instance transform, and the
+  world power totals — rather than looking the light instance up in reverse.
+  The pick probability is `pickPower / totalPower`, the same formula the pick
+  CDF uses, so the two sides agree (and MIS stays unbiased regardless of
+  float drift, since the balance-heuristic weights sum to 1). This keeps the
+  gate to one per-material flag (`emissionIsConstant`) plus the geometry's
+  area, both of which each object keeps current in its own GPU slot, so
+  neither can go stale — no reverse-lookup table, no extra `SurfaceHit`
+  field.
 - `{lightIndex, xfm}` cannot represent emission driven by instance-uniform
   attributes. Once non-constant emission becomes sampleable, the light
   instance must also reference its surface instance so next-event radiance

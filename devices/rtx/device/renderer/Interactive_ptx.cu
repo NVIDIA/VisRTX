@@ -108,10 +108,18 @@ struct InteractiveShadingPolicy
       if (lightSample.pdf == 0.0f)
         continue;
 
+      const LightType lightType =
+          frameData.registry.lights[light.lightIndex].type;
+
+      // A Geometry Light's sampled point is on real emissive geometry; stop the
+      // shadow ray short of it or it self-occludes on that surface.
+      const float shadowDist = lightType == LightType::GEOMETRY
+          ? lightSample.dist * (1.0f - GEOMETRY_LIGHT_SHADOW_EPSILON)
+          : lightSample.dist;
       const Ray shadowRay = {
           shadowOrigin,
           lightSample.dir,
-          {hit.epsilon, lightSample.dist},
+          {hit.epsilon, shadowDist},
       };
 
       // Surface shadows are tinted (vec3); volume shadows stay scalar.
@@ -133,7 +141,7 @@ struct InteractiveShadingPolicy
       // estimators instead of summing them (which double-counted the env).
       // Interactive loops all lights with no pick, so pLight = envPdf (NO
       // 1/numLights). Non-env lights keep wNee = 1 (behaviour unchanged).
-      if (frameData.registry.lights[light.lightIndex].type == LightType::HDRI) {
+      if (lightType == LightType::HDRI) {
         const float pLight = envPdf(frameData, lightSample.dir);
         const float pBsdf =
             materialEvalPdf(shadingState, -ray.dir, lightSample.dir);

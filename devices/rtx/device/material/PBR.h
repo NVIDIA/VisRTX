@@ -44,6 +44,9 @@ struct PBR : public Material
 
   void commitParameters() override;
 
+  bool emissionIsConstant() const override;
+  vec3 emissionRadiance() const override;
+
  private:
   MaterialGPUData gpuData() const override;
 

@@ -197,7 +197,69 @@ void Triangle::finalize()
 
   m_vertexBufferPtr = (CUdeviceptr)m_vertex->beginAs<vec3>(AddressSpace::GPU);
 
+  // Vertices/indices may have changed. Rebuild the Geometry Light CDF if a
+  // surface has ever requested it (order-independent of the surface commit),
+  // else drop any stale data.
+  m_areaDataValid = false;
+  if (m_areaDataWanted)
+    buildAreaData();
+  else {
+    m_totalArea = 0.f;
+    m_primAreaCdf.clear();
+  }
+
   upload();
+}
+
+void Triangle::buildAreaData()
+{
+  const size_t numTriangles = m_index ? m_index->size() : m_vertex->size() / 3;
+  const vec3 *vertices = m_vertex->beginAs<vec3>(AddressSpace::HOST);
+  const uvec3 *indices =
+      m_index ? m_index->beginAs<uvec3>(AddressSpace::HOST) : nullptr;
+
+  m_primAreaCdf.resize(numTriangles);
+  auto *cdf = m_primAreaCdf.dataHost();
+
+  double cumulative = 0.0;
+  for (size_t i = 0; i < numTriangles; ++i) {
+    const uvec3 tri = indices ? indices[i] : uvec3(0, 1, 2) + uint32_t(3 * i);
+    const vec3 &v0 = vertices[tri.x];
+    const vec3 &v1 = vertices[tri.y];
+    const vec3 &v2 = vertices[tri.z];
+    cumulative += 0.5 * glm::length(glm::cross(v1 - v0, v2 - v0));
+    cdf[i] = float(cumulative);
+  }
+  m_totalArea = float(cumulative);
+
+  // Normalize to a cumulative CDF ending at 1. A degenerate (zero-area) mesh
+  // leaves totalArea 0; callers gate on that.
+  if (m_totalArea > 0.f) {
+    for (size_t i = 0; i < numTriangles; ++i)
+      cdf[i] /= m_totalArea;
+  }
+
+  m_primAreaCdf.upload();
+  m_areaDataValid = true;
+}
+
+bool Triangle::isAreaSamplingSupported() const
+{
+  return true;
+}
+
+void Triangle::ensureAreaData()
+{
+  m_areaDataWanted = true;
+  if (m_areaDataValid)
+    return;
+  buildAreaData();
+  upload(); // republish gpuData() so the CDF pointers reach the device
+}
+
+float Triangle::totalArea() const
+{
+  return m_totalArea;
 }
 
 void Triangle::populateBuildInput(OptixBuildInput &buildInput) const
@@ -259,6 +321,11 @@ GeometryGPUData Triangle::gpuData() const
   tri.vertexTangentsFV =
       resolveTangentPtr(m_vertexTangentFV, m_vertexTangentFVFinalized);
   tri.cullBackfaces = m_cullBackfaces;
+
+  // Geometry Light sampling data; null/zero until ensureAreaData() runs.
+  tri.primAreaCdf = m_primAreaCdf.dataDevice();
+  tri.numPrimitives = uint32_t(m_primAreaCdf.size());
+  tri.totalArea = m_totalArea;
 
   return retval;
 }

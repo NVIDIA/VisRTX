@@ -35,6 +35,7 @@
 #include "Geometry.h"
 #include "array/Array1D.h"
 #include "utility/DeviceBuffer.h"
+#include "utility/HostDeviceArray.h"
 
 namespace visrtx {
 
@@ -51,9 +52,17 @@ struct Triangle : public Geometry
 
   int optixGeometryType() const override;
 
+  // Build the per-primitive area CDF and object-space total area used to sample
+  // this geometry as a Geometry Light. Lazy: only Emissive Surfaces call it, so
+  // ordinary meshes never pay for it. Re-uploads GPU data to publish the CDF.
+  bool isAreaSamplingSupported() const override;
+  void ensureAreaData() override;
+  float totalArea() const override;
+
  private:
   GeometryGPUData gpuData() const override;
   void cleanup();
+  void buildAreaData();
 
   // Build the GPU-side staging for one authored tangent array into 'converted':
   // VEC4 input is read zero-copy (buffer left empty); VEC3 input is padded to
@@ -88,6 +97,14 @@ struct Triangle : public Geometry
   CUdeviceptr m_vertexBufferPtr{};
 
   bool m_cullBackfaces{false};
+
+  // Geometry Light sampling data, built lazily by ensureAreaData(). The CDF is
+  // the normalized cumulative object-space area over primitives. m_areaDataWanted
+  // persists across recommits so a re-finalize rebuilds it order-independently.
+  HostDeviceArray<float> m_primAreaCdf;
+  float m_totalArea{0.f};
+  bool m_areaDataValid{false};
+  bool m_areaDataWanted{false};
 };
 
 } // namespace visrtx

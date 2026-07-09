@@ -31,57 +31,34 @@
 
 #pragma once
 
-#include "geometry/Geometry.h"
-#include "light/GeometryLight.h"
-#include "material/Material.h"
+#include "Light.h"
 
 namespace visrtx {
 
-struct Surface : public RegisteredObject<SurfaceGPUData>
+// A Geometry Light: an internal Light synthesized from an Emissive Surface, not
+// reachable through Light::createInstance. Owned by its Surface, it occupies a
+// registry.lights slot like any authored light and is instanced and sampled the
+// same way. "Synthesize" names the act of creating one.
+struct GeometryLight : public Light
 {
-  Surface(DeviceGlobalState *d);
+  GeometryLight(DeviceGlobalState *d);
 
-  void commitParameters() override;
-  void finalize() override;
+  // Configure from the owning surface's geometry and baked constant radiance,
+  // then publish to the registry. area is the geometry's object-space total.
+  void configure(DeviceObjectIndex geometry, const vec3 &radiance, float area);
+
+  // Unlike an authored light, a Geometry Light is (re)configured by the World
+  // DURING the light-set rebuild, so it must NOT bump lastLightSetChange — that
+  // would leave the world perpetually dirty and rebuild every frame. Its
+  // invalidation rides the owning material/geometry commit instead.
   void markFinalized() override;
-  bool isValid() const override;
-
-  Geometry *geometry();
-  const Geometry *geometry() const;
-  Material *material();
-  const Material *material() const;
-
-  bool isVisible() const;
-
-  OptixBuildInput buildInput() const;
-
-  // True when this surface is a Stage 1 Geometry Light: its material emits a
-  // nonzero constant and its geometry can be area-sampled.
-  bool isConstantEmitter() const;
-
-  // Geometry Light ownership. The synthesized light lives here (per ADR 0005),
-  // but the World configures its content each rebuild from current material and
-  // geometry state. ensureGeometryLight() lazily creates it; clearGeometryLight()
-  // frees it when this surface stops emitting.
-  GeometryLight *ensureGeometryLight();
-  void clearGeometryLight();
-  GeometryLight *geometryLight() const;
 
  private:
-  bool geometryIsValid() const;
-  bool materialIsValid() const;
-  SurfaceGPUData gpuData() const override;
+  LightGPUData gpuData() const override;
 
-  helium::IntrusivePtr<Geometry> m_geometry;
-  helium::IntrusivePtr<Material> m_material;
-  helium::IntrusivePtr<GeometryLight> m_geometryLight;
-
-  OptixBuildInput m_buildInput{};
-
-  uint32_t m_id{~0u};
-  bool m_visible{true};
+  DeviceObjectIndex m_geometry{-1};
+  vec3 m_radiance{0.f};
+  float m_area{0.f};
 };
 
 } // namespace visrtx
-
-VISRTX_ANARI_TYPEFOR_SPECIALIZATION(visrtx::Surface *, ANARI_SURFACE);

@@ -67,6 +67,12 @@ struct LightSample
   float pdf; // Probability density function value for this sample
 };
 
+// Shadow rays toward a Geometry Light's sampled point must stop just short of
+// it: the point lies on real, opaque emissive geometry that would otherwise
+// self-occlude the shadow ray (~15% energy loss). Relative so it scales with
+// distance; analytic lights have no geometry there and are unaffected.
+constexpr float GEOMETRY_LIGHT_SHADOW_EPSILON = 1.0e-3f;
+
 namespace detail {
 
 VISRTX_DEVICE LightSample sampleDirectionalLight(
@@ -318,6 +324,82 @@ VISRTX_DEVICE int inverseSampleCDF(const float *cdf, int size, float u)
   return cub::LowerBound(cdf, size, u);
 }
 
+// The three object-space vertex indices of triangle primID, indexed or soup.
+VISRTX_DEVICE uvec3 triangleIndices(
+    const TriangleGeometryData &tri, uint32_t primID)
+{
+  return tri.indices ? tri.indices[primID] : uvec3(0, 1, 2) + primID * 3;
+}
+
+// Solid-angle pdf of uniform-in-object-area sampling of a Geometry Light, at a
+// point on a triangle whose object/world twice-areas and total object area are
+// given. Uniform-in-object-area maps to world density (1/A_obj_total)·(A_obj_tri
+// /A_world_tri), then to solid angle by dist²/|cosθ|. Exact under any affine
+// instance transform. Shared by the sampler and the hit-side MIS pdf so the two
+// can never drift — MIS unbiasedness depends on them being identical.
+VISRTX_DEVICE float geometryLightSolidAnglePdf(float objTwiceArea,
+    float worldTwiceArea,
+    float totalObjArea,
+    float dist,
+    float absCosTheta)
+{
+  return (objTwiceArea / worldTwiceArea) / totalObjArea * pow2(dist)
+      / absCosTheta;
+}
+
+// Sample a point on a triangle Geometry Light. Picks a primitive by its
+// object-space area, samples it uniformly, and reports the EXACT solid-angle
+// pdf via geometryLightSolidAnglePdf, so the estimator stays unbiased under any
+// affine instance transform (non-uniform scale included). Double-sided,
+// matching the view-independent constant emission the hit deposit uses.
+VISRTX_DEVICE LightSample sampleGeometryLight(const LightGPUData &ld,
+    const mat4 &xfm,
+    const vec3 &origin,
+    ScreenSample &ss)
+{
+  LightSample ls{};
+  const auto &tri =
+      ss.frameData->registry.geometries[ld.geometry.geometryIndex].tri;
+  if (tri.numPrimitives == 0 || ld.geometry.area <= 0.0f)
+    return ls;
+
+  const uint32_t primID = glm::min(
+      uint32_t(inverseSampleCDF(
+          tri.primAreaCdf, int(tri.numPrimitives), pcg_uniform(&ss.rs))),
+      tri.numPrimitives - 1);
+  const uvec3 idx = triangleIndices(tri, primID);
+  const vec3 v0 = tri.vertices[idx.x];
+  const vec3 e1o = tri.vertices[idx.y] - v0;
+  const vec3 e2o = tri.vertices[idx.z] - v0;
+
+  // Uniform barycentric sample of the triangle.
+  const float su = sqrtf(pcg_uniform(&ss.rs));
+  const float u2 = pcg_uniform(&ss.rs);
+  const vec3 pObj = v0 + e1o * (su * (1.0f - u2)) + e2o * (su * u2);
+
+  const vec3 nWorld = cross(xfmVec(xfm, e1o), xfmVec(xfm, e2o));
+  const float worldTriTwiceArea = length(nWorld);
+
+  ls.dir = xfmPoint(xfm, pObj) - origin;
+  ls.dist = length(ls.dir);
+  ls.dir /= ls.dist;
+
+  const float cosTheta = worldTriTwiceArea > 0.0f
+      ? fabsf(dot(nWorld / worldTriTwiceArea, -ls.dir))
+      : 0.0f;
+  if (cosTheta <= 0.0f)
+    return ls; // radiance/pdf left zero
+
+  ls.radiance = ld.geometry.radiance;
+  ls.pdf = geometryLightSolidAnglePdf(length(cross(e1o, e2o)),
+      worldTriTwiceArea,
+      ld.geometry.area,
+      ls.dist,
+      cosTheta);
+
+  return ls;
+}
+
 VISRTX_DEVICE LightSample sampleHDRILight(
     const LightGPUData &ld, const mat4 &xfm, const vec3 &dir)
 {
@@ -413,6 +495,8 @@ VISRTX_DEVICE LightSample sampleLight(ScreenSample &ss,
     return detail::sampleRingLight(ld, xfm, origin, ss.rs);
   case LightType::HDRI:
     return detail::sampleHDRILight(ld, xfm, ss.rs);
+  case LightType::GEOMETRY:
+    return detail::sampleGeometryLight(ld, xfm, origin, ss);
   default:
     break;
   }

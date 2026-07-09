@@ -77,6 +77,22 @@ void PhysicallyBasedMDL::commitParameters()
   // Limitation: attribute-bound inputs are not supported by the MDL wrapper;
   // only .value / .texture bindings are translated below.
 
+  // Capture the emissive parameter BEFORE it is translated away below. Constant
+  // iff it is an inline color (a sampler binding becomes a texture -> Stage 2).
+  {
+    const auto emissiveType = getParamDirect("emissive").type();
+    vec3 radiance(0.f);
+    if (emissiveType == ANARI_FLOAT32_VEC3
+        || emissiveType == ANARI_FLOAT32_VEC4) {
+      vec4 v(0.f);
+      getParam("emissive", ANARI_FLOAT32_VEC4, &v);
+      getParam("emissive", ANARI_FLOAT32_VEC3, &v);
+      radiance = vec3(v);
+    }
+    m_emissionRadiance = radiance;
+    m_emissionIsConstant = glm::any(glm::greaterThan(radiance, vec3(0.f)));
+  }
+
   // Translate all supported parameters to their matching .value or .texture if they are
   // variant inputs.
   translateAndRemoveParameter("opacity"sv);
@@ -115,6 +131,18 @@ void PhysicallyBasedMDL::commitParameters()
   }
 
   MDL::commitParameters();
+
+  refreshEmissionLightSet();
+}
+
+bool PhysicallyBasedMDL::emissionIsConstant() const
+{
+  return m_emissionIsConstant;
+}
+
+vec3 PhysicallyBasedMDL::emissionRadiance() const
+{
+  return m_emissionRadiance;
 }
 
 } // namespace visrtx

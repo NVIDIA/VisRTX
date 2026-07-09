@@ -157,6 +157,7 @@ set(SOURCES
 
   light/sampling/CDF.cu
   light/Directional.cpp
+  light/GeometryLight.cpp
   light/HDRI.cpp
   light/Light.cpp
   light/Point.cpp

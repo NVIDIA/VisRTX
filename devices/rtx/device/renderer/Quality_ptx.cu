@@ -37,6 +37,7 @@
 #include "gpu/gpu_math.h"
 #include "gpu/gpu_util.h"
 #include "gpu/intersectRay.h"
+#include "gpu/lightPickPower.h"
 #include "gpu/populateHit.h"
 #include "gpu/renderer/common.h"
 #include "gpu/renderer/shadowTransmittance.h"
@@ -126,13 +127,15 @@ VISRTX_DEVICE bool shouldTerminatePath(ScreenSample &ss,
   return false;
 }
 
-// A NEE light sample plus whether the picked light is the HDRI environment —
-// the environment is the only light type whose contribution the BSDF escape can
-// also reach, so it is the only one that needs an MIS weight (env MIS).
+// A NEE light sample plus which BSDF-reachable kind it is. The environment (env
+// MIS) and Geometry Lights can both also be hit by a BSDF escape/continuation,
+// so both get a balance-heuristic weight; all other light types cannot, so they
+// take w_nee = 1.
 struct SurfaceLightSample
 {
   LightSample ls;
   bool isEnv;
+  bool isGeometry;
 };
 
 // Power (relative flux) of the ambient term, treated as an infinite hemisphere
@@ -187,6 +190,57 @@ VISRTX_DEVICE float envPickProbability(const FrameGPUData &frameData)
   return numStrata > 0
       ? float(world.numHdriLightInstances) / float(numStrata)
       : 0.0f;
+}
+
+// NEE density a Geometry Light would report for a BSDF ray that hit it, for the
+// hit-side MIS weight. Recomputed from the hit — the same exact per-triangle
+// Jacobian the sampler uses and the same isotropic pick probability the CDF
+// used — so wNee and wBsdf evaluate one pdf function and partition to 1.
+// Returns 0 when the hit surface is not a Geometry Light (deposit stays weight
+// 1). `emission` is the surface's evaluated constant radiance.
+VISRTX_DEVICE float geometryLightHitPdf(const FrameGPUData &frameData,
+    const SurfaceHit &hit,
+    const vec3 &rayDir,
+    const vec3 &emission)
+{
+  // Only a constant-emissive TRIANGLE surface is a Stage 1 Geometry Light. The
+  // type guard is load-bearing: GeometryGPUData is a union, so reading `.tri` on
+  // a non-triangle emissive surface (never NEE-sampled) would misread it and
+  // wrongly down-weight the deposit.
+  if (!hit.material->emissionIsConstant
+      || hit.geometry->type != GeometryType::TRIANGLE)
+    return 0.0f;
+  const auto &tri = hit.geometry->tri;
+  if (tri.totalArea <= 0.0f || tri.numPrimitives == 0)
+    return 0.0f;
+
+  const uvec3 idx = detail::triangleIndices(tri, hit.primID);
+  const vec3 v0 = tri.vertices[idx.x];
+  const vec3 e1o = tri.vertices[idx.y] - v0;
+  const vec3 e2o = tri.vertices[idx.z] - v0;
+  const mat3 o2w = mat3(hit.instance->objectToWorld);
+  const float worldTwice = length(cross(o2w * e1o, o2w * e2o));
+  const float cosTheta = fabsf(dot(hit.Ng, rayDir));
+  if (worldTwice <= 0.0f || cosTheta <= 0.0f)
+    return 0.0f;
+
+  const float solidAnglePdf = detail::geometryLightSolidAnglePdf(
+      length(cross(e1o, e2o)), worldTwice, tri.totalArea, hit.t, cosTheta);
+
+  const float totalPower =
+      frameData.world.totalLightPower + ambientPickPower(frameData);
+  if (totalPower <= 0.0f)
+    return 0.0f;
+
+  LightGPUData ld{};
+  ld.type = LightType::GEOMETRY;
+  ld.geometry.geometryIndex = -1; // unused by lightPickPower
+  ld.geometry.radiance = emission;
+  ld.geometry.area = tri.totalArea;
+  const float pickProb =
+      lightPickPower(ld, mat4(o2w), frameData.world.sceneRadius) / totalPower;
+
+  return solidAnglePdf * pickProb;
 }
 
 // One Light Pick: which candidate (a light instance or the ambient term) was
@@ -254,15 +308,15 @@ VISRTX_DEVICE SurfaceLightSample sampleLights(ScreenSample &ss,
                 dir,
                 std::numeric_limits<float>::max(),
                 pick.pickPdf * cosNs * kInvPi},
+        false,
         false};
   }
 
   const auto &li = frameData.world.lightInstances[pick.instance];
   auto ls = sampleLight(ss, origin, li.lightIndex, li.xfm);
   ls.pdf *= pick.pickPdf;
-  const bool isEnv =
-      frameData.registry.lights[li.lightIndex].type == LightType::HDRI;
-  return {ls, isEnv};
+  const LightType type = frameData.registry.lights[li.lightIndex].type;
+  return {ls, type == LightType::HDRI, type == LightType::GEOMETRY};
 }
 
 VISRTX_DEVICE LightSample sampleLightsVolume(
@@ -545,9 +599,19 @@ VISRTX_GLOBAL void __raygen__()
           sample.albedo = materialTint;
         }
 
-        // Emission, direct lighting are scaled by opacity
-        // analytically rather than gated stochastically below
-        sample.color += sampleContribution * opacity * materialEmission;
+        // Emission, direct lighting are scaled by opacity analytically rather
+        // than gated stochastically below. A Geometry Light reached by a finite-
+        // pdf bounce is also sampled by NEE, so MIS-weight the deposit against
+        // that; a delta/primary bounce (bsdfPdf == +inf) keeps weight 1 since
+        // NEE cannot reach it, as do non-sampled emissive surfaces (pNee == 0).
+        float wEmission = 1.0f;
+        if (!isinf(bsdfPdf)) {
+          const float pNee =
+              geometryLightHitPdf(frameData, surfaceHit, ray.dir, materialEmission);
+          if (pNee > 0.0f)
+            wEmission = bsdfPdf / (bsdfPdf + pNee);
+        }
+        sample.color += wEmission * sampleContribution * opacity * materialEmission;
         // Sample around the shading normal so the cosine-weighted hemisphere's
         // pdf matches the BRDF's NdotL (which uses Ns). Sampling around Ng
         // would bias the Lambertian estimator by cos_Ns/cos_Ng on smooth or
@@ -584,6 +648,14 @@ VISRTX_GLOBAL void __raygen__()
               const float pLight =
                   envPdf(frameData, lightSample.dir) * envPickProb;
               wNee = pLight / (pLight + pBsdf);
+            } else if (lightPick.isGeometry) {
+              // lightSample.pdf is the exact NEE density (solid-angle × pick
+              // probability); the BSDF continuation can also hit this Geometry
+              // Light,
+              // so weight against it. Mirrors geometryLightHitPdf on the deposit.
+              const float pBsdf =
+                  materialEvalPdf(shadingState, -ray.dir, lightSample.dir);
+              wNee = lightSample.pdf / (lightSample.pdf + pBsdf);
             }
             const vec3 contribUpper =
                 wNee * sampleContribution * opacity * directLight;
@@ -591,10 +663,17 @@ VISRTX_GLOBAL void __raygen__()
                 contribUpper.x, glm::max(contribUpper.y, contribUpper.z));
             constexpr float SHADOW_SKIP_EPSILON = 1.0e-5f;
             if (maxContrib >= SHADOW_SKIP_EPSILON) {
+              // A Geometry Light's sampled point lies on real, opaque geometry,
+              // so stop the shadow ray just short of it or it self-occludes on
+              // the emissive surface itself (~15% energy loss). Analytic lights
+              // have no geometry there and keep the exact distance.
+              const float shadowDist = lightPick.isGeometry
+                  ? lightSample.dist * (1.0f - GEOMETRY_LIGHT_SHADOW_EPSILON)
+                  : lightSample.dist;
               const Ray shadowRay = {
                   shadowOrigin,
                   lightSample.dir,
-                  {surfaceHit.epsilon, lightSample.dist},
+                  {surfaceHit.epsilon, shadowDist},
               };
               ss.shadowContribWeight = glm::min(1.0f, maxContrib * 2.0f);
               const auto attenuation = surfaceShadowTransmittance(ss, shadowRay)

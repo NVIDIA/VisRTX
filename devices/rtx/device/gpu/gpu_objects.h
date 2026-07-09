@@ -200,6 +200,11 @@ struct TriangleGeometryData
   const vec4 *vertexTangents;
   const vec4 *vertexTangentsFV;
   bool cullBackfaces;
+  // Geometry Light sampling: normalized cumulative object-space area CDF over
+  // primitives (null unless this geometry backs an Emissive Surface).
+  const float *primAreaCdf;
+  uint32_t numPrimitives;
+  float totalArea; // object-space
 };
 
 struct QuadGeometryData
@@ -475,6 +480,11 @@ struct MaterialGPUData
   // sampler. Shadow anyhit short-circuits via optixTerminateRay.
   bool isFullyOpaque{false};
 
+  // Emission is a nonzero constant (not attribute/sampler bound). Gates the
+  // hit-side Geometry Light MIS weight without a per-surface lookup; kept in
+  // sync by the material's own commit, so it is never stale.
+  bool emissionIsConstant{false};
+
   union MaterialData
   {
     Matte matte;
@@ -631,6 +641,7 @@ enum class LightType
   SPOT,
   RING,
   HDRI,
+  GEOMETRY,
   UNKNOWN
 };
 
@@ -704,6 +715,16 @@ struct HDRILightGPUData
 #endif
 };
 
+// A light synthesized from an Emissive Surface. References the surface's
+// geometry (for the per-primitive area CDF and vertices) and carries the baked
+// constant radiance; the object-space total area sizes its Pick Power.
+struct GeometryLightGPUData
+{
+  DeviceObjectIndex geometryIndex; // index into registry.geometries[]
+  vec3 radiance; // baked constant emitted radiance (Stage 1)
+  float area; // object-space total area
+};
+
 struct LightGPUData
 {
   LightType type{LightType::UNKNOWN};
@@ -717,6 +738,7 @@ struct LightGPUData
     SpotLightGPUData spot;
     RingLightGPUData ring;
     HDRILightGPUData hdri;
+    GeometryLightGPUData geometry;
   };
 };
 

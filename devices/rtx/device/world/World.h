@@ -65,6 +65,8 @@ struct World : public Object
   void buildInstanceSurfaceGPUData();
   void buildInstanceVolumeGPUData();
   void buildInstanceLightGPUData();
+  void synthesizeGeometryLights();
+  size_t countGeometryLights(Group *group) const;
   void cleanup();
 
   helium::ChangeObserverPtr<ObjectArray> m_zeroSurfaceData;

@@ -74,6 +74,9 @@ struct Group : public Object
   DeviceObjectIndex firstHDRI() const;
   const std::vector<Light *> &lights() const;
 
+  // Triangle surfaces, the Stage 1 candidates for Geometry Light synthesis.
+  const std::vector<Surface *> &surfacesTriangle() const;
+
   void rebuildSurfaceBVHs();
   void rebuildVolumeBVH();
   void rebuildLights();

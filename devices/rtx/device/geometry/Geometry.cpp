@@ -138,6 +138,18 @@ void Geometry::markFinalized()
   deviceState()->objectUpdates.lastSurfaceBLASChange = helium::newTimeStamp();
 }
 
+bool Geometry::isAreaSamplingSupported() const
+{
+  return false;
+}
+
+void Geometry::ensureAreaData() {}
+
+float Geometry::totalArea() const
+{
+  return 0.f;
+}
+
 GeometryGPUData Geometry::gpuData() const
 {
   GeometryGPUData retval{};

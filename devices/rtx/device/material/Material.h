@@ -43,6 +43,24 @@ struct Material : public RegisteredObject<MaterialGPUData>
 
   static Material *createInstance(
       std::string_view subtype, DeviceGlobalState *d);
+
+  // Emissive Surface support. A material is a Stage 1 Geometry Light source when
+  // its emission is a nonzero constant (not attribute- or sampler-bound);
+  // emissionRadiance() is that baked constant. Decided from committed material
+  // state alone, never from rendering.
+  virtual bool emissionIsConstant() const;
+  virtual vec3 emissionRadiance() const;
+
+ protected:
+  // Bump the world's light-set timestamp iff this material's Geometry Light
+  // eligibility or radiance changed since the last commit, so emissive edits
+  // rebuild the light set while ordinary edits (roughness, color) stay free.
+  // Subclasses call this at the end of commitParameters().
+  void refreshEmissionLightSet();
+
+ private:
+  bool m_emissionWasConstant{false};
+  vec3 m_lastEmissionRadiance{0.f};
 };
 
 // Inlined helper functions ///////////////////////////////////////////////////

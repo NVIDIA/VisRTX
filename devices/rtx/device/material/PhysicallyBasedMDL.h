@@ -41,8 +41,17 @@ struct PhysicallyBasedMDL : public MDL
 
   void commitParameters() override;
 
+  bool emissionIsConstant() const override;
+  vec3 emissionRadiance() const override;
+
  private:
   void translateAndRemoveParameter(std::string_view paramName);
+
+  // Captured from the ANARI `emissive` parameter before it is translated to MDL
+  // arguments (no MDL introspection). Same Stage 1 Geometry Light contract as
+  // PBR: a nonzero constant emissive => a Geometry Light with this radiance.
+  bool m_emissionIsConstant{false};
+  vec3 m_emissionRadiance{0.f};
 };
 
 } // namespace visrtx

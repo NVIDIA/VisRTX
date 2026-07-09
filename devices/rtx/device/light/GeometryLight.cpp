@@ -29,59 +29,36 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#pragma once
-
-#include "geometry/Geometry.h"
-#include "light/GeometryLight.h"
-#include "material/Material.h"
+#include "GeometryLight.h"
 
 namespace visrtx {
 
-struct Surface : public RegisteredObject<SurfaceGPUData>
+GeometryLight::GeometryLight(DeviceGlobalState *d) : Light(d) {}
+
+void GeometryLight::markFinalized()
 {
-  Surface(DeviceGlobalState *d);
+  // Skip Light::markFinalized's lastLightSetChange bump on purpose (see header).
+  Object::markFinalized();
+}
 
-  void commitParameters() override;
-  void finalize() override;
-  void markFinalized() override;
-  bool isValid() const override;
+void GeometryLight::configure(
+    DeviceObjectIndex geometry, const vec3 &radiance, float area)
+{
+  m_geometry = geometry;
+  m_radiance = radiance;
+  m_area = area;
+  upload();
+}
 
-  Geometry *geometry();
-  const Geometry *geometry() const;
-  Material *material();
-  const Material *material() const;
-
-  bool isVisible() const;
-
-  OptixBuildInput buildInput() const;
-
-  // True when this surface is a Stage 1 Geometry Light: its material emits a
-  // nonzero constant and its geometry can be area-sampled.
-  bool isConstantEmitter() const;
-
-  // Geometry Light ownership. The synthesized light lives here (per ADR 0005),
-  // but the World configures its content each rebuild from current material and
-  // geometry state. ensureGeometryLight() lazily creates it; clearGeometryLight()
-  // frees it when this surface stops emitting.
-  GeometryLight *ensureGeometryLight();
-  void clearGeometryLight();
-  GeometryLight *geometryLight() const;
-
- private:
-  bool geometryIsValid() const;
-  bool materialIsValid() const;
-  SurfaceGPUData gpuData() const override;
-
-  helium::IntrusivePtr<Geometry> m_geometry;
-  helium::IntrusivePtr<Material> m_material;
-  helium::IntrusivePtr<GeometryLight> m_geometryLight;
-
-  OptixBuildInput m_buildInput{};
-
-  uint32_t m_id{~0u};
-  bool m_visible{true};
-};
+LightGPUData GeometryLight::gpuData() const
+{
+  auto retval = Light::gpuData();
+  retval.type = LightType::GEOMETRY;
+  retval.color = vec3(1.f); // radiance carries the color for geometry lights
+  retval.geometry.geometryIndex = m_geometry;
+  retval.geometry.radiance = m_radiance;
+  retval.geometry.area = m_area;
+  return retval;
+}
 
 } // namespace visrtx
-
-VISRTX_ANARI_TYPEFOR_SPECIALIZATION(visrtx::Surface *, ANARI_SURFACE);

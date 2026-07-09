@@ -76,6 +76,13 @@ struct Geometry : public RegisteredObject<GeometryGPUData>
   virtual void populateBuildInput(OptixBuildInput &) const = 0;
   virtual int optixGeometryType() const = 0;
 
+  // Geometry Light area sampling. Only types that can be sampled by area as an
+  // Emissive Surface override these (Stage 1: Triangle). ensureAreaData() builds
+  // the per-primitive area CDF; totalArea() is the object-space emitting area.
+  virtual bool isAreaSamplingSupported() const;
+  virtual void ensureAreaData();
+  virtual float totalArea() const;
+
  protected:
   GeometryGPUData gpuData() const override = 0;
 

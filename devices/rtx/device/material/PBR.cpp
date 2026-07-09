@@ -145,6 +145,20 @@ void PBR::commitParameters()
 
   m_cutoff = getParam<float>("alphaCutoff", 0.5f);
   m_mode = alphaModeFromString(getParamString("alphaMode", "opaque"));
+
+  refreshEmissionLightSet();
+}
+
+bool PBR::emissionIsConstant() const
+{
+  const bool bound = (m_emissiveSampler && m_emissiveSampler->isValid())
+      || !m_emissiveAttribute.empty();
+  return !bound && glm::any(glm::greaterThan(vec3(m_emissive), vec3(0.f)));
+}
+
+vec3 PBR::emissionRadiance() const
+{
+  return vec3(m_emissive);
 }
 
 MaterialGPUData PBR::gpuData() const
@@ -153,6 +167,7 @@ MaterialGPUData PBR::gpuData() const
   auto &pb = retval.materialData.physicallyBased;
 
   retval.callableBaseIndex = static_cast<uint32_t>(SbtCallableEntryPoints::PBR);
+  retval.emissionIsConstant = emissionIsConstant();
 
   populateMaterialParameter(
       pb.baseColor, m_color, m_colorSampler.get(), m_colorAttribute);

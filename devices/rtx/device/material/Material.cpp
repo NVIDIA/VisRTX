@@ -52,6 +52,28 @@ Material::Material(DeviceGlobalState *s)
   setRegistry(s->registry.materials);
 }
 
+bool Material::emissionIsConstant() const
+{
+  return false;
+}
+
+vec3 Material::emissionRadiance() const
+{
+  return vec3(0.f);
+}
+
+void Material::refreshEmissionLightSet()
+{
+  const bool nowConstant = emissionIsConstant();
+  const vec3 nowRadiance = emissionRadiance();
+  if (nowConstant != m_emissionWasConstant
+      || (nowConstant && nowRadiance != m_lastEmissionRadiance)) {
+    deviceState()->objectUpdates.lastLightSetChange = helium::newTimeStamp();
+  }
+  m_emissionWasConstant = nowConstant;
+  m_lastEmissionRadiance = nowRadiance;
+}
+
 Material *Material::createInstance(
     std::string_view subtype, DeviceGlobalState *d)
 {

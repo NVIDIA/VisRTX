@@ -107,6 +107,11 @@ VISRTX_HOST_DEVICE float lightPickPower(
     // The environment's average luminance is approximated as unit; scale and
     // tint carry the only per-light signal until a measured average lands.
     return detail::pickLuminance(ld.color) * ld.hdri.scale * sceneCrossSection;
+  case LightType::GEOMETRY: {
+    // Double-sided Lambertian surface: flux = L · area · π, doubled for sides.
+    const float area = ld.geometry.area * detail::affineAreaScale(xfm);
+    return detail::pickLuminance(ld.geometry.radiance) * area * kPi * 2.0f;
+  }
   default:
     return 0.0f;
   }

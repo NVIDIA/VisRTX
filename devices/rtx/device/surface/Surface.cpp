@@ -96,6 +96,29 @@ bool Surface::isVisible() const
   return m_visible;
 }
 
+bool Surface::isConstantEmitter() const
+{
+  return m_material && m_material->emissionIsConstant() && m_geometry
+      && m_geometry->isAreaSamplingSupported();
+}
+
+GeometryLight *Surface::ensureGeometryLight()
+{
+  if (!m_geometryLight)
+    m_geometryLight = new GeometryLight(deviceState());
+  return m_geometryLight.ptr;
+}
+
+void Surface::clearGeometryLight()
+{
+  m_geometryLight = nullptr;
+}
+
+GeometryLight *Surface::geometryLight() const
+{
+  return m_geometryLight.ptr;
+}
+
 OptixBuildInput Surface::buildInput() const
 {
   OptixBuildInput obi = {};

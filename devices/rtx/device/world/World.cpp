@@ -38,9 +38,13 @@
 #include "array/ObjectArray.h"
 #include "gpu/gpu_objects.h"
 #include "optix_visrtx.h"
+#include "surface/Surface.h"
 #include "utility/AnariTypeHelpers.h"
+#include "world/Group.h"
 
 #include <glm/gtc/matrix_inverse.hpp>
+#include <cmath>
+#include <set>
 
 #ifdef USE_MDL
 #include "geometry/ComputeTangent.h"
@@ -489,23 +493,58 @@ void World::buildInstanceVolumeGPUData()
   m_instanceVolumeGPUData.upload();
 }
 
+size_t World::countGeometryLights(Group *group) const
+{
+  size_t n = 0;
+  for (auto *surface : group->surfacesTriangle())
+    if (surface->geometryLight())
+      ++n;
+  return n;
+}
+
+void World::synthesizeGeometryLights()
+{
+  // Configure or drop each triangle surface's Geometry Light from current
+  // material + geometry state. Object-space, so done once per group; the fill
+  // pass instances it per transform like an authored light.
+  std::set<Group *> visited;
+  for (auto *inst : m_instances) {
+    auto *group = inst->group();
+    if (!visited.insert(group).second)
+      continue;
+    for (auto *surface : group->surfacesTriangle()) {
+      if (surface->isConstantEmitter()) {
+        auto *geometry = surface->geometry();
+        geometry->ensureAreaData();
+        const float area = geometry->totalArea();
+        if (area > 0.0f) {
+          surface->ensureGeometryLight()->configure(geometry->index(),
+              surface->material()->emissionRadiance(),
+              area);
+          continue;
+        }
+      }
+      surface->clearGeometryLight();
+    }
+  }
+}
+
 void World::buildInstanceLightGPUData()
 {
-  // Calculate total lights
+  synthesizeGeometryLights();
+
+  // Calculate total lights (authored + synthesized Geometry Lights)
   size_t totalLights = 0;
   size_t totalHdriLights = 0;
 
   std::for_each(m_instances.begin(), m_instances.end(), [&](auto *inst) {
     auto *group = inst->group();
-    if (!group->containsLights())
-      return;
-
     group->rebuildLights();
     const auto &lights = group->lights();
     const size_t numTransforms = inst->numTransforms();
-    const DeviceObjectIndex hdriIdx = group->firstHDRI();
 
-    totalLights += lights.size() * numTransforms;
+    totalLights +=
+        (lights.size() + countGeometryLights(group)) * numTransforms;
 
     // Count HDRI lights separately
     for (auto *light : lights) {
@@ -548,31 +587,40 @@ void World::buildInstanceLightGPUData()
 
   std::for_each(m_instances.begin(), m_instances.end(), [&](auto *inst) {
     auto *group = inst->group();
-    if (!group->containsLights())
-      return;
-
     group->rebuildLights();
 
     auto *lights = m_instanceLightGPUData.dataHost();
     auto *hdris = m_instanceHdriLightGPUData.dataHost();
 
+    auto appendLight = [&](Light *light, const mat4 &xfm) {
+      // Sanitize: a NaN/Inf/negative Pick Power (bad param, degenerate xfm)
+      // would corrupt the cumulative CDF and make cub::LowerBound undefined.
+      // Clamp to 0 so the light is simply never picked. `!(power > 0)` catches
+      // NaN.
+      const float raw = light->pickPower(xfm, m_sceneRadius);
+      const float power = (raw > 0.0f && std::isfinite(raw)) ? raw : 0.0f;
+      pickCdf[lightIndex] = power;
+      m_totalLightPower += power;
+      lights[lightIndex++] = {light->index(), xfm};
+      return power;
+    };
+
     for (size_t t = 0; t < inst->numTransforms(); t++) {
       const mat4 xfm = mat4(inst->xfm(t));
 
       for (auto *light : group->lights()) {
-        const auto lightIdx = light->index();
-
-        const float power = light->pickPower(xfm, m_sceneRadius);
-        pickCdf[lightIndex] = power;
-        m_totalLightPower += power;
-
-        lights[lightIndex++] = {lightIdx, xfm};
-
+        const float power = appendLight(light, xfm);
         // HDRI lights also go into hdriLights
         if (light->isHDRI()) {
           m_hdriPower += power;
-          hdris[hdriIndex++] = {lightIdx, xfm};
+          hdris[hdriIndex++] = {light->index(), xfm};
         }
+      }
+
+      // Synthesized Geometry Lights, instanced exactly like authored lights.
+      for (auto *surface : group->surfacesTriangle()) {
+        if (auto *gl = surface->geometryLight())
+          appendLight(gl, xfm);
       }
     }
   });

@@ -195,6 +195,11 @@ const std::vector<Light *> &Group::lights() const
   return m_lights;
 }
 
+const std::vector<Surface *> &Group::surfacesTriangle() const
+{
+  return m_surfacesTriangle;
+}
+
 void Group::rebuildSurfaceBVHs()
 {
   const auto &state = *deviceState();
