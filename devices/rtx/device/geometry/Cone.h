@@ -33,6 +33,7 @@
 
 #include "Geometry.h"
 #include "array/Array1D.h"
+#include "utility/HostDeviceArray.h"
 
 namespace visrtx {
 
@@ -49,8 +50,16 @@ struct Cone : public Geometry
 
   int optixGeometryType() const override;
 
+  // Build the per-primitive area CDF and object-space total area (lateral +
+  // enabled caps) used to sample this geometry as a Geometry Light. Lazy: only
+  // Emissive Surfaces call it. Mirrors Triangle/Sphere.
+  bool isAreaSamplingSupported() const override;
+  void ensureAreaData() override;
+  float totalArea() const override;
+
  private:
   GeometryGPUData gpuData() const override;
+  void buildAreaData();
 
   helium::ChangeObserverPtr<Array1D> m_index;
   helium::ChangeObserverPtr<Array1D> m_radius;
@@ -62,6 +71,12 @@ struct Cone : public Geometry
   CUdeviceptr m_aabbsBufferPtr{};
 
   uint8_t m_defaultCapFlags{0};
+
+  // Geometry Light sampling data, built lazily by ensureAreaData(); see Triangle.
+  HostDeviceArray<float> m_primAreaCdf;
+  float m_totalArea{0.f};
+  bool m_areaDataValid{false};
+  bool m_areaDataWanted{false};
 };
 
 } // namespace visrtx

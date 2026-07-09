@@ -57,6 +57,7 @@ make_test(TestEmissiveGeometryLight)
 make_test(TestEmissiveSphereLight)
 make_test(TestEmissiveInstanceScale)
 make_test(TestEmissiveSphereInstanceScale)
+make_test(TestEmissiveCylinderConeLight)
 make_test(TestEmissionRadianceScale)
 # The raw `mdl` material type only exists with MDL support compiled in.
 if (VISRTX_ENABLE_MDL_SUPPORT)

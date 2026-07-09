@@ -225,20 +225,32 @@ struct CylinderGeometryData
   const uvec2 *indices;
   const vec3 *vertices;
   AttributeDataSet vertexAttr;
-  const float *radii;
+  const float *radii; // per-primitive
   float radius;
   uint8_t defaultCapFlags;
   const uint8_t *vertexCaps;
+  // Geometry Light sampling: normalized cumulative object-space area CDF over
+  // primitives (lateral 2πrL + enabled caps πr²); null unless this geometry
+  // backs an Emissive Surface. numPrimitives is the CDF length. See Triangle.
+  const float *primAreaCdf;
+  uint32_t numPrimitives;
+  float totalArea; // object-space
 };
 
 struct ConeGeometryData
 {
   const uvec2 *indices;
   const vec3 *vertices;
-  const float *radii;
+  const float *radii; // per-vertex
   AttributeDataSet vertexAttr;
   uint8_t defaultCapFlags;
   const uint8_t *vertexCaps;
+  // Geometry Light sampling: normalized cumulative object-space area CDF over
+  // primitives (lateral π(r0+r1)·slant + enabled caps πr²); null unless this
+  // geometry backs an Emissive Surface. numPrimitives is the CDF length.
+  const float *primAreaCdf;
+  uint32_t numPrimitives;
+  float totalArea; // object-space
 };
 
 struct CurveGeometryData

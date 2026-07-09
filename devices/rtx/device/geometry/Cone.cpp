@@ -128,7 +128,93 @@ void Cone::finalize()
         std::max(m_epsilonScale, std::max(m.x, std::max(m.y, m.z)));
   }
 
+  // Vertices/radii/caps may have changed. Rebuild the Geometry Light CDF if a
+  // surface has ever requested it (order-independent of the surface commit),
+  // else drop stale data. Mirrors Triangle/Sphere.
+  m_areaDataValid = false;
+  if (m_areaDataWanted)
+    buildAreaData();
+  else {
+    m_totalArea = 0.f;
+    m_primAreaCdf.clear();
+  }
+
   upload();
+}
+
+void Cone::buildAreaData()
+{
+  std::vector<uvec2> implicitIndices;
+  Span<uvec2> indices;
+  if (!m_index) {
+    implicitIndices.resize(m_vertex->size() / 2);
+    uvec2 idx(0, 1);
+    for (auto &i : implicitIndices) {
+      i = idx;
+      idx += 2;
+    }
+    indices = make_Span(implicitIndices.data(), implicitIndices.size());
+  } else
+    indices = make_Span(m_index->beginAs<uvec2>(), m_index->size());
+
+  const float *radius = m_radius->beginAs<float>();
+  const vec3 *pos = m_vertex->beginAs<vec3>();
+  const uint8_t *vcaps = m_vertexCaps ? m_vertexCaps->beginAs<uint8_t>() : nullptr;
+
+  const size_t n = indices.size();
+  m_primAreaCdf.resize(n);
+  auto *cdf = m_primAreaCdf.dataHost();
+
+  double cumulative = 0.0;
+  for (size_t i = 0; i < n; ++i) {
+    const uvec2 c = indices[i];
+    const double r0 = double(std::abs(radius[c.x]));
+    const double r1 = double(std::abs(radius[c.y]));
+    const double len = double(glm::length(pos[c.y] - pos[c.x]));
+    const bool cap0 = vcaps ? (vcaps[c.x] != 0) : (m_defaultCapFlags & CAP_FIRST);
+    const bool cap1 = vcaps ? (vcaps[c.y] != 0) : (m_defaultCapFlags & CAP_SECOND);
+    // A degenerate (zero-length) cone gets no pick mass; the sampler
+    // early-returns on it, so any mass here would be a wasted sample.
+    double area = 0.0;
+    if (len > 0.0) {
+      const double slant = std::sqrt(len * len + (r0 - r1) * (r0 - r1));
+      area = double(kPi) * (r0 + r1) * slant; // lateral (frustum)
+      if (cap0)
+        area += double(kPi) * r0 * r0;
+      if (cap1)
+        area += double(kPi) * r1 * r1;
+    }
+    cumulative += area;
+    cdf[i] = float(cumulative);
+  }
+  m_totalArea = float(cumulative);
+
+  if (m_totalArea > 0.f) {
+    for (size_t i = 0; i < n; ++i)
+      cdf[i] /= m_totalArea;
+  }
+
+  m_primAreaCdf.upload();
+  m_areaDataValid = true;
+}
+
+bool Cone::isAreaSamplingSupported() const
+{
+  return true;
+}
+
+void Cone::ensureAreaData()
+{
+  m_areaDataWanted = true;
+  if (m_areaDataValid)
+    return;
+  buildAreaData();
+  upload(); // republish gpuData() so the CDF pointers reach the device
+}
+
+float Cone::totalArea() const
+{
+  return m_totalArea;
 }
 
 bool Cone::isValid() const
@@ -168,6 +254,11 @@ GeometryGPUData Cone::gpuData() const
       ? m_vertexCaps->beginAs<uint8_t>(AddressSpace::GPU)
       : nullptr;
   populateAttributeDataSet(m_vertexAttributes, cone.vertexAttr);
+
+  // Geometry Light sampling data; null/zero until ensureAreaData() runs.
+  cone.primAreaCdf = m_primAreaCdf.dataDevice();
+  cone.numPrimitives = uint32_t(m_primAreaCdf.size());
+  cone.totalArea = m_totalArea;
 
   return retval;
 }

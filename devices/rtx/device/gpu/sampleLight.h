@@ -34,6 +34,7 @@
 #include "gpu/gpu_math.h"
 #include "gpu/gpu_objects.h"
 #include "gpu/gpu_util.h"
+#include "gpu/intersectPrimitives.h" // CapBit (cylinder/cone cap enablement)
 
 // glm
 #include <glm/ext/matrix_float3x3.hpp>
@@ -72,6 +73,12 @@ struct LightSample
 // self-occlude the shadow ray (~15% energy loss). Relative so it scales with
 // distance; analytic lights have no geometry there and are unaffected.
 constexpr float GEOMETRY_LIGHT_SHADOW_EPSILON = 1.0e-3f;
+
+// Cone taper |r0-r1| below which the frustum is treated as a cylinder and the
+// axial fraction is taken as the uniform sample directly — the (rt-r0)/(r1-r0)
+// back-solve would otherwise divide by ~0. Absolute (not scale-relative) so a
+// degenerate r0==r1==0 cone can't reach a divide-by-zero.
+constexpr float CONE_TAPER_EPSILON = 1.0e-8f;
 
 namespace detail {
 
@@ -319,8 +326,8 @@ VISRTX_DEVICE LightSample sampleSpotLight(
 
 VISRTX_DEVICE int inverseSampleCDF(const float *cdf, int size, float u)
 {
-  // Binary search to find the largest index i such that cdf[i] <= u
-  // This implements inverse transform sampling for discrete distributions
+  // Binary search for the first index i such that cdf[i] >= u (cub::LowerBound):
+  // inverse transform sampling of a discrete distribution over a cumulative CDF.
   return cub::LowerBound(cdf, size, u);
 }
 
@@ -399,23 +406,61 @@ VISRTX_DEVICE LightSample sampleTriangleGeometryLight(const LightGPUData &ld,
   return ls;
 }
 
+// Finish a SINGLE-sided (outward) Geometry Light area sample from an object-space
+// surface point and its OUTWARD object normal: world direction/distance and the
+// EXACT affine solid-angle pdf. The world area element and normal come from two
+// transformed orthonormal object tangents (|cross(M t1, M t2)|), so it is exact
+// under any affine instance transform — the same Jacobian the triangle path uses.
+// Shared by the sphere/cylinder/cone samplers; the pdf must match
+// geometryLightHitPdf on the deposit side for MIS to partition to 1. Radiance/pdf
+// are left zero when the sample faces away (far side, self-occluded).
+VISRTX_DEVICE LightSample finishAreaLightSample(const vec3 &radiance,
+    const mat4 &xfm,
+    const vec3 &origin,
+    const vec3 &pObj,
+    const vec3 &nObjOut,
+    float totalObjArea)
+{
+  LightSample ls{};
+  ls.dir = xfmPoint(xfm, pObj) - origin;
+  ls.dist = length(ls.dir);
+  ls.dir /= ls.dist;
+
+  const mat3 basis = computeOrthonormalBasis(nObjOut);
+  vec3 nWorld = cross(xfmVec(xfm, basis[0]), xfmVec(xfm, basis[1]));
+  const float worldAreaScale = length(nWorld); // world-area per unit object-area
+  if (worldAreaScale <= 0.0f)
+    return ls;
+  nWorld /= worldAreaScale;
+  // Orient to the outward hemisphere: (M⁻ᵀnObj)·(M nObj) = |nObj|² > 0, so
+  // xfmVec(xfm, nObjOut) is a valid outward sign reference under any affine M.
+  if (dot(nWorld, xfmVec(xfm, nObjOut)) < 0.0f)
+    nWorld = -nWorld;
+
+  const float cosTheta = dot(nWorld, -ls.dir);
+  if (cosTheta <= 0.0f)
+    return ls; // far side; self-occluded, contributes nothing
+
+  ls.radiance = radiance;
+  // Object-area element is 1 (orthonormal tangents); world element is
+  // worldAreaScale. geometryLightSolidAnglePdf folds pick(1/totalArea) and the
+  // area→solid-angle Jacobian identically to the triangle path.
+  ls.pdf = geometryLightSolidAnglePdf(
+      1.0f, worldAreaScale, totalObjArea, ls.dist, cosTheta);
+  return ls;
+}
+
 // Sample a point on a sphere-set Geometry Light. Picks a sphere by its
-// object-space area (4πr²), samples that sphere's surface uniformly (Marsaglia),
-// and reports the EXACT solid-angle pdf. The world-space area element and normal
-// come from two transformed object-space tangents (cross product), so the pdf is
-// exact under any affine instance transform — the same Jacobian machinery the
-// triangle path uses. SINGLE-sided (outward only): a closed sphere self-occludes
-// its far hemisphere, so far-side samples are culled, matching the analytic
-// sphere light.
+// object-space area (4πr²), samples that sphere's surface uniformly (Marsaglia).
+// SINGLE-sided (outward): a closed sphere self-occludes its far hemisphere.
 VISRTX_DEVICE LightSample sampleSphereGeometryLight(const LightGPUData &ld,
     const SphereGeometryData &sph,
     const mat4 &xfm,
     const vec3 &origin,
     ScreenSample &ss)
 {
-  LightSample ls{};
   if (sph.numPrimitives == 0 || ld.geometry.area <= 0.0f)
-    return ls;
+    return {};
 
   const uint32_t primID = glm::min(
       uint32_t(inverseSampleCDF(
@@ -426,43 +471,150 @@ VISRTX_DEVICE LightSample sampleSphereGeometryLight(const LightGPUData &ld,
   const float r = fabsf(sph.radii ? sph.radii[vi] : sph.radius);
 
   // Uniform point on the object-space unit sphere (Marsaglia); nObj is the unit
-  // outward object-space normal there.
+  // outward object normal there.
   const float z = 1.0f - 2.0f * pcg_uniform(&ss.rs);
   const float rho = sqrtf(fmaxf(0.0f, 1.0f - z * z));
   const float phi = kTwoPi * pcg_uniform(&ss.rs);
   const vec3 nObj = vec3(rho * cosf(phi), rho * sinf(phi), z);
-  const vec3 pObj = c + nObj * r;
 
-  ls.dir = xfmPoint(xfm, pObj) - origin;
-  ls.dist = length(ls.dir);
-  ls.dir /= ls.dist;
+  return finishAreaLightSample(
+      ld.geometry.radiance, xfm, origin, c + nObj * r, nObj, ld.geometry.area);
+}
 
-  // World area element and surface normal from two transformed orthonormal
-  // object tangents. |cross(M t1, M t2)| is world-area-per-unit-object-area;
-  // its direction is the (ellipsoid-correct) world normal.
-  const mat3 basis = computeOrthonormalBasis(nObj);
-  vec3 nWorld = cross(xfmVec(xfm, basis[0]), xfmVec(xfm, basis[1]));
-  const float worldAreaScale = length(nWorld);
-  if (worldAreaScale <= 0.0f)
-    return ls;
-  nWorld /= worldAreaScale;
-  // Orient outward so back-facing (far-side) samples are culled. M·(pObj-c) =
-  // r·M·nObj, and r>0, so xfmVec(xfm, nObj) carries the same sign.
-  if (dot(nWorld, xfmVec(xfm, nObj)) < 0.0f)
-    nWorld = -nWorld;
+// Per-endpoint cap enablement, matching the intersector's resolveCapBits: a
+// non-null vertex.cap array (element != 0) overrides the geometry-wide default.
+VISRTX_DEVICE void resolveEndpointCaps(const uint8_t *vertexCaps,
+    uint8_t defaultCapFlags,
+    const uvec2 &idx,
+    bool &cap0,
+    bool &cap1)
+{
+  cap0 = vertexCaps ? (vertexCaps[idx.x] != 0) : bool(defaultCapFlags & CAP_FIRST);
+  cap1 = vertexCaps ? (vertexCaps[idx.y] != 0) : bool(defaultCapFlags & CAP_SECOND);
+}
 
-  const float cosTheta = dot(nWorld, -ls.dir);
-  if (cosTheta <= 0.0f)
-    return ls; // far side; self-occluded, contributes nothing
+// Uniform point on a disk of radius `rad` in the plane spanned by (e0,e1)
+// centered at `c`; used for cylinder/cone caps.
+VISRTX_DEVICE vec3 sampleDisk(
+    const vec3 &c, const vec3 &e0, const vec3 &e1, float rad, ScreenSample &ss)
+{
+  const float rr = rad * sqrtf(pcg_uniform(&ss.rs));
+  const float phi = kTwoPi * pcg_uniform(&ss.rs);
+  return c + rr * (cosf(phi) * e0 + sinf(phi) * e1);
+}
 
-  ls.radiance = ld.geometry.radiance;
-  // Object-area element is 1 (orthonormal tangents); world element is
-  // worldAreaScale. geometryLightSolidAnglePdf folds pick(1/totalArea) and the
-  // area→solid-angle Jacobian identically to the triangle path.
-  ls.pdf = geometryLightSolidAnglePdf(
-      1.0f, worldAreaScale, ld.geometry.area, ls.dist, cosTheta);
+// Sample a point on a cylinder-set Geometry Light: pick a cylinder by object area
+// (lateral 2πrL + enabled caps πr²), then pick lateral vs a cap by sub-area and
+// sample it uniformly. Outward object normal is radial on the wall, ±axis on a
+// cap. Single-sided (outward).
+VISRTX_DEVICE LightSample sampleCylinderGeometryLight(const LightGPUData &ld,
+    const CylinderGeometryData &cyl,
+    const mat4 &xfm,
+    const vec3 &origin,
+    ScreenSample &ss)
+{
+  if (cyl.numPrimitives == 0 || ld.geometry.area <= 0.0f)
+    return {};
 
-  return ls;
+  const uint32_t primID = glm::min(
+      uint32_t(inverseSampleCDF(
+          cyl.primAreaCdf, int(cyl.numPrimitives), pcg_uniform(&ss.rs))),
+      cyl.numPrimitives - 1);
+  const uvec2 idx = cyl.indices ? cyl.indices[primID] : uvec2(0, 1) + primID * 2;
+  const vec3 p0 = cyl.vertices[idx.x];
+  const vec3 p1 = cyl.vertices[idx.y];
+  const float r = fabsf(cyl.radii ? cyl.radii[primID] : cyl.radius);
+  const vec3 axis = p1 - p0;
+  const float len = length(axis);
+  if (len <= 0.0f || r <= 0.0f)
+    return {};
+  const vec3 axisN = axis / len;
+  const mat3 basis = computeOrthonormalBasis(axisN); // basis[0],basis[1] ⊥ axisN
+
+  bool cap0, cap1;
+  resolveEndpointCaps(cyl.vertexCaps, cyl.defaultCapFlags, idx, cap0, cap1);
+  const float latArea = kTwoPi * r * len;
+  const float capArea = kPi * r * r;
+
+  float pick = pcg_uniform(&ss.rs)
+      * (latArea + (cap0 ? capArea : 0.0f) + (cap1 ? capArea : 0.0f));
+  vec3 pObj, nObj;
+  if (pick < latArea) {
+    const float phi = kTwoPi * pcg_uniform(&ss.rs);
+    const vec3 rho = cosf(phi) * basis[0] + sinf(phi) * basis[1];
+    pObj = p0 + pcg_uniform(&ss.rs) * axis + r * rho;
+    nObj = rho;
+  } else if (cap0 && pick < latArea + capArea) {
+    pObj = sampleDisk(p0, basis[0], basis[1], r, ss);
+    nObj = -axisN;
+  } else {
+    pObj = sampleDisk(p1, basis[0], basis[1], r, ss);
+    nObj = axisN;
+  }
+  return finishAreaLightSample(
+      ld.geometry.radiance, xfm, origin, pObj, nObj, ld.geometry.area);
+}
+
+// Sample a point on a cone-set Geometry Light: pick a cone by object area (frustum
+// lateral π(r0+r1)·slant + enabled caps πr²), then pick lateral vs a cap. Lateral
+// uses the radius-weighted axial CDF r(t)=√((1-u)r0²+u·r1²); the outward object
+// normal is the tilted slant normal on the wall, ±axis on a cap. Single-sided.
+VISRTX_DEVICE LightSample sampleConeGeometryLight(const LightGPUData &ld,
+    const ConeGeometryData &cone,
+    const mat4 &xfm,
+    const vec3 &origin,
+    ScreenSample &ss)
+{
+  if (cone.numPrimitives == 0 || ld.geometry.area <= 0.0f)
+    return {};
+
+  const uint32_t primID = glm::min(
+      uint32_t(inverseSampleCDF(
+          cone.primAreaCdf, int(cone.numPrimitives), pcg_uniform(&ss.rs))),
+      cone.numPrimitives - 1);
+  const uvec2 idx =
+      cone.indices ? cone.indices[primID] : uvec2(0, 1) + primID * 2;
+  const vec3 p0 = cone.vertices[idx.x];
+  const vec3 p1 = cone.vertices[idx.y];
+  // cone.radii is mandatory (Cone::isValid requires vertex.radius), so it is
+  // never null when a cone Geometry Light exists — no global-radius fallback.
+  const float r0 = fabsf(cone.radii[idx.x]);
+  const float r1 = fabsf(cone.radii[idx.y]);
+  const vec3 axis = p1 - p0;
+  const float len = length(axis);
+  if (len <= 0.0f)
+    return {};
+  const vec3 axisN = axis / len;
+  const mat3 basis = computeOrthonormalBasis(axisN);
+
+  bool cap0, cap1;
+  resolveEndpointCaps(cone.vertexCaps, cone.defaultCapFlags, idx, cap0, cap1);
+  const float slant = sqrtf(len * len + (r0 - r1) * (r0 - r1));
+  const float latArea = kPi * (r0 + r1) * slant;
+  const float cap0Area = cap0 ? kPi * r0 * r0 : 0.0f;
+  const float cap1Area = cap1 ? kPi * r1 * r1 : 0.0f;
+
+  float pick = pcg_uniform(&ss.rs) * (latArea + cap0Area + cap1Area);
+  vec3 pObj, nObj;
+  if (pick < latArea) {
+    const float u = pcg_uniform(&ss.rs);
+    const float rt = sqrtf((1.0f - u) * r0 * r0 + u * r1 * r1); // radius at t
+    const float t =
+        (fabsf(r1 - r0) > CONE_TAPER_EPSILON) ? (rt - r0) / (r1 - r0) : u;
+    const float phi = kTwoPi * pcg_uniform(&ss.rs);
+    const vec3 rho = cosf(phi) * basis[0] + sinf(phi) * basis[1];
+    pObj = p0 + t * axis + rt * rho;
+    // Outward slant normal: radial tilted toward the axis by the taper slope.
+    nObj = normalize(rho + ((r0 - r1) / len) * axisN);
+  } else if (cap0Area > 0.0f && pick < latArea + cap0Area) {
+    pObj = sampleDisk(p0, basis[0], basis[1], r0, ss);
+    nObj = -axisN;
+  } else {
+    pObj = sampleDisk(p1, basis[0], basis[1], r1, ss);
+    nObj = axisN;
+  }
+  return finishAreaLightSample(
+      ld.geometry.radiance, xfm, origin, pObj, nObj, ld.geometry.area);
 }
 
 // Dispatch a Geometry Light sample by the backing geometry's type. The geometry
@@ -479,6 +631,10 @@ VISRTX_DEVICE LightSample sampleGeometryLight(const LightGPUData &ld,
     return sampleTriangleGeometryLight(ld, geom.tri, xfm, origin, ss);
   case GeometryType::SPHERE:
     return sampleSphereGeometryLight(ld, geom.sphere, xfm, origin, ss);
+  case GeometryType::CYLINDER:
+    return sampleCylinderGeometryLight(ld, geom.cylinder, xfm, origin, ss);
+  case GeometryType::CONE:
+    return sampleConeGeometryLight(ld, geom.cone, xfm, origin, ss);
   default:
     return {};
   }

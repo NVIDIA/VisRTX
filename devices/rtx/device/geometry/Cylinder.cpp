@@ -127,7 +127,92 @@ void Cylinder::finalize()
         std::max(m_epsilonScale, std::max(m.x, std::max(m.y, m.z)));
   }
 
+  // Vertices/radii/caps may have changed. Rebuild the Geometry Light CDF if a
+  // surface has ever requested it (order-independent of the surface commit),
+  // else drop stale data. Mirrors Triangle/Sphere.
+  m_areaDataValid = false;
+  if (m_areaDataWanted)
+    buildAreaData();
+  else {
+    m_totalArea = 0.f;
+    m_primAreaCdf.clear();
+  }
+
   upload();
+}
+
+void Cylinder::buildAreaData()
+{
+  std::vector<uvec2> implicitIndices;
+  Span<uvec2> indices;
+  if (!m_index) {
+    implicitIndices.resize(m_vertex->size() / 2);
+    uvec2 idx(0, 1);
+    for (auto &i : implicitIndices) {
+      i = idx;
+      idx += 2;
+    }
+    indices = make_Span(implicitIndices.data(), implicitIndices.size());
+  } else
+    indices = make_Span(m_index->beginAs<uvec2>(), m_index->size());
+
+  const float *radius = m_radius ? m_radius->beginAs<float>() : nullptr;
+  const vec3 *pos = m_vertex->beginAs<vec3>();
+  const uint8_t *vcaps = m_vertexCaps ? m_vertexCaps->beginAs<uint8_t>() : nullptr;
+
+  const size_t n = indices.size();
+  m_primAreaCdf.resize(n);
+  auto *cdf = m_primAreaCdf.dataHost();
+
+  double cumulative = 0.0;
+  for (size_t i = 0; i < n; ++i) {
+    const uvec2 c = indices[i];
+    const float r = std::abs(radius ? radius[i] : m_globalRadius);
+    const double len = double(glm::length(pos[c.y] - pos[c.x]));
+    const bool cap0 = vcaps ? (vcaps[c.x] != 0) : (m_defaultCapFlags & CAP_FIRST);
+    const bool cap1 = vcaps ? (vcaps[c.y] != 0) : (m_defaultCapFlags & CAP_SECOND);
+    // A degenerate (zero-length or zero-radius) cylinder gets no pick mass; the
+    // sampler early-returns on it, so any mass here would be a wasted sample.
+    double area = 0.0;
+    if (len > 0.0 && r > 0.0f) {
+      area = 2.0 * double(kPi) * double(r) * len; // lateral
+      const double capArea = double(kPi) * double(r) * double(r);
+      if (cap0)
+        area += capArea;
+      if (cap1)
+        area += capArea;
+    }
+    cumulative += area;
+    cdf[i] = float(cumulative);
+  }
+  m_totalArea = float(cumulative);
+
+  if (m_totalArea > 0.f) {
+    for (size_t i = 0; i < n; ++i)
+      cdf[i] /= m_totalArea;
+  }
+
+  m_primAreaCdf.upload();
+  m_areaDataValid = true;
+}
+
+bool Cylinder::isAreaSamplingSupported() const
+{
+  return true;
+}
+
+void Cylinder::ensureAreaData()
+{
+  m_areaDataWanted = true;
+  if (m_areaDataValid)
+    return;
+  buildAreaData();
+  upload(); // republish gpuData() so the CDF pointers reach the device
+}
+
+float Cylinder::totalArea() const
+{
+  return m_totalArea;
 }
 
 bool Cylinder::isValid() const
@@ -165,6 +250,11 @@ GeometryGPUData Cylinder::gpuData() const
       ? m_vertexCaps->beginAs<uint8_t>(AddressSpace::GPU)
       : nullptr;
   populateAttributeDataSet(m_vertexAttributes, cylinder.vertexAttr);
+
+  // Geometry Light sampling data; null/zero until ensureAreaData() runs.
+  cylinder.primAreaCdf = m_primAreaCdf.dataDevice();
+  cylinder.numPrimitives = uint32_t(m_primAreaCdf.size());
+  cylinder.totalArea = m_totalArea;
 
   return retval;
 }

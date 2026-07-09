@@ -234,23 +234,34 @@ VISRTX_DEVICE float geometryLightHitPdf(const FrameGPUData &frameData,
     solidAnglePdf = detail::geometryLightSolidAnglePdf(
         length(cross(e1o, e2o)), worldTwice, tri.totalArea, hit.t, cosTheta);
     totalArea = tri.totalArea;
-  } else if (hit.geometry->type == GeometryType::SPHERE) {
-    const auto &sph = hit.geometry->sphere;
-    if (sph.totalArea <= 0.0f || sph.numPrimitives == 0)
+  } else {
+    // Sphere/cylinder/cone: the unit-tangent samplers depend only on the OUTWARD
+    // object normal at the point (worldAreaScale = |cross(M t1,M t2)|, invariant
+    // to the tangent basis). Recover it generically from the world normal —
+    // o2wᵀ·Ng ∝ nObj since Ng = normalize(M⁻ᵀ·nObj) — so no per-surface (lateral
+    // vs cap, slant) math is needed and it matches finishAreaLightSample exactly.
+    uint32_t numPrimitives = 0;
+    if (hit.geometry->type == GeometryType::SPHERE) {
+      totalArea = hit.geometry->sphere.totalArea;
+      numPrimitives = hit.geometry->sphere.numPrimitives;
+    } else if (hit.geometry->type == GeometryType::CYLINDER) {
+      totalArea = hit.geometry->cylinder.totalArea;
+      numPrimitives = hit.geometry->cylinder.numPrimitives;
+    } else if (hit.geometry->type == GeometryType::CONE) {
+      totalArea = hit.geometry->cone.totalArea;
+      numPrimitives = hit.geometry->cone.numPrimitives;
+    } else {
       return 0.0f;
-    const uint32_t vi = sph.indices ? sph.indices[hit.primID] : hit.primID;
-    const vec3 pObj = xfmPoint(hit.instance->worldToObject, hit.hitpoint);
-    const vec3 nObj = normalize(pObj - sph.centers[vi]);
+    }
+    if (totalArea <= 0.0f || numPrimitives == 0)
+      return 0.0f;
+    const vec3 nObj = normalize(transpose(o2w) * hit.Ng);
     const mat3 basis = computeOrthonormalBasis(nObj);
-    const float worldAreaScale =
-        length(cross(o2w * basis[0], o2w * basis[1]));
+    const float worldAreaScale = length(cross(o2w * basis[0], o2w * basis[1]));
     if (worldAreaScale <= 0.0f)
       return 0.0f;
     solidAnglePdf = detail::geometryLightSolidAnglePdf(
-        1.0f, worldAreaScale, sph.totalArea, hit.t, cosTheta);
-    totalArea = sph.totalArea;
-  } else {
-    return 0.0f;
+        1.0f, worldAreaScale, totalArea, hit.t, cosTheta);
   }
 
   const float totalPower =
