@@ -16,8 +16,10 @@ See [`tsd/STYLEGUIDE.md`](tsd/STYLEGUIDE.md) for TSD-specific addenda.
   ```
 - **Line length**: 80–100 characters. Longer lines are acceptable when breaking
   would harm readability (e.g., long string literals, complex template signatures).
-- **Brace style**: opening brace on the same line (K&R style) for all constructs —
-  functions, classes, `if`/`else`, loops.
+- **Brace style** (set by `.clang-format`, mixed): opening brace on its **own
+  line** for classes/structs, enums, and function definitions; on the **same
+  line** for control statements (`if`/`else`, loops), namespaces, and
+  `extern "C"` blocks.
 - **`clang-format` overrides**: use `// clang-format off` / `// clang-format on`
   sparingly — only for data tables, enum lists, or structured blocks where
   column alignment would otherwise be destroyed.
@@ -85,15 +87,18 @@ Order within a class/struct body:
 6. `private` data members
 
 **Method definitions are never written inside the class/struct body** — even
-trivial one-liners. All definitions (inline, `constexpr`, and template) go in a
-clearly delimited section *after* the class declaration:
+trivial one-liners. Sole exception: a truly empty body (`{}`), including
+constructors that are only a member-init list, may stay inline. All other
+definitions (inline, `constexpr`, and template) go in a clearly delimited
+section *after* the class declaration:
 
 ```cpp
-struct Foo {
+struct Foo
+{
   int bar() const;
   void setBaz(int v);
   // ...
-private:
+ private:
   int m_bar{0};
 };
 
@@ -122,12 +127,15 @@ implementation detail below.
   - `std::shared_ptr<T>` for shared ownership (use sparingly).
 - Non-owning references use raw pointers or project-specific ref wrappers
   (`ObjectPoolRef<T>`).
-- Express copy/move intent explicitly with the macros defined in
-  `TypeMacros.hpp`:
+- Express copy/move intent explicitly. In TSD-layer code, use the macros from
+  `tsd/core/TypeMacros.hpp` rather than hand-rolled `= delete`/`= default`
+  lists:
   ```cpp
   TSD_NOT_COPYABLE(MyClass)
   TSD_DEFAULT_MOVEABLE(MyClass)
   ```
+  (Device code under `devices/` has no TSD dependency — spell intent with
+  explicit `= delete`/`= default` there.)
 - RAII everywhere — resources are owned and released by objects, never managed
   manually.
 
@@ -180,7 +188,7 @@ Avoid features that obscure intent or have poor tooling support.
 - Use `static_assert` to enforce template parameter constraints early, with a
   clear diagnostic message.
 - Avoid CRTP unless virtual dispatch is genuinely unacceptable for performance.
-  Prefer virtual inheritance for most extensibility patterns.
+  Prefer virtual functions (see §13) for most extensibility patterns.
 
 ---
 
@@ -228,7 +236,8 @@ hooks** subclasses must implement, and optional virtual hooks with default
 no-op bodies. Prefer this over CRTP (see §10).
 
 ```cpp
-struct ImagePass {
+struct ImagePass
+{
   // public non-virtual API driven by the owner
   void setEnabled(bool e);
   virtual const char *name() const = 0;

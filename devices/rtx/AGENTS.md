@@ -10,34 +10,23 @@ The `devices/rtx/` subdirectory contains the OptiX-based GPU ray-tracing ANARI d
 ## Domain Docs
 
 - [`CONTEXT-MAP.md`](./CONTEXT-MAP.md) — bounded contexts and how they relate; each context has its own `CONTEXT.md` glossary ([Frontend](./device/CONTEXT.md), [Render Pipeline](./device/renderer/CONTEXT.md), [World](./device/world/CONTEXT.md), [MDL](./libmdl/CONTEXT.md)). Use these terms in code and docs.
-- [`docs/adr/`](./docs/adr/) — architecture decision records (callable-based shading, pipeline-per-renderer, embedded PTX, split surface/volume TLAS). Read before "fixing" any of these designs.
+- [`docs/adr/`](./docs/adr/) — architecture decision records. Scan the directory and read the relevant one before "fixing" a design it locks in.
 
 ## Build
 
-```bash
-mkdir build && cd build
-cmake -DCMAKE_INSTALL_PREFIX=/path/to/install \
-      -DCMAKE_PREFIX_PATH="/path/to/anari-sdk;/path/to/optix" \
-      /path/to/visrtx
-cmake --build . --parallel
-cmake --install .
-```
+Built as part of the repository build — see the repo-root [AGENTS.md](../../AGENTS.md). `CMAKE_PREFIX_PATH` must locate the ANARI-SDK and OptiX.
 
 Key device-specific CMake options:
 
 - `VISRTX_ENABLE_MDL_SUPPORT`: NVIDIA MDL materials (requires MDL SDK)
+- `VISRTX_ENABLE_MATERIALX_SUPPORT`: MaterialX materials
 - `VISRTX_ENABLE_NEURAL`: Neural Graphics Primitives (requires OptiX 9.0+)
 - `VISRTX_ENABLE_NVTX`: NVTX profiling markers
 - `OPTIX_FETCH_VERSION`: Pin OptiX version: `7.7`, `8.0`, `8.1`, or `9.0`
 
 ## Tests
 
-```bash
-ctest -C Release --output-on-failure
-ctest -C Release -R TestSpheres --output-on-failure
-```
-
-Test sources: `apps/tests/api/`
+Test sources: `apps/tests/api/` (e.g. `ctest -C Release -R TestSpheres`). Run via ctest — see the repo-root [AGENTS.md](../../AGENTS.md).
 
 ## Architecture
 
@@ -75,13 +64,13 @@ Arrays (`Array1D`, `Array2D`, `Array3D`) use `HostDeviceArray` or deferred uploa
 
 Each renderer has its own OptiX pipeline. Material and spatial-field shaders are implemented as **OptiX callable programs** so the renderer pipeline does not need to be recompiled when materials change.
 
-SBT callable slots per material type (8 slots each):
+SBT callable slots per material type (one per `SurfaceShaderEntryPoints` value; `device/gpu/sbt.h` is authoritative):
 
-- `Initialize`, `EvaluateNextRay`, `EvaluateTint`, `EvaluateOpacity`, `EvaluateEmission`, `EvaluateTransmission`, `EvaluateNormal`, `Shade`
+- `Initialize`, `EvaluateNextRay`, `EvaluateTint`, `EvaluateOpacity`, `EvaluateEmission`, `EvaluateTransmission`, `EvaluateNormal`, `Shade`, `EvaluatePdf`
 
 `MaterialGPUData::callableBaseIndex` holds the offset into the callable table. Kernels dispatch shading via `optixDirectCall(callableBaseIndex + SHADE_FN, ...)`.
 
-Spatial field samplers also use callables (`Init`, `Sample`).
+Spatial field samplers also use callables (`SpatialFieldSamplerEntryPoints`): every field family provides the Woodcock-loop bodies `SampleDistance`, `RatioTrackTransmittance`, `RayMarchVolume`; custom fields add `Init`/`SampleValue`/`SampleNormal`, dispatched callable-in-callable from those loop bodies (built-in families sample inline via ADL instead).
 
 ### Material Parameter Indirection
 
@@ -122,7 +111,7 @@ After rebuild, `OptixTraversableHandle`s are stored in `WorldGPUData` and passed
 |---------|----------------|
 | `fast` | Ambient occlusion, one direct-light sample; real-time |
 | `quality` | Full Monte Carlo path tracing, configurable max depth |
-| `interactive` | Adaptive sampling with adaptive AO; responsive preview |
+| `interactive` (aka `default`) | Adaptive sampling with adaptive AO; responsive preview |
 | `debug` | Geometry diagnostics (normals, positions, IDs, etc.) |
 | `test` | Minimal renderer for validation tests |
 

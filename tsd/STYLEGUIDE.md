@@ -193,28 +193,3 @@ without TBB) — never call TBB directly.
   methods use `camelCase` (`isLeaf`, `numChildren`). This split is deliberate.
 - Use the `INVALID_INDEX` sentinel (`core/ObjectPool.hpp`) for absent indices;
   prefer the `TSD_INVALID_INDEX` macro alias at call sites.
-
----
-
-## Inline Method Definitions
-
-Method bodies must **not** appear inside a `class` or `struct` declaration,
-with one exception: a truly empty body (`{}`) is allowed inline.
-
-All other inline definitions go below all other declarations in the file, under
-a single-line comment section:
-
-```cpp
-struct Foo
-{
-  int value() const;         // declaration only
-  void noop() override {}    // OK — empty body, allowed inline
-};
-
-// Inlined definitions ////////////////////////////////////////////////////////
-
-inline int Foo::value() const
-{
-  return m_value;
-}
-```

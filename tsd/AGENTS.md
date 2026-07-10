@@ -8,6 +8,15 @@ TSD ("Testing Scene Description") is an **experimental** C++17 scene graph and t
 
 See [STYLEGUIDE.md](STYLEGUIDE.md) for TSD-specific and project-wide C++ coding conventions.
 
+## Domain Docs
+
+Each area keeps a `CONTEXT.md` glossary. Use these terms in code and docs:
+
+- [src/tsd/io/CONTEXT.md](src/tsd/io/CONTEXT.md) — Archives, serialization verbs, import/export vocabulary
+- [src/tsd/app/CONTEXT.md](src/tsd/app/CONTEXT.md) — Application Dumps and app-level state
+- [src/tsd/rendering/CONTEXT.md](src/tsd/rendering/CONTEXT.md) — Image Pipeline / Image Pass / render-index vocabulary
+- [apps/interactive/scivisStudio/CONTEXT.md](apps/interactive/scivisStudio/CONTEXT.md) — SciVis Studio Projects and shots
+
 ## Build
 
 TSD can be built standalone (without the VisRTX devices) or as part of VisRTX.
@@ -32,12 +41,7 @@ Key optional CMake flags: `TSD_USE_LUA`, `TSD_USE_ASSIMP`, `TSD_USE_HDF5`, `TSD_
 
 ## Tests
 
-```bash
-ctest -C Release --output-on-failure
-ctest -C Release -R test_Forest --output-on-failure
-```
-
-Test sources in `tests/`: `test_Array`, `test_DataTree`, `test_FlatMap`, `test_Forest`, `test_Geometry`, `test_Material`, `test_Math`, `test_Object`, `test_ObjectPool`, `test_ObjectUsePtr`, `test_Parameter`, `test_Token`.
+Test sources: `tests/` (one `test_*.cpp` per suite, e.g. `ctest -C Release -R test_Forest`). Run via ctest — see the repo-root [AGENTS.md](../AGENTS.md).
 
 ## Architecture
 
@@ -51,7 +55,7 @@ tsd_core  ->  tsd_scene  ->  tsd_io  ->  tsd_rendering  ->  tsd_app
 
 - **`tsd_core`** (`src/tsd/core/`): `Any`, `Token`, `ObjectPool`, `FlatMap`, `Forest`, `DataTree`/`DataStream` (serialization), `TaskQueue`, logging. No scene concepts.
 - **`tsd_scene`** (`src/tsd/scene/`): `Scene`, `Object`, `Parameter`, `Layer`/`Forest` (instancing), `Animation`, `UpdateDelegate`. Mirrors ANARI's object hierarchy.
-- **`tsd_io`** (`src/tsd/io/`): 20+ file format importers (OBJ, GLTF, PLY, USD, VTK, ASSIMP, etc.), volume importers (RAW, NanoVDB, VTI), procedural generators, and TSD scene serialization.
+- **`tsd_io`** (`src/tsd/io/`): 30+ file format importers (OBJ, GLTF, PLY, USD, VTK, ASSIMP, etc.), volume importers (RAW, NanoVDB, VTI), procedural generators, and TSD scene serialization.
 - **`tsd_rendering`** (`src/tsd/rendering/`): `RenderIndex` (TSD-to-ANARI sync), `ImagePipeline` (composable render passes), camera manipulators.
 - **`tsd_app`** (`src/tsd/app/`): `ANARIDeviceManager`, `Context` (bundles scene + render index + pipeline), CLI parsing, `renderAnimationSequence`.
 - **`anari_tsd`** (`src/anari_tsd/`): ANARI device implementation that mirrors ANARI state into a TSD scene; writes `live_capture.tsd` on each committed frame.

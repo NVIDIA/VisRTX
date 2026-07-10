@@ -23,7 +23,9 @@
   Pipeline; the pipeline traces against them but never builds them.
 - **Frontend → MDL**: the `mdl` material subtype delegates compilation to MDL;
   the Frontend owns the ANARI-facing Material, MDL owns everything from
-  definition to target code.
+  definition to target code. The `materialx` subtype rides the same path: the
+  Frontend resolves the MaterialX documents (see the Frontend context's Search
+  Chain) and generates an MDL Material Definition, then delegates to MDL.
 - **MDL → Render Pipeline**: Compiled Materials link into renderer pipelines
   as PTX callable modules, indistinguishable from built-in Material Shaders at
   dispatch time.
