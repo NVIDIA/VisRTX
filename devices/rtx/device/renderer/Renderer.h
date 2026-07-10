@@ -72,6 +72,7 @@ struct Renderer : public Object
   int spp() const;
   bool checkerboarding() const;
   bool denoise() const;
+  int denoiseStart() const;
   bool denoiseUsingAlbedo() const;
   bool denoiseUsingNormal() const;
   FireflyFilterMode fireflyFilterMode() const;
@@ -88,6 +89,7 @@ struct Renderer : public Object
   float m_occlusionDistance{1e20f};
   bool m_checkerboard{false};
   bool m_denoise{false};
+  int m_denoiseStart{0};
   bool m_denoiseAlbedo{false};
   bool m_denoiseNormal{false};
   FireflyFilterMode m_fireflyFilterMode{FireflyFilterMode::TONEMAP};

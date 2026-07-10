@@ -174,6 +174,7 @@ void Renderer::commitParameters()
   m_checkerboard = getParam<bool>("checkerboarding", false);
 
   m_denoise = getParam<bool>("denoise", false);
+  m_denoiseStart = getParam<int>("denoiseStart", 0);
   auto denoiseMode = getParamString("denoiseMode", "color");
   m_denoiseAlbedo =
       (denoiseMode == "colorAlbedo" || denoiseMode == "colorAlbedoNormal");
@@ -304,6 +305,11 @@ bool Renderer::checkerboarding() const
 bool Renderer::denoise() const
 {
   return m_denoise;
+}
+
+int Renderer::denoiseStart() const
+{
+  return m_denoiseStart;
 }
 
 bool Renderer::denoiseUsingAlbedo() const

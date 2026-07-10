@@ -681,24 +681,39 @@ void Frame::renderFrame()
 
   const bool useFloatOutput = m_denoise || m_colorType == ANARI_FLOAT32_VEC4;
 
-  if (m_denoise) {
-    launchPrepareDenoiseInputs(m_accumColor.ptrAs<vec4>(),
-        m_accumAlbedo.ptrAs<vec3>(),
-        m_accumNormal.ptrAs<vec3>(),
-        m_denoiseInput.ptrAs<vec4>(),
-        m_denoiseAlbedo.ptrAs<vec3>(),
-        m_denoiseNormal.ptrAs<vec3>(),
-        hd.fb.size,
-        hd.fb.frameID,
-        hd.fb.checkerboardID,
-        hd.renderer.fireflyFilterMode,
-        m_trimTopK.ptrAs<vec4>(),
-        m_lumStats.ptrAs<PixelLumStats>(),
-        hd.renderer.fireflyFilterTrim,
-        hd.renderer.fireflyFilterSigma,
-        state.stream);
+  // 'denoiseStart' is the accumulated sample count at which denoising begins;
+  // earlier frames go through the denoise-enabled output path (float pixel
+  // buffer + convertOutput) but skip the denoiser itself. Negative values
+  // count back from sampleLimit (-1 == sampleLimit, i.e. only the last
+  // frame); without a sample limit there is no end to count from, so
+  // negative values denoise every frame.
+  const int denoiseStart = m_renderer->denoiseStart();
+  const int effectiveDenoiseStart = denoiseStart >= 0
+      ? denoiseStart
+      : (sampleLimit > 0 ? sampleLimit + denoiseStart + 1 : 0);
+  const bool denoiseThisFrame =
+      m_denoise && hd.fb.frameID >= effectiveDenoiseStart;
 
-    m_denoiser.launch();
+  if (m_denoise) {
+    if (denoiseThisFrame) {
+      launchPrepareDenoiseInputs(m_accumColor.ptrAs<vec4>(),
+          m_accumAlbedo.ptrAs<vec3>(),
+          m_accumNormal.ptrAs<vec3>(),
+          m_denoiseInput.ptrAs<vec4>(),
+          m_denoiseAlbedo.ptrAs<vec3>(),
+          m_denoiseNormal.ptrAs<vec3>(),
+          hd.fb.size,
+          hd.fb.frameID,
+          hd.fb.checkerboardID,
+          hd.renderer.fireflyFilterMode,
+          m_trimTopK.ptrAs<vec4>(),
+          m_lumStats.ptrAs<PixelLumStats>(),
+          hd.renderer.fireflyFilterTrim,
+          hd.renderer.fireflyFilterSigma,
+          state.stream);
+
+      m_denoiser.launch();
+    }
 
     launchCompositeBackground(m_accumColor.ptrAs<vec4>(),
         (vec4 *)m_pixelBuffer.dataDevice(),
@@ -709,7 +724,7 @@ void Frame::renderFrame()
         FrameFormat::FLOAT,
         hd.fb.frameID,
         hd.fb.checkerboardID,
-        /*isDenoised=*/true,
+        /*isDenoised=*/denoiseThisFrame,
         m_trimTopK.ptrAs<vec4>(),
         m_lumStats.ptrAs<PixelLumStats>(),
         state.stream);

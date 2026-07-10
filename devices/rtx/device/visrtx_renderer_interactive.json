@@ -36,6 +36,15 @@
           "description": "enable the OptiX denoiser"
         },
         {
+          "name": "denoiseStart",
+          "types": [
+            "ANARI_INT32"
+          ],
+          "tags": [],
+          "default": 0,
+          "description": "accumulated sample count at which denoising starts; negative values count back from sampleLimit (-1 == only the final frame)"
+        },
+        {
           "name": "denoiseMode",
           "types": [
             "ANARI_STRING"
