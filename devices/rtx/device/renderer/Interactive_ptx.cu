@@ -102,8 +102,11 @@ struct InteractiveShadingPolicy
     const vec3 shadowOrigin = shadingHitpoint(hit) + hit.Ng * hit.epsilon;
     for (size_t i = 0; i < world.numLightInstances; i++) {
       const auto &light = world.lightInstances[i];
-      const auto lightSample =
-          sampleLight(ss, shadowOrigin, light.lightIndex, light.xfm);
+      const auto lightSample = sampleLight(ss,
+          shadowOrigin,
+          light.lightIndex,
+          light.xfm,
+          light.surfaceInstanceIndex);
 
       if (lightSample.pdf == 0.0f)
         continue;

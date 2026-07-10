@@ -43,6 +43,7 @@
 #include "world/Group.h"
 
 #include <glm/gtc/matrix_inverse.hpp>
+#include <cassert>
 #include <cmath>
 #include <set>
 
@@ -591,6 +592,11 @@ void World::buildInstanceLightGPUData()
 
   size_t lightIndex = 0;
   size_t hdriIndex = 0;
+  // Mirrors buildInstanceSurfaceGPUData's instID: surface instances are laid out
+  // per (instance, transform) as [triangle?][curve?][user?]. Tracking the same
+  // cursor here recovers each Geometry Light's surface-instance index without a
+  // side table.
+  size_t surfaceInstanceCursor = 0;
 
   // Filled with each instance's raw Pick Power, then normalized into the
   // cumulative CDF in place once the total is known.
@@ -605,7 +611,9 @@ void World::buildInstanceLightGPUData()
     auto *lights = m_instanceLightGPUData.dataHost();
     auto *hdris = m_instanceHdriLightGPUData.dataHost();
 
-    auto appendLight = [&](Light *light, const mat4 &xfm) {
+    auto appendLight = [&](Light *light,
+                           const mat4 &xfm,
+                           DeviceObjectIndex surfaceInstanceIndex) {
       // Sanitize: a NaN/Inf/negative Pick Power (bad param, degenerate xfm)
       // would corrupt the cumulative CDF and make cub::LowerBound undefined.
       // Clamp to 0 so the light is simply never picked. `!(power > 0)` catches
@@ -614,33 +622,50 @@ void World::buildInstanceLightGPUData()
       const float power = (raw > 0.0f && std::isfinite(raw)) ? raw : 0.0f;
       pickCdf[lightIndex] = power;
       m_totalLightPower += power;
-      lights[lightIndex++] = {light->index(), xfm};
+      lights[lightIndex++] = {light->index(), xfm, surfaceInstanceIndex};
       return power;
     };
 
     for (size_t t = 0; t < inst->numTransforms(); t++) {
       const mat4 xfm = mat4(inst->xfm(t));
 
+      // This transform's surface-instance slot indices, in the same order the
+      // surface-instance array was built (triangle, then curve, then user).
+      DeviceObjectIndex triangleSI = -1, userSI = -1;
+      if (group->containsTriangleGeometry())
+        triangleSI = DeviceObjectIndex(surfaceInstanceCursor++);
+      if (group->containsCurveGeometry())
+        ++surfaceInstanceCursor;
+      if (group->containsUserGeometry())
+        userSI = DeviceObjectIndex(surfaceInstanceCursor++);
+
       for (auto *light : group->lights()) {
-        const float power = appendLight(light, xfm);
+        const float power = appendLight(light, xfm, -1);
         // HDRI lights also go into hdriLights
         if (light->isHDRI()) {
           m_hdriPower += power;
-          hdris[hdriIndex++] = {light->index(), xfm};
+          hdris[hdriIndex++] = {light->index(), xfm, -1};
         }
       }
 
-      // Synthesized Geometry Lights, instanced exactly like authored lights.
+      // Synthesized Geometry Lights, instanced exactly like authored lights but
+      // carrying their surface-instance index for instance-attribute emission.
       for (auto *surface : group->surfacesTriangle()) {
         if (auto *gl = surface->geometryLight())
-          appendLight(gl, xfm);
+          appendLight(gl, xfm, triangleSI);
       }
       for (auto *surface : group->surfacesUser()) {
         if (auto *gl = surface->geometryLight())
-          appendLight(gl, xfm);
+          appendLight(gl, xfm, userSI);
       }
     }
   });
+
+  // Tripwire: the surface-instance cursor is a hand-mirror of
+  // buildInstanceSurfaceGPUData's layout with no shared source of truth. If the
+  // two ever drift, a Geometry Light would index the wrong (or an out-of-range)
+  // surface instance and emit silently wrong radiance — catch it here.
+  assert(surfaceInstanceCursor == m_instanceSurfaceGPUData.size());
 
   // Turn the per-instance Pick Powers into a normalized cumulative CDF in place.
   // A zero total (every light dark) leaves the CDF unused: the renderer falls

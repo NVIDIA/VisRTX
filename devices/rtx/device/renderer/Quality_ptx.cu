@@ -361,7 +361,8 @@ VISRTX_DEVICE SurfaceLightSample sampleLights(ScreenSample &ss,
   }
 
   const auto &li = frameData.world.lightInstances[pick.instance];
-  auto ls = sampleLight(ss, origin, li.lightIndex, li.xfm);
+  auto ls =
+      sampleLight(ss, origin, li.lightIndex, li.xfm, li.surfaceInstanceIndex);
   ls.pdf *= pick.pickPdf;
   const LightType type = frameData.registry.lights[li.lightIndex].type;
   return {ls, type == LightType::HDRI, type == LightType::GEOMETRY};
@@ -386,7 +387,8 @@ VISRTX_DEVICE LightSample sampleLightsVolume(
   }
 
   const auto &li = frameData.world.lightInstances[pick.instance];
-  auto ls = sampleLight(ss, origin, li.lightIndex, li.xfm);
+  auto ls =
+      sampleLight(ss, origin, li.lightIndex, li.xfm, li.surfaceInstanceIndex);
   ls.pdf *= pick.pickPdf;
   return ls;
 }

@@ -804,6 +804,11 @@ struct InstanceLightGPUData
 {
   DeviceObjectIndex lightIndex; // Index into registry.lights[]
   mat4 xfm; // Transform for this light instance
+  // For a Geometry Light: index into WorldGPUData::surfaceInstances[] of the
+  // surface instance it was synthesized from, so the NEE sampler can evaluate
+  // emission against the REAL instance (instance-uniform attributes resolve like
+  // the path-hit deposit). -1 for authored/HDRI lights.
+  DeviceObjectIndex surfaceInstanceIndex = -1;
 };
 
 // World //

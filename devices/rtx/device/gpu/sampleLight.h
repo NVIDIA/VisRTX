@@ -40,6 +40,7 @@
 // glm
 #include <glm/ext/matrix_float3x3.hpp>
 #include <glm/ext/vector_float3.hpp>
+#include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtx/color_space.hpp>
 
 // cuda
@@ -360,9 +361,10 @@ VISRTX_DEVICE float geometryLightSolidAnglePdf(float objTwiceArea,
 // sampler/attribute emitter is evaluated through the material's own emission
 // entry point at a SYNTHETIC hit, so next-event radiance matches the path-hit
 // deposit exactly (MIS stays unbiased). `uvw` is the geometry's parametric
-// coordinate at the sample (see the per-geometry samplers). Stage 2a carries no
-// instance-uniform attributes, so a per-sample instance holding only the
-// transform suffices; the real surface-instance link is Stage 2.5.
+// coordinate at the sample (see the per-geometry samplers). The synthetic hit
+// points at the REAL surface instance (surfaceInstanceIndex) so instance-uniform
+// attribute emission resolves identically to the deposit; a transform-only
+// fallback covers the (unexpected) -1 case.
 VISRTX_DEVICE vec3 evalGeometryLightEmission(ScreenSample &ss,
     const LightGPUData &ld,
     const mat4 &xfm,
@@ -370,7 +372,8 @@ VISRTX_DEVICE vec3 evalGeometryLightEmission(ScreenSample &ss,
     const vec3 &uvw,
     const vec3 &worldPoint,
     const vec3 &nsWorld,
-    const vec3 &outgoingDir)
+    const vec3 &outgoingDir,
+    DeviceObjectIndex surfaceInstanceIndex)
 {
   const auto &registry = ss.frameData->registry;
   const auto &md = registry.materials[ld.geometry.materialIndex];
@@ -393,11 +396,24 @@ VISRTX_DEVICE vec3 evalGeometryLightEmission(ScreenSample &ss,
   hit.epsilon = 0.0f;
   hit.isFrontFace = true;
 
-  InstanceSurfaceGPUData instance{};
-  instance.objectToWorld = glm::transpose(mat4x3(xfm));
-  instance.worldToObject = glm::transpose(mat4x3(glm::inverse(xfm)));
-  hit.instance = &instance;
+  // Every geometry light carries a valid surface-instance index (World fills it
+  // from the same layout the surface instances are built with), so the in-range
+  // path is the live one.
+  const auto &world = ss.frameData->world;
+  if (surfaceInstanceIndex >= 0
+      && static_cast<size_t>(surfaceInstanceIndex) < world.numSurfaceInstances) {
+    hit.instance = &world.surfaceInstances[surfaceInstanceIndex];
+    return evaluateSurfaceEmission(*ss.frameData, md, hit, outgoingDir);
+  }
 
+  // Defensive fallback, unreachable for real geometry lights: a transform-only
+  // instance. An out-of-range index means the host/device surface-instance
+  // layout drifted (the World-side assert is stripped under NDEBUG), so bounding
+  // it here keeps the drift from dereferencing out of bounds on device.
+  InstanceSurfaceGPUData fallback{};
+  fallback.objectToWorld = glm::transpose(mat4x3(xfm));
+  fallback.worldToObject = glm::transpose(mat4x3(glm::affineInverse(xfm)));
+  hit.instance = &fallback;
   return evaluateSurfaceEmission(*ss.frameData, md, hit, outgoingDir);
 }
 
@@ -410,7 +426,8 @@ VISRTX_DEVICE LightSample sampleTriangleGeometryLight(const LightGPUData &ld,
     const TriangleGeometryData &tri,
     const mat4 &xfm,
     const vec3 &origin,
-    ScreenSample &ss)
+    ScreenSample &ss,
+    DeviceObjectIndex surfaceInstanceIndex)
 {
   LightSample ls{};
   if (tri.numPrimitives == 0 || ld.geometry.area <= 0.0f)
@@ -455,7 +472,8 @@ VISRTX_DEVICE LightSample sampleTriangleGeometryLight(const LightGPUData &ld,
       vec3(1.0f - b1 - b2, b1, b2),
       worldPoint,
       nWorld,
-      -ls.dir);
+      -ls.dir,
+      surfaceInstanceIndex);
   ls.pdf = geometryLightSolidAnglePdf(length(cross(e1o, e2o)),
       worldTriTwiceArea,
       ld.geometry.area,
@@ -480,7 +498,8 @@ VISRTX_DEVICE LightSample finishAreaLightSample(ScreenSample &ss,
     const vec3 &pObj,
     const vec3 &nObjOut,
     uint32_t primID,
-    const vec3 &uvw)
+    const vec3 &uvw,
+    DeviceObjectIndex surfaceInstanceIndex)
 {
   LightSample ls{};
   const vec3 worldPoint = xfmPoint(xfm, pObj);
@@ -503,8 +522,15 @@ VISRTX_DEVICE LightSample finishAreaLightSample(ScreenSample &ss,
   if (cosTheta <= 0.0f)
     return ls; // far side; self-occluded, contributes nothing
 
-  ls.radiance = evalGeometryLightEmission(
-      ss, ld, xfm, primID, uvw, worldPoint, nWorld, -ls.dir);
+  ls.radiance = evalGeometryLightEmission(ss,
+      ld,
+      xfm,
+      primID,
+      uvw,
+      worldPoint,
+      nWorld,
+      -ls.dir,
+      surfaceInstanceIndex);
   // Object-area element is 1 (orthonormal tangents); world element is
   // worldAreaScale. geometryLightSolidAnglePdf folds pick(1/totalArea) and the
   // area→solid-angle Jacobian identically to the triangle path.
@@ -520,7 +546,8 @@ VISRTX_DEVICE LightSample sampleSphereGeometryLight(const LightGPUData &ld,
     const SphereGeometryData &sph,
     const mat4 &xfm,
     const vec3 &origin,
-    ScreenSample &ss)
+    ScreenSample &ss,
+    DeviceObjectIndex surfaceInstanceIndex)
 {
   if (sph.numPrimitives == 0 || ld.geometry.area <= 0.0f)
     return {};
@@ -543,7 +570,7 @@ VISRTX_DEVICE LightSample sampleSphereGeometryLight(const LightGPUData &ld,
   // Sphere attributes are per-primitive (no interpolation); uvw = (0,0,1) matches
   // the intersector's constant sphere parameter.
   return finishAreaLightSample(ss, ld, xfm, origin, c + nObj * r, nObj, primID,
-      vec3(0.0f, 0.0f, 1.0f));
+      vec3(0.0f, 0.0f, 1.0f), surfaceInstanceIndex);
 }
 
 // Per-endpoint cap enablement, matching the intersector's resolveCapBits: a
@@ -576,7 +603,8 @@ VISRTX_DEVICE LightSample sampleCylinderGeometryLight(const LightGPUData &ld,
     const CylinderGeometryData &cyl,
     const mat4 &xfm,
     const vec3 &origin,
-    ScreenSample &ss)
+    ScreenSample &ss,
+    DeviceObjectIndex surfaceInstanceIndex)
 {
   if (cyl.numPrimitives == 0 || ld.geometry.area <= 0.0f)
     return {};
@@ -623,7 +651,7 @@ VISRTX_DEVICE LightSample sampleCylinderGeometryLight(const LightGPUData &ld,
   // uvw = (0, u, 1-u): u weights endpoint p1, (1-u) weights p0 (see the
   // intersector and readAttributeValue's cylinder branch).
   return finishAreaLightSample(ss, ld, xfm, origin, pObj, nObj, primID,
-      vec3(0.0f, axialU, 1.0f - axialU));
+      vec3(0.0f, axialU, 1.0f - axialU), surfaceInstanceIndex);
 }
 
 // Sample a point on a cone-set Geometry Light: pick a cone by object area (frustum
@@ -634,7 +662,8 @@ VISRTX_DEVICE LightSample sampleConeGeometryLight(const LightGPUData &ld,
     const ConeGeometryData &cone,
     const mat4 &xfm,
     const vec3 &origin,
-    ScreenSample &ss)
+    ScreenSample &ss,
+    DeviceObjectIndex surfaceInstanceIndex)
 {
   if (cone.numPrimitives == 0 || ld.geometry.area <= 0.0f)
     return {};
@@ -687,7 +716,7 @@ VISRTX_DEVICE LightSample sampleConeGeometryLight(const LightGPUData &ld,
     axialT = 1.0f;
   }
   return finishAreaLightSample(ss, ld, xfm, origin, pObj, nObj, primID,
-      vec3(0.0f, axialT, 1.0f - axialT));
+      vec3(0.0f, axialT, 1.0f - axialT), surfaceInstanceIndex);
 }
 
 // Dispatch a Geometry Light sample by the backing geometry's type. The geometry
@@ -695,19 +724,24 @@ VISRTX_DEVICE LightSample sampleConeGeometryLight(const LightGPUData &ld,
 VISRTX_DEVICE LightSample sampleGeometryLight(const LightGPUData &ld,
     const mat4 &xfm,
     const vec3 &origin,
-    ScreenSample &ss)
+    ScreenSample &ss,
+    DeviceObjectIndex surfaceInstanceIndex)
 {
   const auto &geom =
       ss.frameData->registry.geometries[ld.geometry.geometryIndex];
   switch (geom.type) {
   case GeometryType::TRIANGLE:
-    return sampleTriangleGeometryLight(ld, geom.tri, xfm, origin, ss);
+    return sampleTriangleGeometryLight(
+        ld, geom.tri, xfm, origin, ss, surfaceInstanceIndex);
   case GeometryType::SPHERE:
-    return sampleSphereGeometryLight(ld, geom.sphere, xfm, origin, ss);
+    return sampleSphereGeometryLight(
+        ld, geom.sphere, xfm, origin, ss, surfaceInstanceIndex);
   case GeometryType::CYLINDER:
-    return sampleCylinderGeometryLight(ld, geom.cylinder, xfm, origin, ss);
+    return sampleCylinderGeometryLight(
+        ld, geom.cylinder, xfm, origin, ss, surfaceInstanceIndex);
   case GeometryType::CONE:
-    return sampleConeGeometryLight(ld, geom.cone, xfm, origin, ss);
+    return sampleConeGeometryLight(
+        ld, geom.cone, xfm, origin, ss, surfaceInstanceIndex);
   default:
     return {};
   }
@@ -786,10 +820,13 @@ VISRTX_DEVICE LightSample sampleHDRILight(
 
 } // namespace detail
 
+// surfaceInstanceIndex is used only by Geometry Lights (index into
+// world.surfaceInstances for instance-attribute emission); -1 for all others.
 VISRTX_DEVICE LightSample sampleLight(ScreenSample &ss,
     const vec3 &origin,
     DeviceObjectIndex idx,
-    const mat4 &xfm)
+    const mat4 &xfm,
+    DeviceObjectIndex surfaceInstanceIndex)
 {
   auto &ld = ss.frameData->registry.lights[idx];
 
@@ -809,7 +846,7 @@ VISRTX_DEVICE LightSample sampleLight(ScreenSample &ss,
   case LightType::HDRI:
     return detail::sampleHDRILight(ld, xfm, ss.rs);
   case LightType::GEOMETRY:
-    return detail::sampleGeometryLight(ld, xfm, origin, ss);
+    return detail::sampleGeometryLight(ld, xfm, origin, ss, surfaceInstanceIndex);
   default:
     break;
   }

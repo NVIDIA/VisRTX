@@ -58,11 +58,13 @@ make_test(TestEmissiveSphereLight)
 make_test(TestEmissiveInstanceScale)
 make_test(TestEmissiveSphereInstanceScale)
 make_test(TestEmissiveCylinderConeLight)
-# Textured emission is a native-PBR feature in Stage 2; on the MDL-backed
-# PhysicallyBased path it needs the compiled EDF at a real hit (Stage 3), so this
-# test is only meaningful — and only built — for the native PBR material.
+# Textured and attribute-driven emission are native-PBR features (Stages 2/2.5);
+# on the MDL-backed PhysicallyBased path emission needs the compiled EDF at a real
+# hit and MDL does not support attributes, so these are only meaningful — and only
+# built — for the native PBR material.
 if (NOT VISRTX_USE_MDL_FOR_PHYSICALLY_BASED)
   make_test(TestEmissiveTexturedLight)
+  make_test(TestEmissiveInstanceAttribute)
 endif()
 make_test(TestEmissionRadianceScale)
 # The raw `mdl` material type only exists with MDL support compiled in.
