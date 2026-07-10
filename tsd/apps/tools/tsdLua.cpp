@@ -74,19 +74,20 @@ static void runInteractiveMode(tsd::scripting::LuaContext &ctx)
     if (line == "exit" || line == "quit") {
       break;
     }
+
+    auto cmd = ctx.runRegisteredCommand(line);
+    if (cmd.handled) {
+      if (cmd.success)
+        printf("%s", cmd.output.c_str());
+      else
+        fprintf(stderr, "Error: %s\n", cmd.error.c_str());
+      continue;
+    }
+
+    // Fallback when no `help` command is registered (script pack absent): show
+    // the C++-owned default help describing the built-in exposure.
     if (line == "help") {
-      printf("Available globals:\n");
-      printf("  scene     - The current TSD scene\n");
-      printf("  tsd       - The TSD Lua module\n");
-      printf("\n");
-      printf("TSD namespaces:\n");
-      printf("  tsd.io       - Importers and procedural generators\n");
-      printf("  tsd.render   - Rendering functions (loadDevice, "
-             "createRenderIndex, etc.)\n");
-      printf("\n");
-      printf("Example:\n");
-      printf("  tsd.io.generateRandomSpheres(scene)\n");
-      printf("  print(scene:numberOfObjects(tsd.GEOMETRY))\n");
+      printf("%s", ctx.consoleDefaultHelp().c_str());
       continue;
     }
 

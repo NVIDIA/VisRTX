@@ -14,6 +14,7 @@
 // fmt
 #include <fmt/format.h>
 // std
+#include <cctype>
 #include <filesystem>
 
 namespace tsd::scripting {
@@ -129,6 +130,77 @@ ExecutionResult LuaContext::executeString(const std::string &script)
 
   result.output = m_impl->outputBuffer;
   return result;
+}
+
+ConsoleCommandResult LuaContext::runRegisteredCommand(const std::string &line)
+{
+  ConsoleCommandResult result;
+
+  // Command dispatch is single-line; multiline input is always Lua.
+  if (line.find('\n') != std::string::npos)
+    return result;
+
+  std::vector<std::string> tokens;
+  for (size_t i = 0; i < line.size();) {
+    while (i < line.size() && std::isspace((unsigned char)line[i]))
+      i++;
+    size_t start = i;
+    while (i < line.size() && !std::isspace((unsigned char)line[i]))
+      i++;
+    if (i > start)
+      tokens.push_back(line.substr(start, i - start));
+  }
+  if (tokens.empty())
+    return result;
+
+  sol::table tsd = m_impl->lua["tsd"];
+  if (!tsd.valid())
+    return result;
+  sol::optional<sol::table> terminal = tsd["terminal"];
+  if (!terminal)
+    return result;
+  sol::optional<sol::table> commands = (*terminal)["commands"];
+  if (!commands)
+    return result;
+  sol::object cmd = (*commands)[tokens[0]];
+  if (!cmd.is<sol::table>())
+    return result;
+  sol::protected_function run = cmd.as<sol::table>()["run"];
+  if (!run.valid())
+    return result;
+
+  result.handled = true;
+
+  sol::table args = m_impl->lua.create_table();
+  for (size_t i = 1; i < tokens.size(); i++)
+    args[i] = tokens[i]; // 1-based: args[1] is the first argument
+
+  auto callResult = run(args);
+  if (!callResult.valid()) {
+    sol::error err = callResult;
+    result.error = err.what();
+    return result;
+  }
+
+  result.success = true;
+  if (callResult.return_count() > 0) {
+    sol::object ret = callResult[0];
+    if (ret.is<std::string>())
+      result.output = ret.as<std::string>();
+  }
+  return result;
+}
+
+std::string LuaContext::consoleDefaultHelp()
+{
+  sol::table tsd = m_impl->lua["tsd"];
+  if (!tsd.valid())
+    return {};
+  sol::optional<sol::table> terminal = tsd["terminal"];
+  if (!terminal)
+    return {};
+  sol::optional<std::string> help = (*terminal)["defaultHelp"];
+  return help.value_or(std::string{});
 }
 
 std::vector<std::string> LuaContext::addScriptSearchPaths(

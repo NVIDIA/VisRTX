@@ -31,6 +31,18 @@ struct ExecutionResult
   std::string output;
 };
 
+// Result of attempting to dispatch a console line to a registered terminal
+// command (the `tsd.terminal.commands` table). `handled` is false when the
+// line's first token is not a registered command, in which case the caller
+// should evaluate the line as Lua instead.
+struct ConsoleCommandResult
+{
+  bool handled{false};
+  bool success{false};
+  std::string output; // string returned by the command's run()
+  std::string error;
+};
+
 class LuaContext
 {
  public:
@@ -44,6 +56,16 @@ class LuaContext
 
   ExecutionResult executeFile(const std::string &filepath);
   ExecutionResult executeString(const std::string &script);
+
+  // If `line`'s first whitespace-delimited token names a registered command in
+  // `tsd.terminal.commands`, call its `run(args)` with the remaining tokens and
+  // return the result. Single-line input only; returns `handled == false`
+  // otherwise so the caller can evaluate `line` as Lua.
+  ConsoleCommandResult runRegisteredCommand(const std::string &line);
+
+  // The C++-owned default help text (`tsd.terminal.defaultHelp`), shown by the
+  // frontends when no `help` command is registered.
+  std::string consoleDefaultHelp();
 
   // Scene is NOT owned by LuaContext
   void bindScene(scene::Scene *scene, const std::string &varName = "scene");

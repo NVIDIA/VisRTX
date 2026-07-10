@@ -135,24 +135,20 @@ void Terminal::executeCommand(const std::string &command)
     clear();
     return;
   }
+
+  auto cmd = m_luaContext->runRegisteredCommand(command);
+  if (cmd.handled) {
+    if (cmd.success)
+      addOutput(cmd.output);
+    else
+      addOutput("Error: " + cmd.error + "\n");
+    return;
+  }
+
+  // Fallback when no `help` command is registered (script pack absent): show
+  // the C++-owned default help describing the built-in exposure.
   if (command == "help") {
-    addOutput(
-        "Available globals:\n"
-        "  scene     - The current TSD scene\n"
-        "  tsd       - The TSD Lua module\n"
-        "\n"
-        "TSD namespaces:\n"
-        "  tsd.io       - Importers and procedural generators\n"
-        "  tsd.render   - Rendering functions\n"
-        "  tsd.viewer   - Viewer integration (refresh, etc.)\n"
-        "\n"
-        "Built-in commands:\n"
-        "  clear     - Clear the terminal\n"
-        "  help      - Show this help\n"
-        "\n"
-        "Example:\n"
-        "  tsd.io.generateRandomSpheres(scene)\n"
-        "  tsd.viewer.refresh()\n");
+    addOutput(m_luaContext->consoleDefaultHelp());
     return;
   }
 
