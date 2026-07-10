@@ -51,4 +51,4 @@ make_test(TestCylinderCaps)
 make_test(TestIsosurfaceRamp)
 make_test(TestPrimitiveInterior)
 make_test(TestGroundSphereShadows)
-
+make_test(TestEmissionRadianceScale)

@@ -270,9 +270,14 @@ vec3 __direct_callable__evaluateEmission(
   vec3 intensity = mdlEmissionIntensity(
       &shadingState->state, &shadingState->resData, shadingState->argBlock);
 
-  return (evalData.pdf > 1e-12f)
-      ? make_vec3(evalData.edf) * evalData.cos * intensity / evalData.pdf
-      : vec3(0.0f);
+  // Emitted radiance L(k1) = edf(k1) * intensity. `intensity` is radiant
+  // exitance (the material pre-multiplies by PI), and df::diffuse_edf's value is
+  // 1/PI, so this yields the authored radiance. The `cos/pdf` factors are the
+  // sample-path `edf_over_pdf` quantity, not part of radiance evaluation;
+  // including them cancelled to `intensity` and made emission PI x too bright.
+  // Matches NVIDIA's df_cuda reference renderer. NOTE: assumes
+  // intensity_radiant_exitance mode; intensity_power is not yet handled.
+  return make_vec3(evalData.edf) * intensity;
 }
 
 VISRTX_CALLABLE
