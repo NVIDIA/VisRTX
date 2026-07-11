@@ -113,6 +113,9 @@ struct Renderer : public Object
   std::vector<OptixProgramGroup> m_missPGs;
   std::vector<OptixProgramGroup> m_hitgroupPGs;
   std::vector<OptixProgramGroup> m_materialPGs;
+  // Modules compiled from the MDL material registry's PTX blobs; owned here
+  // (the device-global shading modules are owned by DeviceGlobalState).
+  std::vector<OptixModule> m_mdlModules;
   DeviceBuffer m_raygenRecordsBuffer;
   DeviceBuffer m_missRecordsBuffer;
   DeviceBuffer m_hitgroupRecordsBuffer;
@@ -121,6 +124,11 @@ struct Renderer : public Object
 
  private:
   void initOptixPipeline();
+  // Destroy the pipeline and everything initOptixPipeline created for it
+  // (program groups, per-material MDL modules). Rebuilds — triggered by MDL
+  // material-library updates — previously overwrote the handles and leaked
+  // the old driver objects.
+  void releasePipeline();
   void cleanup();
 
   HitgroupFunctionNames m_defaultHitgroupNames;

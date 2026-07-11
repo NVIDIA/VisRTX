@@ -159,7 +159,7 @@ Renderer::Renderer(DeviceGlobalState *s, float defaultAmbientRadiance)
 Renderer::~Renderer()
 {
   cleanup();
-  optixPipelineDestroy(m_pipeline);
+  releasePipeline();
 }
 
 void Renderer::commitParameters()
@@ -344,6 +344,10 @@ Renderer *Renderer::createInstance(
 
 void Renderer::initOptixPipeline()
 {
+  // A rebuild (MDL material-library update) must not strand the previous
+  // pipeline, program groups and MDL modules in the driver.
+  releasePipeline();
+
   auto &state = *deviceState();
 
   auto shadingModule = optixModule();
@@ -875,7 +879,7 @@ void Renderer::initOptixPipeline()
           }
           continue;
         }
-        OptixModule module;
+        OptixModule module = {};
         OptixModuleCompileOptions moduleCompileOptions = {};
         moduleCompileOptions.maxRegisterCount =
             OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT;
@@ -906,6 +910,17 @@ void Renderer::initOptixPipeline()
             log,
             &sizeof_log,
             &module));
+
+        // OPTIX_CHECK reports failures without unwinding, leaving `module`
+        // null on a failed create: fall back to the empty-slot placeholders
+        // instead of pushing a dead handle the release path would destroy.
+        if (!module) {
+          for (auto i = 0; i < int(SurfaceShaderEntryPoints::Count); i++) {
+            callableDescs.push_back({});
+          }
+          continue;
+        }
+        m_mdlModules.push_back(module);
 
         OptixProgramGroupDesc callableDesc = {};
         callableDesc.kind = OPTIX_PROGRAM_GROUP_KIND_CALLABLES;
@@ -1087,6 +1102,38 @@ OptixPipelineCompileOptions makeVisRTXOptixPipelineCompileOptions()
   pipelineCompileOptions.pipelineLaunchParamsVariableName = "frameData";
 
   return pipelineCompileOptions;
+}
+
+void Renderer::releasePipeline()
+{
+  // Reverse creation order: pipeline, then the program groups it linked, then
+  // the modules the callables were built from.
+  if (m_pipeline) {
+    // Launches are async on the shared device stream, and a REBUILD can be
+    // triggered by one Frame while another Frame's launch still runs this
+    // pipeline (each Frame waits only on its own completion event). OptiX
+    // forbids destroying in-use objects — drain the stream first; only the
+    // rebuild/teardown path pays.
+    cudaStreamSynchronize(deviceState()->stream);
+    optixPipelineDestroy(m_pipeline);
+    m_pipeline = nullptr;
+  }
+  auto destroyPGs = [](std::vector<OptixProgramGroup> &pgs) {
+    for (auto &pg : pgs) {
+      if (pg)
+        optixProgramGroupDestroy(pg);
+    }
+    pgs.clear();
+  };
+  destroyPGs(m_raygenPGs);
+  destroyPGs(m_missPGs);
+  destroyPGs(m_hitgroupPGs);
+  destroyPGs(m_materialPGs);
+  for (auto &module : m_mdlModules) {
+    if (module)
+      optixModuleDestroy(module);
+  }
+  m_mdlModules.clear();
 }
 
 void Renderer::cleanup()
