@@ -96,7 +96,6 @@ struct PhysicallyBasedShadingState
   float occlusion;
   float specular;
   vec3 specularColor;
-  uint32_t useSpecular;
   float clearcoat;
   float clearcoatRoughness;
   vec3 clearcoatNormal;

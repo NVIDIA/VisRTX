@@ -280,6 +280,12 @@ export material physically_based_material(
         anno::display_name("Alpha Cutoff"),
         anno::description("threshold when alphaMode is mask")
     ]],
+    // ANARI spec default: 0.0. KHR_materials_specular `specular` scales the
+    // dielectric reflection, so 0.0 collapses the custom_curve_layer weight to
+    // a pure-diffuse dielectric — matching the native backend (specular = 0 =>
+    // dielectric F0 = 0). The wrapper forwards only app-set values, so this
+    // authored default is what unset-specular materials get, including raw
+    // `mdl` materials instantiating this module directly.
     FloatInput specular = LookUpFloatInput(value: 0.0f)
     [[
         anno::in_group("Base Layer"),
@@ -436,10 +442,19 @@ export material physically_based_material(
         layer: ::df::microfacet_ggx_vcavities_bsdf(roughness_u: alpha, tint: resolvedBaseColor, mode: df::scatter_transmit),
     );
 
-    // That gives our dielectric component
-    bsdf dielectricBsdf = ::df::fresnel_layer(
+    // That gives our dielectric component. glTF dielectric Fresnel is Schlick
+    // (F0 from ior, F90 = 1, pow5 — custom_curve_layer's defaults), matching
+    // the native CUDA reference exactly. df::fresnel_layer is deliberately
+    // NOT used here: combined with this material's volumetric `ior` field
+    // (needed for transmission refraction), its exact-Fresnel evaluation runs
+    // on the internal eta and total internal reflection zeroes the diffuse
+    // base beyond the ~42 degree critical angle — a default-specular floor
+    // rendered as a mirror.
+    float dielectricF0 = ((resolvedIor - 1.0f) / (resolvedIor + 1.0f))
+        * ((resolvedIor - 1.0f) / (resolvedIor + 1.0f));
+    bsdf dielectricBsdf = ::df::custom_curve_layer(
         weight: resolvedSpecular,
-        ior: resolvedIor,
+        normal_reflectivity: dielectricF0,
         base: diffuseBsdf,
         layer: specularBsdf,
     );

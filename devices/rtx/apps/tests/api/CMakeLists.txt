@@ -66,6 +66,7 @@ if (NOT VISRTX_USE_MDL_FOR_PHYSICALLY_BASED)
   make_test(TestEmissiveTexturedLight)
   make_test(TestEmissiveInstanceAttribute)
 endif()
+make_test(TestPbrSpecularDefault)
 make_test(TestEmissionRadianceScale)
 make_test(TestEmissiveRecommit)
 # The raw `mdl` material type and the `physicallyBasedMDL` subtype only exist
@@ -73,9 +74,20 @@ make_test(TestEmissiveRecommit)
 if (VISRTX_ENABLE_MDL_SUPPORT)
   target_compile_definitions(
     TestEmissiveRecommit PRIVATE VISRTX_TEST_MDL_WRAPPER)
+  # Adds the physicallyBasedMDL leg, so the module's specular default is
+  # exercised even when the physicallyBased backend is native CUDA.
+  target_compile_definitions(
+    TestPbrSpecularDefault PRIVATE VISRTX_TEST_MDL_WRAPPER)
   make_test(TestEmissiveMdlLight)
   make_test(TestMdlPipelineRebuild)
   make_test(TestMdlMaterialRegistryRelease)
+  make_test(TestEmissiveMaterialParity)
+  if (VISRTX_USE_MDL_FOR_PHYSICALLY_BASED)
+    # `physicallyBased` maps to the MDL wrapper in this config; the parity
+    # test skips the native-only sampled next-event comparison.
+    target_compile_definitions(
+      TestEmissiveMaterialParity PRIVATE VISRTX_TEST_PBR_IS_MDL_WRAPPER)
+  endif()
 endif()
 make_test(TestEmissiveInteractive)
 make_test(TestEmissiveIncremental)

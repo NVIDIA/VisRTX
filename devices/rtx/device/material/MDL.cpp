@@ -56,6 +56,7 @@
 #include <fmt/core.h>
 
 #include <algorithm>
+#include <cmath>
 #include <set>
 #include <string>
 #include <string_view>
@@ -136,10 +137,11 @@ void MDL::finalize()
 
 bool MDL::emissionIsSampleable() const
 {
-  // Textured/procedural diffuse intensity has no host value: sampleable with a
-  // unit-proxy Pick Power, the device evaluating the true radiance at the
-  // sampled point. Conservative over-inclusion (e.g. an all-black texture) is
-  // unbiased — it merely wastes a pick slot.
+  // Textured/procedural diffuse intensity has no host constant: sampleable,
+  // the device evaluating the true radiance at the sampled point, with the
+  // dynamic recipe (or the unit proxy) supplying the Pick Power. Conservative
+  // over-inclusion (e.g. an all-black texture) is unbiased — it merely wastes
+  // a pick slot.
   const auto &radiance = m_emissionClassification.constantRadiance;
   if (m_emissionClassification.isDiffuseEmission && !radiance)
     return true;
@@ -152,10 +154,57 @@ vec3 MDL::emissionAverage() const
   const auto &radiance = m_emissionClassification.constantRadiance;
   if (radiance)
     return vec3((*radiance)[0], (*radiance)[1], (*radiance)[2]);
-  // Unit-luminance proxy for the textured case: the Light Pick reads it
-  // identically on both MIS estimator sides, so any nonzero value is unbiased
-  // — it only steers importance (a power-weighted estimate is a follow-up).
-  return m_emissionClassification.isDiffuseEmission ? vec3(1.0f) : vec3(0.0f);
+  if (!m_emissionClassification.isDiffuseEmission)
+    return vec3(0.0f);
+
+  // Dynamic recipe: the classification identified a single argument- or
+  // texture-driven intensity factor, so the mean radiance follows the LIVE
+  // argument value (or bound sampler mean) at light-build time — keeping the
+  // Pick Power true instead of the unit proxy. Under-picking a bright emitter
+  // is unbiased only in exact arithmetic: the firefly clamp and the last-depth
+  // MIS truncation both turn the resulting overweighted picks into visible
+  // dimming next to correctly-powered lights.
+  using DynamicSource = libmdl::Core::EmissionClassification::DynamicSource;
+  const auto &cls = m_emissionClassification;
+  const vec3 scale(
+      cls.dynamicScale[0], cls.dynamicScale[1], cls.dynamicScale[2]);
+  switch (cls.dynamicSource) {
+  case DynamicSource::Parameter:
+    if (m_argumentBlockInstance) {
+      if (auto v =
+              m_argumentBlockInstance->getFloat3Value(cls.dynamicArgumentName)) {
+        const vec3 mean =
+            glm::max(vec3((*v)[0], (*v)[1], (*v)[2]), vec3(0.0f)) * scale;
+        if (std::isfinite(mean.x) && std::isfinite(mean.y)
+            && std::isfinite(mean.z))
+          return mean;
+      }
+    }
+    break;
+  case DynamicSource::Texture: {
+    // Known limitation: this resolves ANARI-bound samplers only. A texture
+    // parameter left at its MODULE DEFAULT registers in m_samplers under its
+    // URL (syncSource), not its parameter name, so it misses here and keeps
+    // the unit proxy — safe degrade, tracked as a follow-up.
+    auto it = std::find_if(cbegin(m_samplers),
+        cend(m_samplers),
+        [&](const auto &desc) { return desc.name == cls.dynamicArgumentName; });
+    if (it != cend(m_samplers) && it->sampler && it->sampler->isValid()) {
+      const vec3 mean =
+          glm::max(vec3(it->sampler->averageValue()), vec3(0.0f)) * scale;
+      if (std::isfinite(mean.x) && std::isfinite(mean.y)
+          && std::isfinite(mean.z))
+        return mean;
+    }
+    break;
+  }
+  default:
+    break;
+  }
+  // Unit-luminance proxy when no recipe (or its inputs) resolve: any nonzero
+  // value stays unbiased on both MIS estimator sides — it only steers
+  // importance (a power-weighted estimate is a follow-up).
+  return vec3(1.0f);
 }
 
 void MDL::syncSource()

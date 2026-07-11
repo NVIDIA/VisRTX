@@ -469,7 +469,6 @@ struct MaterialGPUData
     DeviceObjectIndex occlusionSampler;
     MaterialParameter specular;
     MaterialParameter specularColor;
-    uint32_t useSpecular;
     MaterialParameter clearcoat;
     MaterialParameter clearcoatRoughness;
     DeviceObjectIndex clearcoatNormalSampler;

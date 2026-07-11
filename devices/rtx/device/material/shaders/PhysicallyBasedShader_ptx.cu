@@ -296,7 +296,6 @@ VISRTX_CALLABLE void __direct_callable__init(
   shadingState->specular = getMaterialParameter(*fd, md->specular, *hit).x;
   shadingState->specularColor =
       vec3(getMaterialParameter(*fd, md->specularColor, *hit));
-  shadingState->useSpecular = md->useSpecular;
 
   shadingState->clearcoat = getMaterialParameter(*fd, md->clearcoat, *hit).x;
   shadingState->clearcoatRoughness =
@@ -360,9 +359,9 @@ VISRTX_CALLABLE vec3 __direct_callable__evaluateNormal(
 
 VISRTX_DEVICE vec3 computeDielectricF0(const PhysicallyBasedShadingState *state)
 {
+  // KHR_materials_specular: `specular` scales the dielectric reflection, so the
+  // ANARI default specular = 0 yields a pure-diffuse dielectric (no Fresnel).
   const float iorF0 = pow2((1.0f - state->eta) / (1.0f + state->eta));
-  if (state->useSpecular == 0)
-    return vec3(iorF0);
   return glm::min(vec3(iorF0) * state->specularColor, vec3(1.0f))
       * state->specular;
 }
@@ -375,8 +374,7 @@ VISRTX_DEVICE vec3 computeF0(const PhysicallyBasedShadingState *state)
 
 VISRTX_DEVICE vec3 computeF90(const PhysicallyBasedShadingState *state)
 {
-  const float dielectricF90 = state->useSpecular == 0 ? 1.0f : state->specular;
-  return glm::mix(vec3(dielectricF90), vec3(1.0f), state->metallic);
+  return glm::mix(vec3(state->specular), vec3(1.0f), state->metallic);
 }
 
 VISRTX_DEVICE vec3 schlickFresnel(vec3 F0, vec3 F90, float VdotH)

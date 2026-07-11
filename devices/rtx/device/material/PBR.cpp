@@ -87,9 +87,9 @@ void PBR::commitParameters()
 
   m_occlusionSampler = getParamObject<Sampler>("occlusion");
 
-  m_useSpecular = getParamDirect("specular").valid()
-      || getParamDirect("specularColor").valid();
-  m_specular = getParam<float>("specular", m_useSpecular ? 1.f : 0.f);
+  // ANARI spec default: specular = 0 (KHR_materials_specular scale), i.e. a
+  // pure-diffuse dielectric until the app opts into a specular reflection.
+  m_specular = getParam<float>("specular", 0.f);
   m_specularSampler = getParamObject<Sampler>("specular");
   m_specularAttribute = getParamString("specular", "");
 
@@ -228,7 +228,6 @@ MaterialGPUData PBR::gpuData() const
       vec4(m_specularColor, 1.f),
       m_specularColorSampler.get(),
       m_specularColorAttribute);
-  pb.useSpecular = m_useSpecular ? 1u : 0u;
 
   populateMaterialParameter(pb.clearcoat,
       m_clearcoat,

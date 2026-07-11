@@ -81,7 +81,6 @@ struct PBR : public Material
   float m_specular{0.f};
   helium::ChangeObserverPtr<Sampler> m_specularSampler;
   std::string m_specularAttribute;
-  bool m_useSpecular{false};
 
   vec3 m_specularColor{1.f};
   helium::ChangeObserverPtr<Sampler> m_specularColorSampler;
