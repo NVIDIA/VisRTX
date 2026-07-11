@@ -40,7 +40,8 @@ using namespace std::string_view_literals;
 
 namespace visrtx {
 
-PhysicallyBasedMDL::PhysicallyBasedMDL(DeviceGlobalState *d) : MDL(d)
+PhysicallyBasedMDL::PhysicallyBasedMDL(DeviceGlobalState *d)
+    : MDL(d), m_emissiveSampler(this)
 {
   setParam("source",
       ANARI_STRING,
@@ -98,19 +99,21 @@ void PhysicallyBasedMDL::commitParameters()
   translateAndRemoveParameter("iridescence"sv);
   translateAndRemoveParameter("iridescenceThickness"sv);
 
-  // Capture the emissive value AFTER translation, from the persistent
+  // Capture the emissive binding AFTER translation, from the persistent
   // post-translate keys: the translation consumes the pre-translate `emissive`
   // key at its first commit, so reading that key here would zero the capture —
   // and silently drop the Geometry Light — on any later commit that doesn't
   // re-set `emissive`. The keys are mutually exclusive post-translate; the
   // sampler gate mirrors the material's own texture-over-value precedence.
-  // Constant iff a nonzero inline color is bound (a sampler stays per-hit only).
+  // Constant iff a nonzero inline color is bound; a bound sampler goes through
+  // the EDF path with a live sampler-mean Pick Power (see emissionAverage).
   // Note: unsetting `emissive` leaves the last translated key in place — a
   // pre-existing translation-lifecycle trait shared by the MDL argument block,
   // so the light stays consistent with the still-glowing surface.
   {
+    m_emissiveSampler = getParamObject<Sampler>("emissive.texture");
     vec3 radiance(0.f);
-    if (getParamDirect("emissive.texture").type() != ANARI_SAMPLER) {
+    if (!m_emissiveSampler) {
       vec4 v(0.f);
       getParam("emissive.value", ANARI_FLOAT32_VEC4, &v);
       getParam("emissive.value", ANARI_FLOAT32_VEC3, &v);
@@ -148,17 +151,19 @@ bool PhysicallyBasedMDL::emissionIsConstant() const
 
 bool PhysicallyBasedMDL::emissionIsSampleable() const
 {
-  // Deliberate scoping per ADR 0006: only a nonzero constant `emissive` is a
-  // Geometry Light on the wrapper; a bound emissive sampler stays per-hit for
-  // now (it still deposits via the compiled EDF, just without next-event
-  // sampling). The synthetic-hit evaluation itself works — raw `mdl` textured
-  // emission uses it — bringing the wrapper's sampler case into next-event is
-  // a follow-up.
-  return m_emissionIsConstant;
+  return glm::any(glm::greaterThan(emissionAverage(), vec3(0.f)));
 }
 
 vec3 PhysicallyBasedMDL::emissionAverage() const
 {
+  // Sampler-bound: LIVE mean texel (the sampler may finalize after this
+  // material's commit — capturing the mean at commit would read a stale or
+  // default value). Variance-only Pick Power either way; the compiled EDF at
+  // the synthetic hit supplies the true per-point radiance, exactly as on the
+  // path-hit deposit. An all-black texture is a zero mean -> not sampleable,
+  // matching native PBR.
+  if (m_emissiveSampler && m_emissiveSampler->isValid())
+    return vec3(m_emissiveSampler->averageValue());
   return m_emissionRadiance;
 }
 

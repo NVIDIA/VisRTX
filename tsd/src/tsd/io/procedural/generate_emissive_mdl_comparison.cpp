@@ -15,10 +15,9 @@
 // intensity/PI — forgetting the PI factor makes an MDL emitter look ~3x dimmer
 // than the equivalent physicallyBased one.
 //
-// Known expected deviation: the physicallyBasedMDL SAMPLED emitter is per-hit
-// only (not next-event sampled, per ADR 0006) — near-dark under the
-// 'interactive' renderer, converging (noisier) under 'quality'. Everything
-// else must agree on both renderers.
+// All six emitters — the physicallyBasedMDL SAMPLED one included, its bound
+// sampler being next-event sampled via the live sampler-mean Pick Power (ADR
+// 0006) — must agree on both the 'quality' and 'interactive' renderers.
 
 #include "tsd/io/procedural.hpp"
 // std
@@ -262,8 +261,7 @@ void generate_emissive_mdl_comparison(Scene &scene, LayerNodeRef location)
       makeMdlConstantEmitter(scene, "constant_mdl_material"));
 
   // Row 2 — sampled emission over one shared checker (mean == constant row).
-  // physicallyBased and mdl must match row 1; physicallyBasedMDL is per-hit
-  // only for a bound sampler (near-dark on 'interactive') — the known gap.
+  // All three implementations must match row 1 on both renderers.
   auto emissionTex = makeEmissionTexture(scene);
   addQuad(scene,
       root,

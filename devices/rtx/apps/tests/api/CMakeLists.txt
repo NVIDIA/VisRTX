@@ -58,10 +58,9 @@ make_test(TestEmissiveSphereLight)
 make_test(TestEmissiveInstanceScale)
 make_test(TestEmissiveSphereInstanceScale)
 make_test(TestEmissiveCylinderConeLight)
-# Textured and attribute-driven emission are native-PBR features (Stages 2/2.5);
-# on the MDL-backed PhysicallyBased path emission needs the compiled EDF at a real
-# hit and MDL does not support attributes, so these are only meaningful — and only
-# built — for the native PBR material.
+# These interleave attribute-driven emission cases, and MDL does not support
+# attributes — native-PBR only. (Textured emission itself works on the MDL
+# wrapper too; TestEmissiveMaterialParity covers it in that config.)
 if (NOT VISRTX_USE_MDL_FOR_PHYSICALLY_BASED)
   make_test(TestEmissiveTexturedLight)
   make_test(TestEmissiveInstanceAttribute)
@@ -82,12 +81,6 @@ if (VISRTX_ENABLE_MDL_SUPPORT)
   make_test(TestMdlPipelineRebuild)
   make_test(TestMdlMaterialRegistryRelease)
   make_test(TestEmissiveMaterialParity)
-  if (VISRTX_USE_MDL_FOR_PHYSICALLY_BASED)
-    # `physicallyBased` maps to the MDL wrapper in this config; the parity
-    # test skips the native-only sampled next-event comparison.
-    target_compile_definitions(
-      TestEmissiveMaterialParity PRIVATE VISRTX_TEST_PBR_IS_MDL_WRAPPER)
-  endif()
 endif()
 make_test(TestEmissiveInteractive)
 make_test(TestEmissiveIncremental)

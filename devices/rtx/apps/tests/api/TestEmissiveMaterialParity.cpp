@@ -38,11 +38,9 @@
 // MDL emitter read ~3x dimmer than the equivalent physicallyBased one — the
 // classic authoring trap this test also documents. The quantitative
 // counterpart of generate_emissive_mdl_comparison (TSD procedural scene).
-//
-// Known expected deviation, pinned here: a physicallyBasedMDL SAMPLED emitter
-// is per-hit only (not next-event sampled, per ADR 0006) — it converges under
-// 'quality' (deposit + MIS) but stays near-dark under 'interactive'
-// (next-event only). When wrapper textured NEE lands, flip that assertion.
+// Sampled (textured) emission is next-event sampled on ALL THREE
+// implementations — the wrapper's bound emissive sampler included — so parity
+// must hold under 'interactive' (next-event only) as well as 'quality'.
 // Linear float buffer, firefly off.
 
 // anari_cpp
@@ -85,9 +83,6 @@ static constexpr int PIXEL_SAMPLES = 512;
 static constexpr float RADIANCE = 8.f;
 static constexpr float QUAD_Y = 1.5f;
 static constexpr float QUAD_HALF = 0.5f;
-// A sampled physicallyBasedMDL emitter is per-hit only: its next-event-only
-// floor pool must stay below this fraction of the next-event-sampled ones.
-static constexpr double WRAPPER_SAMPLED_DARK_FRACTION = 0.2;
 
 // `value * math::PI`: intensity is radiant exitance, radiance = intensity/PI.
 static const char *MDL_CONSTANT = R"mdl(mdl 1.6;
@@ -161,16 +156,17 @@ static anari::Surface makeFloor(ANARIDevice device)
   return surface;
 }
 
-// Shared 8x8 checker at 2*RADIANCE / 0 (mean RADIANCE), nearest so the texel
-// values stay exact. `inAttribute` drives the native/wrapper samplers; the mdl
-// source reads its coordinate from state::texture_coordinate(0) instead.
-static anari::Sampler makeEmissionSampler(ANARIDevice device)
+// Shared 8x8 checker at 2*RADIANCE*scale / 0 (mean RADIANCE*scale), nearest so
+// the texel values stay exact; scale 0 gives the all-black texture. It drives
+// the native/wrapper samplers via `inAttribute`; the mdl source reads its
+// coordinate from state::texture_coordinate(0) instead.
+static anari::Sampler makeEmissionSampler(ANARIDevice device, float scale = 1.f)
 {
   constexpr int N = 8;
   std::array<vec3, N * N> texels;
   for (int y = 0; y < N; ++y) {
     for (int x = 0; x < N; ++x) {
-      const float v = ((x + y) & 1) ? 2.f * RADIANCE : 0.f;
+      const float v = ((x + y) & 1) ? 2.f * RADIANCE * scale : 0.f;
       texels[y * N + x] = vec3{v, v, v};
     }
   }
@@ -217,6 +213,70 @@ static anari::Material makeEmitterMaterial(
   }
   anari::commitParameters(device, mat);
   return mat;
+}
+
+// Pick Power is variance-only, so no floor-pool parity can pin the LIVE
+// sampler mean — pin it through the light count instead: an all-black bound
+// emissive texture has a zero mean and must synthesize NO Geometry Light (a
+// unit-proxy or stale-default mean would count one), while the checker must
+// synthesize exactly one. Uses the always-exposed `physicallyBasedMDL` subtype
+// so this holds regardless of the PBR-backend build option.
+static bool checkSampledWrapperLightCount(
+    ANARIDevice device, bool black, uint32_t expected)
+{
+  const std::array<vec3, 4> pos = {vec3{-QUAD_HALF, QUAD_Y, -QUAD_HALF},
+      vec3{QUAD_HALF, QUAD_Y, -QUAD_HALF},
+      vec3{QUAD_HALF, QUAD_Y, QUAD_HALF},
+      vec3{-QUAD_HALF, QUAD_Y, QUAD_HALF}};
+  const std::array<vec2, 4> uv = {
+      vec2{0.f, 0.f}, vec2{1.f, 0.f}, vec2{1.f, 1.f}, vec2{0.f, 1.f}};
+  const std::array<std::array<unsigned, 3>, 2> idx = {
+      std::array<unsigned, 3>{0, 1, 2}, std::array<unsigned, 3>{0, 2, 3}};
+
+  auto geom = anari::newObject<anari::Geometry>(device, "triangle");
+  anari::setParameterArray1D(device, geom, "vertex.position", pos.data(), 4);
+  anari::setParameterArray1D(device, geom, "vertex.attribute0", uv.data(), 4);
+  anari::setParameterArray1D(device, geom, "primitive.index", idx.data(), 2);
+  anari::commitParameters(device, geom);
+
+  auto mat = anari::newObject<anari::Material>(device, "physicallyBasedMDL");
+  anari::setParameter(device, mat, "baseColor", vec3{0.f, 0.f, 0.f});
+  anari::setAndReleaseParameter(
+      device, mat, "emissive", makeEmissionSampler(device, black ? 0.f : 1.f));
+  anari::commitParameters(device, mat);
+
+  auto surface = anari::newObject<anari::Surface>(device);
+  anari::setAndReleaseParameter(device, surface, "geometry", geom);
+  anari::setAndReleaseParameter(device, surface, "material", mat);
+  anari::commitParameters(device, surface);
+
+  auto world = anari::newObject<anari::World>(device);
+  anari::setParameterArray1D(device, world, "surface", &surface, 1);
+  anari::release(device, surface);
+  anari::commitParameters(device, world);
+
+  uint32_t count = ~0u;
+  const bool found =
+      anari::getProperty(device, world, "numLightInstances", count, ANARI_WAIT);
+  anari::release(device, world);
+
+  printf("numLightInstances(wrapper sampled %s)=%u (expected %u)\n",
+      black ? "black" : "checker",
+      count,
+      expected);
+  if (!found) {
+    fprintf(stderr, "FAIL: world has no numLightInstances property\n");
+    return false;
+  }
+  if (count != expected) {
+    fprintf(stderr,
+        "FAIL: sampled wrapper (%s): expected %u synthesized light(s), got %u\n",
+        black ? "black" : "checker",
+        expected,
+        count);
+    return false;
+  }
+  return true;
 }
 
 static anari::World makeWorld(ANARIDevice device, Impl impl, bool sampled)
@@ -362,29 +422,19 @@ int main()
     ok = checkParity("interactive/sampled-vs-constant mdl", sMdl, cMdl, 0.08)
         && ok;
 
-#ifndef VISRTX_TEST_PBR_IS_MDL_WRAPPER
-    // Native PBR's sampled emission is next-event sampled too: parity holds.
-    // (Under VISRTX_USE_MDL_FOR_PHYSICALLY_BASED, `physicallyBased` IS the
-    // wrapper, whose sampled emission is per-hit only — covered below.)
     const double sPbr = poolMean(device, Impl::PBR, true, "interactive");
     ok = checkParity("interactive/sampled pbr-vs-mdl", sPbr, sMdl, 0.08) && ok;
-#endif
 
-    // The DOCUMENTED gap (ADR 0006): a sampled physicallyBasedMDL emitter is
-    // per-hit only — near-dark under next-event-only rendering. When wrapper
-    // textured next-event lands, replace this with a parity check.
+    // Wrapper sampled emission is next-event sampled too (live sampler-mean
+    // Pick Power, device EDF at the synthetic hit): full parity, no gap.
     const double sWrap = poolMean(device, Impl::WRAPPER, true, "interactive");
-    printf("interactive/sampled wrapper=%f mdl=%f (documented gap)\n",
-        sWrap,
-        sMdl);
-    if (!(sWrap < WRAPPER_SAMPLED_DARK_FRACTION * sMdl)) {
-      fprintf(stderr,
-          "NOTE: sampled physicallyBasedMDL now lights interactive (wrapper "
-          "textured next-event landed?) — update this test to assert parity "
-          "instead\n");
-      ok = false;
-    }
+    ok = checkParity("interactive/sampled wrapper-vs-mdl", sWrap, sMdl, 0.08)
+        && ok;
   }
+
+  // The live sampler mean itself, via the light count (see the helper).
+  ok = checkSampledWrapperLightCount(device, true, 0) && ok;
+  ok = checkSampledWrapperLightCount(device, false, 1) && ok;
 
   anari::release(device, device);
 

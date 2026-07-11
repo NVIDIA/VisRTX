@@ -51,10 +51,12 @@ struct PhysicallyBasedMDL : public MDL
   // Captured from the post-translate `emissive.value`/`emissive.texture` keys
   // (the pre-translate `emissive` key is consumed by the translation at first
   // commit, so it cannot be re-read on later commits; no MDL introspection).
-  // Only a nonzero constant is a Geometry Light here: textured MDL emission is
-  // not next-event sampleable yet (per ADR 0006).
+  // A nonzero constant is a Geometry Light with an exact Pick Power; a bound
+  // sampler is one with the live sampler-mean as Pick Power, the device
+  // evaluating the compiled EDF at the synthetic next-event hit (ADR 0006).
   bool m_emissionIsConstant{false};
   vec3 m_emissionRadiance{0.f};
+  helium::ChangeObserverPtr<Sampler> m_emissiveSampler;
 };
 
 } // namespace visrtx

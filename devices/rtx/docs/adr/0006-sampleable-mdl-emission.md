@@ -22,7 +22,12 @@ holds** — no recompilation and no resolving class-compiled arguments:
   (`emissive.value` / `emissive.texture`, which persist in parameter storage; the
   pre-translate `emissive` key is consumed by the translation at first commit, so
   reading it would silently zero on a later unrelated commit). A bound
-  `emissive.texture` sampler makes emission device-evaluated (per-hit for now);
+  `emissive.texture` sampler gives sampleability with the LIVE sampler mean as
+  Pick Power (the host light build queries it live — the sampler may finalize
+  after the material's commit; the hit-side MIS pdf reads the same mean from
+  the material's finalize-time GPU snapshot, equal in steady state and at most
+  one flush apart transiently, as in native PBR; variance-only, the compiled
+  EDF at the synthetic hit supplies the true per-point radiance);
   otherwise a nonzero `emissive.value` gives sampleability, and that value IS the
   emitted radiance (the wrapper authors `intensity = emissive * PI`, and the
   callable's `1/PI` cancels it) — the exact average, matching native PBR. The
@@ -68,8 +73,9 @@ whether a material is treated as an emitter.**
   `intensity/PI` is the *exact* weight, keeping raw-`mdl` constants comparable to
   native/wrapper emitters in a mixed scene. For non-constant/textured emission
   the magnitude is not host-known, so a unit-luminance proxy (`vec3(1)`) is the
-  selection weight — variance-only, never bias. A device numerical estimate is
-  deferred.
+  selection weight — variance-only, never bias. The wrapper's bound sampler is
+  the exception: its mean texel IS host-known, so that is its weight (matching
+  native PBR). A device numerical estimate for raw `mdl` is deferred.
 - **Sidedness.** Triangle Geometry Lights are double-sided (the deposit orients
   the shading normal toward the incoming ray; the triangle sampler pdf uses
   `|cos|`), so the synthetic next-event hit's normal is oriented toward the
@@ -110,7 +116,8 @@ whether a material is treated as an emitter.**
 - Conservative over-inclusion is possible and harmless: a raw `mdl` whose diffuse
   intensity is argument-driven from zero, or an all-black bound emissive texture,
   resolves as textured -> a zero-radiance Geometry Light (unbiased, wasted pick
-  slot). The wrapper's `emissive=0` case is caught exactly by its parameter read.
+  slot). The wrapper's `emissive=0` case is caught exactly by its parameter read,
+  and its all-black texture by the zero sampler mean.
 - Testable now: constant and textured MDL emission (including an away-facing
   triangle emitter). Not testable until `scene_data` is wired: attribute-driven
   emission.
