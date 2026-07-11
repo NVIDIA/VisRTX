@@ -40,6 +40,7 @@
 #include "sampler/Image3D.h"
 
 #include <anari/frontend/anari_enums.h>
+#include <cassert>
 #include <helium/utility/IntrusivePtr.h>
 #include <mi/base/enums.h>
 #include <mi/base/handle.h>
@@ -501,8 +502,9 @@ Sampler *SamplerRegistry::acquireSampler(
 {
   auto key = samplerCacheKey(filePath, colorSpace);
   if (auto it = m_dbToSampler.find(key); it != end(m_dbToSampler)) {
-    it->second->refInc();
-    return it->second;
+    it->second.acquires++;
+    it->second.sampler->refInc();
+    return it->second.sampler;
   }
 
   auto sampler = loadFromFile(filePath, colorSpace);
@@ -510,7 +512,7 @@ Sampler *SamplerRegistry::acquireSampler(
     sampler->refInc();
     sampler->refDec(helium::PUBLIC); // Drop the implicit public refcount that
                                      // we don't rely on.
-    m_dbToSampler.insert({key, sampler});
+    m_dbToSampler.insert({key, {sampler, 1}});
   } else {
     m_core->logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
         "Unable to create sampler for texture `{}`",
@@ -525,8 +527,9 @@ Sampler *SamplerRegistry::acquireSampler(
 {
   auto key = samplerCacheKey(textureDesc.url, textureDesc.colorSpace);
   if (auto it = m_dbToSampler.find(key); it != end(m_dbToSampler)) {
-    it->second->refInc();
-    return it->second;
+    it->second.acquires++;
+    it->second.sampler->refInc();
+    return it->second.sampler;
   }
 
   auto sampler = loadFromTextureDesc(textureDesc);
@@ -534,7 +537,7 @@ Sampler *SamplerRegistry::acquireSampler(
     sampler->refInc();
     sampler->refDec(helium::PUBLIC); // Drop the implicit public refcount that
                                      // we don't rely on.
-    m_dbToSampler.insert({key, sampler});
+    m_dbToSampler.insert({key, {sampler, 1}});
   } else {
     m_core->logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
         "Unable to create sampler for texture db name `{}`",
@@ -548,13 +551,20 @@ bool SamplerRegistry::releaseSampler(const Sampler *sampler)
 {
   if (auto it = std::find_if(std::begin(m_dbToSampler),
           std::end(m_dbToSampler),
-          [sampler](const auto &p) { return p.second == sampler; });
+          [sampler](const auto &p) { return p.second.sampler == sampler; });
       it != std::end(m_dbToSampler)) {
-    auto useCount = it->second->useCount(helium::INTERNAL);
-    it->second->refDec();
-    if (useCount == 1) {
-      // Our counter dropped to 1 pre-refDec, no one else is using the
-      // sampler.
+    // A double-release while other acquires are outstanding would silently
+    // corrupt the count (early erase + a leaked reference for the wronged
+    // holder) — fail fast in debug builds.
+    assert(it->second.acquires > 0);
+    it->second.acquires--;
+    it->second.sampler->refDec();
+    if (it->second.acquires == 0) {
+      // Last REGISTRY acquire gone: drop the cache entry now, whether or not
+      // another holder (deferred commit buffer, ...) keeps the object alive a
+      // little longer. Deciding from the object's refcount instead left this
+      // entry dangling once that holder dropped the true last reference —
+      // use-after-free on the next same-key acquire.
       m_dbToSampler.erase(it);
       return true;
     }
