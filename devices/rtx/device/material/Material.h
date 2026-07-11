@@ -62,7 +62,9 @@ struct Material : public RegisteredObject<MaterialGPUData>
   // Bump the world's light-set timestamp iff this material's Geometry Light
   // eligibility or average radiance changed since the last commit, so emissive
   // edits rebuild the light set while ordinary edits (roughness, color) stay
-  // free. Subclasses call this at the end of commitParameters().
+  // free. Subclasses call this once their emission state is resolved: native
+  // PBR at the end of commitParameters(); the MDL family at the end of
+  // finalize(), where the compile-time emission classification is known.
   void refreshEmissionLightSet();
 
  private:

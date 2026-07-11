@@ -120,7 +120,32 @@ void MDL::finalize()
     m_argBlockBuffer.reset();
   }
 
+  // The emission hooks read the compile-time classification, keyed by the uuid
+  // syncSource just resolved. Resolve it BEFORE Material::finalize(), which
+  // uploads gpuData() — a stale flag there zeroes the hit-side next-event pdf
+  // and the deposit double-counts the emitter. The light-set refresh follows
+  // (not in commitParameters, where the flag would be stale on the commit that
+  // first introduces or removes emission).
+  m_emissionClassification =
+      deviceState()->mdl->materialRegistry.getEmissionClassification(m_uuid);
+
   Material::finalize();
+
+  refreshEmissionLightSet();
+}
+
+bool MDL::emissionIsSampleable() const
+{
+  const auto &radiance = m_emissionClassification.constantRadiance;
+  return radiance
+      && std::max({(*radiance)[0], (*radiance)[1], (*radiance)[2]}) > 0.0f;
+}
+
+vec3 MDL::emissionAverage() const
+{
+  const auto &radiance = m_emissionClassification.constantRadiance;
+  return radiance ? vec3((*radiance)[0], (*radiance)[1], (*radiance)[2])
+                  : vec3(0.0f);
 }
 
 void MDL::syncSource()

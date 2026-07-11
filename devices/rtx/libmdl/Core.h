@@ -30,7 +30,9 @@
 #include <fmt/format.h>
 #endif
 
+#include <array>
 #include <filesystem>
+#include <optional>
 #include <string_view>
 
 namespace visrtx::libmdl {
@@ -38,6 +40,21 @@ namespace visrtx::libmdl {
 class Core
 {
  public:
+  // Host-side emission classification of a compiled material, per ADR 0006.
+  // Computed once at compile time (the compiled material is not retained), so
+  // an Emissive Surface can be synthesized into a Geometry Light without
+  // recompiling or resolving class-compiled arguments.
+  struct EmissionClassification
+  {
+    // Emitted radiance (= folded intensity / PI, a diffuse EDF's value being
+    // 1/PI) when `surface.emission.intensity` folds to a body-literal constant;
+    // nullopt when it does not (texture / procedural / parameter-driven — not
+    // host-knowable under class compilation).
+    std::optional<std::array<float, 3>> constantRadiance;
+    // A diffuse radiant-exitance emission EDF is present (constant or not).
+    bool isDiffuseEmission{false};
+  };
+
   // The main neuray interface can only be acquired once. Possibly get it
   // as a parameter instead of allocating it internally.
   // Note that we allow overriding the logger only if we own the
@@ -129,6 +146,10 @@ class Core
   mi::neuraylib::ICompiled_material *getCompiledMaterial(
       const mi::neuraylib::IFunction_definition *,
       bool classCompilation = true);
+
+  static EmissionClassification classifyEmission(
+      const mi::neuraylib::ICompiled_material *compiledMaterial);
+
   mi::neuraylib::ICompiled_material *getDistilledToDiffuse(
       const mi::neuraylib::ICompiled_material *compiledMaterial);
 

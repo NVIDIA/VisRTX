@@ -137,8 +137,8 @@ void PhysicallyBasedMDL::commitParameters()
   }
 
   MDL::commitParameters();
-
-  refreshEmissionLightSet();
+  // The light-set refresh runs from MDL::finalize (after the emission
+  // classification is resolved), not here.
 }
 
 bool PhysicallyBasedMDL::emissionIsConstant() const

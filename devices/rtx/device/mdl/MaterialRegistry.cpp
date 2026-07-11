@@ -289,6 +289,10 @@ MaterialRegistry::compileAndCacheMaterial(const std::string &fullMaterialName,
     targetIt->ptxBlob = ptxBlob;
     targetIt->refCount = 1;
   }
+  // Classify emission now, while the compiled material is alive — it is not
+  // retained, and the classification is what lets an Emissive Surface be
+  // synthesized into a Geometry Light without recompiling (ADR 0006).
+  targetIt->emission = libmdl::Core::classifyEmission(compiledMaterial.get());
 
   auto targetIndex = std::distance(std::begin(m_targetCodes), targetIt);
 

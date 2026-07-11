@@ -386,8 +386,15 @@ VISRTX_DEVICE vec3 evalGeometryLightEmission(ScreenSample &ss,
   hit.primID = primID;
   hit.uvw = uvw;
   hit.hitpoint = worldPoint;
-  hit.Ng = hit.Ns = nsWorld;
-  const mat3 basis = computeOrthonormalBasis(nsWorld);
+  // A material EDF (MDL) is single-sided, but triangle Geometry Lights are
+  // double-sided: the deposit orients the shading normal toward the incoming
+  // ray and the triangle sampler pdf uses |cos|. Orient the synthetic normal
+  // toward the receiver so the EDF evaluates on the sampled side. A no-op for
+  // the analytic samplers (outward normal, far side culled) and for
+  // orientation-independent native-PBR emission.
+  const vec3 ns = dot(nsWorld, outgoingDir) < 0.0f ? -nsWorld : nsWorld;
+  hit.Ng = hit.Ns = ns;
+  const mat3 basis = computeOrthonormalBasis(ns);
   hit.tU = basis[0];
   hit.tV = basis[1];
   hit.objID = 0;

@@ -119,6 +119,20 @@ bool World::getProperty(const std::string_view &name,
     return true;
   }
 
+  // Light instances after the build: authored lights plus synthesized Geometry
+  // Lights (m_instanceLightGPUData). The framebuffer cannot distinguish a
+  // non-emissive surface from a zero-radiance light, so tests assert the
+  // exclusion here.
+  if (name == "numLightInstances" && type == ANARI_UINT32) {
+    if (flags & ANARI_WAIT) {
+      deviceState()->commitBuffer.flush();
+      rebuildWorld();
+    }
+    const auto count = uint32_t(m_instanceLightGPUData.size());
+    std::memcpy(ptr, &count, sizeof(count));
+    return true;
+  }
+
   return Object::getProperty(name, type, ptr, size, flags);
 }
 

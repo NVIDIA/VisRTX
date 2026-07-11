@@ -15,6 +15,7 @@
 #include <mi/neuraylib/iarray.h>
 #include <mi/neuraylib/icompiled_material.h>
 #include <mi/neuraylib/idatabase.h>
+#include <mi/neuraylib/iexpression.h>
 #include <mi/neuraylib/ifunction_definition.h>
 #include <mi/neuraylib/ilogging_configuration.h>
 #include <mi/neuraylib/imaterial_instance.h>
@@ -39,6 +40,8 @@
 #include <mi/neuraylib/ivalue.h>
 #include <mi/neuraylib/iversion.h>
 
+#include <algorithm>
+#include <cmath>
 #include <filesystem>
 #include <string>
 
@@ -485,6 +488,121 @@ mi::neuraylib::ICompiled_material *Core::getCompiledMaterial(
   }
 
   return compiledMaterial;
+}
+
+namespace {
+
+// Resolve `let`-block indirection: a compiled sub-expression may reference a
+// temporary slot instead of holding the value; without this, literal-bodied
+// emitters would silently classify as non-constant.
+mi::base::Handle<const mi::neuraylib::IExpression> derefTemporaries(
+    const mi::neuraylib::ICompiled_material *compiledMaterial,
+    mi::base::Handle<const mi::neuraylib::IExpression> expr)
+{
+  using namespace mi::neuraylib;
+  using mi::base::make_handle;
+  while (expr && expr->get_kind() == IExpression::EK_TEMPORARY) {
+    auto temporary =
+        make_handle(expr->get_interface<const IExpression_temporary>());
+    expr = make_handle(compiledMaterial->get_temporary(temporary->get_index()));
+  }
+  return expr;
+}
+
+} // namespace
+
+Core::EmissionClassification Core::classifyEmission(
+    const mi::neuraylib::ICompiled_material *compiledMaterial)
+{
+  using namespace mi::neuraylib;
+  using mi::base::make_handle;
+
+  EmissionClassification result;
+
+  // Author-declared emission is a direct call to df::diffuse_edf; the default
+  // edf() compiles to a constant invalid-df. Only the diffuse EDF has uniform
+  // radiance over the hemisphere, matching the double-sided Geometry Light
+  // sampler and the synthetic next-event hit (ADR 0006's fidelity scope).
+  auto edf = derefTemporaries(compiledMaterial,
+      make_handle(compiledMaterial->lookup_sub_expression(
+          "surface.emission.emission")));
+  if (!edf || edf->get_kind() != IExpression::EK_DIRECT_CALL)
+    return result;
+  {
+    auto call =
+        make_handle(edf->get_interface<const IExpression_direct_call>());
+    const char *definition = call ? call->get_definition() : nullptr;
+    // Exact prefix match on the DB name of the elemental EDF, so no user
+    // module (::somepdf::, ::pkg::df::) can masquerade as it.
+    constexpr std::string_view DIFFUSE_EDF_PREFIX = "mdl::df::diffuse_edf(";
+    if (!definition
+        || std::string_view(definition).rfind(DIFFUSE_EDF_PREFIX, 0) != 0)
+      return result;
+  }
+
+  // Only the (default) radiant-exitance intensity mode is handled; power mode
+  // needs area normalization the host cannot do here.
+  constexpr mi::Sint32 INTENSITY_RADIANT_EXITANCE = 0; // ::df::intensity_mode
+  auto mode = derefTemporaries(compiledMaterial,
+      make_handle(
+          compiledMaterial->lookup_sub_expression("surface.emission.mode")));
+  if (mode) {
+    if (mode->get_kind() != IExpression::EK_CONSTANT)
+      return result;
+    auto constant =
+        make_handle(mode->get_interface<const IExpression_constant>());
+    auto value = make_handle(constant->get_value());
+    if (value->get_kind() != IValue::VK_ENUM)
+      return result;
+    if (make_handle(value->get_interface<const IValue_enum>())->get_value()
+        != INTENSITY_RADIANT_EXITANCE)
+      return result;
+  }
+
+  result.isDiffuseEmission = true;
+
+  // Body-literal intensity folds to a constant; anything argument-, texture- or
+  // state-driven stays symbolic under class compilation and has no host value.
+  auto intensity = derefTemporaries(compiledMaterial,
+      make_handle(compiledMaterial->lookup_sub_expression(
+          "surface.emission.intensity")));
+  if (!intensity || intensity->get_kind() != IExpression::EK_CONSTANT)
+    return result;
+
+  auto constant =
+      make_handle(intensity->get_interface<const IExpression_constant>());
+  auto value = make_handle(constant->get_value());
+  std::array<float, 3> rgb{};
+  if (value->get_kind() == IValue::VK_COLOR) {
+    auto color = make_handle(value->get_interface<const IValue_color>());
+    for (int i = 0; i < 3; ++i) {
+      auto channel = make_handle(color->get_value(i));
+      auto f = make_handle(channel->get_interface<const IValue_float>());
+      if (!f)
+        return result; // not a plain float channel: treat as not host-known
+      rgb[i] = f->get_value();
+    }
+  } else if (value->get_kind() == IValue::VK_FLOAT) {
+    const float f =
+        make_handle(value->get_interface<const IValue_float>())->get_value();
+    rgb = {f, f, f};
+  } else {
+    return result;
+  }
+
+  // Emitted radiance = intensity / PI: the device emission callable returns
+  // edf * intensity and a diffuse EDF's value is 1/PI. Storing the unfolded
+  // intensity would overweight this emitter PI x in the light-pick CDF.
+  // Reject non-finite channels (one NaN/Inf poisons every pick in the scene)
+  // and clamp negatives.
+  constexpr float INV_PI = 0.31830988618379067154f;
+  for (float &c : rgb) {
+    if (!std::isfinite(c))
+      return result;
+    c = std::max(c, 0.0f) * INV_PI;
+  }
+  result.constantRadiance = rgb;
+  return result;
 }
 
 mi::neuraylib::ICompiled_material *Core::getDistilledToDiffuse(

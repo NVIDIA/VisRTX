@@ -68,8 +68,12 @@ if (NOT VISRTX_USE_MDL_FOR_PHYSICALLY_BASED)
 endif()
 make_test(TestEmissionRadianceScale)
 make_test(TestEmissiveRecommit)
-# The raw `mdl` material type only exists with MDL support compiled in.
+# The raw `mdl` material type and the `physicallyBasedMDL` subtype only exist
+# with MDL support compiled in.
 if (VISRTX_ENABLE_MDL_SUPPORT)
+  target_compile_definitions(
+    TestEmissiveRecommit PRIVATE VISRTX_TEST_MDL_WRAPPER)
+  make_test(TestEmissiveMdlLight)
   make_test(TestMdlPipelineRebuild)
   make_test(TestMdlMaterialRegistryRelease)
 endif()

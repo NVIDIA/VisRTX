@@ -53,6 +53,14 @@ struct MDL : public Material
   void commitParameters() override;
   void finalize() override;
 
+  // A raw `mdl` material whose compile-time classification found diffuse
+  // emission with a body-literal constant intensity is a sampleable Emissive
+  // Surface (Geometry Light); the constant is the emitted radiance (intensity
+  // over PI). emissionIsConstant stays false: the EDF path is always taken and
+  // the constant only weights the Light Pick. Per ADR 0006.
+  bool emissionIsSampleable() const override;
+  vec3 emissionAverage() const override;
+
   // Handle source changes
   void syncSource();
   // Update actual implementation index to use for the material.
@@ -85,6 +93,8 @@ struct MDL : public Material
   libmdl::Uuid m_uuid{};
   mdl::MaterialRegistry::ImplementationIndex m_implementationIndex{};
   std::optional<libmdl::ArgumentBlockInstance> m_argumentBlockInstance;
+  // Read from the registry's compile-time cache at finalize (keyed by m_uuid).
+  libmdl::Core::EmissionClassification m_emissionClassification;
 };
 
 } // namespace visrtx

@@ -107,6 +107,16 @@ class MaterialRegistry
     }
   }
 
+  // Host-side emission classification of a compiled material (ADR 0006);
+  // default (non-emissive) when the uuid is unknown.
+  libmdl::Core::EmissionClassification getEmissionClassification(
+      const libmdl::Uuid &uuid) const
+  {
+    if (auto it = m_uuidToIndex.find(uuid); it != cend(m_uuidToIndex))
+      return m_targetCodes[it->second].emission;
+    return {};
+  }
+
   const std::vector<nonstd::span<const char>> getPtxBlobs() const
   {
     std::vector<nonstd::span<const char>> res;
@@ -146,6 +156,9 @@ class MaterialRegistry
     // mi::base::Handle<const mi::neuraylib::ITarget_code> targetCode;
     std::vector<char> ptxBlob;
     int refCount{};
+    // Computed at compile time, while the compiled material is alive (it is
+    // not retained past compilation); evicted with the slot on release.
+    libmdl::Core::EmissionClassification emission;
   };
 
   // Per material PTX blobs. Stored in Sbt order. Sparse structure depending on
