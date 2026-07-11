@@ -40,8 +40,12 @@
 // toward the receiver). A zero-intensity `mdl` material must synthesize NO
 // light — asserted via the world's `numLightInstances` property in a
 // no-authored-light scene, since a zero-radiance light is pixel-identical to
-// no light.
-// Linear float buffer, firefly off.
+// no light. A texture-driven intensity cannot fold at compile time, so it is
+// sampleable with a unit-luminance proxy Pick Power and the device evaluates
+// the true per-point radiance at the sampled point: a uniform texture must
+// match the constant reference, a checker must match the reference at its
+// mean, and an UNBOUND texture still counts as a light (documented
+// conservative over-inclusion). Linear float buffer, firefly off.
 
 // anari_cpp
 #define ANARI_EXTENSION_UTILITY_IMPL
@@ -58,6 +62,7 @@
 #include <vector>
 
 using uvec2 = std::array<unsigned int, 2>;
+using vec2 = std::array<float, 2>;
 using vec3 = std::array<float, 3>;
 using vec4 = std::array<float, 4>;
 
@@ -107,6 +112,38 @@ export material dark() = material(
             intensity: color(0.0))));
 )mdl";
 
+// Intensity folding to a non-finite constant: must NOT become a light — the
+// classifier disqualifies it entirely, or the textured branch would make it
+// sampleable and next-event estimation would spray the NaN/Inf to every
+// receiver the pick selects. (If the MDL compiler ever rejects the overflow
+// fold outright, the material fails to compile and is equally non-emissive.)
+static const char *MDL_NONFINITE = R"mdl(mdl 1.6;
+import ::df::*;
+export material nonfinite() = material(
+    surface: material_surface(
+        emission: material_emission(
+            emission: df::diffuse_edf(),
+            intensity: color(1.0e38 * 1.0e38))));
+)mdl";
+
+// Texture-driven diffuse intensity: does not fold at compile time, so the
+// classification records diffuse-but-textured — sampleable with a unit-proxy
+// Pick Power, radiance evaluated on the device at the sampled point.
+static const char *MDL_TEXTURED = R"mdl(mdl 1.6;
+import ::df::*;
+import ::tex::*;
+import ::state::*;
+export material emissive_tex(uniform texture_2d tex = texture_2d()) = material(
+    surface: material_surface(
+        emission: material_emission(
+            emission: df::diffuse_edf(),
+            intensity: tex::lookup_color(
+                tex: tex,
+                coord: float2(
+                    state::texture_coordinate(0).x,
+                    state::texture_coordinate(0).y)))));
+)mdl";
+
 static anari::Surface makeFloor(ANARIDevice device)
 {
   const std::array<vec3, 4> pos = {vec3{-6.f, 0.f, -6.f},
@@ -138,44 +175,101 @@ enum class Emitter
 {
   MDL,
   MDL_AWAY_FACING,
-  NATIVE_REFERENCE
+  MDL_TEXTURED_UNIFORM, // uniform INTENSITY texture: radiance INTENSITY/PI
+  MDL_TEXTURED_CHECKER, // INTENSITY/0 checker: mean radiance INTENSITY/(2 PI)
+  MDL_TEXTURED_AWAY, // uniform texture, reversed winding
+  NATIVE_REFERENCE, // constant radiance INTENSITY/PI
+  NATIVE_REFERENCE_HALF // constant radiance INTENSITY/(2 PI)
 };
 
+// image2D sampler for the MDL texture argument. `checker` selects a
+// nearest-filtered NxN INTENSITY/0 checker (mean INTENSITY/2 per channel);
+// otherwise every texel is INTENSITY. No `inAttribute`: the MDL expression
+// supplies the coordinate (state::texture_coordinate(0)).
+static anari::Sampler makeIntensitySampler(ANARIDevice device, bool checker)
+{
+  constexpr int N = 8;
+  std::array<vec3, N * N> texels;
+  for (int y = 0; y < N; ++y) {
+    for (int x = 0; x < N; ++x) {
+      const float v = (!checker || ((x + y) & 1)) ? INTENSITY : 0.f;
+      texels[y * N + x] = vec3{v, v, v};
+    }
+  }
+  auto image = anari::newArray2D(device, texels.data(), N, N);
+
+  auto sampler = anari::newObject<anari::Sampler>(device, "image2D");
+  anari::setAndReleaseParameter(device, sampler, "image", image);
+  anari::setParameter(device, sampler, "filter", "nearest");
+  anari::commitParameters(device, sampler);
+  return sampler;
+}
+
 // Emissive quad above the floor. MDL variants use the inline `code` source;
-// the native reference is a physicallyBased constant emitter at INTENSITY/PI.
-// AWAY_FACING reverses the winding so the geometric normal points up, away
-// from the floor.
+// the native references are physicallyBased constant emitters at the matching
+// mean radiance. AWAY variants reverse the winding so the geometric normal
+// points up, away from the floor. The quad carries attribute0 texcoords
+// spanning [0,1]^2 for the textured cases; the pool is far enough that each
+// receiver point integrates the whole emitter, so a textured emitter matches
+// the constant reference at its mean.
 static anari::Surface makeEmissiveQuad(ANARIDevice device, Emitter kind)
 {
   const std::array<vec3, 4> pos = {vec3{-QUAD_HALF, QUAD_Y, -QUAD_HALF},
       vec3{QUAD_HALF, QUAD_Y, -QUAD_HALF},
       vec3{QUAD_HALF, QUAD_Y, QUAD_HALF},
       vec3{-QUAD_HALF, QUAD_Y, QUAD_HALF}};
+  const std::array<vec2, 4> uv = {
+      vec2{0.f, 0.f}, vec2{1.f, 0.f}, vec2{1.f, 1.f}, vec2{0.f, 1.f}};
   const std::array<std::array<unsigned, 3>, 2> idxDown = {
       std::array<unsigned, 3>{0, 1, 2}, std::array<unsigned, 3>{0, 2, 3}};
   const std::array<std::array<unsigned, 3>, 2> idxUp = {
       std::array<unsigned, 3>{0, 2, 1}, std::array<unsigned, 3>{0, 3, 2}};
-  const auto &idx = kind == Emitter::MDL_AWAY_FACING ? idxUp : idxDown;
+  const bool awayFacing =
+      kind == Emitter::MDL_AWAY_FACING || kind == Emitter::MDL_TEXTURED_AWAY;
+  const auto &idx = awayFacing ? idxUp : idxDown;
 
   auto geom = anari::newObject<anari::Geometry>(device, "triangle");
   anari::setParameterArray1D(device, geom, "vertex.position", pos.data(), 4);
+  anari::setParameterArray1D(device, geom, "vertex.attribute0", uv.data(), 4);
   anari::setParameterArray1D(device, geom, "primitive.index", idx.data(), 2);
   anari::commitParameters(device, geom);
 
   anari::Material mat;
-  if (kind == Emitter::NATIVE_REFERENCE) {
+  switch (kind) {
+  case Emitter::NATIVE_REFERENCE:
+  case Emitter::NATIVE_REFERENCE_HALF: {
     mat = anari::newObject<anari::Material>(device, "physicallyBased");
     anari::setParameter(device, mat, "baseColor", vec3{0.f, 0.f, 0.f});
     anari::setParameter(device, mat, "metallic", 0.f);
     anari::setParameter(device, mat, "roughness", 1.f);
-    const float radiance = INTENSITY / PI;
+    const float radiance = kind == Emitter::NATIVE_REFERENCE_HALF
+        ? INTENSITY / (2.f * PI)
+        : INTENSITY / PI;
     anari::setParameter(
         device, mat, "emissive", vec3{radiance, radiance, radiance});
-  } else {
+    break;
+  }
+  case Emitter::MDL_TEXTURED_UNIFORM:
+  case Emitter::MDL_TEXTURED_CHECKER:
+  case Emitter::MDL_TEXTURED_AWAY: {
+    mat = anari::newObject<anari::Material>(device, "mdl");
+    anari::setParameter(device, mat, "sourceType", "code");
+    anari::setParameter(device, mat, "source", MDL_TEXTURED);
+    anari::setParameter(device, mat, "materialName", "emissive_tex");
+    anari::setAndReleaseParameter(device,
+        mat,
+        "tex",
+        makeIntensitySampler(device, kind == Emitter::MDL_TEXTURED_CHECKER));
+    break;
+  }
+  case Emitter::MDL:
+  case Emitter::MDL_AWAY_FACING: {
     mat = anari::newObject<anari::Material>(device, "mdl");
     anari::setParameter(device, mat, "sourceType", "code");
     anari::setParameter(device, mat, "source", MDL_EMISSIVE);
     anari::setParameter(device, mat, "materialName", "emissive");
+    break;
+  }
   }
   anari::commitParameters(device, mat);
 
@@ -251,12 +345,13 @@ static double poolMeanLuminance(const std::vector<vec4> &fb)
 
 static bool checkEquivalence(ANARIDevice device,
     Emitter kind,
+    Emitter refKind,
     const char *label,
     const char *rendererType,
     double tol)
 {
   auto mdlWorld = makeWorld(device, kind);
-  auto refWorld = makeWorld(device, Emitter::NATIVE_REFERENCE);
+  auto refWorld = makeWorld(device, refKind);
   const double mdl = poolMeanLuminance(render(device, mdlWorld, rendererType));
   const double ref = poolMeanLuminance(render(device, refWorld, rendererType));
   anari::release(device, mdlWorld);
@@ -419,22 +514,82 @@ int main()
 {
   auto device = makeVisRTXDevice(statusFunc);
 
-  bool ok = checkEquivalence(device, Emitter::MDL, "quad", "quality", 0.04);
-  ok =
-      checkEquivalence(device, Emitter::MDL, "quad", "interactive", 0.08) && ok;
+  const auto REF = Emitter::NATIVE_REFERENCE;
+  const auto REF_HALF = Emitter::NATIVE_REFERENCE_HALF;
+  bool ok =
+      checkEquivalence(device, Emitter::MDL, REF, "quad", "quality", 0.04);
+  ok = checkEquivalence(device, Emitter::MDL, REF, "quad", "interactive", 0.08)
+      && ok;
   // Away-facing winding: triangle Geometry Lights are double-sided, so the
   // floor must read the same. Interactive is the sharp signal — without the
   // receiver-facing orientation of the synthetic next-event normal, the
   // single-sided EDF returns 0 and the floor goes dark.
-  ok = checkEquivalence(
-           device, Emitter::MDL_AWAY_FACING, "away-facing", "quality", 0.04)
+  ok =
+      checkEquivalence(
+          device, Emitter::MDL_AWAY_FACING, REF, "away-facing", "quality", 0.04)
       && ok;
-  ok = checkEquivalence(
-           device, Emitter::MDL_AWAY_FACING, "away-facing", "interactive", 0.08)
+  ok = checkEquivalence(device,
+           Emitter::MDL_AWAY_FACING,
+           REF,
+           "away-facing",
+           "interactive",
+           0.08)
+      && ok;
+
+  // Textured intensity: the classification cannot fold it, so the light rides
+  // the unit-proxy Pick Power and the device evaluates the true per-point
+  // radiance at the sampled point. A uniform texture must match the constant
+  // reference exactly; the checker must match the reference at its mean.
+  ok = checkEquivalence(device,
+           Emitter::MDL_TEXTURED_UNIFORM,
+           REF,
+           "textured-uniform",
+           "quality",
+           0.04)
+      && ok;
+  ok = checkEquivalence(device,
+           Emitter::MDL_TEXTURED_UNIFORM,
+           REF,
+           "textured-uniform",
+           "interactive",
+           0.08)
+      && ok;
+  ok = checkEquivalence(device,
+           Emitter::MDL_TEXTURED_CHECKER,
+           REF_HALF,
+           "textured-checker",
+           "quality",
+           0.04)
+      && ok;
+  ok = checkEquivalence(device,
+           Emitter::MDL_TEXTURED_CHECKER,
+           REF_HALF,
+           "textured-checker",
+           "interactive",
+           0.08)
+      && ok;
+  ok = checkEquivalence(device,
+           Emitter::MDL_TEXTURED_AWAY,
+           REF,
+           "textured-away",
+           "quality",
+           0.04)
+      && ok;
+  ok = checkEquivalence(device,
+           Emitter::MDL_TEXTURED_AWAY,
+           REF,
+           "textured-away",
+           "interactive",
+           0.08)
       && ok;
 
   ok = checkLightCount(device, MDL_EMISSIVE, "emissive", 1) && ok;
   ok = checkLightCount(device, MDL_DARK, "dark", 0) && ok;
+  // Textured intensity with an UNBOUND texture still classifies as a light —
+  // the documented conservative over-inclusion (unbiased; it merely wastes a
+  // pick slot while rendering black).
+  ok = checkLightCount(device, MDL_TEXTURED, "emissive_tex", 1) && ok;
+  ok = checkLightCount(device, MDL_NONFINITE, "nonfinite", 0) && ok;
   ok = checkWrapperLightCount(device, 5.f, 1) && ok;
   ok = checkWrapperLightCount(device, 0.f, 0) && ok;
 
@@ -442,6 +597,6 @@ int main()
 
   if (!ok)
     return 1;
-  printf("raw mdl constant emission geometry light passed\n");
+  printf("raw mdl emission Geometry Light equivalence passed\n");
   return 0;
 }

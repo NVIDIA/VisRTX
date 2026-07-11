@@ -593,12 +593,16 @@ Core::EmissionClassification Core::classifyEmission(
   // Emitted radiance = intensity / PI: the device emission callable returns
   // edf * intensity and a diffuse EDF's value is 1/PI. Storing the unfolded
   // intensity would overweight this emitter PI x in the light-pick CDF.
-  // Reject non-finite channels (one NaN/Inf poisons every pick in the scene)
-  // and clamp negatives.
+  // A non-finite channel disqualifies the material entirely — clearing the
+  // diffuse flag too, or the textured branch would make it sampleable and
+  // next-event estimation would spray the NaN/Inf to every receiver the pick
+  // selects (one poisoned pick per sample). Negatives are clamped.
   constexpr float INV_PI = 0.31830988618379067154f;
   for (float &c : rgb) {
-    if (!std::isfinite(c))
+    if (!std::isfinite(c)) {
+      result.isDiffuseEmission = false;
       return result;
+    }
     c = std::max(c, 0.0f) * INV_PI;
   }
   result.constantRadiance = rgb;

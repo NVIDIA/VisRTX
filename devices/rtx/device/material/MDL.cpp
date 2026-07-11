@@ -136,7 +136,13 @@ void MDL::finalize()
 
 bool MDL::emissionIsSampleable() const
 {
+  // Textured/procedural diffuse intensity has no host value: sampleable with a
+  // unit-proxy Pick Power, the device evaluating the true radiance at the
+  // sampled point. Conservative over-inclusion (e.g. an all-black texture) is
+  // unbiased — it merely wastes a pick slot.
   const auto &radiance = m_emissionClassification.constantRadiance;
+  if (m_emissionClassification.isDiffuseEmission && !radiance)
+    return true;
   return radiance
       && std::max({(*radiance)[0], (*radiance)[1], (*radiance)[2]}) > 0.0f;
 }
@@ -144,8 +150,12 @@ bool MDL::emissionIsSampleable() const
 vec3 MDL::emissionAverage() const
 {
   const auto &radiance = m_emissionClassification.constantRadiance;
-  return radiance ? vec3((*radiance)[0], (*radiance)[1], (*radiance)[2])
-                  : vec3(0.0f);
+  if (radiance)
+    return vec3((*radiance)[0], (*radiance)[1], (*radiance)[2]);
+  // Unit-luminance proxy for the textured case: the Light Pick reads it
+  // identically on both MIS estimator sides, so any nonzero value is unbiased
+  // — it only steers importance (a power-weighted estimate is a follow-up).
+  return m_emissionClassification.isDiffuseEmission ? vec3(1.0f) : vec3(0.0f);
 }
 
 void MDL::syncSource()

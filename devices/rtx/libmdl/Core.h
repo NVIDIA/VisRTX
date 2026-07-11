@@ -51,7 +51,9 @@ class Core
     // nullopt when it does not (texture / procedural / parameter-driven — not
     // host-knowable under class compilation).
     std::optional<std::array<float, 3>> constantRadiance;
-    // A diffuse radiant-exitance emission EDF is present (constant or not).
+    // A diffuse radiant-exitance emission EDF is present AND eligible — a
+    // non-finite folded constant clears it, disqualifying the material.
+    // Invariant: constantRadiance.has_value() implies isDiffuseEmission.
     bool isDiffuseEmission{false};
   };
 

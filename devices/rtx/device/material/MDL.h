@@ -54,10 +54,14 @@ struct MDL : public Material
   void finalize() override;
 
   // A raw `mdl` material whose compile-time classification found diffuse
-  // emission with a body-literal constant intensity is a sampleable Emissive
-  // Surface (Geometry Light); the constant is the emitted radiance (intensity
-  // over PI). emissionIsConstant stays false: the EDF path is always taken and
-  // the constant only weights the Light Pick. Per ADR 0006.
+  // emission NOT provably zero is a sampleable Emissive Surface (Geometry
+  // Light): a nonzero body-literal intensity carries the emitted radiance
+  // (intensity over PI) as the Pick Power; a textured/procedural intensity —
+  // not host-knowable — uses a unit-luminance proxy, with the true radiance
+  // evaluated on the device at the sampled point. A folded zero is provably
+  // zero: no light.
+  // emissionIsConstant stays false: the EDF path is always taken and the
+  // average only weights the Light Pick. Per ADR 0006.
   bool emissionIsSampleable() const override;
   vec3 emissionAverage() const override;
 

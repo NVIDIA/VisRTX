@@ -148,11 +148,12 @@ bool PhysicallyBasedMDL::emissionIsConstant() const
 
 bool PhysicallyBasedMDL::emissionIsSampleable() const
 {
-  // MDL emission is evaluated through the compiled EDF, which needs a real hit
-  // context; a synthetic hit from the light sampler does not reproduce it. So
-  // only CONSTANT emission is a Geometry Light here (Stage 1 behaviour). Textured
-  // MDL emission is deferred to Stage 3 (general MDL); it still deposits on
-  // path-hit via the EDF, just without next-event sampling.
+  // Deliberate scoping per ADR 0006: only a nonzero constant `emissive` is a
+  // Geometry Light on the wrapper; a bound emissive sampler stays per-hit for
+  // now (it still deposits via the compiled EDF, just without next-event
+  // sampling). The synthetic-hit evaluation itself works — raw `mdl` textured
+  // emission uses it — bringing the wrapper's sampler case into next-event is
+  // a follow-up.
   return m_emissionIsConstant;
 }
 

@@ -198,8 +198,9 @@ VISRTX_DEVICE float envPickProbability(const FrameGPUData &frameData)
 // used — so wNee and wBsdf evaluate one pdf function and partition to 1.
 // Returns 0 when the hit surface is not a Geometry Light (deposit stays weight
 // 1). Pick Power uses the same emission the CDF was built from so the two sides
-// agree: the material's mean emission for a textured emitter, and the hit's own
-// (constant) emission otherwise. `emission` is the surface's evaluated radiance.
+// agree: the material's emissionAverage for a non-constant emitter (a mean for
+// native textured emission, a unit proxy for MDL), and the hit's own (constant)
+// emission otherwise. `emission` is the surface's evaluated radiance.
 VISRTX_DEVICE float geometryLightHitPdf(const FrameGPUData &frameData,
     const SurfaceHit &hit,
     const vec3 &rayDir,
