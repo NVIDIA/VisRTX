@@ -416,15 +416,20 @@ VisRTXDevice::~VisRTXDevice()
 
   auto &state = *deviceState();
 
+  // The deferred commit buffer can hold the LAST reference to objects; clear
+  // it while every subsystem those destructors touch is still alive — an MDL
+  // material dying here releases its samplers into the registry, so the MDL
+  // teardown below must come after (also what empties the registry before its
+  // "not empty on destruction" check).
+  state.commitBuffer.clear();
+  state.uploadBuffer.clear();
+
 #ifdef USE_MDL
   if (m_mdlInitStatus == DeviceInitStatus::SUCCESS) {
     state.mdl.reset();
     m_mdlInitStatus = DeviceInitStatus::UNINITIALIZED;
   }
 #endif // defined(USE_MDL)
-
-  state.commitBuffer.clear();
-  state.uploadBuffer.clear();
 
   CUDA_SYNC_CHECK();
 
