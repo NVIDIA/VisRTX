@@ -550,7 +550,7 @@ int VisRTXDevice::deviceGetProperty(const char *name,
     ANARIDataType type,
     void *mem,
     uint64_t size,
-    uint32_t /*flags*/)
+    uint32_t flags)
 {
   std::string_view prop = name;
   if (prop == "version" && type == ANARI_INT32) {
@@ -580,6 +580,21 @@ int VisRTXDevice::deviceGetProperty(const char *name,
     helium::writeToVoidP(mem, uint64_t(std::numeric_limits<uint32_t>::max()));
     return 1;
   }
+#ifdef USE_MDL
+  // Registry acquire/release balance seam: live compiled-material slots.
+  // Reflects flushed state only — the deferred commit buffer can hold the last
+  // reference to a material, so WAIT flushes it (the World properties' idiom).
+  if (prop == "numRegisteredMdlMaterials" && type == ANARI_UINT32) {
+    auto &state = *deviceState();
+    if (flags & ANARI_WAIT)
+      state.commitBuffer.flush();
+    const uint32_t count = state.mdl
+        ? uint32_t(state.mdl->materialRegistry.numRegisteredMaterials())
+        : 0u;
+    helium::writeToVoidP(mem, count);
+    return 1;
+  }
+#endif // defined(USE_MDL)
   return 0;
 }
 

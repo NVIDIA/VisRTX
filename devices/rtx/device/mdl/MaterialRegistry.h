@@ -86,6 +86,14 @@ class MaterialRegistry
     return m_lastUpdateTS;
   }
 
+  // Live slots (distinct compiled materials currently acquired). Test seam for
+  // acquire/release balance, exposed as the device property
+  // `numRegisteredMdlMaterials`.
+  std::size_t numRegisteredMaterials() const
+  {
+    return m_uuidToIndex.size();
+  }
+
   using ImplementationIndex = std::uint32_t;
   static constexpr const auto INVALID_IMPLEMENTATION_INDEX =
       std::numeric_limits<ImplementationIndex>::max();

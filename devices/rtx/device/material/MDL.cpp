@@ -68,6 +68,13 @@ MDL::MDL(DeviceGlobalState *d) : Material(d) {}
 
 MDL::~MDL()
 {
+  // Release the registry slot syncSource acquired: the source-SWITCH path
+  // releases the previous slot itself and reassigns m_uuid, so releasing the
+  // CURRENT uuid here is exact — no double release. Dropping a slot to zero
+  // refs bumps the registry timestamp, so a surviving renderer rebuilds its
+  // pipeline (leak-free since the releasePipeline fix).
+  if (m_uuid != libmdl::Uuid{})
+    deviceState()->mdl->materialRegistry.releaseMaterial(m_uuid);
   clearSamplers();
 }
 
@@ -219,13 +226,15 @@ void MDL::syncSource()
   }
 
   // We have successfully loaded a material, release the previous one and
-  // use it instead.
+  // use it instead. Reassign m_uuid immediately after the release so the
+  // destructor's "release exactly the current uuid" invariant never sees a
+  // released-but-still-assigned window.
   if (m_uuid != libmdl::Uuid{}) {
     materialRegistry.releaseMaterial(m_uuid);
   }
+  m_uuid = uuid;
   m_argumentBlockInstance =
       materialRegistry.createArgumentBlock(argumentBlockDescriptor);
-  m_uuid = uuid;
 
   clearSamplers();
 

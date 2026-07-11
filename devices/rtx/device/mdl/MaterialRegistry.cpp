@@ -398,6 +398,17 @@ void MaterialRegistry::releaseMaterial(const Uuid &uuid)
           uuid.m_id4);
       m_targetCodes[it->second] = {};
       m_uuidToIndex.erase(it);
+      // Prune the name cache with the slot: a stale name entry pins the
+      // descriptor (MDL-SDK handles included) forever under distinct-source
+      // churn, and its insert() would silently no-op if the same name later
+      // resolved to a different content hash.
+      for (auto nameIt = std::begin(m_materialNameToUuid);
+          nameIt != std::end(m_materialNameToUuid);) {
+        if (std::get<0>(nameIt->second) == uuid)
+          nameIt = m_materialNameToUuid.erase(nameIt);
+        else
+          ++nameIt;
+      }
       m_lastUpdateTS = libmdl::newTimeStamp();
     }
   } else {

@@ -55,4 +55,5 @@ make_test(TestEmissionRadianceScale)
 # The raw `mdl` material type only exists with MDL support compiled in.
 if (VISRTX_ENABLE_MDL_SUPPORT)
   make_test(TestMdlPipelineRebuild)
+  make_test(TestMdlMaterialRegistryRelease)
 endif()
