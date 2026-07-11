@@ -77,22 +77,6 @@ void PhysicallyBasedMDL::commitParameters()
   // Limitation: attribute-bound inputs are not supported by the MDL wrapper;
   // only .value / .texture bindings are translated below.
 
-  // Capture the emissive parameter BEFORE it is translated away below. Constant
-  // iff it is an inline color (a sampler binding becomes a texture -> Stage 2).
-  {
-    const auto emissiveType = getParamDirect("emissive").type();
-    vec3 radiance(0.f);
-    if (emissiveType == ANARI_FLOAT32_VEC3
-        || emissiveType == ANARI_FLOAT32_VEC4) {
-      vec4 v(0.f);
-      getParam("emissive", ANARI_FLOAT32_VEC4, &v);
-      getParam("emissive", ANARI_FLOAT32_VEC3, &v);
-      radiance = vec3(v);
-    }
-    m_emissionRadiance = radiance;
-    m_emissionIsConstant = glm::any(glm::greaterThan(radiance, vec3(0.f)));
-  }
-
   // Translate all supported parameters to their matching .value or .texture if they are
   // variant inputs.
   translateAndRemoveParameter("opacity"sv);
@@ -113,6 +97,28 @@ void PhysicallyBasedMDL::commitParameters()
   translateAndRemoveParameter("sheenRoughness"sv);
   translateAndRemoveParameter("iridescence"sv);
   translateAndRemoveParameter("iridescenceThickness"sv);
+
+  // Capture the emissive value AFTER translation, from the persistent
+  // post-translate keys: the translation consumes the pre-translate `emissive`
+  // key at its first commit, so reading that key here would zero the capture —
+  // and silently drop the Geometry Light — on any later commit that doesn't
+  // re-set `emissive`. The keys are mutually exclusive post-translate; the
+  // sampler gate mirrors the material's own texture-over-value precedence.
+  // Constant iff a nonzero inline color is bound (a sampler stays per-hit only).
+  // Note: unsetting `emissive` leaves the last translated key in place — a
+  // pre-existing translation-lifecycle trait shared by the MDL argument block,
+  // so the light stays consistent with the still-glowing surface.
+  {
+    vec3 radiance(0.f);
+    if (getParamDirect("emissive.texture").type() != ANARI_SAMPLER) {
+      vec4 v(0.f);
+      getParam("emissive.value", ANARI_FLOAT32_VEC4, &v);
+      getParam("emissive.value", ANARI_FLOAT32_VEC3, &v);
+      radiance = vec3(v);
+    }
+    m_emissionRadiance = radiance;
+    m_emissionIsConstant = glm::any(glm::greaterThan(radiance, vec3(0.f)));
+  }
 
   // Purposefully exclude the following from the above translation, as they are
   // raw parameters and are already set correctly.

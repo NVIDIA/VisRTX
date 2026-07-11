@@ -48,10 +48,11 @@ struct PhysicallyBasedMDL : public MDL
  private:
   void translateAndRemoveParameter(std::string_view paramName);
 
-  // Captured from the ANARI `emissive` parameter before it is translated to MDL
-  // arguments (no MDL introspection). Only a nonzero constant is a Geometry Light
-  // here (Stage 1): MDL's EDF needs a real hit context, so textured MDL emission
-  // is not next-event sampleable until Stage 3.
+  // Captured from the post-translate `emissive.value`/`emissive.texture` keys
+  // (the pre-translate `emissive` key is consumed by the translation at first
+  // commit, so it cannot be re-read on later commits; no MDL introspection).
+  // Only a nonzero constant is a Geometry Light here: textured MDL emission is
+  // not next-event sampleable yet (per ADR 0006).
   bool m_emissionIsConstant{false};
   vec3 m_emissionRadiance{0.f};
 };
