@@ -33,6 +33,7 @@
 #include <array>
 #include <filesystem>
 #include <optional>
+#include <string>
 #include <string_view>
 
 namespace visrtx::libmdl {
@@ -55,6 +56,26 @@ class Core
     // non-finite folded constant clears it, disqualifying the material.
     // Invariant: constantRadiance.has_value() implies isDiffuseEmission.
     bool isDiffuseEmission{false};
+
+    // Dynamic mean-radiance recipe: when the intensity does not fold but is a
+    // SINGLE class-compilation argument (color/float parameter, or the `tex`
+    // of a tex::lookup_color) times folded constants, the host can still
+    // compute a live mean radiance at light-build time:
+    //   mean = <current argument value | bound sampler mean> * dynamicScale
+    // dynamicScale is radiance-domain (the folded constants already carry the
+    // diffuse EDF's 1/PI). Without a recipe the Pick Power falls back to the
+    // unit proxy — unbiased, but under-picking a bright emitter turns the
+    // firefly clamp and the last-depth MIS truncation into visible dimming
+    // next to correctly-powered lights.
+    enum class DynamicSource
+    {
+      None,
+      Parameter,
+      Texture,
+    };
+    DynamicSource dynamicSource{DynamicSource::None};
+    std::string dynamicArgumentName;
+    std::array<float, 3> dynamicScale{};
   };
 
   // The main neuray interface can only be acquired once. Possibly get it

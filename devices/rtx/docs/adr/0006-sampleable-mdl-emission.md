@@ -3,7 +3,9 @@
 Any MDL material whose emission is **not provably zero** becomes an Emissive
 Surface — and thus a next-event-sampled Geometry Light. Emissiveness is
 determined host-side, **per material kind, from the value each kind actually
-holds** — no recompilation and no resolving class-compiled arguments:
+holds** — no recompilation, no re-resolution of class-compiled expressions
+(the dynamic recipe below only reads values the host already holds: the live
+argument block and bound samplers):
 
 - **Raw `mdl`** (author-supplied source): a compile-time introspection of the
   compiled material, run while it is alive in the material registry and cached
@@ -15,8 +17,15 @@ holds** — no recompilation and no resolving class-compiled arguments:
   but the intensity does **not** fold (texture / procedural / parameter-driven —
   note a parameter with a default stays symbolic under class compilation, so only
   body-literal intensities fold), it is textured emission: sampleable, radiance
-  evaluated on the device, with a unit-luminance proxy as the selection weight.
-  Otherwise (no emission, or a non-diffuse EDF) it is not sampleable.
+  evaluated on the device. When the symbolic intensity is a SINGLE argument- or
+  texture-driven factor times folded constants — a color/float parameter, or
+  the parameter `tex` of a `tex::lookup_color` (body-literal textures fold and
+  fail the walk); e.g. the `value * PI` authoring idiom — the
+  classification additionally records a **dynamic recipe** — the argument name
+  plus the folded radiance-domain scale — so the host resolves a live mean from
+  the current argument block (or bound sampler mean) at light-build time.
+  Anything outside that shape keeps the unit-luminance proxy as the selection
+  weight. Otherwise (no emission, or a non-diffuse EDF) it is not sampleable.
 - **Wrapper materials** (`PhysicallyBasedMDL`, which maps an ANARI `emissive`
   input): read the committed parameter from its **post-translate keys**
   (`emissive.value` / `emissive.texture`, which persist in parameter storage; the
@@ -71,11 +80,19 @@ whether a material is treated as an emitter.**
   cancels the `1/PI`). No scaling choice here can bias MIS — the average feeds
   only the Light Pick and is read identically on both estimator sides — but
   `intensity/PI` is the *exact* weight, keeping raw-`mdl` constants comparable to
-  native/wrapper emitters in a mixed scene. For non-constant/textured emission
-  the magnitude is not host-known, so a unit-luminance proxy (`vec3(1)`) is the
-  selection weight — variance-only, never bias. The wrapper's bound sampler is
-  the exception: its mean texel IS host-known, so that is its weight (matching
-  native PBR). A device numerical estimate for raw `mdl` is deferred.
+  native/wrapper emitters in a mixed scene. For non-constant emission the
+  dynamic recipe (see the classification above) resolves a live mean from the
+  current argument value or bound sampler mean; only expressions outside the
+  single-factor shape fall back to the unit-luminance proxy (`vec3(1)`) — as
+  do runtime resolution failures (argument missing or wrong-typed, sampler
+  unbound or default-textured, non-finite product).
+  The proxy is variance-only in exact arithmetic but NOT harmless in practice:
+  under-picking a bright emitter in a mixed scene concentrates its energy in
+  rare overweighted picks, which the firefly clamp then cuts and the last-depth
+  MIS truncation cannot repay — the raw-`mdl`-dimmer-than-PBR regression the
+  multi-light parity section pins. The wrapper's bound sampler mean IS
+  host-known, so that is its weight (matching native PBR). A device numerical
+  estimate for arbitrary raw-`mdl` expressions is deferred.
 - **Sidedness.** Triangle Geometry Lights are double-sided (the deposit orients
   the shading normal toward the incoming ray; the triangle sampler pdf uses
   `|cos|`), so the synthetic next-event hit's normal is oriented toward the
@@ -91,10 +108,12 @@ whether a material is treated as an emitter.**
 
 ## Consequences
 
-- No recompilation and no argument-block resolution. Raw-`mdl` emissiveness is a
-  compile-time classification cached per-uuid (constant radiance, or a
-  textured-diffuse flag), evicted alongside the registry's material release; the
-  wrapper reads its ANARI parameters. Both are known by finalize; the light-set
+- No recompilation and no argument-block resolution beyond reading the live
+  block. Raw-`mdl` emissiveness is a compile-time classification cached per-uuid
+  (constant radiance, a textured-diffuse flag, and the optional dynamic recipe —
+  instance-agnostic; each material instance plugs its own argument values in),
+  evicted alongside the registry's material release; the wrapper reads its ANARI
+  parameters. Both are known by finalize; the light-set
   refresh runs from `MDL::finalize` (after `syncSource`/`syncParameters`), and the
   wrapper's existing `commitParameters` refresh call is removed — refreshing
   before the classification exists reads a stale flag.

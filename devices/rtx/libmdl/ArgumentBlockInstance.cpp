@@ -113,6 +113,41 @@ auto ArgumentBlockInstance::reset(std::string_view name) -> void
       argumentLayoutIt->second.size);
 }
 
+auto ArgumentBlockInstance::getFloat3Value(std::string_view name) const
+    -> std::optional<std::array<float, 3>>
+{
+  if (!m_argumentBlock.is_valid_interface())
+    return std::nullopt;
+
+  const auto &args = m_argumentBlockDescriptor.m_arguments;
+  auto argIt = std::find_if(cbegin(args), cend(args), [&](const auto &arg) {
+    return arg.name == name;
+  });
+  if (argIt == cend(args))
+    return std::nullopt;
+  if (argIt->type != ArgumentType::Color && argIt->type != ArgumentType::Float3
+      && argIt->type != ArgumentType::Float)
+    return std::nullopt;
+
+  auto layoutIt = m_argumentBlockDescriptor.m_nameToArgbBlockLayout.find(
+      std::string(name));
+  if (layoutIt == cend(m_argumentBlockDescriptor.m_nameToArgbBlockLayout))
+    return std::nullopt;
+
+  // Type and layout come from the same descriptor so they cannot disagree,
+  // but this is the only READ of the block — bound the access anyway.
+  const std::size_t needed =
+      (argIt->type == ArgumentType::Float ? 1 : 3) * sizeof(float);
+  if (layoutIt->second.size < needed)
+    return std::nullopt;
+
+  const auto *data = reinterpret_cast<const float *>(
+      m_argumentBlock->get_data() + layoutIt->second.offset);
+  if (argIt->type == ArgumentType::Float)
+    return std::array<float, 3>{data[0], data[0], data[0]};
+  return std::array<float, 3>{data[0], data[1], data[2]};
+}
+
 nonstd::span<const std::byte> ArgumentBlockInstance::getArgumentBlockData()
     const
 {

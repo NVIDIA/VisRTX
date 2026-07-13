@@ -312,6 +312,121 @@ static anari::World makeWorld(ANARIDevice device, Impl impl, bool sampled)
   return world;
 }
 
+// Two emitters of DIFFERENT implementations in ONE world, mirrored across x.
+// A single-light world cannot see a wrong Pick Power (the pick probability is
+// 1 and cancels); with two lights in the CDF, an under-powered light is
+// under-picked, and the last-depth MIS truncation (and any firefly clamp)
+// turns those overweighted picks into visible dimming next to the correctly
+// powered one — the raw-mdl unit-proxy regression this section pins.
+static constexpr float PAIR_X = 1.5f;
+
+static anari::World makeTwoEmitterWorld(
+    ANARIDevice device, Impl left, Impl right, bool sampled)
+{
+  auto makeEmitter = [&](Impl impl, float cx) {
+    const std::array<vec3, 4> pos = {vec3{cx - QUAD_HALF, QUAD_Y, -QUAD_HALF},
+        vec3{cx + QUAD_HALF, QUAD_Y, -QUAD_HALF},
+        vec3{cx + QUAD_HALF, QUAD_Y, QUAD_HALF},
+        vec3{cx - QUAD_HALF, QUAD_Y, QUAD_HALF}};
+    const std::array<vec2, 4> uv = {
+        vec2{0.f, 0.f}, vec2{1.f, 0.f}, vec2{1.f, 1.f}, vec2{0.f, 1.f}};
+    const std::array<std::array<unsigned, 3>, 2> idx = {
+        std::array<unsigned, 3>{0, 1, 2}, std::array<unsigned, 3>{0, 2, 3}};
+
+    auto geom = anari::newObject<anari::Geometry>(device, "triangle");
+    anari::setParameterArray1D(device, geom, "vertex.position", pos.data(), 4);
+    anari::setParameterArray1D(device, geom, "vertex.attribute0", uv.data(), 4);
+    anari::setParameterArray1D(device, geom, "primitive.index", idx.data(), 2);
+    anari::commitParameters(device, geom);
+
+    auto surface = anari::newObject<anari::Surface>(device);
+    anari::setAndReleaseParameter(device, surface, "geometry", geom);
+    anari::setAndReleaseParameter(
+        device, surface, "material", makeEmitterMaterial(device, impl, sampled));
+    anari::commitParameters(device, surface);
+    return surface;
+  };
+
+  const std::array<anari::Surface, 3> surfaces = {makeFloor(device),
+      makeEmitter(left, -PAIR_X),
+      makeEmitter(right, PAIR_X)};
+  auto world = anari::newObject<anari::World>(device);
+  anari::setParameterArray1D(
+      device, world, "surface", surfaces.data(), surfaces.size());
+  for (auto s : surfaces)
+    anari::release(device, s);
+  anari::commitParameters(device, world);
+  return world;
+}
+
+// Mean luminance of the mirrored floor pools under each emitter of a
+// two-emitter world, returned as {left impl's pool, right impl's pool}. Camera
+// sits on the symmetry plane, so equal pool means are the physical expectation
+// whenever the two implementations agree.
+static std::array<double, 2> pairPoolMeans(ANARIDevice device,
+    Impl left,
+    Impl right,
+    bool sampled,
+    const char *rendererType,
+    int maxRayDepth)
+{
+  auto world = makeTwoEmitterWorld(device, left, right, sampled);
+
+  auto camera = anari::newObject<anari::Camera>(device, "perspective");
+  anari::setParameter(device, camera, "position", vec3{0.f, 0.6f, -5.f});
+  anari::setParameter(device, camera, "direction", vec3{0.f, 0.f, 1.f});
+  anari::setParameter(device, camera, "up", vec3{0.f, 1.f, 0.f});
+  anari::setParameter(
+      device, camera, "aspect", IMAGE_SIZE[0] / float(IMAGE_SIZE[1]));
+  anari::commitParameters(device, camera);
+
+  auto renderer = anari::newObject<anari::Renderer>(device, rendererType);
+  anari::setParameter(device, renderer, "background", vec4{0.f, 0.f, 0.f, 1.f});
+  anari::setParameter(device, renderer, "ambientRadiance", 0.f);
+  anari::setParameter(device, renderer, "pixelSamples", PIXEL_SAMPLES);
+  anari::setParameter(device, renderer, "fireflyFilterMode", "none");
+  if (maxRayDepth > 0)
+    anari::setParameter(device, renderer, "maxRayDepth", maxRayDepth);
+  anari::commitParameters(device, renderer);
+
+  auto frame = anari::newObject<anari::Frame>(device);
+  anari::setParameter(device, frame, "size", IMAGE_SIZE);
+  anari::setParameter(device, frame, "channel.color", ANARI_FLOAT32_VEC4);
+  anari::setAndReleaseParameter(device, frame, "world", world);
+  anari::setAndReleaseParameter(device, frame, "camera", camera);
+  anari::setAndReleaseParameter(device, frame, "renderer", renderer);
+  anari::commitParameters(device, frame);
+
+  anari::render(device, frame);
+  anari::wait(device, frame);
+
+  auto fb = anari::map<vec4>(device, frame, "channel.color");
+  // The pool centers (±PAIR_X, 0, 0) projected through the camera above land
+  // symmetrically left/right of the image center; a fixed mirrored box on
+  // each side integrates each emitter's pool without touching the other's.
+  // The camera basis is dir_du = cross(dir, up), so with dir=+z, up=+y the
+  // image x axis grows toward world -x: the `left` (-PAIR_X) emitter's pool is
+  // the image-RIGHT box, and vice versa.
+  auto boxMean = [&](uint32_t x0, uint32_t x1) {
+    double sum = 0.0;
+    uint64_t n = 0;
+    for (uint32_t y = IMAGE_SIZE[1] / 4; y < IMAGE_SIZE[1] / 2; ++y) {
+      for (uint32_t x = x0; x < x1; ++x) {
+        const vec4 &p = fb.data[y * IMAGE_SIZE[0] + x];
+        sum += 0.2126 * p[0] + 0.7152 * p[1] + 0.0722 * p[2];
+        ++n;
+      }
+    }
+    return n ? sum / double(n) : 0.0;
+  };
+  const std::array<double, 2> means = {
+      boxMean(5 * IMAGE_SIZE[0] / 8, 7 * IMAGE_SIZE[0] / 8),
+      boxMean(IMAGE_SIZE[0] / 8, 3 * IMAGE_SIZE[0] / 8)};
+  anari::unmap(device, frame, "channel.color");
+  anari::release(device, frame);
+  return means;
+}
+
 static double poolMean(
     ANARIDevice device, Impl impl, bool sampled, const char *rendererType)
 {
@@ -430,6 +545,48 @@ int main()
     const double sWrap = poolMean(device, Impl::WRAPPER, true, "interactive");
     ok = checkParity("interactive/sampled wrapper-vs-mdl", sWrap, sMdl, 0.08)
         && ok;
+  }
+
+  // Multi-light pick parity: pbr and mdl emitters SHARE one world, so a wrong
+  // raw-mdl Pick Power (unit proxy instead of the live argument/sampler mean)
+  // skews the power-proportional pick and dims the mdl pool — worst at
+  // maxRayDepth 1, where the truncated MIS partner cannot repay the
+  // under-picking. Also run on 'interactive' (pick-order insensitive there,
+  // pins the baseline) and 'quality' at the default depth.
+  {
+    struct PairConfig
+    {
+      const char *renderer;
+      int depth; // 0 = renderer default
+      const char *label;
+    };
+    const PairConfig pairConfigs[] = {
+        {"interactive", 0, "interactive"},
+        {"quality", 1, "quality-depth1"},
+        {"quality", 0, "quality"},
+    };
+    for (const auto &cfg : pairConfigs) {
+      for (bool sampled : {false, true}) {
+        const auto pools = pairPoolMeans(
+            device, Impl::PBR, Impl::MDL, sampled, cfg.renderer, cfg.depth);
+        char label[128];
+        snprintf(label,
+            sizeof(label),
+            "%s/multi-light %s mdl-vs-pbr",
+            cfg.label,
+            sampled ? "sampled" : "constant");
+        ok = checkParity(label, pools[1], pools[0], 0.08) && ok;
+      }
+      // Wrapper against native pbr under the same shared pick CDF.
+      const auto pools = pairPoolMeans(
+          device, Impl::PBR, Impl::WRAPPER, true, cfg.renderer, cfg.depth);
+      char label[128];
+      snprintf(label,
+          sizeof(label),
+          "%s/multi-light sampled wrapper-vs-pbr",
+          cfg.label);
+      ok = checkParity(label, pools[1], pools[0], 0.08) && ok;
+    }
   }
 
   // The live sampler mean itself, via the light count (see the helper).

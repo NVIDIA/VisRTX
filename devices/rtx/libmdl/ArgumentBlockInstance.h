@@ -18,7 +18,9 @@
 #include <algorithm>
 #include <nonstd/span.hpp>
 
+#include <array>
 #include <cstdint>
+#include <optional>
 #include <string_view>
 #include <unordered_map>
 
@@ -59,6 +61,12 @@ class ArgumentBlockInstance
   void setValue(std::string_view name, const float (&value)[4]);
 
   void reset(std::string_view name);
+
+  // Current value of a Color / Float3 / Float argument (a Float splats across
+  // channels), read back from the live argument block — defaults included.
+  // nullopt for other types or unknown names.
+  std::optional<std::array<float, 3>> getFloat3Value(
+      std::string_view name) const;
 
   enum class ColorSpace
   {

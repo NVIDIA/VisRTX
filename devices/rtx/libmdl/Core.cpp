@@ -509,6 +509,147 @@ mi::base::Handle<const mi::neuraylib::IExpression> derefTemporaries(
   return expr;
 }
 
+// Multiply a constant color/float factor into `scale` componentwise.
+bool foldColorFactor(
+    const mi::neuraylib::IValue *value, std::array<float, 3> &scale)
+{
+  using namespace mi::neuraylib;
+  using mi::base::make_handle;
+  if (!value)
+    return false;
+  if (value->get_kind() == IValue::VK_COLOR) {
+    auto color = make_handle(value->get_interface<const IValue_color>());
+    for (int i = 0; i < 3; ++i) {
+      auto channel = make_handle(color->get_value(i));
+      if (!channel)
+        return false;
+      auto f = make_handle(channel->get_interface<const IValue_float>());
+      if (!f)
+        return false;
+      scale[i] *= f->get_value();
+    }
+    return true;
+  }
+  if (value->get_kind() == IValue::VK_FLOAT) {
+    const float f =
+        make_handle(value->get_interface<const IValue_float>())->get_value();
+    for (auto &c : scale)
+      c *= f;
+    return true;
+  }
+  return false;
+}
+
+struct DynamicIntensity
+{
+  std::array<float, 3> scale{1.f, 1.f, 1.f};
+  Core::EmissionClassification::DynamicSource source =
+      Core::EmissionClassification::DynamicSource::None;
+  std::string argumentName;
+};
+
+// Multiplicative walk of a non-folding intensity expression: accumulate
+// constant factors into `scale` and identify at most ONE dynamic factor — a
+// color/float parameter or the `tex` of a tex::lookup_color. Anything outside
+// that shape (sums, other calls, two dynamic factors, a multiply chain deeper
+// than any sane authoring) fails the walk and the material keeps the
+// unit-proxy Pick Power.
+constexpr int kMaxIntensityWalkDepth = 16;
+
+bool walkIntensityFactors(
+    const mi::neuraylib::ICompiled_material *compiledMaterial,
+    mi::base::Handle<const mi::neuraylib::IExpression> expr,
+    DynamicIntensity &out,
+    int depth = 0)
+{
+  using namespace mi::neuraylib;
+  using mi::base::make_handle;
+  using DynamicSource = Core::EmissionClassification::DynamicSource;
+
+  if (depth > kMaxIntensityWalkDepth)
+    return false;
+  expr = derefTemporaries(compiledMaterial, expr);
+  if (!expr)
+    return false;
+
+  switch (expr->get_kind()) {
+  case IExpression::EK_CONSTANT: {
+    auto constant =
+        make_handle(expr->get_interface<const IExpression_constant>());
+    return foldColorFactor(make_handle(constant->get_value()).get(), out.scale);
+  }
+  case IExpression::EK_PARAMETER: {
+    if (out.source != DynamicSource::None)
+      return false;
+    auto param =
+        make_handle(expr->get_interface<const IExpression_parameter>());
+    const char *name = compiledMaterial->get_parameter_name(param->get_index());
+    if (!name)
+      return false;
+    out.source = DynamicSource::Parameter;
+    out.argumentName = name;
+    return true;
+  }
+  case IExpression::EK_DIRECT_CALL: {
+    auto call =
+        make_handle(expr->get_interface<const IExpression_direct_call>());
+    const char *definition = call ? call->get_definition() : nullptr;
+    if (!definition)
+      return false;
+    const std::string_view def(definition);
+    auto args = make_handle(call->get_arguments());
+    if (!args)
+      return false;
+    // Exact DB-name prefixes, same masquerade guard as the EDF check above.
+    if (def.rfind("mdl::operator*(", 0) == 0) {
+      if (args->get_size() != 2)
+        return false;
+      return walkIntensityFactors(compiledMaterial,
+                 make_handle(args->get_expression(mi::Size(0))),
+                 out,
+                 depth + 1)
+          && walkIntensityFactors(compiledMaterial,
+              make_handle(args->get_expression(mi::Size(1))),
+              out,
+              depth + 1);
+    }
+    if (def.rfind("mdl::color(float)", 0) == 0) {
+      // Single-float color constructor only: color(r,g,b) factors would
+      // wrongly multiply as three scalars.
+      if (args->get_size() != 1)
+        return false;
+      return walkIntensityFactors(compiledMaterial,
+          make_handle(args->get_expression(mi::Size(0))),
+          out,
+          depth + 1);
+    }
+    // The lookup's coord/crop/wrap arguments are deliberately ignored: the
+    // recipe's mean is TEXTURE-domain (the bound sampler's full-image mean),
+    // an approximation of the surface mean — variance-only, never bias.
+    if (def.rfind("mdl::tex::lookup_color(", 0) == 0) {
+      if (out.source != DynamicSource::None)
+        return false;
+      auto tex = derefTemporaries(
+          compiledMaterial, make_handle(args->get_expression("tex")));
+      if (!tex || tex->get_kind() != IExpression::EK_PARAMETER)
+        return false;
+      auto param =
+          make_handle(tex->get_interface<const IExpression_parameter>());
+      const char *name =
+          compiledMaterial->get_parameter_name(param->get_index());
+      if (!name)
+        return false;
+      out.source = DynamicSource::Texture;
+      out.argumentName = name;
+      return true;
+    }
+    return false;
+  }
+  default:
+    return false;
+  }
+}
+
 } // namespace
 
 Core::EmissionClassification Core::classifyEmission(
@@ -563,11 +704,39 @@ Core::EmissionClassification Core::classifyEmission(
 
   // Body-literal intensity folds to a constant; anything argument-, texture- or
   // state-driven stays symbolic under class compilation and has no host value.
+  // A symbolic single-factor shape still yields a dynamic recipe below, so the
+  // Pick Power can track the live argument instead of the unit proxy.
+  constexpr float INV_PI = 0.31830988618379067154f;
   auto intensity = derefTemporaries(compiledMaterial,
       make_handle(compiledMaterial->lookup_sub_expression(
           "surface.emission.intensity")));
-  if (!intensity || intensity->get_kind() != IExpression::EK_CONSTANT)
+  if (!intensity)
     return result;
+  if (intensity->get_kind() != IExpression::EK_CONSTANT) {
+    DynamicIntensity dyn;
+    if (walkIntensityFactors(compiledMaterial, intensity, dyn)
+        && dyn.source != EmissionClassification::DynamicSource::None) {
+      // Radiance domain (= intensity scale / PI). Non-finite OR negative
+      // folded factors keep the proxy: clamping a negative scale to zero
+      // would zero the Pick Power while the device could still emit
+      // (negative scale x negative argument), making the light NEE-dead —
+      // exactly the truncation dimming this recipe exists to avoid.
+      bool usable = true;
+      for (float &c : dyn.scale) {
+        if (!std::isfinite(c) || c < 0.0f) {
+          usable = false;
+          break;
+        }
+        c *= INV_PI;
+      }
+      if (usable) {
+        result.dynamicSource = dyn.source;
+        result.dynamicArgumentName = std::move(dyn.argumentName);
+        result.dynamicScale = dyn.scale;
+      }
+    }
+    return result;
+  }
 
   auto constant =
       make_handle(intensity->get_interface<const IExpression_constant>());
@@ -597,7 +766,6 @@ Core::EmissionClassification Core::classifyEmission(
   // diffuse flag too, or the textured branch would make it sampleable and
   // next-event estimation would spray the NaN/Inf to every receiver the pick
   // selects (one poisoned pick per sample). Negatives are clamped.
-  constexpr float INV_PI = 0.31830988618379067154f;
   for (float &c : rgb) {
     if (!std::isfinite(c)) {
       result.isDiffuseEmission = false;
