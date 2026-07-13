@@ -51,6 +51,10 @@ namespace visrtx {
 
 constexpr float PATH_CONTRIBUTION_EPSILON = 1.0e-8f;
 constexpr float ATTENUATION_EPSILON = std::numeric_limits<float>::epsilon();
+constexpr float INV_4PI = 1.0f / (4.0f * kPi);
+// Pre-shadow skip: a contribution below SHADOW_SKIP_EPSILON can't survive RGB
+// quantisation even unattenuated, so skipping the trace entirely costs nothing.
+constexpr float SHADOW_SKIP_EPSILON = 1.0e-5f;
 // RR start depth. Volume scatter engages earlier — throughput shrinks by
 // medium albedo each scatter, so dense regions need RR sooner. Surface
 // bounces don't shrink throughput so reliably; keep their conservative
@@ -243,11 +247,18 @@ VISRTX_DEVICE float geometryLightHitPdf(const FrameGPUData &frameData,
         length(cross(e1o, e2o)), worldTwice, tri.totalArea, hit.t, cosTheta);
     totalArea = tri.totalArea;
   } else {
-    // Sphere/cylinder/cone: the unit-tangent samplers depend only on the OUTWARD
-    // object normal at the point (worldAreaScale = |cross(M t1,M t2)|, invariant
-    // to the tangent basis). Recover it generically from the world normal —
-    // o2wᵀ·Ng ∝ nObj since Ng = normalize(M⁻ᵀ·nObj) — so no per-surface (lateral
-    // vs cap, slant) math is needed and it matches finishAreaLightSample exactly.
+    // Sphere/cylinder/cone samplers are SINGLE-sided (outward): finishAreaLightSample
+    // culls the far hemisphere (cosTheta <= 0). hit.Ng is ray-oriented so fabsf above
+    // cannot recover facing — an interior (back-face) hit is never NEE-sampled, so its
+    // NEE pdf must be 0. Otherwise the deposit sees pNee > 0 and down-weights via MIS
+    // while NEE contributes nothing, losing the interior fraction (dark shell inside).
+    if (!hit.isFrontFace)
+      return 0.0f;
+    // The unit-tangent samplers depend only on the OUTWARD object normal at the point
+    // (worldAreaScale = |cross(M t1,M t2)|, invariant to the tangent basis). Recover it
+    // generically from the world normal — o2wᵀ·Ng ∝ nObj since Ng = normalize(M⁻ᵀ·nObj)
+    // — so no per-surface (lateral vs cap, slant) math is needed and it matches
+    // finishAreaLightSample exactly.
     uint32_t numPrimitives = 0;
     if (hit.geometry->type == GeometryType::SPHERE) {
       totalArea = hit.geometry->sphere.totalArea;
@@ -379,7 +390,6 @@ VISRTX_DEVICE LightSample sampleLightsVolume(
 
   if (pick.isAmbient) {
     // Uniform-sphere sample (pdf 1/(4π)) to match the isotropic phase function.
-    constexpr float INV_4PI = 1.0f / (4.0f * kPi);
     const auto &rp = frameData.renderer;
     const vec3 dir = randomDir(ss.rs);
     return LightSample{rp.ambientColor * rp.ambientIntensity,
@@ -556,16 +566,11 @@ VISRTX_GLOBAL void __raygen__()
           // render the dim light black — the very bright+dim case the power pick
           // targets.
           if (lightSample.pdf > 0.0f && lightSample.dist > 0.0f) {
-            constexpr float INV_4PI = 1.0f / (4.0f * kPi);
             const vec3 directLight = volumeSample.albedo * lightSample.radiance
                 * INV_4PI / lightSample.pdf;
             const vec3 contribUpper = sampleContribution * directLight;
             const float maxContrib = glm::max(
                 contribUpper.x, glm::max(contribUpper.y, contribUpper.z));
-            // Pre-shadow skip: a contribution below SHADOW_SKIP_EPSILON
-            // can't survive RGB quantisation even unattenuated. Costs nothing
-            // to skip the trace entirely.
-            constexpr float SHADOW_SKIP_EPSILON = 1.0e-5f;
             if (maxContrib >= SHADOW_SKIP_EPSILON) {
               const float eps = VOLUME_SCATTER_EPSILON;
               const Ray shadowRay = {
@@ -713,7 +718,6 @@ VISRTX_GLOBAL void __raygen__()
                 wNee * sampleContribution * opacity * directLight;
             const float maxContrib = glm::max(
                 contribUpper.x, glm::max(contribUpper.y, contribUpper.z));
-            constexpr float SHADOW_SKIP_EPSILON = 1.0e-5f;
             if (maxContrib >= SHADOW_SKIP_EPSILON) {
               // A Geometry Light's sampled point lies on real, opaque geometry,
               // so stop the shadow ray just short of it or it self-occludes on
