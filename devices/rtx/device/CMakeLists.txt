@@ -91,7 +91,9 @@ function(embed_resource resource_file_name source_file_name variable_name)
       -DSOURCE_FILE=${source_file_name}
       -DVARIABLE_NAME=${variable_name}
       -P ${CMAKE_CURRENT_LIST_DIR}/../cmake/embed_resource.cmake
-    DEPENDS ${resource_file_name}
+    DEPENDS
+      ${resource_file_name}
+      ${CMAKE_CURRENT_LIST_DIR}/../cmake/embed_resource.cmake
     COMMENT "Embedding ${resource_file_name} into ${source_file_name}"
     VERBATIM
   )

@@ -50,8 +50,14 @@ file(SIZE ${RESOURCE_FILE} file_size)
 
 # Convert hex string to C array format
 string(REGEX REPLACE "([0-9a-f][0-9a-f])" "0x\\1," array_content ${file_content})
-# Remove trailing comma
-string(REGEX REPLACE ",$" "" array_content ${array_content})
+# Append an explicit NUL terminator (also absorbs the trailing comma the
+# per-byte replace leaves). Consumers wrap the array in a std::string_view via
+# its const char* (strlen) constructor; without a terminator strlen reads past
+# the array into adjacent memory (UB) and the resource's byte length silently
+# decides whether it lands on a stray zero — an incremental edit that changes
+# the length can flip a passing build into a broken, unloadable module.
+# `${VARIABLE_NAME}_size` below stays the true content length (terminator excluded).
+string(APPEND array_content "0x00")
 
 # Generate the new C++ source content
 set(new_content

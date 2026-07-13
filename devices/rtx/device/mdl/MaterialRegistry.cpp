@@ -60,6 +60,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -70,7 +71,9 @@
 using namespace std::string_literals;
 
 extern "C" const char VISRTX_DEFAULT_MDL[];
+extern "C" const std::size_t VISRTX_DEFAULT_MDL_size;
 extern "C" const char VISRTX_PHYSICALLY_BASED_MDL[];
+extern "C" const std::size_t VISRTX_PHYSICALLY_BASED_MDL_size;
 
 namespace visrtx::mdl {
 
@@ -79,9 +82,13 @@ MaterialRegistry::MaterialRegistry(libmdl::Core *core)
       m_scope(m_core->createScope("VisRTXMaterialResgistryScope"s
           + std::to_string(std::uintptr_t(this))))
 {
-  m_core->addBuiltinModule("::visrtx::default", VISRTX_DEFAULT_MDL);
-  m_core->addBuiltinModule(
-      "::visrtx::physically_based", VISRTX_PHYSICALLY_BASED_MDL);
+  // Build the string_view from the embedded array and its exact size: the
+  // embedded resource is not a C string, so a strlen-based view would overrun.
+  m_core->addBuiltinModule("::visrtx::default",
+      std::string_view(VISRTX_DEFAULT_MDL, VISRTX_DEFAULT_MDL_size));
+  m_core->addBuiltinModule("::visrtx::physically_based",
+      std::string_view(
+          VISRTX_PHYSICALLY_BASED_MDL, VISRTX_PHYSICALLY_BASED_MDL_size));
 }
 
 MaterialRegistry::~MaterialRegistry()
