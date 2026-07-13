@@ -74,7 +74,8 @@ void PhysicallyBasedMDL::translateAndRemoveParameter(std::string_view name)
 
 void PhysicallyBasedMDL::commitParameters()
 {
-  // FIXME: Attributes are not supported in PhysicallyBasedMDL nor MDL
+  // Limitation: attribute-bound inputs are not supported by the MDL wrapper;
+  // only .value / .texture bindings are translated below.
 
   // Translate all supported parameters to their matching .value or .texture if they are
   // variant inputs.

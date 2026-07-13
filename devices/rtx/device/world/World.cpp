@@ -68,8 +68,7 @@ static std::vector<OptixBuildInput> createOBI(
   OptixBuildInput buildInput{};
 
   buildInput.type = OPTIX_BUILD_INPUT_TYPE_INSTANCES;
-  buildInput.instanceArray.instances =
-      numInstances > 0 ? (CUdeviceptr)optixInstancesDevice.data() : 0;
+  buildInput.instanceArray.instances = (CUdeviceptr)optixInstancesDevice.data();
   buildInput.instanceArray.numInstances = numInstances;
 
   return {buildInput};
@@ -261,7 +260,6 @@ void World::populateOptixInstances()
   m_numCurveInstances = 0;
   m_numUserInstances = 0;
   m_numVolumeInstances = 0;
-  m_numLightInstances = 0;
 
   std::for_each(m_instances.begin(), m_instances.end(), [&](auto *inst) {
     const auto *group = inst->group();
@@ -274,8 +272,6 @@ void World::populateOptixInstances()
       m_numUserInstances += numTransforms;
     if (group->containsVolumes())
       m_numVolumeInstances += numTransforms;
-    if (group->containsLights())
-      m_numLightInstances += numTransforms;
   });
 
   m_optixSurfaceInstances.resize(
@@ -379,8 +375,6 @@ void World::buildInstanceSurfaceGPUData()
     retval.attrUniform[4] = ua.color.value_or(vec4(0, 0, 0, 1));
     retval.attrUniformPresent[4] = ua.color.has_value();
 
-    // FIXME: Fill up retval.attrUniformArray and
-    // retval.attrUniformArrayPresent from ua
     constexpr const auto setupUniformArray =
         [](const helium::IntrusivePtr<Array1D> &array) -> AttributeData {
       AttributeData ad = {};

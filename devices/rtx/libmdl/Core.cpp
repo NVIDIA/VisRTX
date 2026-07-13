@@ -533,7 +533,8 @@ const mi::neuraylib::ITarget_code *Core::getPtxTargetCode(
   ptxBackend->set_option("opt_level", "2");
   ptxBackend->set_option("enable_exceptions", "off");
 
-  // For now, only consider surface scattering.
+  // Generate init, surface scattering, surface emission (emission/intensity/mode),
+  // volume scattering and cutout opacity.
   static mi::neuraylib::Target_function_description materialFunctions[] = {
       {"init", "mdlInit"},
       {"thin_walled", "mdlThinWalled"},

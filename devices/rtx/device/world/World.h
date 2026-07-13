@@ -81,7 +81,6 @@ struct World : public Object
   size_t m_numCurveInstances{0};
   size_t m_numUserInstances{0};
   size_t m_numVolumeInstances{0};
-  size_t m_numLightInstances{0};
 
   box3 m_surfaceBounds;
   box3 m_volumeBounds;

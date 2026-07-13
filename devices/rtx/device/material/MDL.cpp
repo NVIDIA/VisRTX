@@ -41,7 +41,6 @@
 #include "mdl/MaterialRegistry.h"
 #include "optix_visrtx.h"
 #include "sampler/Sampler.h"
-#include "sampler/Sampler.h"
 
 #include <anari/frontend/anari_enums.h>
 
@@ -260,7 +259,7 @@ void MDL::syncParameters()
         continue;
       }
 
-      if (name.substr(std::max(int(name.size()) - 11, 0)) == ".colorspace"sv) {
+      if (libmdl::endsWith(name, ".colorspace"sv)) {
         // Skip colorspace parameters, they are meta parameters for textures
         continue;
       }
