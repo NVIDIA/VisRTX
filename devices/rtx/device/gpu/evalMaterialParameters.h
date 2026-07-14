@@ -314,6 +314,10 @@ VISRTX_DEVICE vec4 evaluateImageTextureSampler(
   default:
     break;
   }
+
+  if (sampler.numChannels < 4)
+    retval.w = 1.0f;
+
   return sampler.outTransform * retval + sampler.outOffset;
 }
 
@@ -340,6 +344,10 @@ VISRTX_DEVICE vec4 evaluateImageTexelSampler(
   default:
     break;
   }
+
+  if (sampler.numChannels < 4)
+    retval.w = 1.0f;
+
   return sampler.outTransform * retval + sampler.outOffset;
 }
 
@@ -377,6 +385,10 @@ VISRTX_DEVICE vec4 evaluateSampler(
   default:
     break;
   }
+
+  if (sampler.numChannels < 4)
+    retval.w = 1.0f;
+  
   return sampler.outTransform * retval + sampler.outOffset;
 }
 

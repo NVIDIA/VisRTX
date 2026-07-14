@@ -84,6 +84,7 @@ SamplerGPUData Sampler::gpuData() const
 {
   SamplerGPUData retval;
   retval.attribute = attributeFromString(m_inAttribute);
+  retval.numChannels = uint32_t(numChannels());
   retval.inTransform = m_inTransform;
   retval.inOffset = m_inOffset;
   retval.outTransform = m_outTransform;

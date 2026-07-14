@@ -380,6 +380,9 @@ struct SamplerGPUData
 {
   SamplerType type{SamplerType::UNKNOWN};
   MaterialAttribute attribute{MaterialAttribute::UNKNOWN};
+  // Source channel count; CUDA texture fetches zero-fill missing channels, so
+  // the sampler must apply the ANARI convention (missing G,B -> 0, A -> 1).
+  uint32_t numChannels{4};
   mat4 inTransform;
   vec4 inOffset;
   mat4 outTransform;
