@@ -65,12 +65,16 @@ struct Denoiser : public Object
   OptixDenoiser m_denoiser{nullptr};
   OptixDenoiserParams m_params{};
   OptixDenoiserGuideLayer m_guideLayer{};
-  OptixDenoiserLayer m_layer;
+  OptixDenoiserLayer m_layer{};
 
   HostDeviceArray<uint8_t> *m_pixelBuffer{nullptr};
 
   DeviceBuffer m_state;
   DeviceBuffer m_scratch;
+  DeviceBuffer m_intensity; // whole-frame HDR autoexposure, shared by all tiles
+  uint32_t m_tileW{0};
+  uint32_t m_tileH{0};
+  uint32_t m_overlap{0};
   bool m_usingAlbedo{false};
   bool m_usingNormal{false};
 
