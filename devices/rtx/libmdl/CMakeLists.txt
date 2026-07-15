@@ -10,6 +10,7 @@ project_add_library(STATIC
   ArgumentBlockDescriptor.cpp
   ArgumentBlockInstance.cpp
   Core.cpp
+  EmissionFold.cpp
   EmissionIR.cpp
   helpers.cpp
   ptx.cpp

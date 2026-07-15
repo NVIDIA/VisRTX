@@ -8,6 +8,7 @@
 #include <mi/neuraylib/ivalue.h>
 
 #include <algorithm>
+#include <string_view>
 #include <unordered_map>
 
 namespace visrtx::libmdl {
@@ -249,6 +250,18 @@ class Builder
         const char *name = texValue->get_value();
         node.resourceName = name ? name : "";
       }
+    }
+
+    // Build the non-`tex` arguments (coord, wrap, crop) as operands so the fold
+    // scans them for geometric-state reads: a coord driven by state::position
+    // or state::normal is unfaithful at the synthetic hit even though the
+    // sampler mean covers a texture_coordinate-driven lookup.
+    for (mi::Size i = 0; i < args->get_size(); ++i) {
+      const char *argName = args->get_name(i);
+      if (argName && std::string_view(argName) == "tex")
+        continue;
+      node.operands.push_back(
+          buildExpr(make_handle(args->get_expression(i)), depth + 1));
     }
     return addNode(std::move(node));
   }

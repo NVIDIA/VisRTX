@@ -16,6 +16,8 @@
 // same target as the refactor lands.
 
 #include "libmdl/Core.h"
+#include "libmdl/EmissionDescriptor.h"
+#include "libmdl/EmissionFold.h"
 #include "libmdl/EmissionIR.h"
 #include "libmdl/source_name_utils.h"
 
@@ -24,6 +26,8 @@
 #include <array>
 #include <cmath>
 #include <cstdio>
+#include <map>
+#include <string>
 #include <string_view>
 
 using visrtx::libmdl::Core;
@@ -235,6 +239,216 @@ void runIR(Core &core, mi::neuraylib::ITransaction *txn)
   }
 }
 
+// Purely negative constant emission: nonzero (an emitter) but sign is Unknown,
+// so the policy must not register it (its all-negative NEE term would be
+// dropped while the forward deposit is MIS-downweighted).
+const char *kNegativeConst = R"mdl(mdl 1.6;
+import ::df::*;
+import ::math::*;
+export material emissive() = material(
+    surface: material_surface(
+        emission: material_emission(
+            emission: df::diffuse_edf(),
+            intensity: color(-2.0) * math::PI)));
+)mdl";
+
+// Intensity reads state::normal (via length) — a geometric-state quantity the
+// synthetic hit fabricates. Must set dependsOnGeometricState.
+const char *kStateNormal = R"mdl(mdl 1.6;
+import ::df::*;
+import ::math::*;
+import ::state::*;
+export material emissive() = material(
+    surface: material_surface(
+        emission: material_emission(
+            emission: df::diffuse_edf(),
+            intensity: color(math::length(state::normal())) * math::PI)));
+)mdl";
+
+// A textured lookup whose COORD reads state::position (not texture_coordinate)
+// is unfaithful at the synthetic hit — must set dependsOnGeometricState even
+// though a texture_coordinate-driven lookup does not.
+const char *kTexturedStateCoord = R"mdl(mdl 1.6;
+import ::df::*;
+import ::tex::*;
+import ::state::*;
+export material emissive(uniform texture_2d tex = texture_2d()) = material(
+    surface: material_surface(
+        emission: material_emission(
+            emission: df::diffuse_edf(),
+            intensity: tex::lookup_color(
+                tex: tex,
+                coord: float2(state::position().x, state::position().y)))));
+)mdl";
+
+using visrtx::libmdl::EmissionSign;
+using visrtx::libmdl::EmissionValueSource;
+using visrtx::libmdl::EmissionVerdict;
+using visrtx::libmdl::foldEmissionDescriptor;
+using visrtx::libmdl::IntensityMode;
+using visrtx::libmdl::NullValueSource;
+using visrtx::libmdl::ResourceStats;
+
+int paramIndexByName(const EmissionIR &ir, const char *name)
+{
+  for (const auto &n : ir.nodes)
+    if (n.parameterName == name)
+      return n.parameterIndex;
+  return -1;
+}
+
+// Map-backed value source for the fold vectors.
+struct MapValueSource : EmissionValueSource
+{
+  std::map<int, std::array<float, 3>> colors;
+  std::map<int, ResourceStats> resByParam;
+
+  bool color(int i, std::array<float, 3> &o) const override
+  {
+    auto it = colors.find(i);
+    if (it == colors.end())
+      return false;
+    o = it->second;
+    return true;
+  }
+  bool boolean(int, bool &) const override
+  {
+    return false;
+  }
+  bool resourceByName(const std::string &, ResourceStats &) const override
+  {
+    return false;
+  }
+  bool resourceByParam(int i, ResourceStats &o) const override
+  {
+    auto it = resByParam.find(i);
+    if (it == resByParam.end())
+      return false;
+    o = it->second;
+    return true;
+  }
+};
+
+void runFold(Core &core, mi::neuraylib::ITransaction *txn)
+{
+  mi::base::Handle<mi::neuraylib::ICompiled_material> keepAlive;
+  NullValueSource none;
+
+  auto irOf = [&](std::string_view src) {
+    (void)classify(core, txn, src, keepAlive);
+    return buildEmissionIR(keepAlive.get(), txn);
+  };
+
+  { // constant literal: radiance = 2.0 per channel
+    auto ir = irOf(kConstLiteral);
+    auto d = foldEmissionDescriptor(ir, none).surface;
+    CHECK(d.verdict == EmissionVerdict::ProvablyEmissive);
+    CHECK(hasKind(d.edfKinds, visrtx::libmdl::EdfKind::Diffuse));
+    CHECK(d.mode == IntensityMode::RadiantExitance);
+    CHECK(d.sign == EmissionSign::ProvablyNonnegative);
+    CHECK(!d.dependsOnGeometricState);
+    CHECK(approxEqual(d.magnitude[0], 2.0f));
+  }
+
+  { // parameter with a known live value ⇒ magnitude tracks it
+    auto ir = irOf(kParamDriven);
+    MapValueSource vs;
+    vs.colors[paramIndexByName(ir, "value")] = {3.0f, 3.0f, 3.0f};
+    auto d = foldEmissionDescriptor(ir, vs).surface;
+    CHECK(d.verdict == EmissionVerdict::ProvablyEmissive);
+    CHECK(d.sign == EmissionSign::ProvablyNonnegative);
+    CHECK(approxEqual(d.magnitude[0], 3.0f));
+  }
+
+  { // parameter with unknown value ⇒ Unknown verdict, unit-proxy magnitude
+    auto ir = irOf(kParamDriven);
+    auto d = foldEmissionDescriptor(ir, none).surface;
+    CHECK(d.verdict == EmissionVerdict::Unknown);
+    CHECK(approxEqual(d.magnitude[0], 1.0f));
+  }
+
+  { // no emission ⇒ ProvablyNull
+    auto ir = irOf(kNoEmission);
+    auto d = foldEmissionDescriptor(ir, none).surface;
+    CHECK(d.verdict == EmissionVerdict::ProvablyNull);
+  }
+
+  { // power mode ⇒ described, mode Power
+    auto ir = irOf(kPowerMode);
+    auto d = foldEmissionDescriptor(ir, none).surface;
+    CHECK(d.mode == IntensityMode::Power);
+  }
+
+  { // bound texture, nonzero mean ⇒ Unknown verdict, magnitude from
+    // meanPositive
+    auto ir = irOf(kTextured);
+    MapValueSource vs;
+    ResourceStats s;
+    s.valid = true;
+    s.maxAbs = {5.0f, 5.0f, 5.0f};
+    s.meanPositive = {4.0f, 4.0f, 4.0f};
+    s.minValue = {0.0f, 0.0f, 0.0f};
+    s.transferPreservesZero = true;
+    vs.resByParam[paramIndexByName(ir, "tex")] = s;
+    auto d = foldEmissionDescriptor(ir, vs).surface;
+    CHECK(d.verdict == EmissionVerdict::Unknown);
+    CHECK(d.sign == EmissionSign::ProvablyNonnegative);
+    CHECK(!d.dependsOnGeometricState);
+    CHECK(approxEqual(d.magnitude[0], 4.0f * 0.31830988f));
+  }
+
+  { // all-black bound texture (maxAbs 0, T(0)=0) ⇒ ProvablyNull
+    auto ir = irOf(kTextured);
+    MapValueSource vs;
+    ResourceStats s;
+    s.valid = true;
+    s.maxAbs = {0.0f, 0.0f, 0.0f};
+    s.meanPositive = {0.0f, 0.0f, 0.0f};
+    s.minValue = {0.0f, 0.0f, 0.0f};
+    s.transferPreservesZero = true;
+    vs.resByParam[paramIndexByName(ir, "tex")] = s;
+    auto d = foldEmissionDescriptor(ir, vs).surface;
+    CHECK(d.verdict == EmissionVerdict::ProvablyNull);
+  }
+
+  { // unbound texture ⇒ lookup folds to 0 ⇒ ProvablyNull
+    auto ir = irOf(kTextured);
+    MapValueSource vs;
+    ResourceStats s;
+    s.valid = false;
+    vs.resByParam[paramIndexByName(ir, "tex")] = s;
+    auto d = foldEmissionDescriptor(ir, vs).surface;
+    CHECK(d.verdict == EmissionVerdict::ProvablyNull);
+  }
+
+  { // negative constant: emitter but sign Unknown ⇒ not registerable
+    auto ir = irOf(kNegativeConst);
+    auto d = foldEmissionDescriptor(ir, none).surface;
+    CHECK(d.verdict == EmissionVerdict::ProvablyEmissive);
+    CHECK(d.sign == EmissionSign::Unknown);
+    CHECK(approxEqual(d.magnitude[0], 0.0f)); // meanPositive of a negative is 0
+  }
+
+  { // intensity reads state::normal ⇒ dependsOnGeometricState
+    auto ir = irOf(kStateNormal);
+    auto d = foldEmissionDescriptor(ir, none).surface;
+    CHECK(d.dependsOnGeometricState);
+  }
+
+  { // texture coord reads state::position ⇒ dependsOnGeometricState
+    auto ir = irOf(kTexturedStateCoord);
+    MapValueSource vs;
+    ResourceStats s;
+    s.valid = true;
+    s.maxAbs = {5.0f, 5.0f, 5.0f};
+    s.meanPositive = {4.0f, 4.0f, 4.0f};
+    s.minValue = {0.0f, 0.0f, 0.0f};
+    vs.resByParam[paramIndexByName(ir, "tex")] = s;
+    auto d = foldEmissionDescriptor(ir, vs).surface;
+    CHECK(d.dependsOnGeometricState);
+  }
+}
+
 void run(Core &core, mi::neuraylib::ITransaction *txn)
 {
   mi::base::Handle<mi::neuraylib::ICompiled_material> keepAlive;
@@ -296,6 +510,7 @@ int main()
     auto txn = make_handle(core.createTransaction(scope));
     run(core, txn.get());
     runIR(core, txn.get());
+    runFold(core, txn.get());
     txn->commit();
     core.removeScope(scope);
   } catch (const std::exception &e) {
