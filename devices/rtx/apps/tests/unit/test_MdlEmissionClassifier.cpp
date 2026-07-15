@@ -3,17 +3,18 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-// Device-free unit tests for the MDL emission classifier. libmdl is a
-// standalone static library (no CUDA/OptiX/GPU), so classifyEmission is
-// exercised on the host against inline .mdl snippets — the same compile flow
-// the device runs in MaterialRegistry::acquireMaterialFromCode, minus the
-// device. Only the MDL SDK shared library must be discoverable at runtime; if
-// it is not, the test SKIPs (return code 77, wired in CMake) rather than
-// failing.
+// Device-free unit tests for the MDL emission classifier (ADR 0007). libmdl is
+// a standalone static library (no CUDA/OptiX/GPU), so the static IR pass and
+// the descriptor fold are exercised on the host against inline .mdl snippets —
+// the same compile flow the device runs in
+// MaterialRegistry::acquireMaterialFromCode, minus the device. Only the MDL SDK
+// shared library must be discoverable at runtime; if it is not, the test SKIPs
+// (return code 77, wired in CMake).
 //
-// These lock the CURRENT classifyEmission behavior as a baseline before the
-// descriptor refactor (ADR 0007). The descriptor-fold vectors are added to this
-// same target as the refactor lands.
+// runIR covers the owned IR (topology, semantics, deps, shared temporaries);
+// runFold covers the three-valued descriptor fold (verdict, edfKinds,
+// magnitude, mode, sign, geometric-state dependence) against a fake value
+// source.
 
 #include "libmdl/Core.h"
 #include "libmdl/EmissionDescriptor.h"
@@ -26,6 +27,7 @@
 #include <array>
 #include <cmath>
 #include <cstdio>
+#include <limits>
 #include <map>
 #include <string>
 #include <string_view>
@@ -52,10 +54,9 @@ bool approxEqual(float a, float b, float tol = 1e-4f)
   return std::fabs(a - b) <= tol * std::max(1.0f, std::fabs(b));
 }
 
-// Compile `source`'s `material emissive(...)` and classify its emission. The
-// compiled material must outlive the returned classification's use, so it is
-// kept alive for the duration of the caller's asserts via `keepAlive`.
-Core::EmissionClassification classify(Core &core,
+// Compile `source`'s `material emissive(...)`, keeping it alive via `keepAlive`
+// (the IR builder and fold need the compiled material live during the call).
+void compileMaterial(Core &core,
     mi::neuraylib::ITransaction *txn,
     std::string_view source,
     mi::base::Handle<mi::neuraylib::ICompiled_material> &keepAlive)
@@ -66,22 +67,20 @@ Core::EmissionClassification classify(Core &core,
   if (!module.is_valid_interface()) {
     std::printf("FAIL could not load inline module\n");
     ++g_failures;
-    return {};
+    return;
   }
   auto fnDef =
       make_handle(core.getFunctionDefinition(module.get(), "emissive", txn));
   if (!fnDef.is_valid_interface()) {
     std::printf("FAIL could not find material 'emissive'\n");
     ++g_failures;
-    return {};
+    return;
   }
   keepAlive = make_handle(core.getCompiledMaterial(fnDef.get()));
   if (!keepAlive.is_valid_interface()) {
     std::printf("FAIL could not compile material\n");
     ++g_failures;
-    return {};
   }
-  return Core::classifyEmission(keepAlive.get());
 }
 
 // intensity = color(2.0) * math::PI folds to a body-literal constant: emitted
@@ -143,8 +142,6 @@ export material emissive() = material(
             mode: intensity_power)));
 )mdl";
 
-using DynamicSource = Core::EmissionClassification::DynamicSource;
-
 // A let-shared subexpression: `k` is referenced twice, so class compilation
 // stores it as a single temporary. The IR must resolve both references to the
 // same node.
@@ -185,7 +182,7 @@ void runIR(Core &core, mi::neuraylib::ITransaction *txn)
   mi::base::Handle<mi::neuraylib::ICompiled_material> keepAlive;
 
   auto buildIR = [&](std::string_view src) {
-    (void)classify(core, txn, src, keepAlive); // reuse the compile flow
+    compileMaterial(core, txn, src, keepAlive); // reuse the compile flow
     return buildEmissionIR(keepAlive.get(), txn);
   };
 
@@ -289,29 +286,21 @@ using visrtx::libmdl::IntensityMode;
 using visrtx::libmdl::NullValueSource;
 using visrtx::libmdl::ResourceStats;
 
-int paramIndexByName(const EmissionIR &ir, const char *name)
-{
-  for (const auto &n : ir.nodes)
-    if (n.parameterName == name)
-      return n.parameterIndex;
-  return -1;
-}
-
-// Map-backed value source for the fold vectors.
+// Map-backed value source for the fold vectors, keyed by parameter name.
 struct MapValueSource : EmissionValueSource
 {
-  std::map<int, std::array<float, 3>> colors;
-  std::map<int, ResourceStats> resByParam;
+  std::map<std::string, std::array<float, 3>> colors;
+  std::map<std::string, ResourceStats> resByParam;
 
-  bool color(int i, std::array<float, 3> &o) const override
+  bool color(const std::string &name, std::array<float, 3> &o) const override
   {
-    auto it = colors.find(i);
+    auto it = colors.find(name);
     if (it == colors.end())
       return false;
     o = it->second;
     return true;
   }
-  bool boolean(int, bool &) const override
+  bool boolean(const std::string &, bool &) const override
   {
     return false;
   }
@@ -319,9 +308,9 @@ struct MapValueSource : EmissionValueSource
   {
     return false;
   }
-  bool resourceByParam(int i, ResourceStats &o) const override
+  bool resourceByParam(const std::string &name, ResourceStats &o) const override
   {
-    auto it = resByParam.find(i);
+    auto it = resByParam.find(name);
     if (it == resByParam.end())
       return false;
     o = it->second;
@@ -329,13 +318,29 @@ struct MapValueSource : EmissionValueSource
   }
 };
 
+// A normalized_mix of two diffuse EDFs. The EDF leaves nest inside the
+// df_component[] array, so the fold must deep-scan to see them: the mix must
+// NOT fold to ProvablyNull, and its kind must be Diffuse.
+const char *kMixDiffuse = R"mdl(mdl 1.6;
+import ::df::*;
+import ::math::*;
+export material emissive() = material(
+    surface: material_surface(
+        emission: material_emission(
+            emission: df::normalized_mix(
+                df::edf_component[](
+                    df::edf_component(0.5, df::diffuse_edf()),
+                    df::edf_component(0.5, df::diffuse_edf()))),
+            intensity: color(2.0) * math::PI)));
+)mdl";
+
 void runFold(Core &core, mi::neuraylib::ITransaction *txn)
 {
   mi::base::Handle<mi::neuraylib::ICompiled_material> keepAlive;
   NullValueSource none;
 
   auto irOf = [&](std::string_view src) {
-    (void)classify(core, txn, src, keepAlive);
+    compileMaterial(core, txn, src, keepAlive);
     return buildEmissionIR(keepAlive.get(), txn);
   };
 
@@ -353,7 +358,7 @@ void runFold(Core &core, mi::neuraylib::ITransaction *txn)
   { // parameter with a known live value ⇒ magnitude tracks it
     auto ir = irOf(kParamDriven);
     MapValueSource vs;
-    vs.colors[paramIndexByName(ir, "value")] = {3.0f, 3.0f, 3.0f};
+    vs.colors[std::string("value")] = {3.0f, 3.0f, 3.0f};
     auto d = foldEmissionDescriptor(ir, vs).surface;
     CHECK(d.verdict == EmissionVerdict::ProvablyEmissive);
     CHECK(d.sign == EmissionSign::ProvablyNonnegative);
@@ -389,7 +394,7 @@ void runFold(Core &core, mi::neuraylib::ITransaction *txn)
     s.meanPositive = {4.0f, 4.0f, 4.0f};
     s.minValue = {0.0f, 0.0f, 0.0f};
     s.transferPreservesZero = true;
-    vs.resByParam[paramIndexByName(ir, "tex")] = s;
+    vs.resByParam[std::string("tex")] = s;
     auto d = foldEmissionDescriptor(ir, vs).surface;
     CHECK(d.verdict == EmissionVerdict::Unknown);
     CHECK(d.sign == EmissionSign::ProvablyNonnegative);
@@ -406,7 +411,7 @@ void runFold(Core &core, mi::neuraylib::ITransaction *txn)
     s.meanPositive = {0.0f, 0.0f, 0.0f};
     s.minValue = {0.0f, 0.0f, 0.0f};
     s.transferPreservesZero = true;
-    vs.resByParam[paramIndexByName(ir, "tex")] = s;
+    vs.resByParam[std::string("tex")] = s;
     auto d = foldEmissionDescriptor(ir, vs).surface;
     CHECK(d.verdict == EmissionVerdict::ProvablyNull);
   }
@@ -416,7 +421,7 @@ void runFold(Core &core, mi::neuraylib::ITransaction *txn)
     MapValueSource vs;
     ResourceStats s;
     s.valid = false;
-    vs.resByParam[paramIndexByName(ir, "tex")] = s;
+    vs.resByParam[std::string("tex")] = s;
     auto d = foldEmissionDescriptor(ir, vs).surface;
     CHECK(d.verdict == EmissionVerdict::ProvablyNull);
   }
@@ -443,58 +448,27 @@ void runFold(Core &core, mi::neuraylib::ITransaction *txn)
     s.maxAbs = {5.0f, 5.0f, 5.0f};
     s.meanPositive = {4.0f, 4.0f, 4.0f};
     s.minValue = {0.0f, 0.0f, 0.0f};
-    vs.resByParam[paramIndexByName(ir, "tex")] = s;
+    vs.resByParam[std::string("tex")] = s;
     auto d = foldEmissionDescriptor(ir, vs).surface;
     CHECK(d.dependsOnGeometricState);
   }
-}
 
-void run(Core &core, mi::neuraylib::ITransaction *txn)
-{
-  mi::base::Handle<mi::neuraylib::ICompiled_material> keepAlive;
-
-  {
-    auto c = classify(core, txn, kConstLiteral, keepAlive);
-    CHECK(c.isDiffuseEmission);
-    CHECK(c.constantRadiance.has_value());
-    if (c.constantRadiance) {
-      CHECK(approxEqual((*c.constantRadiance)[0], 2.0f));
-      CHECK(approxEqual((*c.constantRadiance)[1], 2.0f));
-      CHECK(approxEqual((*c.constantRadiance)[2], 2.0f));
-    }
-    CHECK(c.dynamicSource == DynamicSource::None);
+  { // normalized_mix of diffuse EDFs: leaves nest in the component array, so a
+    // shallow scan would wrongly prove Null. Must stay emissive + Diffuse.
+    auto ir = irOf(kMixDiffuse);
+    auto d = foldEmissionDescriptor(ir, none).surface;
+    CHECK(d.verdict != EmissionVerdict::ProvablyNull);
+    CHECK(hasKind(d.edfKinds, visrtx::libmdl::EdfKind::Diffuse));
   }
 
-  {
-    auto c = classify(core, txn, kParamDriven, keepAlive);
-    CHECK(c.isDiffuseEmission);
-    CHECK(!c.constantRadiance.has_value());
-    CHECK(c.dynamicSource == DynamicSource::Parameter);
-    CHECK(c.dynamicArgumentName == "value");
-    CHECK(approxEqual(c.dynamicScale[0], 1.0f));
-    CHECK(approxEqual(c.dynamicScale[1], 1.0f));
-    CHECK(approxEqual(c.dynamicScale[2], 1.0f));
-  }
-
-  {
-    auto c = classify(core, txn, kTextured, keepAlive);
-    CHECK(c.isDiffuseEmission);
-    CHECK(!c.constantRadiance.has_value());
-    CHECK(c.dynamicSource == DynamicSource::Texture);
-    CHECK(c.dynamicArgumentName == "tex");
-  }
-
-  {
-    auto c = classify(core, txn, kNoEmission, keepAlive);
-    CHECK(!c.isDiffuseEmission);
-    CHECK(!c.constantRadiance.has_value());
-    CHECK(c.dynamicSource == DynamicSource::None);
-  }
-
-  {
-    auto c = classify(core, txn, kPowerMode, keepAlive);
-    CHECK(!c.isDiffuseEmission);
-    CHECK(!c.constantRadiance.has_value());
+  { // non-finite live argument value ⇒ sign fails closed (never registers an
+    // inf/NaN Pick Power); the light still arrives via the forward path.
+    auto ir = irOf(kParamDriven);
+    MapValueSource vs;
+    const float inf = std::numeric_limits<float>::infinity();
+    vs.colors[std::string("value")] = {inf, inf, inf};
+    auto d = foldEmissionDescriptor(ir, vs).surface;
+    CHECK(d.sign == EmissionSign::Unknown);
   }
 }
 
@@ -508,7 +482,6 @@ int main()
     Core core;
     auto scope = core.createScope("MdlEmissionClassifierTestScope");
     auto txn = make_handle(core.createTransaction(scope));
-    run(core, txn.get());
     runIR(core, txn.get());
     runFold(core, txn.get());
     txn->commit();

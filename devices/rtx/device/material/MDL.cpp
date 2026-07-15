@@ -35,6 +35,8 @@
 #include "gpu/sbt.h"
 #include "libmdl/ArgumentBlockDescriptor.h"
 #include "libmdl/ArgumentBlockInstance.h"
+#include "libmdl/EmissionFold.h"
+#include "libmdl/EmissionIR.h"
 #include "libmdl/helpers.h"
 #include "libmdl/source_name_utils.h"
 #include "material/Material.h"
@@ -64,6 +66,69 @@
 using namespace std::string_view_literals;
 
 namespace visrtx {
+
+namespace {
+
+// Value source that folds the emission IR against this material instance's live
+// arguments and bound samplers. Keyed by class-compilation argument name, which
+// is how the argument block and the sampler descriptors are keyed.
+struct MDLValueSource : libmdl::EmissionValueSource
+{
+  const libmdl::ArgumentBlockInstance *argBlock{nullptr};
+  std::map<std::string, Sampler *> samplersByName;
+
+  bool color(const std::string &name, std::array<float, 3> &out) const override
+  {
+    if (!argBlock)
+      return false;
+    if (auto v = argBlock->getFloat3Value(name)) {
+      out = {(*v)[0], (*v)[1], (*v)[2]};
+      return true;
+    }
+    return false;
+  }
+  bool boolean(const std::string &, bool &) const override
+  {
+    return false;
+  }
+  bool resourceByName(
+      const std::string &, libmdl::ResourceStats &) const override
+  {
+    // A module-default (body-literal) texture resolves under its URL, not a
+    // parameter name, so it is not reachable here — leaves the fold Unknown,
+    // which is safe (forward-only). Argument-bound textures resolve below.
+    return false;
+  }
+  bool resourceByParam(
+      const std::string &name, libmdl::ResourceStats &out) const override
+  {
+    auto it = samplersByName.find(name);
+    if (it == samplersByName.end()) {
+      // No sampler bound to this texture argument ⇒ the MDL lookup is invalid
+      // and folds to 0 (ADR 0007 A5). An unbound emissive texture emits nothing
+      // and is not a Geometry Light.
+      out = libmdl::ResourceStats{}; // valid == false
+      return true;
+    }
+    if (!it->second || !it->second->isValid())
+      return false; // bound but not yet resolvable ⇒ Unknown (still registers)
+    out = it->second->emissionStats();
+    return true;
+  }
+};
+
+// The renderer's registration policy (ADR 0007). C7 extracts this to a shared
+// EmissionPolicy header cross-referenced from the GPU Pick-Power/normal sites.
+bool isRegisterable(const libmdl::SlotDescriptor &s)
+{
+  return s.verdict != libmdl::EmissionVerdict::ProvablyNull
+      && libmdl::isSubsetOf(s.edfKinds, libmdl::EdfKind::Diffuse)
+      && s.mode == libmdl::IntensityMode::RadiantExitance
+      && !s.dependsOnGeometricState
+      && s.sign == libmdl::EmissionSign::ProvablyNonnegative;
+}
+
+} // namespace
 
 MDL::MDL(DeviceGlobalState *d) : Material(d) {}
 
@@ -111,7 +176,8 @@ void MDL::finalize()
   syncParameters();
 
   if (m_argumentBlockInstance.has_value()) {
-    if (const auto &argBlockData = m_argumentBlockInstance->getArgumentBlockData();
+    if (const auto &argBlockData =
+            m_argumentBlockInstance->getArgumentBlockData();
         !argBlockData.empty()) {
       m_argBlockBuffer.upload(data(argBlockData), size(argBlockData));
     } else {
@@ -121,14 +187,23 @@ void MDL::finalize()
     m_argBlockBuffer.reset();
   }
 
-  // The emission hooks read the compile-time classification, keyed by the uuid
-  // syncSource just resolved. Resolve it BEFORE Material::finalize(), which
-  // uploads gpuData() — a stale flag there zeroes the hit-side next-event pdf
-  // and the deposit double-counts the emitter. The light-set refresh follows
-  // (not in commitParameters, where the flag would be stale on the commit that
-  // first introduces or removes emission).
-  m_emissionClassification =
-      deviceState()->mdl->materialRegistry.getEmissionClassification(m_uuid);
+  // Fold the compile-time emission IR (keyed by the uuid syncSource just
+  // resolved) against this instance's live arguments and samplers into the
+  // emission descriptor. Do it BEFORE Material::finalize(), which uploads
+  // gpuData() — a stale sampleability flag there zeroes the hit-side next-event
+  // pdf and the deposit double-counts. The light-set refresh follows (not in
+  // commitParameters, where the flag would be stale on the commit that first
+  // introduces or removes emission).
+  const libmdl::EmissionIR emissionIR =
+      deviceState()->mdl->materialRegistry.getEmissionIR(m_uuid);
+  MDLValueSource values;
+  values.argBlock =
+      m_argumentBlockInstance ? &*m_argumentBlockInstance : nullptr;
+  for (const auto &desc : m_samplers) {
+    if (desc.sampler)
+      values.samplersByName.emplace(desc.name, desc.sampler);
+  }
+  m_emissionDescriptor = libmdl::foldEmissionDescriptor(emissionIR, values);
 
   Material::finalize();
 
@@ -137,74 +212,23 @@ void MDL::finalize()
 
 bool MDL::emissionIsSampleable() const
 {
-  // Textured/procedural diffuse intensity has no host constant: sampleable,
-  // the device evaluating the true radiance at the sampled point, with the
-  // dynamic recipe (or the unit proxy) supplying the Pick Power. Conservative
-  // over-inclusion (e.g. an all-black texture) is unbiased — it merely wastes
-  // a pick slot.
-  const auto &radiance = m_emissionClassification.constantRadiance;
-  if (m_emissionClassification.isDiffuseEmission && !radiance)
-    return true;
-  return radiance
-      && std::max({(*radiance)[0], (*radiance)[1], (*radiance)[2]}) > 0.0f;
+  // The surface slot registers as a Geometry Light iff the folded descriptor is
+  // non-null and faithfully NEE-evaluable (ADR 0007). Textured/Unknown-verdict
+  // diffuse emission registers with the device evaluating the true radiance at
+  // the sampled point; an all-black texture folds to ProvablyNull and is
+  // excluded; signed, geometric-state-dependent, spot/measured, or power-mode
+  // emission stays forward-only (unbiased) rather than registering
+  // unfaithfully.
+  return isRegisterable(m_emissionDescriptor.surface);
 }
 
 vec3 MDL::emissionAverage() const
 {
-  const auto &radiance = m_emissionClassification.constantRadiance;
-  if (radiance)
-    return vec3((*radiance)[0], (*radiance)[1], (*radiance)[2]);
-  if (!m_emissionClassification.isDiffuseEmission)
-    return vec3(0.0f);
-
-  // Dynamic recipe: the classification identified a single argument- or
-  // texture-driven intensity factor, so the mean radiance follows the LIVE
-  // argument value (or bound sampler mean) at light-build time — keeping the
-  // Pick Power true instead of the unit proxy. Under-picking a bright emitter
-  // is unbiased only in exact arithmetic: the firefly clamp and the last-depth
-  // MIS truncation both turn the resulting overweighted picks into visible
-  // dimming next to correctly-powered lights.
-  using DynamicSource = libmdl::Core::EmissionClassification::DynamicSource;
-  const auto &cls = m_emissionClassification;
-  const vec3 scale(
-      cls.dynamicScale[0], cls.dynamicScale[1], cls.dynamicScale[2]);
-  switch (cls.dynamicSource) {
-  case DynamicSource::Parameter:
-    if (m_argumentBlockInstance) {
-      if (auto v =
-              m_argumentBlockInstance->getFloat3Value(cls.dynamicArgumentName)) {
-        const vec3 mean =
-            glm::max(vec3((*v)[0], (*v)[1], (*v)[2]), vec3(0.0f)) * scale;
-        if (std::isfinite(mean.x) && std::isfinite(mean.y)
-            && std::isfinite(mean.z))
-          return mean;
-      }
-    }
-    break;
-  case DynamicSource::Texture: {
-    // Known limitation: this resolves ANARI-bound samplers only. A texture
-    // parameter left at its MODULE DEFAULT registers in m_samplers under its
-    // URL (syncSource), not its parameter name, so it misses here and keeps
-    // the unit proxy — safe degrade, tracked as a follow-up.
-    auto it = std::find_if(cbegin(m_samplers),
-        cend(m_samplers),
-        [&](const auto &desc) { return desc.name == cls.dynamicArgumentName; });
-    if (it != cend(m_samplers) && it->sampler && it->sampler->isValid()) {
-      const vec3 mean =
-          glm::max(vec3(it->sampler->averageValue()), vec3(0.0f)) * scale;
-      if (std::isfinite(mean.x) && std::isfinite(mean.y)
-          && std::isfinite(mean.z))
-        return mean;
-    }
-    break;
-  }
-  default:
-    break;
-  }
-  // Unit-luminance proxy when no recipe (or its inputs) resolve: any nonzero
-  // value stays unbiased on both MIS estimator sides — it only steers
-  // importance (a power-weighted estimate is a follow-up).
-  return vec3(1.0f);
+  // The non-negative meanPositive magnitude proxy (radiance = intensity / PI),
+  // folded from the live arguments/samplers. Weights the Light Pick only; a
+  // unit proxy stands in when the intensity magnitude is not host-known.
+  const auto &m = m_emissionDescriptor.surface.magnitude;
+  return vec3(m[0], m[1], m[2]);
 }
 
 void MDL::syncSource()
@@ -348,7 +372,8 @@ void MDL::syncParameters()
       const auto &name = param->first;
       if (name == "source"sv || name == "sourceType"sv
           || name == "materialName"sv) {
-        // Skip these control parameters, they are not part of the argument block
+        // Skip these control parameters, they are not part of the argument
+        // block
         continue;
       }
 
@@ -367,8 +392,8 @@ void MDL::syncParameters()
 
     for (auto &&[name, type] : argumentBlockInstance.enumerateArguments()) {
       auto sourceParamAny = m_parameterMap.find(name) != m_parameterMap.end()
-                                ? m_parameterMap[name]
-                                : helium::AnariAny{};
+          ? m_parameterMap[name]
+          : helium::AnariAny{};
 
       if (sourceParamAny.valid() == 0) {
         // Parameter not set, reset to default value.
@@ -376,7 +401,9 @@ void MDL::syncParameters()
 
         // Handle the texture case where we might have resources to cleanup
         if (type == libmdl::ArgumentBlockDescriptor::ArgumentType::Texture) {
-          if (auto it = find_if(begin(m_samplers), end(m_samplers), [name = name](auto &p) { return p.name == name; });
+          if (auto it = find_if(begin(m_samplers),
+                  end(m_samplers),
+                  [name = name](auto &p) { return p.name == name; });
               it != end(m_samplers)) {
             if (it->sampler) {
               if (it->isFromRegistry) {
@@ -506,9 +533,8 @@ void MDL::syncParameters()
           // Check if this input if already bound and then release it
           auto it = std::find_if(begin(m_samplers),
               end(m_samplers),
-              [&paramName = name](const SamplerDesc &desc) {
-                return desc.name == paramName;
-              });
+              [&paramName = name](
+                  const SamplerDesc &desc) { return desc.name == paramName; });
           if (it != end(m_samplers)) {
             // Found, release
             if (it->sampler) {
@@ -548,7 +574,8 @@ void MDL::syncParameters()
 
 void MDL::syncImplementationIndex()
 {
-  m_implementationIndex = deviceState()->mdl->materialRegistry.getMaterialImplementationIndex(
+  m_implementationIndex =
+      deviceState()->mdl->materialRegistry.getMaterialImplementationIndex(
           m_uuid);
 }
 
@@ -560,13 +587,15 @@ MaterialGPUData MDL::gpuData() const
   retval.emissionIsSampleable = emissionIsSampleable();
   retval.emissionAverage = emissionAverage();
 
-  retval.callableBaseIndex = m_implementationIndex == mdl::MaterialRegistry::INVALID_IMPLEMENTATION_INDEX ?
-      ~0u :
-    uint32_t(SbtCallableEntryPoints::Last) + m_implementationIndex * uint32_t(SurfaceShaderEntryPoints::Count);
+  retval.callableBaseIndex = m_implementationIndex
+          == mdl::MaterialRegistry::INVALID_IMPLEMENTATION_INDEX
+      ? ~0u
+      : uint32_t(SbtCallableEntryPoints::Last)
+          + m_implementationIndex * uint32_t(SurfaceShaderEntryPoints::Count);
 
   if (m_argumentBlockInstance.has_value()) {
     retval.materialData.mdl.numSamplers =
-      std::min(std::size(retval.materialData.mdl.samplers), size(m_samplers));
+        std::min(std::size(retval.materialData.mdl.samplers), size(m_samplers));
 
     std::fill(std::begin(retval.materialData.mdl.samplers),
         std::end(retval.materialData.mdl.samplers),

@@ -129,8 +129,8 @@ MaterialRegistry::compileAndCacheMaterial(const std::string &fullMaterialName,
     return std::nullopt;
   }
 
-  auto functionDef = make_handle(m_core->getFunctionDefinition(
-      module, materialName, transaction));
+  auto functionDef = make_handle(
+      m_core->getFunctionDefinition(module, materialName, transaction));
   if (!functionDef.is_valid_interface()) {
     m_core->logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
         "Cannot find function {} definition in module {}",
@@ -289,10 +289,11 @@ MaterialRegistry::compileAndCacheMaterial(const std::string &fullMaterialName,
     targetIt->ptxBlob = ptxBlob;
     targetIt->refCount = 1;
   }
-  // Classify emission now, while the compiled material is alive — it is not
-  // retained, and the classification is what lets an Emissive Surface be
-  // synthesized into a Geometry Light without recompiling (ADR 0006).
-  targetIt->emission = libmdl::Core::classifyEmission(compiledMaterial.get());
+  // Extract the emission IR now, while the compiled material is alive — it is
+  // not retained. The material folds this IR against its live arguments at
+  // finalize to publish an emission descriptor (ADR 0007).
+  targetIt->emission =
+      libmdl::buildEmissionIR(compiledMaterial.get(), transaction);
 
   auto targetIndex = std::distance(std::begin(m_targetCodes), targetIt);
 
@@ -334,10 +335,12 @@ MaterialRegistry::acquireMaterial(
       transaction->abort();
   });
 
-  auto module =
-      make_handle(m_core->loadModule(moduleName, transaction.get()));
-  auto material = compileAndCacheMaterial(
-      fullMaterialName, moduleName, materialName, module.get(), transaction.get());
+  auto module = make_handle(m_core->loadModule(moduleName, transaction.get()));
+  auto material = compileAndCacheMaterial(fullMaterialName,
+      moduleName,
+      materialName,
+      module.get(),
+      transaction.get());
   doCommit = material.has_value();
   return material.value_or(AcquiredMaterial{});
 }
@@ -367,8 +370,11 @@ MaterialRegistry::acquireMaterialFromCode(
 
   auto module = make_handle(
       m_core->loadModuleFromString(moduleName, source, transaction.get()));
-  auto material = compileAndCacheMaterial(
-      fullMaterialName, moduleName, materialName, module.get(), transaction.get());
+  auto material = compileAndCacheMaterial(fullMaterialName,
+      moduleName,
+      materialName,
+      module.get(),
+      transaction.get());
   doCommit = material.has_value();
   return material.value_or(AcquiredMaterial{});
 }

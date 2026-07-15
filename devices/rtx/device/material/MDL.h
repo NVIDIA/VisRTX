@@ -38,6 +38,7 @@
 #include "optix_visrtx.h"
 
 #include "libmdl/ArgumentBlockInstance.h"
+#include "libmdl/EmissionDescriptor.h"
 #include "sampler/Sampler.h"
 
 #include <optional>
@@ -53,15 +54,13 @@ struct MDL : public Material
   void commitParameters() override;
   void finalize() override;
 
-  // A raw `mdl` material whose compile-time classification found diffuse
-  // emission NOT provably zero is a sampleable Emissive Surface (Geometry
-  // Light): a nonzero body-literal intensity carries the emitted radiance
-  // (intensity over PI) as the Pick Power; a textured/procedural intensity —
-  // not host-knowable — uses a unit-luminance proxy, with the true radiance
-  // evaluated on the device at the sampled point. A folded zero is provably
-  // zero: no light.
-  // emissionIsConstant stays false: the EDF path is always taken and the
-  // average only weights the Light Pick. Per ADR 0006.
+  // A raw `mdl` material publishes an emission descriptor folded from its IR
+  // against its live arguments (ADR 0007). The renderer policy registers the
+  // surface slot as a Geometry Light iff it is non-null and faithfully
+  // NEE-evaluable (diffuse, radiant-exitance, non-negative, no geometric-state
+  // dependence). emissionAverage returns the non-negative meanPositive
+  // magnitude that weights the Light Pick. emissionIsConstant stays false: the
+  // EDF path is always taken and the average only weights the pick.
   bool emissionIsSampleable() const override;
   vec3 emissionAverage() const override;
 
@@ -83,13 +82,15 @@ struct MDL : public Material
   std::string m_source;
   std::string m_sourceType;
   std::optional<std::string> m_materialName;
-  struct SamplerDesc {
-    Sampler* sampler = nullptr;
+  struct SamplerDesc
+  {
+    Sampler *sampler = nullptr;
     std::string name;
     bool isFromRegistry = false;
-    bool operator==(const SamplerDesc &other) const {
-      return sampler == other.sampler && name == other.name &&
-             isFromRegistry == other.isFromRegistry;
+    bool operator==(const SamplerDesc &other) const
+    {
+      return sampler == other.sampler && name == other.name
+          && isFromRegistry == other.isFromRegistry;
     }
   };
   std::vector<SamplerDesc> m_samplers;
@@ -97,8 +98,9 @@ struct MDL : public Material
   libmdl::Uuid m_uuid{};
   mdl::MaterialRegistry::ImplementationIndex m_implementationIndex{};
   std::optional<libmdl::ArgumentBlockInstance> m_argumentBlockInstance;
-  // Read from the registry's compile-time cache at finalize (keyed by m_uuid).
-  libmdl::Core::EmissionClassification m_emissionClassification;
+  // Folded at finalize from the registry's compile-time IR (keyed by m_uuid)
+  // against this instance's live arguments and samplers.
+  libmdl::EmissionDescriptor m_emissionDescriptor;
 };
 
 } // namespace visrtx

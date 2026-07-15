@@ -17,10 +17,10 @@
 
 namespace visrtx::libmdl {
 
-// Supplies current parameter values and resource stats to the fold. The device
-// backs it with live argument bytes + the resource table; tests back it with
-// fakes or the compiled material's own arguments. All indices are IR parameter
-// indices; resource names are IR resource DB names.
+// Supplies current parameter values and resource stats to the fold, keyed by
+// the class-compilation argument NAME (the device's argument block and samplers
+// are name-keyed). The device backs it with live argument bytes + sampler
+// reductions; tests back it with fakes.
 class EmissionValueSource
 {
  public:
@@ -28,15 +28,16 @@ class EmissionValueSource
 
   // Current value of a parameter, if known. A float scalar is broadcast to rgb.
   // Returning false makes the parameter symbolic (Unknown), never zero.
-  virtual bool color(int parameterIndex, std::array<float, 3> &out) const = 0;
-  virtual bool boolean(int parameterIndex, bool &out) const = 0;
+  virtual bool color(
+      const std::string &parameterName, std::array<float, 3> &out) const = 0;
+  virtual bool boolean(const std::string &parameterName, bool &out) const = 0;
 
   // Stats for a body-literal bound texture (by DB name) or an argument-bound
-  // texture (by parameter index; name empty). Returning false ⇒ Unknown.
+  // texture (by parameter name). Returning false ⇒ Unknown.
   virtual bool resourceByName(
       const std::string &name, ResourceStats &out) const = 0;
   virtual bool resourceByParam(
-      int parameterIndex, ResourceStats &out) const = 0;
+      const std::string &parameterName, ResourceStats &out) const = 0;
 };
 
 // A value source that knows nothing — every parameter/resource is Unknown. Used
@@ -44,11 +45,11 @@ class EmissionValueSource
 class NullValueSource : public EmissionValueSource
 {
  public:
-  bool color(int, std::array<float, 3> &) const override
+  bool color(const std::string &, std::array<float, 3> &) const override
   {
     return false;
   }
-  bool boolean(int, bool &) const override
+  bool boolean(const std::string &, bool &) const override
   {
     return false;
   }
@@ -56,7 +57,7 @@ class NullValueSource : public EmissionValueSource
   {
     return false;
   }
-  bool resourceByParam(int, ResourceStats &) const override
+  bool resourceByParam(const std::string &, ResourceStats &) const override
   {
     return false;
   }

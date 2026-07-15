@@ -585,10 +585,12 @@ int main()
 
   ok = checkLightCount(device, MDL_EMISSIVE, "emissive", 1) && ok;
   ok = checkLightCount(device, MDL_DARK, "dark", 0) && ok;
-  // Textured intensity with an UNBOUND texture still classifies as a light —
-  // the documented conservative over-inclusion (unbiased; it merely wastes a
-  // pick slot while rendering black).
-  ok = checkLightCount(device, MDL_TEXTURED, "emissive_tex", 1) && ok;
+  // Textured intensity with an UNBOUND texture is NOT a light: the MDL lookup
+  // is invalid and folds to 0 (ADR 0007 A5), so the surface emits nothing. This
+  // supersedes ADR-0006's conservative over-inclusion (which registered a
+  // zero-radiance light). A BOUND emissive texture still registers — see the
+  // textured-uniform/checker/away radiance parity above.
+  ok = checkLightCount(device, MDL_TEXTURED, "emissive_tex", 0) && ok;
   ok = checkLightCount(device, MDL_NONFINITE, "nonfinite", 0) && ok;
   ok = checkWrapperLightCount(device, 5.f, 1) && ok;
   ok = checkWrapperLightCount(device, 0.f, 0) && ok;

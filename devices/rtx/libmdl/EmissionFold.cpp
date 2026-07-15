@@ -178,8 +178,10 @@ class Fold
       desc.magnitude = {1.0f, 1.0f, 1.0f};
     }
 
-    // sign gates registration; the EDF itself is nonnegative.
-    desc.sign = intensity.sign;
+    // sign gates registration; the EDF itself is nonnegative. A non-finite
+    // intensity fails the sign gate (so it never registers an inf/NaN Pick
+    // Power) — its light still arrives via the forward path.
+    desc.sign = intensity.finite ? intensity.sign : EmissionSign::Unknown;
     return desc;
   }
 
@@ -226,6 +228,15 @@ class Fold
     if (leaf != EdfKind::None) {
       r.kinds = leaf;
       r.null = Tri::False; // a present emissive leaf
+      // Scan the leaf's own arguments (tint/roughness/exponent/normal/...) for
+      // fabricated-state reads: a state-dependent EDF parameter is unfaithful
+      // at the synthetic hit even when the leaf KIND is faithful — e.g.
+      // diffuse_edf(tint: color(state::object_id())) varies radiance by the
+      // object id the synthetic hit fakes to 0. The mix/tint/directional paths
+      // already scan their operands; the leaf branch must too.
+      for (int op : n.operands)
+        r.dependsOnState =
+            r.dependsOnState || evalScalar(op, depth + 1).dependsOnState;
       return r;
     }
 
@@ -288,29 +299,73 @@ class Fold
     }
 
     if (isMixSemantic(n.semantic)) {
-      // Union component kinds; null iff every EDF operand is null. A precise
-      // per-weight analysis needs the df_component array shape; the
-      // conservative union keeps kinds honest (drives the fidelity gate)
-      // without proving Emissive, which only affects variance.
-      bool allNull = true;
-      for (int op : n.operands) {
-        if (!isEdfNode(op))
-          continue;
-        Edf c = evalEdf(op, depth + 1);
-        r.kinds |= c.kinds;
-        r.dependsOnState = r.dependsOnState || c.dependsOnState;
-        if (c.null != Tri::True)
-          allNull = false;
-      }
+      // A mix's single operand is a df_component[] array, whose elements are
+      // component constructors wrapping {weight, edf}. The EDF leaves nest
+      // several levels down through array/struct constructors, NOT as direct
+      // operands — so deep-scan for reachable EDF-semantic nodes to union their
+      // kinds. Never prove Null here (the array shape makes an all-null proof
+      // unreliable); an Unknown verdict still registers a faithful all-diffuse
+      // mix, and mis-registering a null mix only wastes a pick slot (unbiased).
+      collectEdfKindsDeep(index, r, depth);
       if (r.kinds == EdfKind::None)
         r.kinds = EdfKind::Unknown;
-      r.null = allNull ? Tri::True : Tri::Unknown;
+      r.null = Tri::Unknown;
       return r;
     }
 
     // Unmodeled df:: call.
     r.kinds = EdfKind::Unknown;
     return r;
+  }
+
+  // Deep-scan for EDF leaves reachable through array/struct constructors (the
+  // shape a df::*_mix's component array takes), unioning their kinds and any
+  // fabricated-state reads. Idempotent over the DAG; depth-bounded.
+  void collectEdfKindsDeep(int index, Edf &acc, int depth)
+  {
+    if (index < 0 || depth > 128)
+      return;
+    const auto &n = node(index);
+    if (n.kind == EmissionNodeKind::Call) {
+      if (isFabricatedState(n.semantic))
+        acc.dependsOnState = true;
+      const EdfKind leaf = edfKindOf(n.semantic);
+      acc.kinds |= leaf;
+      if (n.semantic == Semantic::DS_INTRINSIC_DF_DIRECTIONAL_FACTOR)
+        acc.kinds |= EdfKind::Directional;
+      // A df:: intrinsic in the EDF tree that is neither a modeled leaf nor a
+      // modeled combinator is an EMISSIVE distribution we don't understand —
+      // poison to Unknown so a modeled diffuse sibling can't mask it and let
+      // the mix register as pure diffuse. (Scalar operands like weights are not
+      // in the DF range, so they don't poison.)
+      if (leaf == EdfKind::None && isUnmodeledDfIntrinsic(n.semantic))
+        acc.kinds |= EdfKind::Unknown;
+      for (int op : n.operands)
+        collectEdfKindsDeep(op, acc, depth + 1);
+    } else if (n.kind == EmissionNodeKind::Texture) {
+      for (int op : n.operands)
+        collectEdfKindsDeep(op, acc, depth + 1);
+    } else if (n.kind == EmissionNodeKind::Opaque) {
+      acc.kinds |= EdfKind::Unknown; // an unresolved node under the mix
+    }
+  }
+
+  // A DF-intrinsic semantic (df::* function) that this fold does not model as a
+  // leaf or a known combinator (tint/directional_factor/mix families).
+  static bool isUnmodeledDfIntrinsic(Semantic s)
+  {
+    if (s < Semantic::DS_INTRINSIC_DF_FIRST
+        || s > Semantic::DS_INTRINSIC_DF_LAST)
+      return false;
+    if (edfKindOf(s) != EdfKind::None || isMixSemantic(s))
+      return false;
+    switch (s) {
+    case Semantic::DS_INTRINSIC_DF_TINT:
+    case Semantic::DS_INTRINSIC_DF_DIRECTIONAL_FACTOR:
+      return false; // modeled combinators
+    default:
+      return true;
+    }
   }
 
   bool isEdfNode(int index) const
@@ -372,7 +427,7 @@ class Fold
   {
     Scalar r;
     std::array<float, 3> value;
-    if (m_values.color(n.parameterIndex, value)) {
+    if (m_values.color(n.parameterName, value)) {
       r.finite = allFinite(value);
       r.zero = allZero(value) ? Tri::True
           : anyNonzero(value) ? Tri::False
@@ -394,11 +449,12 @@ class Fold
     for (int op : n.operands) {
       Scalar s = evalScalar(op, 1);
       r.dependsOnState = r.dependsOnState || s.dependsOnState;
+      r.finite = r.finite && s.finite;
     }
 
     ResourceStats stats;
     const bool known = n.parameterIndex >= 0
-        ? m_values.resourceByParam(n.parameterIndex, stats)
+        ? m_values.resourceByParam(n.parameterName, stats)
         : m_values.resourceByName(n.resourceName, stats);
     if (!known)
       return r; // Unknown (state-dependence preserved)

@@ -41,43 +41,6 @@ namespace visrtx::libmdl {
 class Core
 {
  public:
-  // Host-side emission classification of a compiled material, per ADR 0006.
-  // Computed once at compile time (the compiled material is not retained), so
-  // an Emissive Surface can be synthesized into a Geometry Light without
-  // recompiling or resolving class-compiled arguments.
-  struct EmissionClassification
-  {
-    // Emitted radiance (= folded intensity / PI, a diffuse EDF's value being
-    // 1/PI) when `surface.emission.intensity` folds to a body-literal constant;
-    // nullopt when it does not (texture / procedural / parameter-driven — not
-    // host-knowable under class compilation).
-    std::optional<std::array<float, 3>> constantRadiance;
-    // A diffuse radiant-exitance emission EDF is present AND eligible — a
-    // non-finite folded constant clears it, disqualifying the material.
-    // Invariant: constantRadiance.has_value() implies isDiffuseEmission.
-    bool isDiffuseEmission{false};
-
-    // Dynamic mean-radiance recipe: when the intensity does not fold but is a
-    // SINGLE class-compilation argument (color/float parameter, or the `tex`
-    // of a tex::lookup_color) times folded constants, the host can still
-    // compute a live mean radiance at light-build time:
-    //   mean = <current argument value | bound sampler mean> * dynamicScale
-    // dynamicScale is radiance-domain (the folded constants already carry the
-    // diffuse EDF's 1/PI). Without a recipe the Pick Power falls back to the
-    // unit proxy — unbiased, but under-picking a bright emitter turns the
-    // firefly clamp and the last-depth MIS truncation into visible dimming
-    // next to correctly-powered lights.
-    enum class DynamicSource
-    {
-      None,
-      Parameter,
-      Texture,
-    };
-    DynamicSource dynamicSource{DynamicSource::None};
-    std::string dynamicArgumentName;
-    std::array<float, 3> dynamicScale{};
-  };
-
   // The main neuray interface can only be acquired once. Possibly get it
   // as a parameter instead of allocating it internally.
   // Note that we allow overriding the logger only if we own the
@@ -100,7 +63,8 @@ class Core
 
   // Load an MDL module from in-memory source into `transaction` and return it.
   // Returns null on failure (diagnostics are logged). Mirrors loadModule.
-  const mi::neuraylib::IModule *loadModuleFromString(std::string_view moduleName,
+  const mi::neuraylib::IModule *loadModuleFromString(
+      std::string_view moduleName,
       std::string_view moduleSource,
       mi::neuraylib::ITransaction *transaction);
 
@@ -169,9 +133,6 @@ class Core
   mi::neuraylib::ICompiled_material *getCompiledMaterial(
       const mi::neuraylib::IFunction_definition *,
       bool classCompilation = true);
-
-  static EmissionClassification classifyEmission(
-      const mi::neuraylib::ICompiled_material *compiledMaterial);
 
   mi::neuraylib::ICompiled_material *getDistilledToDiffuse(
       const mi::neuraylib::ICompiled_material *compiledMaterial);
