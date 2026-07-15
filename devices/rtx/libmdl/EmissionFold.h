@@ -10,22 +10,12 @@
 
 #include "EmissionDescriptor.h"
 #include "EmissionIR.h"
+#include "ResourceStats.h"
 
 #include <array>
 #include <string>
 
 namespace visrtx::libmdl {
-
-// Per-channel texel reduction of a bound texture, in sampler-output space.
-struct ResourceStats
-{
-  bool valid{false}; // false ⇒ unbound/invalid ⇒ lookup folds to 0
-  std::array<float, 3> maxAbs{}; // maxAbs==0 ⇒ ProvablyZero (exact)
-  std::array<float, 3> meanPositive{}; // mean of max(texel,0) ⇒ magnitude proxy
-  std::array<float, 3> minValue{}; // minValue>=0 ⇒ sign ProvablyNonnegative
-  bool transferPreservesZero{true}; // T(0)==0; else the zero bound breaks
-  bool finite{true};
-};
 
 // Supplies current parameter values and resource stats to the fold. The device
 // backs it with live argument bytes + the resource table; tests back it with

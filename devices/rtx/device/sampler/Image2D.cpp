@@ -33,6 +33,10 @@
 
 #include "utility/AnariTypeHelpers.h"
 
+#include <array>
+#include <cfloat>
+#include <cmath>
+
 namespace visrtx {
 
 static float srgbToLinear(float v)
@@ -90,9 +94,9 @@ void Image2D::finalize()
   m_texels = makeCudaTexelObject2D(
       cuArray, !isFp, "nearest", m_wrap1, m_wrap2, m_borderColor);
 
-  // The mean texel is NOT computed here: it is only needed by the emissive
-  // Pick-Power path, so averageValue() scans lazily on first query and memoizes
-  // against the image stamp (see m_averageValue).
+  // The reduction is NOT computed here: it is only needed by the emissive
+  // Pick-Power / classifier path, so it scans lazily on first query and
+  // memoizes against the image stamp (see textureReduction() / m_reduction).
 
   upload();
 }
@@ -104,81 +108,125 @@ bool Image2D::isValid() const
 
 vec4 Image2D::averageValue() const
 {
-  // Lazy + guarded: recompute only when the bound image's data actually changed.
-  // A fresh (0) stamp forces the first compute; a filter/wrap recommit leaves the
-  // image stamp untouched and returns the cache. Non-emissive samplers never
-  // reach here at all.
-  const helium::TimeStamp stamp =
-      m_image ? m_image->lastDataModified() : helium::TimeStamp{0};
-  if (stamp != m_averageValueStamp) {
-    m_averageValue = computeAverageValueGPU();
-    m_averageValueStamp = stamp;
-  }
-  return m_averageValue;
+  // The non-negative magnitude (meanPositive) — the same proxy the MDL
+  // classifier uses, so a signed texel never inflates or cancels an emitter's
+  // picked power. Native emission is radiance >= 0, so this equals the plain
+  // mean for every real emitter. Alpha is unused by emission.
+  const auto &m = textureReduction().meanPositive;
+  return vec4(m[0], m[1], m[2], 1.f);
 }
 
-// Mean linear texel, used only to size a textured emitter's Pick Power
-// (variance, never bias). Reads the retained host pixels; sRGB byte data is
-// linearized to match the hardware sampler. Unsupported element types fall back
-// to the fully-lit default so the emitter is still picked. Computed lazily and
-// memoized; see averageValue() / m_averageValue.
-vec4 Image2D::computeAverageValue() const
+#if defined(USE_MDL)
+libmdl::ResourceStats Image2D::emissionStats() const
 {
+  const TextureReduction &r = textureReduction();
+  libmdl::ResourceStats s;
+  s.valid = r.valid;
+  if (!r.valid)
+    return s; // Unknown: not a real reduction
+  s.maxAbs = r.maxAbs;
+  s.meanPositive = r.meanPositive;
+  s.minValue = r.minValue;
+  s.transferPreservesZero = r.transferPreservesZero;
+  s.finite = r.finite;
+  return s;
+}
+#endif
+
+// Lazy + guarded: recompute only when the bound image's data actually changed.
+// A fresh (0) stamp forces the first compute; a filter/wrap recommit leaves the
+// image stamp untouched and returns the cache. Non-emissive samplers never
+// query it at all.
+const Image2D::TextureReduction &Image2D::textureReduction() const
+{
+  const helium::TimeStamp stamp =
+      m_image ? m_image->lastDataModified() : helium::TimeStamp{0};
+  if (stamp != m_reductionStamp) {
+    m_reduction = computeTextureReduction();
+    m_reductionStamp = stamp;
+  }
+  return m_reduction;
+}
+
+// One host scan yielding, per channel, the max absolute value (exact zero
+// proof), the mean of the positive part (the non-negative magnitude that sizes
+// a textured emitter's Pick Power — variance, never bias), and the min value
+// (non-negative sign proof). Reads the retained host pixels; sRGB byte data is
+// linearized to match the hardware sampler. Unsupported element types leave the
+// reduction Unknown (magnitude stays unit so the emitter is still picked).
+//
+// TODO(perf): reduce over the resident device texels instead of this host scan
+// — the image already uploads a linear device buffer (data(AddressSpace::
+// DEVICE)), so a thrust reduction (cf. light/sampling/CDF.cu) avoids the host
+// readback for large emissive textures. The device functor must reproduce this
+// per-channel sRGB->linear (color channels only) decode before reducing.
+Image2D::TextureReduction Image2D::computeTextureReduction() const
+{
+  TextureReduction r;
   if (!m_image)
-    return Sampler::averageValue();
+    return r; // valid=false, magnitude stays unit
 
   const ANARIDataType t = m_image->elementType();
   const int nc = numANARIChannels(t);
   const size_t count = size_t(m_image->size().x) * m_image->size().y;
   const void *host = m_image->data(AddressSpace::HOST);
   if (nc == 0 || count == 0 || !host)
-    return Sampler::averageValue();
+    return r;
 
-  // sRGB 8-bit formats carry a linear alpha in the LAST channel (present for the
-  // RGBA/RA variants, i.e. even channel counts); only the color channels are
-  // gamma-encoded.
+  // sRGB 8-bit formats carry a linear alpha in the LAST channel (present for
+  // the RGBA/RA variants, i.e. even channel counts); only the color channels
+  // are gamma-encoded.
   const bool srgb = isSrgb8(t);
   const int colorChannels = (srgb && (nc == 2 || nc == 4)) ? nc - 1 : nc;
 
-  glm::dvec4 sum(0.0);
+  // Per-source-channel accumulators (up to 4).
+  std::array<double, 4> posSum{};
+  std::array<float, 4> maxAbs{};
+  std::array<float, 4> minVal{{FLT_MAX, FLT_MAX, FLT_MAX, FLT_MAX}};
+  bool finite = true;
+
+  auto accumulate = [&](int c, float v) {
+    if (!std::isfinite(v))
+      finite = false;
+    posSum[c] += double(std::max(v, 0.0f));
+    maxAbs[c] = std::max(maxAbs[c], std::fabs(v));
+    minVal[c] = std::min(minVal[c], v);
+  };
+
   if (isFloat32(t)) {
     const auto *p = static_cast<const float *>(host);
     for (size_t i = 0; i < count; ++i)
       for (int c = 0; c < nc; ++c)
-        sum[c] += double(p[i * nc + c]);
+        accumulate(c, p[i * nc + c]);
   } else if (isFixed8(t) || srgb) {
     const auto *p = static_cast<const uint8_t *>(host);
     for (size_t i = 0; i < count; ++i)
       for (int c = 0; c < nc; ++c) {
         const float v = p[i * nc + c] / 255.0f;
-        sum[c] += double((srgb && c < colorChannels) ? srgbToLinear(v) : v);
+        accumulate(c, (srgb && c < colorChannels) ? srgbToLinear(v) : v);
       }
   } else {
-    return Sampler::averageValue(); // uncommon type for emission; coarse fallback
+    return r; // uncommon type for emission ⇒ Unknown, magnitude stays unit
   }
 
-  glm::dvec4 avg = sum / double(count);
-  // Broadcast 1/2-channel textures to RGB so a grayscale emissive texture still
-  // yields a sensible average color.
-  if (nc == 1)
-    return vec4(float(avg.x), float(avg.x), float(avg.x), 1.f);
-  if (nc == 2)
-    return vec4(float(avg.x), float(avg.x), float(avg.x), float(avg.y));
-  if (nc == 3)
-    return vec4(float(avg.x), float(avg.y), float(avg.z), 1.f);
-  return vec4(avg);
-}
+  // Broadcast source channels to rgb: a 1/2-channel texture drives all three
+  // color channels from channel 0, so a grayscale emissive texture still yields
+  // a sensible magnitude color.
+  auto channelForRGB = [&](int rgb) { return nc >= 3 ? rgb : 0; };
+  for (int rgb = 0; rgb < 3; ++rgb) {
+    const int c = channelForRGB(rgb);
+    r.meanPositive[rgb] = float(posSum[c] / double(count));
+    r.maxAbs[rgb] = maxAbs[c];
+    r.minValue[rgb] = minVal[c];
+  }
 
-// TODO(perf): reduce over the resident texels on the device instead of the host
-// scan above — the image is already uploaded as a cudaArray for sampling
-// (m_texels), so a device reduction (cf. the thrust::reduce-over-image in
-// light/sampling/CDF.cu) avoids the host readback entirely for large emissive
-// textures. The kernel must reproduce computeAverageValue()'s per-channel
-// sRGB->linear (color channels only) and the 1/2-channel broadcast, then read
-// back a single vec4. Stubbed: delegates to the host scan for now.
-vec4 Image2D::computeAverageValueGPU() const
-{
-  return computeAverageValue();
+  r.valid = true;
+  r.finite = finite;
+  // The sRGB and linear transfers satisfy T(0)=0; the only way a stored-zero
+  // texel samples nonzero is a nonzero border color under a border wrap mode.
+  r.transferPreservesZero = m_borderColor.x == 0.0f && m_borderColor.y == 0.0f
+      && m_borderColor.z == 0.0f;
+  return r;
 }
 
 int Image2D::numChannels() const

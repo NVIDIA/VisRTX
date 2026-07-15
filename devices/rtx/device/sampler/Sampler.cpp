@@ -70,6 +70,24 @@ vec4 Sampler::averageValue() const
   return vec4(1.f);
 }
 
+#if defined(USE_MDL)
+libmdl::ResourceStats Sampler::emissionStats() const
+{
+  // A sampler that cannot reduce its texels proves nothing: not zero (maxAbs
+  // nonzero), not non-negative (minValue negative), unit magnitude proxy. Its
+  // emission stays register-ineligible via the policy's sign gate —
+  // forward-only, unbiased — until a real reduction (Image2D) is available.
+  libmdl::ResourceStats s;
+  s.valid = true;
+  s.maxAbs = {1.f, 1.f, 1.f};
+  s.meanPositive = {1.f, 1.f, 1.f};
+  s.minValue = {-1.f, -1.f, -1.f};
+  s.transferPreservesZero = false;
+  s.finite = true;
+  return s;
+}
+#endif
+
 void Sampler::commitParameters()
 {
   m_inAttribute = getParamString("inAttribute", "attribute0");

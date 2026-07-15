@@ -35,6 +35,8 @@
 #include "array/Array2D.h"
 #include "utility/CudaImageTexture.h"
 
+#include <array>
+
 namespace visrtx {
 
 struct Image2D : public Sampler
@@ -48,17 +50,36 @@ struct Image2D : public Sampler
 
   int numChannels() const override;
   vec4 averageValue() const override;
+#if defined(USE_MDL)
+  libmdl::ResourceStats emissionStats() const override;
+#endif
 
   cudaTextureObject_t textureObject() const;
 
  private:
   SamplerGPUData gpuData() const override;
 
-  // Mean linear texel for emissive Pick Power. computeAverageValue() is the host
-  // scan; computeAverageValueGPU() is the intended device-side reduction over the
-  // already-resident texels (stubbed — currently delegates to the host scan).
-  vec4 computeAverageValue() const;
-  vec4 computeAverageValueGPU() const;
+  // Single-pass texel reduction feeding both the emissive Pick Power and the
+  // MDL emission classifier from one scan (replacing the former separate
+  // averageValue and emissionStats scans). Pick Power reads meanPositive — the
+  // same non-negative magnitude proxy the classifier uses — so a signed texel
+  // never inflates or cancels an emitter's picked power.
+  struct TextureReduction
+  {
+    // Per channel; unit default so an un-reduced emitter is still picked.
+    std::array<float, 3> maxAbs{{1.f, 1.f, 1.f}}; // maxAbs==0 ⇒ exact zero
+    std::array<float, 3> meanPositive{{1.f, 1.f, 1.f}}; // magnitude / Pick Power
+    std::array<float, 3> minValue{{-1.f, -1.f, -1.f}}; // minValue>=0 ⇒ nonneg
+    bool transferPreservesZero{false}; // T(0)==0 unless a nonzero border color
+    bool finite{true};
+    bool valid{false}; // false ⇒ unbound/unsupported ⇒ classifier Unknown
+  };
+
+  // Lazy, memoized against the image data stamp: computed on the first query
+  // and reused until the bound image's texels actually change. Non-emissive
+  // samplers never query it and so never scan.
+  const TextureReduction &textureReduction() const;
+  TextureReduction computeTextureReduction() const;
 
   void cleanupImageCudaArray();
   void cleanupImageTextureObjects();
@@ -71,13 +92,11 @@ struct Image2D : public Sampler
   cudaTextureObject_t m_texture{};
   cudaTextureObject_t m_texels{};
 
-  // Mean linear texel, consumed only by the emissive Pick-Power path. Computed
-  // lazily on the first averageValue() query and memoized against the image's
-  // lastDataModified stamp: non-emissive samplers (base color, normal, roughness,
-  // ...) never query it and so never scan, and a no-op recommit (filter/wrap
-  // change, scene churn) does not rescan. mutable: filled from the const query.
-  mutable vec4 m_averageValue{1.f};
-  mutable helium::TimeStamp m_averageValueStamp{0};
+  // Memoized reduction, filled lazily from the const query and guarded on the
+  // image's lastDataModified stamp: a no-op recommit (filter/wrap change, scene
+  // churn) does not rescan. mutable: filled from the const query.
+  mutable TextureReduction m_reduction;
+  mutable helium::TimeStamp m_reductionStamp{0};
 };
 
 } // namespace visrtx

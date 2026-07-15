@@ -32,6 +32,9 @@
 #pragma once
 
 #include "RegisteredObject.h"
+#if defined(USE_MDL)
+#include "libmdl/ResourceStats.h"
+#endif
 
 namespace visrtx {
 
@@ -47,6 +50,17 @@ struct Sampler : public RegisteredObject<SamplerGPUData>
   // (variance, never bias). The default assumes a fully-lit unit value so an
   // un-averaged sampler is still picked; Image2D overrides with the mean texel.
   virtual vec4 averageValue() const;
+
+#if defined(USE_MDL)
+  // Per-channel texel reduction consumed by the MDL emission classifier's value
+  // source (maxAbs for the zero proof, meanPositive for the magnitude proxy,
+  // minValue for the sign proof). The default is Unknown (valid but unproven):
+  // a sampler that cannot reduce its texels neither proves zero nor proves a
+  // non-negative sign, so its emission stays register-eligible only under the
+  // policy's Unknown path. Image2D overrides with a real scan. MDL-only: the
+  // classifier is the sole consumer and lives behind USE_MDL.
+  virtual libmdl::ResourceStats emissionStats() const;
+#endif
 
   static Sampler *createInstance(
       std::string_view subtype, DeviceGlobalState *d);
