@@ -681,14 +681,23 @@ void World::buildInstanceLightGPUData()
   // surface instance and emit silently wrong radiance — catch it here.
   assert(surfaceInstanceCursor == m_instanceSurfaceGPUData.size());
 
-  // Turn the per-instance Pick Powers into a normalized cumulative CDF in place.
-  // A zero total (every light dark) leaves the CDF unused: the renderer falls
-  // back to a uniform pick.
+  // Turn the per-instance Pick Powers into a normalized cumulative CDF in
+  // place. Accumulate and normalize in double, dividing by the DOUBLE
+  // cumulative total (not the float m_totalLightPower): normalizing by the
+  // float total can push the last entry above 1.0 when float lost a dim light's
+  // mass, leaving trailing dim lights unselectable while their hit-side pNee
+  // stays positive — bias. The double total makes the last entry exactly 1.0
+  // and preserves those masses. A zero total (every light dark) leaves the CDF
+  // unused: uniform pick.
   if (m_totalLightPower > 0.0f) {
-    float cumulative = 0.0f;
+    double total = 0.0;
+    for (size_t i = 0; i < totalLights; ++i)
+      total += pickCdf[i];
+    const double invTotal = total > 0.0 ? 1.0 / total : 0.0;
+    double cumulative = 0.0;
     for (size_t i = 0; i < totalLights; ++i) {
       cumulative += pickCdf[i];
-      pickCdf[i] = cumulative / m_totalLightPower;
+      pickCdf[i] = cumulative * invTotal;
     }
   }
 

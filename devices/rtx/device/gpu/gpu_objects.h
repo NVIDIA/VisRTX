@@ -507,8 +507,8 @@ struct MaterialGPUData
   bool emissionIsConstant{false};
 
   // Emission is not provably zero (constant, sampler, or attribute bound). The
-  // hit-side Geometry Light MIS gate; kept in sync by the material's own commit,
-  // so it is never stale.
+  // hit-side Geometry Light MIS gate; kept in sync by the material's own
+  // commit, so it is never stale.
   bool emissionIsSampleable{false};
 
   // Mean emitted radiance, sizing the Geometry Light Pick Power on both the
@@ -808,8 +808,8 @@ struct InstanceLightGPUData
   mat4 xfm; // Transform for this light instance
   // For a Geometry Light: index into WorldGPUData::surfaceInstances[] of the
   // surface instance it was synthesized from, so the NEE sampler can evaluate
-  // emission against the REAL instance (instance-uniform attributes resolve like
-  // the path-hit deposit). -1 for authored/HDRI lights.
+  // emission against the REAL instance (instance-uniform attributes resolve
+  // like the path-hit deposit). -1 for authored/HDRI lights.
   DeviceObjectIndex surfaceInstanceIndex = -1;
 };
 
@@ -835,7 +835,10 @@ struct WorldGPUData
   // Normalized cumulative Pick Power over lightInstances (length
   // numLightInstances, last entry == 1); pick a slot with inverseSampleCDF. The
   // slot's discrete pick probability is lightPickCdf[i]-lightPickCdf[i-1].
-  const float *lightPickCdf;
+  // Double so a dim light's mass (below float epsilon of the total) is
+  // preserved as a nonzero interval — else it is unselectable while the
+  // hit-side pNee is still positive, biasing the deposit's MIS weight.
+  const double *lightPickCdf;
   float totalLightPower; // sum of un-normalized instance Pick Powers
   float hdriPower; // subset sum over HDRI instances (env-MIS pick probability)
   float sceneRadius; // bounding-sphere radius, for the ambient term's power

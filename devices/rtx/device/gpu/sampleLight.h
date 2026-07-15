@@ -325,12 +325,14 @@ VISRTX_DEVICE LightSample sampleSpotLight(
   return ls;
 }
 
-VISRTX_DEVICE int inverseSampleCDF(const float *cdf, int size, float u)
+// Binary search for the first index i such that cdf[i] >= u (cub::LowerBound):
+// inverse transform sampling of a discrete cumulative distribution. Templated
+// on the CDF element type so the light-pick CDF (double, to preserve dim-light
+// masses below float epsilon) and the float HDRI/primitive CDFs share one path.
+template <typename T>
+VISRTX_DEVICE int inverseSampleCDF(const T *cdf, int size, float u)
 {
-  // Binary search for the first index i such that cdf[i] >= u
-  // (cub::LowerBound): inverse transform sampling of a discrete distribution
-  // over a cumulative CDF.
-  return cub::LowerBound(cdf, size, u);
+  return cub::LowerBound(cdf, size, T(u));
 }
 
 // The three object-space vertex indices of triangle primID, indexed or soup.

@@ -144,7 +144,8 @@ struct SurfaceLightSample
 
 // Power (relative flux) of the ambient term, treated as an infinite hemisphere
 // light so it competes in the same Pick Power currency as the light instances
-// (irradiance × scene cross-section, matching lightPickPower's infinite lights).
+// (irradiance × scene cross-section, matching lightPickPower's infinite
+// lights).
 VISRTX_DEVICE float ambientPickPower(const FrameGPUData &frameData)
 {
   const auto &r = frameData.renderer;
@@ -169,13 +170,18 @@ VISRTX_DEVICE size_t pickLightInstance(const WorldGPUData &world, float u)
 
 // Discrete probability that pickLightInstance selected `idx`, folded with the
 // ambient stratum so P(pick) sums to 1 across every pick candidate. The CDF is
-// normalized by totalLightPower, so its per-slot delta is power_i/totalLightPower.
+// normalized by totalLightPower, so its per-slot delta is
+// power_i/totalLightPower.
 VISRTX_DEVICE float instancePickProbability(
     const WorldGPUData &world, size_t idx, float totalPower)
 {
-  const float lo = idx > 0 ? world.lightPickCdf[idx - 1] : 0.0f;
-  const float conditional = world.lightPickCdf[idx] - lo;
-  return conditional * world.totalLightPower / totalPower;
+  // Double delta: the CDF preserves masses below float epsilon, so the delta of
+  // adjacent entries must be differenced in double or a dim light's interval
+  // collapses to zero here even though it is selectable.
+  const double lo = idx > 0 ? world.lightPickCdf[idx - 1] : 0.0;
+  const double conditional = world.lightPickCdf[idx] - lo;
+  return float(
+      conditional * double(world.totalLightPower) / double(totalPower));
 }
 
 // Aggregate probability that the Light Pick lands on the HDRI environment. Both
@@ -190,10 +196,10 @@ VISRTX_DEVICE float envPickProbability(const FrameGPUData &frameData)
     return world.hdriPower / totalPower;
   // All-dark fallback: mirror sampleLights' uniform stratum count exactly
   // (ambient counted iff it carries Pick Power) so both MIS sides agree.
-  const size_t numStrata = world.numLightInstances + (ambientPower > 0.0f ? 1 : 0);
-  return numStrata > 0
-      ? float(world.numHdriLightInstances) / float(numStrata)
-      : 0.0f;
+  const size_t numStrata =
+      world.numLightInstances + (ambientPower > 0.0f ? 1 : 0);
+  return numStrata > 0 ? float(world.numHdriLightInstances) / float(numStrata)
+                       : 0.0f;
 }
 
 // NEE density a Geometry Light would report for a BSDF ray that hit it, for the
@@ -213,14 +219,14 @@ VISRTX_DEVICE float geometryLightHitPdf(const FrameGPUData &frameData,
 {
   // Only a sampleable-emissive area-samplable surface is a Geometry Light. The
   // type guard is load-bearing: GeometryGPUData is a union, so reading `.tri`/
-  // `.sphere` on the wrong type (never NEE-sampled) would misread it and wrongly
-  // down-weight the deposit.
+  // `.sphere` on the wrong type (never NEE-sampled) would misread it and
+  // wrongly down-weight the deposit.
   if (!hit.material->emissionIsSampleable)
     return 0.0f;
   // objectToWorld is a row-stored mat3x4 (glm column i = OptiX row i of M), so
   // mat3(objectToWorld) is Mᵀ; transpose it back to M — the linear map the NEE
-  // sampler uses via xfmVec — or the area Jacobian is wrong under a non-symmetric
-  // instance transform (rotation + non-uniform scale).
+  // sampler uses via xfmVec — or the area Jacobian is wrong under a
+  // non-symmetric instance transform (rotation + non-uniform scale).
   const mat3 o2w = transpose(mat3(hit.instance->objectToWorld));
   const float cosTheta = fabsf(dot(hit.Ng, rayDir));
   if (cosTheta <= 0.0f)
@@ -228,7 +234,8 @@ VISRTX_DEVICE float geometryLightHitPdf(const FrameGPUData &frameData,
 
   // Per-type: the exact solid-angle pdf the NEE sampler would report for this
   // hit, plus the object-space total area feeding the pick probability. Kept
-  // identical to the samplers in sampleLight.h so wNee and wBsdf partition to 1.
+  // identical to the samplers in sampleLight.h so wNee and wBsdf partition
+  // to 1.
   float solidAnglePdf = 0.0f;
   float totalArea = 0.0f;
 
@@ -247,18 +254,19 @@ VISRTX_DEVICE float geometryLightHitPdf(const FrameGPUData &frameData,
         length(cross(e1o, e2o)), worldTwice, tri.totalArea, hit.t, cosTheta);
     totalArea = tri.totalArea;
   } else {
-    // Sphere/cylinder/cone samplers are SINGLE-sided (outward): finishAreaLightSample
-    // culls the far hemisphere (cosTheta <= 0). hit.Ng is ray-oriented so fabsf above
-    // cannot recover facing — an interior (back-face) hit is never NEE-sampled, so its
-    // NEE pdf must be 0. Otherwise the deposit sees pNee > 0 and down-weights via MIS
-    // while NEE contributes nothing, losing the interior fraction (dark shell inside).
+    // Sphere/cylinder/cone samplers are SINGLE-sided (outward):
+    // finishAreaLightSample culls the far hemisphere (cosTheta <= 0). hit.Ng is
+    // ray-oriented so fabsf above cannot recover facing — an interior
+    // (back-face) hit is never NEE-sampled, so its NEE pdf must be 0. Otherwise
+    // the deposit sees pNee > 0 and down-weights via MIS while NEE contributes
+    // nothing, losing the interior fraction (dark shell inside).
     if (!hit.isFrontFace)
       return 0.0f;
-    // The unit-tangent samplers depend only on the OUTWARD object normal at the point
-    // (worldAreaScale = |cross(M t1,M t2)|, invariant to the tangent basis). Recover it
-    // generically from the world normal — o2wᵀ·Ng ∝ nObj since Ng = normalize(M⁻ᵀ·nObj)
-    // — so no per-surface (lateral vs cap, slant) math is needed and it matches
-    // finishAreaLightSample exactly.
+    // The unit-tangent samplers depend only on the OUTWARD object normal at the
+    // point (worldAreaScale = |cross(M t1,M t2)|, invariant to the tangent
+    // basis). Recover it generically from the world normal — o2wᵀ·Ng ∝ nObj
+    // since Ng = normalize(M⁻ᵀ·nObj) — so no per-surface (lateral vs cap,
+    // slant) math is needed and it matches finishAreaLightSample exactly.
     uint32_t numPrimitives = 0;
     if (hit.geometry->type == GeometryType::SPHERE) {
       totalArea = hit.geometry->sphere.totalArea;
@@ -328,8 +336,8 @@ VISRTX_DEVICE PickedCandidate pickCandidate(
 
   const float totalPower = world.totalLightPower + ambientPower;
 
-  // Fallback when no candidate carries Pick Power (all dark): uniform pick keeps
-  // the estimator unbiased and avoids a divide-by-zero.
+  // Fallback when no candidate carries Pick Power (all dark): uniform pick
+  // keeps the estimator unbiased and avoids a divide-by-zero.
   if (!(totalPower > 0.0f)) {
     const size_t numStrata = world.numLightInstances + (hasAmbient ? 1 : 0);
     const size_t selected =
@@ -563,8 +571,8 @@ VISRTX_GLOBAL void __raygen__()
           // Gate on a positive pdf, NOT a fixed epsilon: a dim light's pick
           // probability can make the joint pdf legitimately tiny, and dividing
           // by it stays unbiased. An epsilon floor would drop those samples and
-          // render the dim light black — the very bright+dim case the power pick
-          // targets.
+          // render the dim light black — the very bright+dim case the power
+          // pick targets.
           if (lightSample.pdf > 0.0f && lightSample.dist > 0.0f) {
             const vec3 directLight = volumeSample.albedo * lightSample.radiance
                 * INV_4PI / lightSample.pdf;
@@ -657,10 +665,11 @@ VISRTX_GLOBAL void __raygen__()
         }
 
         // Emission, direct lighting are scaled by opacity analytically rather
-        // than gated stochastically below. A Geometry Light reached by a finite-
-        // pdf bounce is also sampled by NEE, so MIS-weight the deposit against
-        // that; a delta/primary bounce (bsdfPdf == +inf) keeps weight 1 since
-        // NEE cannot reach it, as do non-sampled emissive surfaces (pNee == 0).
+        // than gated stochastically below. A Geometry Light reached by a
+        // finite- pdf bounce is also sampled by NEE, so MIS-weight the deposit
+        // against that; a delta/primary bounce (bsdfPdf == +inf) keeps weight 1
+        // since NEE cannot reach it, as do non-sampled emissive surfaces (pNee
+        // == 0).
         float wEmission = 1.0f;
         if (!isinf(bsdfPdf)) {
           const float pNee = geometryLightHitPdf(
@@ -668,7 +677,8 @@ VISRTX_GLOBAL void __raygen__()
           if (pNee > 0.0f)
             wEmission = bsdfPdf / (bsdfPdf + pNee);
         }
-        sample.color += wEmission * sampleContribution * opacity * materialEmission;
+        sample.color +=
+            wEmission * sampleContribution * opacity * materialEmission;
         // Sample around the shading normal so the cosine-weighted hemisphere's
         // pdf matches the BRDF's NdotL (which uses Ns). Sampling around Ng
         // would bias the Lambertian estimator by cos_Ns/cos_Ng on smooth or
@@ -692,10 +702,10 @@ VISRTX_GLOBAL void __raygen__()
             // Env MIS: only the HDRI environment can also be reached by the
             // BSDF escape, so only it gets a balance-heuristic weight. The
             // light density uses envPdf on BOTH sides (here and at the miss),
-            // not lightSample.pdf, so wNee and wBsdf use identical pdf functions
-            // and partition to 1 exactly — unbiased regardless of how closely
-            // envPdf tracks the NEE importance pdf (the NEE estimator still
-            // divides by its true lightSample.pdf, which carries the same
+            // not lightSample.pdf, so wNee and wBsdf use identical pdf
+            // functions and partition to 1 exactly — unbiased regardless of how
+            // closely envPdf tracks the NEE importance pdf (the NEE estimator
+            // still divides by its true lightSample.pdf, which carries the same
             // envPickProb, inside materialShadeSurface).
             // Other light types: p_bsdf = 0 => w_nee = 1 (behaviour unchanged).
             float wNee = 1.0f;
@@ -709,7 +719,8 @@ VISRTX_GLOBAL void __raygen__()
               // lightSample.pdf is the exact NEE density (solid-angle × pick
               // probability); the BSDF continuation can also hit this Geometry
               // Light,
-              // so weight against it. Mirrors geometryLightHitPdf on the deposit.
+              // so weight against it. Mirrors geometryLightHitPdf on the
+              // deposit.
               const float pBsdf =
                   materialEvalPdf(shadingState, -ray.dir, lightSample.dir);
               wNee = lightSample.pdf / (lightSample.pdf + pBsdf);
@@ -772,8 +783,9 @@ VISRTX_GLOBAL void __raygen__()
 
       if (!surfaceHit.foundHit && !volumeSample.didScatter) {
         // Deposit the environment, MIS-weighted against NEE. pLight mirrors the
-        // NEE env density: the HDRI importance pdf (envPdf) folded with the same
-        // power-proportional env pick probability sampleLights applied. bsdfPdf
+        // NEE env density: the HDRI importance pdf (envPdf) folded with the
+        // same power-proportional env pick probability sampleLights applied.
+        // bsdfPdf
         // == +inf (delta / transmission / primary ray) => w_bsdf = 1.
         if (vec3 hdri; getBackgroundLight(frameData, ray.dir, hdri)) {
           const float pLight = envPdf(frameData, ray.dir) * envPickProb;
