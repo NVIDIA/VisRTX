@@ -28,10 +28,11 @@ equivalent.
   The pick probability is `pickPower / totalPower`, the same formula the pick
   CDF uses, so the two sides agree (and MIS stays unbiased regardless of
   float drift, since the balance-heuristic weights sum to 1). This keeps the
-  gate to one per-material flag (`emissionIsConstant`) plus the geometry's
-  area, both of which each object keeps current in its own GPU slot, so
-  neither can go stale — no reverse-lookup table, no extra `SurfaceHit`
-  field.
+  gate to one per-material flag (`emissionIsSampleable`; the constant-radiance
+  deposit fast path this ADR's Stage-1 emitters take reads a second flag,
+  `emissionIsConstant`) plus the geometry's area, both of which each object
+  keeps current in its own GPU slot, so neither can go stale — no
+  reverse-lookup table, no extra `SurfaceHit` field.
 - `{lightIndex, xfm}` cannot represent emission driven by instance-uniform
   attributes. Once non-constant emission becomes sampleable, the light
   instance must also reference its surface instance so next-event radiance
