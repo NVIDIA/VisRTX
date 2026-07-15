@@ -79,6 +79,7 @@ if (VISRTX_ENABLE_MDL_SUPPORT)
   target_compile_definitions(
     TestPbrSpecularDefault PRIVATE VISRTX_TEST_MDL_WRAPPER)
   make_test(TestEmissiveMdlLight)
+  make_test(TestEmissionDescriptorPolicy)
   make_test(TestMdlPipelineRebuild)
   make_test(TestMdlMaterialRegistryRelease)
   make_test(TestEmissiveMaterialParity)
