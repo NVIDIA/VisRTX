@@ -76,8 +76,7 @@ VISRTX_HOST_DEVICE float lightPickPower(
         * sceneCrossSection;
   case LightType::POINT:
     // Isotropic point light: total flux = 4π · intensity.
-    return detail::pickLuminance(ld.color) * ld.point.intensity * 2.0f
-        * kTwoPi;
+    return detail::pickLuminance(ld.color) * ld.point.intensity * 2.0f * kTwoPi;
   case LightType::SPHERE: {
     // Lambertian sphere: flux = L · area · π, area = 4πr².
     const float area = kTwoPi * 2.0f * ld.sphere.radius * ld.sphere.radius
@@ -85,9 +84,10 @@ VISRTX_HOST_DEVICE float lightPickPower(
     return detail::pickLuminance(ld.color) * ld.sphere.intensity * area * kPi;
   }
   case LightType::RECT: {
-    // Lambertian rectangle: flux = L · area · π, doubled if it emits both sides.
-    const float area = detail::affineAreaScale(xfm)
-        / glm::max(ld.rect.oneOverArea, 1e-8f);
+    // Lambertian rectangle: flux = L · area · π, doubled if it emits both
+    // sides.
+    const float area =
+        detail::affineAreaScale(xfm) / glm::max(ld.rect.oneOverArea, 1e-8f);
     const float sides = float(ld.rect.side.front + ld.rect.side.back);
     return detail::pickLuminance(ld.color) * ld.rect.intensity * area * kPi
         * sides;
@@ -99,8 +99,8 @@ VISRTX_HOST_DEVICE float lightPickPower(
   }
   case LightType::RING: {
     // Lambertian disk annulus; the cone falloff is ignored for the estimate.
-    const float area = detail::affineAreaScale(xfm)
-        / glm::max(ld.ring.oneOverArea, 1e-8f);
+    const float area =
+        detail::affineAreaScale(xfm) / glm::max(ld.ring.oneOverArea, 1e-8f);
     return detail::pickLuminance(ld.color) * ld.ring.intensity * area * kPi;
   }
   case LightType::HDRI:
@@ -109,6 +109,8 @@ VISRTX_HOST_DEVICE float lightPickPower(
     return detail::pickLuminance(ld.color) * ld.hdri.scale * sceneCrossSection;
   case LightType::GEOMETRY: {
     // Double-sided Lambertian surface: flux = L · area · π, doubled for sides.
+    // This diffuse-only assumption is in lockstep with kFaithfulSet
+    // (material/EmissionPolicy.h); growing that set requires generalizing this.
     const float area = ld.geometry.area * detail::affineAreaScale(xfm);
     return detail::pickLuminance(ld.geometry.radiance) * area * kPi * 2.0f;
   }

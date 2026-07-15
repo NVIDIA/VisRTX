@@ -33,6 +33,8 @@
 
 #include "gpu/gpu_objects.h"
 #include "gpu/sbt.h"
+#include "material/EmissionPolicy.h"
+
 #include "libmdl/ArgumentBlockDescriptor.h"
 #include "libmdl/ArgumentBlockInstance.h"
 #include "libmdl/EmissionFold.h"
@@ -116,17 +118,6 @@ struct MDLValueSource : libmdl::EmissionValueSource
     return true;
   }
 };
-
-// The renderer's registration policy (ADR 0007). C7 extracts this to a shared
-// EmissionPolicy header cross-referenced from the GPU Pick-Power/normal sites.
-bool isRegisterable(const libmdl::SlotDescriptor &s)
-{
-  return s.verdict != libmdl::EmissionVerdict::ProvablyNull
-      && libmdl::isSubsetOf(s.edfKinds, libmdl::EdfKind::Diffuse)
-      && s.mode == libmdl::IntensityMode::RadiantExitance
-      && !s.dependsOnGeometricState
-      && s.sign == libmdl::EmissionSign::ProvablyNonnegative;
-}
 
 } // namespace
 
