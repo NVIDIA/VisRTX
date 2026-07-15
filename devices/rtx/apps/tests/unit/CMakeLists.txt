@@ -42,3 +42,20 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE GLM_ENABLE_EXPERIMENTAL)
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_17)
 
 add_test(NAME rtx::LightPickPower COMMAND ${PROJECT_NAME})
+
+# classifyEmission lives in libmdl, a standalone static lib with no CUDA/OptiX/GPU
+# (the MDL SDK is dlopen'd at runtime), so the classifier is testable on the host.
+# Gated on MDL support, since libmdl only exists then.
+if (VISRTX_ENABLE_MDL_SUPPORT)
+  project(rtx_test_MdlEmissionClassifier LANGUAGES CXX)
+
+  add_executable(${PROJECT_NAME} test_MdlEmissionClassifier.cpp)
+  # libmdl's Core.h includes <fmt/core.h> but links fmt PRIVATE, so a consumer
+  # that only links libmdl must pull fmt itself.
+  target_link_libraries(${PROJECT_NAME} PRIVATE libmdl fmt::fmt)
+  target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_17)
+
+  add_test(NAME rtx::MdlEmissionClassifier COMMAND ${PROJECT_NAME})
+  # The test SKIPs (not fails) when the MDL SDK shared library is not loadable.
+  set_tests_properties(rtx::MdlEmissionClassifier PROPERTIES SKIP_RETURN_CODE 77)
+endif()
