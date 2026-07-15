@@ -10,6 +10,7 @@ project_add_library(STATIC
   ArgumentBlockDescriptor.cpp
   ArgumentBlockInstance.cpp
   Core.cpp
+  EmissionIR.cpp
   helpers.cpp
   ptx.cpp
   TimeStamp.cpp

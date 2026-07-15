@@ -16,6 +16,7 @@
 // same target as the refactor lands.
 
 #include "libmdl/Core.h"
+#include "libmdl/EmissionIR.h"
 #include "libmdl/source_name_utils.h"
 
 #include <mi/base/handle.h>
@@ -140,6 +141,100 @@ export material emissive() = material(
 
 using DynamicSource = Core::EmissionClassification::DynamicSource;
 
+// A let-shared subexpression: `k` is referenced twice, so class compilation
+// stores it as a single temporary. The IR must resolve both references to the
+// same node.
+const char *kSharedTemporary = R"mdl(mdl 1.6;
+import ::df::*;
+import ::math::*;
+export material emissive(color value = color(2.0)) = let {
+    color k = value * math::PI;
+} in material(
+    surface: material_surface(
+        emission: material_emission(
+            emission: df::diffuse_edf(),
+            intensity: k + k)));
+)mdl";
+
+using visrtx::libmdl::buildEmissionIR;
+using visrtx::libmdl::ConstantKind;
+using visrtx::libmdl::EmissionIR;
+using visrtx::libmdl::EmissionNodeKind;
+using Semantic = visrtx::libmdl::Semantic;
+
+const visrtx::libmdl::EmissionNode &node(const EmissionIR &ir, int i)
+{
+  return ir.nodes[std::size_t(i)];
+}
+
+bool hasParamNamed(const EmissionIR &ir, const char *name)
+{
+  for (const auto &n : ir.nodes)
+    if (n.parameterName == name)
+      return true;
+  return false;
+}
+
+void runIR(Core &core, mi::neuraylib::ITransaction *txn)
+{
+  using mi::base::make_handle;
+  mi::base::Handle<mi::neuraylib::ICompiled_material> keepAlive;
+
+  auto buildIR = [&](std::string_view src) {
+    (void)classify(core, txn, src, keepAlive); // reuse the compile flow
+    return buildEmissionIR(keepAlive.get(), txn);
+  };
+
+  {
+    auto ir = buildIR(kConstLiteral);
+    CHECK(!ir.empty());
+    CHECK(ir.surface.edfRoot >= 0);
+    CHECK(node(ir, ir.surface.edfRoot).kind == EmissionNodeKind::Call);
+    CHECK(node(ir, ir.surface.edfRoot).semantic
+        == Semantic::DS_INTRINSIC_DF_DIFFUSE_EDF);
+    CHECK(ir.surface.intensityRoot >= 0);
+    CHECK(ir.emissionDeps.empty()); // body-literal: no argument deps
+  }
+
+  {
+    auto ir = buildIR(kParamDriven);
+    CHECK(node(ir, ir.surface.edfRoot).semantic
+        == Semantic::DS_INTRINSIC_DF_DIFFUSE_EDF);
+    CHECK(!ir.emissionDeps.empty());
+    CHECK(hasParamNamed(ir, "value"));
+  }
+
+  {
+    auto ir = buildIR(kTextured);
+    bool foundTexture = false;
+    for (const auto &n : ir.nodes) {
+      if (n.kind == EmissionNodeKind::Texture && n.parameterName == "tex")
+        foundTexture = true;
+    }
+    CHECK(foundTexture);
+    CHECK(hasParamNamed(ir, "tex"));
+    CHECK(!ir.emissionDeps.empty());
+  }
+
+  {
+    auto ir = buildIR(kNoEmission);
+    CHECK(ir.surface.edfRoot >= 0);
+    CHECK(node(ir, ir.surface.edfRoot).kind == EmissionNodeKind::Constant);
+    CHECK(node(ir, ir.surface.edfRoot).constantKind == ConstantKind::InvalidDf);
+  }
+
+  {
+    // k + k: the two operands of the addition must resolve to the SAME node
+    // index (shared temporary), proving CSE-identity is preserved.
+    auto ir = buildIR(kSharedTemporary);
+    const auto &intensity = node(ir, ir.surface.intensityRoot);
+    CHECK(intensity.kind == EmissionNodeKind::Call);
+    CHECK(intensity.operands.size() == 2);
+    if (intensity.operands.size() == 2)
+      CHECK(intensity.operands[0] == intensity.operands[1]);
+  }
+}
+
 void run(Core &core, mi::neuraylib::ITransaction *txn)
 {
   mi::base::Handle<mi::neuraylib::ICompiled_material> keepAlive;
@@ -200,6 +295,7 @@ int main()
     auto scope = core.createScope("MdlEmissionClassifierTestScope");
     auto txn = make_handle(core.createTransaction(scope));
     run(core, txn.get());
+    runIR(core, txn.get());
     txn->commit();
     core.removeScope(scope);
   } catch (const std::exception &e) {
