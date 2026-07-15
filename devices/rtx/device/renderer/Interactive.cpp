@@ -53,6 +53,9 @@ void Interactive::commitParameters()
   m_aoSamples = std::clamp(getParam<int>("ambientSamples", 1), 0, 256);
   m_volumeSamplingRateShadows = std::clamp(
       getParam<float>("volumeSamplingRateShadows", 0.0125f), 1e-4f, 10.f);
+  // <= 0 is the "sample all lights" sentinel; clamp negatives to 0 so the kernel
+  // sees a single unambiguous unlimited value.
+  m_maxSampledLights = std::max(getParam<int>("maxSampledLights", 8), 0);
 }
 
 void Interactive::populateFrameData(FrameGPUData &fd) const
@@ -65,6 +68,7 @@ void Interactive::populateFrameData(FrameGPUData &fd) const
   interactive.aoIntensity = m_aoIntensity;
   interactive.inverseVolumeSamplingRateShadows =
       1.f / m_volumeSamplingRateShadows;
+  interactive.maxSampledLights = m_maxSampledLights;
 }
 
 OptixModule Interactive::optixModule() const

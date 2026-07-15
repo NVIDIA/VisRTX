@@ -864,6 +864,7 @@ struct InteractiveRendererGPUData
   vec3 aoColor;
   float aoIntensity;
   float inverseVolumeSamplingRateShadows;
+  int maxSampledLights; // NEE shadow-ray budget per hit; <= 0 samples all lights
 };
 
 union RendererParametersGPUData

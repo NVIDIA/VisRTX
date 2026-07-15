@@ -52,6 +52,7 @@ struct Interactive : public Renderer
   vec3 m_aoColor{1.f};
   float m_aoIntensity{1.f};
   float m_volumeSamplingRateShadows{0.0125f};
+  int m_maxSampledLights{8};
 };
 
 } // namespace visrtx

@@ -162,6 +162,16 @@
           "description": "ambient occlusion distance"
         },
         {
+          "name": "maxSampledLights",
+          "types": [
+            "ANARI_INT32"
+          ],
+          "tags": [],
+          "default": 8,
+          "minimum": 0,
+          "description": "max light instances sampled per hit via the Pick-Power CDF; 0 samples all lights (slow with many lights)"
+        },
+        {
           "name": "lightFalloff",
           "types": [
             "ANARI_FLOAT32"

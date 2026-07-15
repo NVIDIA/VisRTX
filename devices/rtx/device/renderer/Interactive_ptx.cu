@@ -100,7 +100,11 @@ struct InteractiveShadingPolicy
         * rendererParams.ambientIntensity * materialEvaluateTint(shadingState);
 
     const vec3 shadowOrigin = shadingHitpoint(hit) + hit.Ng * hit.epsilon;
-    for (size_t i = 0; i < world.numLightInstances; i++) {
+
+    // One light instance's NEE contribution, scaled by `weight`. `weight` is 1
+    // when every light is sampled and 1/(K*pPick) when a stochastic subset is
+    // drawn, so the accumulated image converges to the full deterministic sum.
+    auto addLightContribution = [&](size_t i, float weight) {
       const auto &light = world.lightInstances[i];
       const auto lightSample = sampleLight(ss,
           shadowOrigin,
@@ -109,7 +113,7 @@ struct InteractiveShadingPolicy
           light.surfaceInstanceIndex);
 
       if (lightSample.pdf == 0.0f)
-        continue;
+        return;
 
       const LightType lightType =
           frameData.registry.lights[light.lightIndex].type;
@@ -134,7 +138,7 @@ struct InteractiveShadingPolicy
 
       if (glm::all(
               glm::lessThanEqual(attenuation, vec3(MIN_CONTRIBUTION_EPSILON))))
-        continue;
+        return;
 
       vec3 thisLightContrib =
           materialShadeSurface(shadingState, hit, lightSample, -ray.dir);
@@ -142,8 +146,9 @@ struct InteractiveShadingPolicy
       // Environment MIS (balance heuristic): the HDRI is the only light the
       // indirect bounce's escape can also reach, so combine the NEE and escape
       // estimators instead of summing them (which double-counted the env).
-      // Interactive loops all lights with no pick, so pLight = envPdf (NO
-      // 1/numLights). Non-env lights keep wNee = 1 (behaviour unchanged).
+      // pLight = envPdf independent of the pick, and the 1/(K*pPick) reweight
+      // keeps E[stochastic] == the all-lights sum, so this stays MIS-consistent
+      // whether we sample all lights or a subset. Non-env lights keep wNee = 1.
       if (lightType == LightType::HDRI) {
         const float pLight = envPdf(frameData, lightSample.dir);
         const float pBsdf =
@@ -151,7 +156,43 @@ struct InteractiveShadingPolicy
         thisLightContrib *= pLight / (pLight + pBsdf);
       }
 
-      contrib += thisLightContrib * attenuation;
+      contrib += weight * thisLightContrib * attenuation;
+    };
+
+    // `maxSampledLights` caps the shadow-ray budget per hit. When the scene has
+    // more light instances than the cap, importance-sample that many via the
+    // world's Pick-Power CDF instead of looping all of them; otherwise keep the
+    // exact all-lights sum (pixel-identical to an unlimited budget).
+    const size_t numLights = world.numLightInstances;
+    const int maxSampled = interactiveParams.maxSampledLights;
+    const bool sampleAllLights =
+        maxSampled <= 0 || numLights <= size_t(maxSampled);
+
+    if (sampleAllLights) {
+      for (size_t i = 0; i < numLights; i++)
+        addLightContribution(i, 1.0f);
+    } else {
+      const int numPicks = maxSampled;
+      // A zero total Pick Power (every light dark) leaves the CDF unnormalized;
+      // fall back to a uniform pick to avoid a divide-by-zero, matching Quality.
+      const bool haveCdf = world.totalLightPower > 0.0f;
+      for (int s = 0; s < numPicks; s++) {
+        const float u = pcg_uniform(&ss.rs);
+        size_t idx;
+        float pPick;
+        if (haveCdf) {
+          idx = glm::min(size_t(detail::inverseSampleCDF(
+                             world.lightPickCdf, int(numLights), u)),
+              numLights - 1);
+          const float lo = idx > 0 ? world.lightPickCdf[idx - 1] : 0.0f;
+          pPick = world.lightPickCdf[idx] - lo;
+        } else {
+          idx = glm::min(size_t(u * float(numLights)), numLights - 1);
+          pPick = 1.0f / float(numLights);
+        }
+        if (pPick > 0.0f)
+          addLightContribution(idx, 1.0f / (float(numPicks) * pPick));
+      }
     }
 
     // Single indirect bounce — REFLECTION only. Transmission/refraction is
