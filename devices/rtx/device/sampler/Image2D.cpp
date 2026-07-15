@@ -31,17 +31,20 @@
 
 #include "Image2D.h"
 
+#include "TextureStats.h"
 #include "utility/AnariTypeHelpers.h"
-
-#include <array>
-#include <cfloat>
-#include <cmath>
 
 namespace visrtx {
 
-static float srgbToLinear(float v)
+static TexelFormat texelFormat(ANARIDataType t)
 {
-  return v <= 0.04045f ? v / 12.92f : powf((v + 0.055f) / 1.055f, 2.4f);
+  if (isFloat32(t))
+    return TexelFormat::Float32;
+  if (isSrgb8(t))
+    return TexelFormat::Srgb8;
+  if (isFixed8(t))
+    return TexelFormat::Fixed8;
+  return TexelFormat::Unsupported;
 }
 
 Image2D::Image2D(DeviceGlobalState *d) : Sampler(d), m_image(this) {}
@@ -148,18 +151,14 @@ const Image2D::TextureReduction &Image2D::textureReduction() const
   return m_reduction;
 }
 
-// One host scan yielding, per channel, the max absolute value (exact zero
-// proof), the mean of the positive part (the non-negative magnitude that sizes
-// a textured emitter's Pick Power — variance, never bias), and the min value
-// (non-negative sign proof). Reads the retained host pixels; sRGB byte data is
-// linearized to match the hardware sampler. Unsupported element types leave the
-// reduction Unknown (magnitude stays unit so the emitter is still picked).
-//
-// TODO(perf): reduce over the resident device texels instead of this host scan
-// — the image already uploads a linear device buffer (data(AddressSpace::
-// DEVICE)), so a thrust reduction (cf. light/sampling/CDF.cu) avoids the host
-// readback for large emissive textures. The device functor must reproduce this
-// per-channel sRGB->linear (color channels only) decode before reducing.
+// One thrust pass over the resident device texels (Array::data(GPU) is a real
+// H2D upload) yielding, per channel, the max absolute value (exact zero proof),
+// the mean of the positive part (the non-negative magnitude that sizes a
+// textured emitter's Pick Power — variance, never bias), and the min value
+// (non-negative sign proof). The device functor linearizes sRGB byte data to
+// match the hardware sampler. Unsupported element types or a missing device
+// residency leave the reduction Unknown (magnitude stays unit so the emitter is
+// still picked).
 Image2D::TextureReduction Image2D::computeTextureReduction() const
 {
   TextureReduction r;
@@ -169,45 +168,21 @@ Image2D::TextureReduction Image2D::computeTextureReduction() const
   const ANARIDataType t = m_image->elementType();
   const int nc = numANARIChannels(t);
   const size_t count = size_t(m_image->size().x) * m_image->size().y;
-  const void *host = m_image->data(AddressSpace::HOST);
-  if (nc == 0 || count == 0 || !host)
+  const TexelFormat fmt = texelFormat(t);
+  if (nc == 0 || count == 0 || fmt == TexelFormat::Unsupported)
     return r;
 
   // sRGB 8-bit formats carry a linear alpha in the LAST channel (present for
   // the RGBA/RA variants, i.e. even channel counts); only the color channels
   // are gamma-encoded.
-  const bool srgb = isSrgb8(t);
-  const int colorChannels = (srgb && (nc == 2 || nc == 4)) ? nc - 1 : nc;
+  const int colorChannels =
+      (fmt == TexelFormat::Srgb8 && (nc == 2 || nc == 4)) ? nc - 1 : nc;
 
-  // Per-source-channel accumulators (up to 4).
-  std::array<double, 4> posSum{};
-  std::array<float, 4> maxAbs{};
-  std::array<float, 4> minVal{{FLT_MAX, FLT_MAX, FLT_MAX, FLT_MAX}};
-  bool finite = true;
+  const void *dev = m_image->data(AddressSpace::GPU);
+  if (!dev)
+    return r; // no device residency ⇒ Unknown
 
-  auto accumulate = [&](int c, float v) {
-    if (!std::isfinite(v))
-      finite = false;
-    posSum[c] += double(std::max(v, 0.0f));
-    maxAbs[c] = std::max(maxAbs[c], std::fabs(v));
-    minVal[c] = std::min(minVal[c], v);
-  };
-
-  if (isFloat32(t)) {
-    const auto *p = static_cast<const float *>(host);
-    for (size_t i = 0; i < count; ++i)
-      for (int c = 0; c < nc; ++c)
-        accumulate(c, p[i * nc + c]);
-  } else if (isFixed8(t) || srgb) {
-    const auto *p = static_cast<const uint8_t *>(host);
-    for (size_t i = 0; i < count; ++i)
-      for (int c = 0; c < nc; ++c) {
-        const float v = p[i * nc + c] / 255.0f;
-        accumulate(c, (srgb && c < colorChannels) ? srgbToLinear(v) : v);
-      }
-  } else {
-    return r; // uncommon type for emission ⇒ Unknown, magnitude stays unit
-  }
+  const TexelAccum a = reduceTexelsDevice(dev, fmt, nc, colorChannels, count);
 
   // Broadcast source channels to rgb: a 1/2-channel texture drives all three
   // color channels from channel 0, so a grayscale emissive texture still yields
@@ -215,13 +190,13 @@ Image2D::TextureReduction Image2D::computeTextureReduction() const
   auto channelForRGB = [&](int rgb) { return nc >= 3 ? rgb : 0; };
   for (int rgb = 0; rgb < 3; ++rgb) {
     const int c = channelForRGB(rgb);
-    r.meanPositive[rgb] = float(posSum[c] / double(count));
-    r.maxAbs[rgb] = maxAbs[c];
-    r.minValue[rgb] = minVal[c];
+    r.meanPositive[rgb] = float(a.posSum[c] / double(count));
+    r.maxAbs[rgb] = a.maxAbs[c];
+    r.minValue[rgb] = a.minValue[c];
   }
 
   r.valid = true;
-  r.finite = finite;
+  r.finite = a.finite;
   // The sRGB and linear transfers satisfy T(0)=0; the only way a stored-zero
   // texel samples nonzero is a nonzero border color under a border wrap mode.
   r.transferPreservesZero = m_borderColor.x == 0.0f && m_borderColor.y == 0.0f

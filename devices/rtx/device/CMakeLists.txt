@@ -187,6 +187,7 @@ set(SOURCES
   sampler/Image3D.cpp
   sampler/PrimitiveSampler.cpp
   sampler/Sampler.cpp
+  sampler/TextureStats.cu
   sampler/TransformSampler.cpp
   sampler/UnknownSampler.cpp
 
