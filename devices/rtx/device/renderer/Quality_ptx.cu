@@ -212,10 +212,8 @@ VISRTX_DEVICE float envPickProbability(const FrameGPUData &frameData)
 // native textured emission; for MDL the dynamic-recipe live mean, or the unit
 // proxy when no recipe resolves), and the hit's own (constant) emission
 // otherwise. `emission` is the surface's evaluated radiance.
-VISRTX_DEVICE float geometryLightHitPdf(const FrameGPUData &frameData,
-    const SurfaceHit &hit,
-    const vec3 &rayDir,
-    const vec3 &emission)
+VISRTX_DEVICE float geometryLightHitPdf(
+    const FrameGPUData &frameData, const SurfaceHit &hit, const vec3 &rayDir)
 {
   // Only a sampleable-emissive area-samplable surface is a Geometry Light. The
   // type guard is load-bearing: GeometryGPUData is a union, so reading `.tri`/
@@ -299,15 +297,22 @@ VISRTX_DEVICE float geometryLightHitPdf(const FrameGPUData &frameData,
   LightGPUData ld{};
   ld.type = LightType::GEOMETRY;
   ld.geometry.geometryIndex = -1; // unused by lightPickPower
-  // A constant emitter's CDF weight is its own radiance (== emissionAverage for
-  // the native path); a textured emitter's varies per point, so its CDF was
-  // built from the mean — use that here so pick probabilities match.
-  ld.geometry.radiance = hit.material->emissionIsConstant
-      ? emission
-      : hit.material->emissionAverage;
+  // Use the exact non-negative magnitude the Geometry Light's CDF pick power
+  // was built from — emissionAverage — so the hit-side pNee equals the
+  // selection pick probability. Reading the per-hit (possibly signed,
+  // per-point-varying) emission would disagree with the CDF and bias the
+  // deposit's MIS weight.
+  ld.geometry.radiance = hit.material->emissionAverage;
   ld.geometry.area = totalArea;
+  // Apply the SAME (raw > 0 && finite) clamp World::appendLight uses when it
+  // builds the CDF (World.cpp): a light whose recomputed Pick Power is
+  // non-finite or non-positive contributes 0 to the host CDF, so its hit-side
+  // pNee must be 0 too — else wEmission goes NaN/0 and disagrees with
+  // selection.
+  const float rawPick =
+      lightPickPower(ld, mat4(o2w), frameData.world.sceneRadius);
   const float pickProb =
-      lightPickPower(ld, mat4(o2w), frameData.world.sceneRadius) / totalPower;
+      (rawPick > 0.0f && isfinite(rawPick)) ? rawPick / totalPower : 0.0f;
 
   return solidAnglePdf * pickProb;
 }
@@ -672,8 +677,8 @@ VISRTX_GLOBAL void __raygen__()
         // == 0).
         float wEmission = 1.0f;
         if (!isinf(bsdfPdf)) {
-          const float pNee = geometryLightHitPdf(
-              frameData, surfaceHit, ray.dir, materialEmission);
+          const float pNee =
+              geometryLightHitPdf(frameData, surfaceHit, ray.dir);
           if (pNee > 0.0f)
             wEmission = bsdfPdf / (bsdfPdf + pNee);
         }
