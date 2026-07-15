@@ -218,6 +218,15 @@ struct InteractiveShadingPolicy
         auto cosineT = dot(bounceHit.Ns, sampleDir);
         auto color = materialEvaluateTint(bounceShadingState) * cosineT
             * rendererParams.ambientColor * rendererParams.ambientIntensity;
+
+        // An emitter reached only by the reflection bounce: deposit its
+        // emission so it appears in reflections and lights via the forward
+        // path. Guarded to UNREGISTERED emitters — a registered (sampleable)
+        // one is already covered by the NEE loop above, so depositing here too
+        // would double- count it. Matches the ADR 0007 "miss = variance" goal
+        // for Interactive.
+        if (!bounceHit.material->emissionIsSampleable)
+          color += materialEvaluateEmission(bounceShadingState, -bounceRay.dir);
         contrib += color * nextRay.contributionWeight;
       } else {
         vec3 hdri;
