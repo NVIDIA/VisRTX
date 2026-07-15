@@ -318,6 +318,31 @@ class Fold
     return r;
   }
 
+  // A df::edf_component{weight, edf} constructor whose weight is provably zero.
+  // Such a component contributes no radiance, so its EDF kind must not poison the
+  // enclosing mix — this is what lets a standard_surface at coat=0 (whose coat
+  // emission is a zero-weighted, view-dependent df::directional_factor branch)
+  // reduce to its diffuse base and register.
+  bool isZeroWeightEdfComponent(const EmissionNode &n)
+  {
+    if (n.kind != EmissionNodeKind::Call)
+      return false;
+    if (n.semantic != Semantic::DS_ELEM_CONSTRUCTOR
+        && n.semantic != Semantic::DS_CONV_CONSTRUCTOR)
+      return false;
+    if (n.operands.size() != 2)
+      return false;
+    const int a = n.operands[0], b = n.operands[1];
+    int weightOp;
+    if (isEdfNode(b) && !isEdfNode(a))
+      weightOp = a;
+    else if (isEdfNode(a) && !isEdfNode(b))
+      weightOp = b;
+    else
+      return false;
+    return evalScalar(weightOp, 0).zero == Tri::True;
+  }
+
   // Deep-scan for EDF leaves reachable through array/struct constructors (the
   // shape a df::*_mix's component array takes), unioning their kinds and any
   // fabricated-state reads. Idempotent over the DAG; depth-bounded.
@@ -326,11 +351,24 @@ class Fold
     if (index < 0 || depth > 128)
       return;
     const auto &n = node(index);
+    if (isZeroWeightEdfComponent(n))
+      return;
     if (n.kind == EmissionNodeKind::Call) {
       if (isFabricatedState(n.semantic))
         acc.dependsOnState = true;
       const EdfKind leaf = edfKindOf(n.semantic);
       acc.kinds |= leaf;
+      if (leaf != EdfKind::None) {
+        // A modeled EDF leaf: its kind is known and its operands are handle
+        // strings / tint scalars, NOT nested EDFs — do not descend, or an
+        // unmodeled handle (e.g. diffuse_edf's Opaque string arg) would poison
+        // the enclosing mix to Unknown. Still surface a fabricated-state read in
+        // a tint parameter, matching the evalEdf leaf path.
+        for (int op : n.operands)
+          acc.dependsOnState =
+              acc.dependsOnState || evalScalar(op, 0).dependsOnState;
+        return;
+      }
       if (n.semantic == Semantic::DS_INTRINSIC_DF_DIRECTIONAL_FACTOR)
         acc.kinds |= EdfKind::Directional;
       // A df:: intrinsic in the EDF tree that is neither a modeled leaf nor a
@@ -338,7 +376,7 @@ class Fold
       // poison to Unknown so a modeled diffuse sibling can't mask it and let
       // the mix register as pure diffuse. (Scalar operands like weights are not
       // in the DF range, so they don't poison.)
-      if (leaf == EdfKind::None && isUnmodeledDfIntrinsic(n.semantic))
+      if (isUnmodeledDfIntrinsic(n.semantic))
         acc.kinds |= EdfKind::Unknown;
       for (int op : n.operands)
         collectEdfKindsDeep(op, acc, depth + 1);
@@ -494,6 +532,8 @@ class Fold
       return combineSub(n, depth, stateFromThis);
     case Semantic::DS_TERNARY:
       return combineTernary(n, depth, stateFromThis);
+    case Semantic::DS_INTRINSIC_MATH_SATURATE:
+      return combineSaturate(n, depth, stateFromThis);
     case Semantic::DS_CONV_CONSTRUCTOR:
     case Semantic::DS_ELEM_CONSTRUCTOR:
     case Semantic::DS_CONV_OPERATOR:
@@ -592,21 +632,66 @@ class Fold
 
   Scalar combineSub(const EmissionNode &n, int depth, bool stateFromThis)
   {
+    if (n.operands.size() != 2) {
+      Scalar r;
+      r.dependsOnState = stateFromThis;
+      for (int op : n.operands) {
+        Scalar s = evalScalar(op, depth + 1);
+        r.dependsOnState = r.dependsOnState || s.dependsOnState;
+        r.finite = r.finite && s.finite;
+      }
+      return r;
+    }
+
+    Scalar a = evalScalar(n.operands[0], depth + 1);
+    Scalar b = evalScalar(n.operands[1], depth + 1);
     Scalar r;
-    r.dependsOnState = stateFromThis;
-    // ProvablyZero only on exact node identity (a - a). Otherwise Unknown —
-    // never ProvablyNonzero (1 - w with w unknown can be zero).
-    if (n.operands.size() == 2 && n.operands[0] == n.operands[1]) {
+    r.dependsOnState = stateFromThis || a.dependsOnState || b.dependsOnState;
+    r.finite = a.finite && b.finite;
+
+    // a - a = 0.
+    if (n.operands[0] == n.operands[1]) {
       r.zero = Tri::True;
       r.magnitudeKnown = true;
       r.magnitude = {0.0f, 0.0f, 0.0f};
       r.sign = EmissionSign::ProvablyNonnegative;
+      return r;
     }
-    for (int op : n.operands) {
-      Scalar s = evalScalar(op, depth + 1);
-      r.dependsOnState = r.dependsOnState || s.dependsOnState;
-      r.finite = r.finite && s.finite;
+
+    // a - 0 = a: subtracting a provable zero preserves the minuend exactly
+    // (magnitude, sign, zeroness). This is what lets a `1 - saturate(coat)`
+    // layer weight fold to the constant 1 when coat is 0.
+    if (b.zero == Tri::True) {
+      a.dependsOnState = r.dependsOnState;
+      a.finite = r.finite;
+      return a;
     }
+
+    // Otherwise Unknown: never ProvablyNonzero (1 - w with w unknown can be
+    // zero), never a known magnitude (a general difference can be negative).
+    return r;
+  }
+
+  // math::saturate(x) = clamp(x, 0, 1): output always in [0, 1], hence finite
+  // and nonnegative. Zero iff the argument is provably zero; a provably-positive
+  // argument stays nonzero. Lets a coat/layer weight fold, so a zero-weighted
+  // (e.g. view-dependent) emission component can be pruned from a mix.
+  Scalar combineSaturate(const EmissionNode &n, int depth, bool stateFromThis)
+  {
+    Scalar x =
+        n.operands.empty() ? Scalar{} : evalScalar(n.operands[0], depth + 1);
+    Scalar r;
+    r.dependsOnState = stateFromThis || x.dependsOnState;
+    r.finite = true;
+    r.sign = EmissionSign::ProvablyNonnegative;
+    r.magnitudeKnown = x.magnitudeKnown;
+    if (x.magnitudeKnown)
+      for (int i = 0; i < 3; ++i)
+        r.magnitude[i] = std::min(std::max(x.magnitude[i], 0.0f), 1.0f);
+    r.zero = x.zero == Tri::True ? Tri::True
+        : (x.zero == Tri::False && x.sign == EmissionSign::ProvablyNonnegative)
+        ? Tri::False
+        : Tri::Unknown;
     return r;
   }
 

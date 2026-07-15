@@ -38,6 +38,22 @@ bool isTextureLookup(Semantic s)
   }
 }
 
+// MaterialX's <image> node lowers to a materialx::stdlib_*::mx_image_* wrapper
+// (a tex::lookup with an invalid-texture default fallback), NOT a bare
+// tex::lookup intrinsic — so it carries no DS_INTRINSIC_TEX_LOOKUP semantic and
+// must be matched by name. Its texture is the `mxp_file` argument. Recognizing
+// it only supplies a Pick-Power texture mean (variance, never bias — an
+// unbound/misrecognized lookup folds to zero), so the DB-name match is sound
+// here even though EDF-leaf recognition stays semantics-only.
+bool isMaterialXImageLookup(const char *definition)
+{
+  if (!definition)
+    return false;
+  const std::string_view def(definition);
+  return def.find("materialx::") != std::string_view::npos
+      && def.find("::mx_image_") != std::string_view::npos;
+}
+
 class Builder
 {
  public:
@@ -211,7 +227,9 @@ class Builder
       return addNode(EmissionNode{});
 
     if (isTextureLookup(semantic))
-      return buildTexture(semantic, args, depth);
+      return buildTexture(semantic, args, depth, "tex");
+    if (isMaterialXImageLookup(call->get_definition()))
+      return buildTexture(semantic, args, depth, "mxp_file");
 
     EmissionNode node;
     node.kind = EmissionNodeKind::Call;
@@ -225,7 +243,8 @@ class Builder
 
   int buildTexture(Semantic semantic,
       mi::base::Handle<const IExpression_list> args,
-      int depth)
+      int depth,
+      const char *texArgName)
   {
     EmissionNode node;
     node.kind = EmissionNodeKind::Texture;
@@ -233,7 +252,7 @@ class Builder
 
     int sharedTemporary = -1;
     auto tex =
-        deref(make_handle(args->get_expression("tex")), &sharedTemporary);
+        deref(make_handle(args->get_expression(texArgName)), &sharedTemporary);
     if (tex && tex->get_kind() == IExpression::EK_PARAMETER) {
       auto param =
           make_handle(tex->get_interface<const IExpression_parameter>());
@@ -258,7 +277,7 @@ class Builder
     // sampler mean covers a texture_coordinate-driven lookup.
     for (mi::Size i = 0; i < args->get_size(); ++i) {
       const char *argName = args->get_name(i);
-      if (argName && std::string_view(argName) == "tex")
+      if (argName && std::string_view(argName) == texArgName)
         continue;
       node.operands.push_back(
           buildExpr(make_handle(args->get_expression(i)), depth + 1));
