@@ -27,7 +27,6 @@ $defaultComponents = @(
     "cuda_cudart",
     "cuda_cccl",
     "cuda_nvml_dev",
-    "libcurand",
     "visual_studio_integration"
 )
 

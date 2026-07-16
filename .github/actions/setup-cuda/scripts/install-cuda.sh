@@ -46,7 +46,6 @@ DEFAULT_COMPONENTS=(
     "cuda_cudart"
     "cuda_cccl"
     "cuda_nvml_dev"
-    "libcurand"
 )
 
 # Cleanup on exit

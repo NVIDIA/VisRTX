@@ -50,14 +50,6 @@
         "windows-x86_64"
       ]
     },
-    "libcurand": {
-      "required": true,
-      "description": "Random number generation library",
-      "platforms": [
-        "linux-x86_64",
-        "windows-x86_64"
-      ]
-    },
     "visual_studio_integration": {
       "required": true,
       "description": "Visual Studio build integration (MSBuild rules)",
