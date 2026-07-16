@@ -52,6 +52,8 @@
 
 #include <glm/glm.hpp>
 
+#include <cmath>
+
 namespace visrtx {
 
 using glm::vec3;
@@ -104,6 +106,43 @@ constexpr float kGrazeRelEps = 4e-6f;
 VISRTX_HOST_DEVICE bool isFiniteF(float x)
 {
   return glm::abs(x) <= kFltMax;
+}
+
+// Difference of products a*b - c*d, accurate to ~1.5 ulp even when a*b ~= c*d
+// (Kahan's FMA algorithm; pbrt-v4 DifferenceOfProducts). fma is correctly
+// rounded on both host and device and is NOT degraded by --use_fast_math, so
+// this bound survives fast-math. This is the fix for catastrophic cancellation
+// in the quadratic discriminant (k1^2 - k2*k0), which near tangency / a sharp
+// cone taper is a subtraction of nearly-equal squared terms — the root of the
+// cone-apex speckle. `err` is the exact rounding error of the product c*d.
+VISRTX_HOST_DEVICE float differenceOfProducts(float a, float b, float c, float d)
+{
+  const float cd = c * d;
+  const float err = fmaf(-c, d, cd);
+  return fmaf(a, b, -cd) + err;
+}
+
+// Correctly-rounded sqrt / divide, immune to --use_fast_math's .approx lowering
+// (fast-math implies -prec-sqrt=false/-prec-div=false, degrading sqrtf/`/` to
+// ~1-2 ulp; these intrinsics stay 0 ulp). Used only on the few
+// cancellation-critical operations of the quadratic solve; host maps to the
+// default round-to-nearest ops.
+VISRTX_HOST_DEVICE float sqrtExact(float x)
+{
+#if defined(__CUDA_ARCH__)
+  return __fsqrt_rn(x);
+#else
+  return glm::sqrt(x);
+#endif
+}
+
+VISRTX_HOST_DEVICE float divExact(float a, float b)
+{
+#if defined(__CUDA_ARCH__)
+  return __fdiv_rn(a, b);
+#else
+  return a / b;
+#endif
 }
 
 VISRTX_HOST_DEVICE bool isFiniteVec(const vec3 &v)
@@ -286,7 +325,16 @@ VISRTX_HOST_DEVICE void forEachCylinderCrossing(const vec3 &ro,
 // Cone (truncated): tapered body (both roots, within the axis span) + enabled
 // flat caps sized to each endpoint radius. Radii treated as magnitudes. The
 // body solve normalizes rd so it is correct under non-unit (instance-scaled)
-// directions; t is rescaled back on output.
+// directions; t is rescaled back on output. The quadratic is apex-free (radius
+// varies linearly along the axis, so r0==r1 reduces continuously to a cylinder
+// with no apex construction) and formulated for fp32: the ray origin is
+// re-centered at its closest approach to the segment before the coefficients
+// are built (so they scale with local geometry, not the ray's distance from the
+// primitive), the primitive is then prescaled to ~unit by an exact power of two
+// (so the m0^2-scaled coefficients stay in fp32's precise range at any absolute
+// size), the discriminant uses the cancellation-free difference-of-products,
+// and the cancellation-critical sqrt/divides use correctly-rounded intrinsics.
+// See .scratch/intersection-grounds/derivations.md.
 template <typename ReportFn>
 VISRTX_HOST_DEVICE void forEachConeCrossing(const vec3 &ro,
     const vec3 &rd,
@@ -308,45 +356,73 @@ VISRTX_HOST_DEVICE void forEachConeCrossing(const vec3 &ro,
   const float rlen = glm::sqrt(d2);
 
   const vec3 rdn = rd / rlen; // unit direction; scale t back by 1/rlen
-  const vec3 oa = ro - p0;
-  const float m1 = glm::dot(oa, ba);
-  const float m3 = glm::dot(rdn, ba);
+
+  // Re-center the origin at the ray's closest approach to the segment midpoint
+  // (unit-space offset `s`): makes every coefficient O(primitive extent) rather
+  // than O(|ro|), removing distant-origin cancellation. The shift is
+  // self-correcting, so it need not be exact.
+  const vec3 mid = 0.5f * (p0 + p1);
+  const float s = glm::dot(mid - ro, rdn);
+  const vec3 oaU = (ro + s * rdn) - p0;
+
+  // Exact power-of-two prescale so the primitive is ~unit-sized. The
+  // m0^2-scaled coefficients below reach ~|extent|^6, which overflows fp32's
+  // precise range for large primitives (and underflows into the ftz-flush zone
+  // for tiny ones); scaling every length by an exact power of two keeps them in
+  // range, and the offset root is un-scaled by the same factor at t conversion.
+  // log2f need only be approximate — it only picks the integer exponent.
+  const float refLen = glm::max(glm::sqrt(m0), glm::max(ra, rb));
+  const float sigma = exp2f(-roundf(log2f(refLen)));
+  const vec3 oa = oaU * sigma;
+  const vec3 baS = ba * sigma;
+  const float raS = ra * sigma;
+  const float rbS = rb * sigma;
+
+  const float m0S = glm::dot(baS, baS);
+  const float m1 = glm::dot(oa, baS);
+  const float m3 = glm::dot(rdn, baS);
   const float m4 = glm::dot(rdn, oa);
   const float m5 = glm::dot(oa, oa);
-  const float rr = ra - rb;
-  const float hy = m0 + rr * rr;
+  const float rr = raS - rbS;
+  const float hy = m0S + rr * rr;
 
-  // k2 t^2 + 2 k1 t + k0 = 0 (rd unit here).
-  const float k2 = m0 * m0 - m3 * m3 * hy;
-  const float k1 = m0 * m0 * m4 - m1 * m3 * hy + m0 * ra * rr * m3;
-  const float k0 =
-      m0 * m0 * m5 - m1 * m1 * hy + m0 * ra * (rr * m1 * 2.0f - m0 * ra);
+  // k2 t^2 + 2 k1 t + k0 = 0 (rd unit, primitive prescaled to ~unit).
+  const float k2 = differenceOfProducts(m0S, m0S, m3 * m3, hy);
+  const float k1 = m0S * m0S * m4 - m1 * m3 * hy + m0S * raS * rr * m3;
+  const float k0 = m0S * m0S * m5 - m1 * m1 * hy
+      + m0S * raS * (rr * m1 * 2.0f - m0S * raS);
 
-  float tn0 = 0.f, tn1 = 0.f;
+  // Scaled offset roots (distance along rdn in the prescaled frame). The total
+  // unit-direction param is s + to/sigma; ray t divides that by rlen, i.e.
+  // t = (sigma*s + to) / (sigma*rlen) (see emitBody).
+  float to0 = 0.f, to1 = 0.f;
   int nroots = 0;
   // Exit-side reliability of the quadratic solve; see kGrazeRelEps. The exit
   // root isn't positionally fixed for a cone (k2's sign orders the roots), so
   // the gate is applied by facing in emitBody below. The linear (k2~0) path
   // has no discriminant and keeps its single root.
   bool exitReliable = true;
-  const float k2scale = glm::max(m0 * m0, glm::abs(m3 * m3 * hy));
+  const float k2scale = glm::max(m0S * m0S, glm::abs(m3 * m3 * hy));
   if (glm::abs(k2) <= kRelEps * k2scale) {
     // Near-parallel to the slant generator: 2 k1 t + k0 = 0. Gate |k1| against
     // the magnitudes of its own terms (same units, any scene scale) — the root
     // is only unreliable when k1 itself is a catastrophic cancellation.
-    const float k1scale = glm::max(glm::abs(m0 * m0 * m4),
-        glm::max(glm::abs(m1 * m3 * hy), glm::abs(m0 * ra * rr * m3)));
+    const float k1scale = glm::max(glm::abs(m0S * m0S * m4),
+        glm::max(glm::abs(m1 * m3 * hy), glm::abs(m0S * raS * rr * m3)));
     if (glm::abs(k1) > kRelEps * k1scale) {
-      tn0 = -k0 / (2.0f * k1);
+      to0 = divExact(-k0, 2.0f * k1);
       nroots = 1;
     }
   } else {
-    const float h = k1 * k1 - k2 * k0;
+    // Cancellation-free discriminant (see differenceOfProducts): near tangency
+    // and near a sharp taper h = k1^2 - k2*k0 is a subtraction of nearly-equal
+    // squared terms — the cone-apex speckle lives here.
+    const float h = differenceOfProducts(k1, k1, k2, k0);
     if (h >= 0.f) {
       // Stable pairing (qq/k2, k0/qq): avoids the -k1 + sqrt cancellation.
-      const float qq = -(k1 + (k1 >= 0.f ? 1.f : -1.f) * glm::sqrt(h));
-      tn0 = qq / k2;
-      tn1 = k0 / qq; // qq==0 -> non-finite -> dropped by emitCrossing
+      const float qq = -(k1 + (k1 >= 0.f ? 1.f : -1.f) * sqrtExact(h));
+      to0 = divExact(qq, k2);
+      to1 = divExact(k0, qq); // qq==0 -> non-finite -> dropped downstream
       nroots = 2;
       exitReliable = h > kGrazeRelEps * glm::max(k1 * k1, glm::abs(k2 * k0));
     }
@@ -354,20 +430,23 @@ VISRTX_HOST_DEVICE void forEachConeCrossing(const vec3 &ro,
 
   DedupT dedup;
 
-  const auto emitBody = [&](float tn) {
-    const float y = m1 + tn * m3;
-    if (y > 0.f && y < m0) {
+  const auto emitBody = [&](float to) {
+    const float y = m1 + to * m3; // scaled axial coord, span [0, m0S]
+    if (y > 0.f && y < m0S) {
       const vec3 nrm = glm::normalize(
-          m0 * (m0 * (oa + tn * rdn) + rr * ba * ra) - ba * hy * y);
+          m0S * (m0S * (oa + to * rdn) + rr * baS * raS) - baS * hy * y);
       if (!exitReliable && glm::dot(nrm, rdn) > 0.f)
         return; // graze-noise exit: phantom self-shadow (see kGrazeRelEps)
-      emitCrossing(dedup, report, PrimHit{tn / rlen, nrm, y / m0});
+      emitCrossing(dedup,
+          report,
+          PrimHit{
+              divExact(fmaf(sigma, s, to), sigma * rlen), nrm, y / m0S});
     }
   };
   if (nroots > 0)
-    emitBody(tn0);
+    emitBody(to0);
   if (nroots > 1)
-    emitBody(tn1);
+    emitBody(to1);
 
   // Flat caps sized per endpoint (magnitude radii).
   if (capBits) {

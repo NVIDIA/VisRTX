@@ -314,16 +314,19 @@ VISRTX_DEVICE void computeTangentSpace(
     vec3 n = vec3(bit_cast<float>(optixGetAttribute_1()),
         bit_cast<float>(optixGetAttribute_2()),
         bit_cast<float>(optixGetAttribute_3()));
-    // Analytic intersectors report entry AND exit crossings with the outward
-    // normal; orient it toward the ray and record facing, mirroring the
-    // triangle convention above. Derive facing here from the normal itself
-    // rather than the hit kind — isosurfaces reuse the kind for the isovalue
-    // index, and their (like SDF/neural) normals already face the ray, so
-    // they land on isFrontFace == true unchanged.
-    // optixGetObjectRayDirection() is illegal in CH; get the object-space
-    // direction through the instance's worldToObject map instead.
-    const vec3 objDir = mat3(hit.instance->worldToObject) * ray::direction();
-    hit.isFrontFace = dot(n, objDir) < 0.f;
+    // Analytic intersectors report entry AND exit crossings with the OUTWARD
+    // (object-space) normal; orient it toward the ray and record facing.
+    // Do the facing test in WORLD space — transform the normal to world and
+    // compare to the world ray direction — rather than reconstructing the
+    // object-space ray direction as worldToObject * worldDir. That
+    // reconstruction does not round-trip optixGetObjectRayDirection() for
+    // rotated/sheared instances, so the flip boundary landed in the wrong place
+    // and half the surface got an inward normal, rendering black (issue #336).
+    // Isosurface/SDF/neural normals already face the ray, so this leaves them
+    // on isFrontFace == true unchanged.
+    const vec3 worldN = make_vec3(
+        optixTransformNormalFromObjectToWorldSpace((::float3 &)n));
+    hit.isFrontFace = dot(worldN, ray::direction()) < 0.f;
     if (!hit.isFrontFace)
       n = -n;
     hit.Ng = hit.Ns = n;
