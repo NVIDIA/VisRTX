@@ -564,6 +564,8 @@ void World::buildInstanceLightGPUData()
   // Calculate total lights (authored + synthesized Geometry Lights)
   size_t totalLights = 0;
   size_t totalHdriLights = 0;
+  size_t authoredLights = 0;
+  size_t geometryLights = 0;
 
   std::for_each(m_instances.begin(), m_instances.end(), [&](auto *inst) {
     auto *group = inst->group();
@@ -571,8 +573,8 @@ void World::buildInstanceLightGPUData()
     const auto &lights = group->lights();
     const size_t numTransforms = inst->numTransforms();
 
-    totalLights +=
-        (lights.size() + countGeometryLights(group)) * numTransforms;
+    authoredLights += lights.size() * numTransforms;
+    geometryLights += countGeometryLights(group) * numTransforms;
 
     // Count HDRI lights separately
     for (auto *light : lights) {
@@ -580,6 +582,15 @@ void World::buildInstanceLightGPUData()
         totalHdriLights += numTransforms;
     }
   });
+
+  totalLights = authoredLights + geometryLights;
+
+  reportMessage(ANARI_SEVERITY_DEBUG,
+      "visrtx::World light list: %zu total (%zu authored, %zu geometry; %zu HDRI)",
+      totalLights,
+      authoredLights,
+      geometryLights,
+      totalHdriLights);
 
   // Allocate both arrays
   m_instanceLightGPUData.resize(totalLights);
