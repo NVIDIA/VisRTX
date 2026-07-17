@@ -56,6 +56,27 @@ struct DocumentSource
   }
 };
 
+// The MaterialX distribution resolved at runtime (ADR 0008). `root` is the
+// directory containing the distribution's "libraries" folder; empty when no
+// step of the chain resolved. `source` names the chain step that won, so a
+// caller can tell an explicit-parameter win from a fallback. `trace` records
+// each miss for diagnostics.
+struct DistributionRoot
+{
+  enum class Source { None, Explicit, Environment, SelfDiscovery, Baked };
+  std::filesystem::path root;
+  Source source{Source::None};
+  std::string trace;
+};
+
+const char *sourceName(DistributionRoot::Source source);
+
+// Search chain, first hit wins: explicit roots (the materialxSearchPaths
+// device parameter) -> MATERIALX_SEARCH_PATH -> MaterialX self-discovery
+// (mx::getDefaultDataSearchPath) -> the compile-time last resort.
+DistributionRoot resolveDistributionRoot(
+    nonstd::span<const std::filesystem::path> explicitRoots);
+
 std::vector<std::string> enumerateRenderableMaterials(
     const DocumentSource &source,
     nonstd::span<const std::filesystem::path> librarySearchPaths);

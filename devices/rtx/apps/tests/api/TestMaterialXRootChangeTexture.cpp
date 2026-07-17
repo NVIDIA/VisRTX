@@ -29,17 +29,25 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+// A distribution-root change (materialxSearchPaths recommit -> generation
+// bump -> retranscode) must PRESERVE a bound textured input. The clean
+// sampler param was consumed by routing on the first commit, so the persisted
+// textured set is the only record of the binding — a wiped set silently
+// reverts the material to constants. Also exercises materialName="" (treated
+// as no selection, the TSD default-constructed param).
+
 #define ANARI_EXTENSION_UTILITY_IMPL
 #include <anari/anari_cpp.hpp>
 #include <anari/anari_cpp/ext/std.h>
 #include <anari/ext/visrtx/makeVisRTXDevice.h>
 #include <array>
 #include <cstdio>
+#include <filesystem>
 #include <string>
+#include <unistd.h>
 
 using vec2 = std::array<float, 2>;
 using vec3 = std::array<float, 3>;
-using vec4 = std::array<float, 4>;
 using uvec3 = std::array<unsigned int, 3>;
 using uvec2 = std::array<unsigned int, 2>;
 
@@ -62,25 +70,17 @@ static anari::Sampler makeGreenSampler(anari::Device d)
   return s;
 }
 
-static bool centerIsGreen(anari::Device d, anari::Frame frame, uvec2 size)
+static bool centerIsGreen(anari::Device d, anari::Frame frame, uvec2 size,
+    const char *label)
 {
   anari::render(d, frame); anari::wait(d, frame);
   auto fb = anari::map<float>(d, frame, "channel.color");
   const float *px = fb.data + 4 * (size[0] * (size[1] / 2) + size[0] / 2);
   bool g = px[1] > 0.3f && px[1] > px[0] + 0.1f && px[1] > px[2] + 0.1f;
-  if (!g) std::printf("not green: (%.2f,%.2f,%.2f)\n", px[0], px[1], px[2]);
+  if (!g)
+    std::printf("%s: not green: (%.2f,%.2f,%.2f)\n", label, px[0], px[1], px[2]);
   anari::unmap(d, frame, "channel.color");
   return g;
-}
-static bool centerIsRed(anari::Device d, anari::Frame frame, uvec2 size)
-{
-  anari::render(d, frame); anari::wait(d, frame);
-  auto fb = anari::map<float>(d, frame, "channel.color");
-  const float *px = fb.data + 4 * (size[0] * (size[1] / 2) + size[0] / 2);
-  bool r = px[0] > 0.3f && px[0] > px[1] + 0.1f && px[0] > px[2] + 0.1f;
-  if (!r) std::printf("not red: (%.2f,%.2f,%.2f)\n", px[0], px[1], px[2]);
-  anari::unmap(d, frame, "channel.color");
-  return r;
 }
 
 // An application-authored instantiation (ADR 0008): the standard_surface
@@ -93,14 +93,42 @@ static const char *kStandardSurfaceDoc = R"(<?xml version="1.0"?>
   </surfacematerial>
 </materialx>)";
 
+namespace fs = std::filesystem;
+
+static fs::path makeSymlinkRoot(const char *tag)
+{
+  const fs::path realLibraries(MATERIALX_LIBRARIES_DIR);
+  auto root = fs::temp_directory_path()
+      / ("visrtx-mtlx-rootchange-" + std::string(tag) + "-"
+          + std::to_string(getpid()));
+  std::error_code ec;
+  fs::remove_all(root, ec);
+  fs::create_directories(root);
+  fs::create_directory_symlink(realLibraries, root / "libraries", ec);
+  if (ec) {
+    std::printf("FAIL: cannot create libraries symlink: %s\n",
+        ec.message().c_str());
+    std::exit(1);
+  }
+  return root;
+}
+
 int main()
 {
+  const auto rootA = makeSymlinkRoot("a");
+  const auto rootB = makeSymlinkRoot("b");
+
   auto d = anari::Device(makeVisRTXDevice(statusFunc));
+  anari::setParameter(d, d, "materialxSearchPaths", rootA.string());
+  anari::setParameter(d, d, "forceInit", true);
+  anari::commitParameters(d, d);
 
   auto mat = anari::newObject<anari::Material>(d, "materialx");
   anari::setParameter(d, mat, "sourceType", std::string("documentInline"));
   anari::setParameter(d, mat, "source", std::string(kStandardSurfaceDoc));
-  anari::setParameter(d, mat, "materialName", std::string("StandardSurface"));
+  // "" = no selection (the TSD default-constructed param); the single
+  // material in the document is picked.
+  anari::setParameter(d, mat, "materialName", std::string(""));
   auto green = makeGreenSampler(d);
   anari::setParameter(d, mat, "base_color", green); // sampler on a clean input
   anari::commitParameters(d, mat);
@@ -118,6 +146,7 @@ int main()
   anari::setAndReleaseParameter(d, surf, "geometry", geom);
   anari::setParameter(d, surf, "material", mat);
   anari::commitParameters(d, surf);
+
   auto world = anari::newObject<anari::World>(d);
   anari::setParameterArray1D(d, world, "surface", &surf, 1);
   anari::commitParameters(d, world);
@@ -128,6 +157,7 @@ int main()
   anari::setParameter(d, cam, "direction", vec3{0, 0, -1});
   anari::setParameter(d, cam, "up", vec3{0, 1, 0});
   anari::commitParameters(d, cam);
+
   auto rnd = anari::newObject<anari::Renderer>(d, "default");
   anari::setParameter(d, rnd, "ambientRadiance", 1.f);
   anari::commitParameters(d, rnd);
@@ -136,33 +166,41 @@ int main()
   uvec2 size = {64, 64};
   anari::setParameter(d, frame, "size", size);
   anari::setParameter(d, frame, "channel.color", ANARI_FLOAT32_VEC4);
-  anari::setParameter(d, frame, "world", world);
-  anari::setParameter(d, frame, "camera", cam);
-  anari::setParameter(d, frame, "renderer", rnd);
+  anari::setAndReleaseParameter(d, frame, "world", world);
+  anari::setAndReleaseParameter(d, frame, "camera", cam);
+  anari::setAndReleaseParameter(d, frame, "renderer", rnd);
   anari::commitParameters(d, frame);
 
-  const bool sampled = centerIsGreen(d, frame, size);
+  bool ok = centerIsGreen(d, frame, size, "before root change");
 
-  // Re-commit without re-supplying base_color (as a host re-staging the
-  // material would): the textured topology must persist, not silently revert.
-  anari::commitParameters(d, mat);
-  const bool sampledAgain = centerIsGreen(d, frame, size);
+  // Switch the distribution root: generation bump. The material is NOT
+  // touched — the device pushes committed materialx materials back through
+  // the commit buffer itself, and the retranscode must preserve the bound
+  // sampler (the clean param was consumed by routing on the first commit).
+  anari::setParameter(d, d, "materialxSearchPaths", rootB.string());
+  anari::commitParameters(d, d);
 
-  // Topology round-trip: switch base_color back to a constant red.
-  anari::setParameter(d, mat, "base_color", vec3{1.f, 0.f, 0.f});
-  anari::commitParameters(d, mat);
-  const bool constAfter = centerIsRed(d, frame, size);
+  char resolvedRoot[1024] = {};
+  anariGetProperty(d, d, "materialx.distributionRoot", ANARI_STRING,
+      resolvedRoot, sizeof(resolvedRoot), ANARI_WAIT);
+  if (std::string(resolvedRoot) != rootB.string()) {
+    std::printf("FAIL: distributionRoot '%s' != new root '%s'\n",
+        resolvedRoot, rootB.string().c_str());
+    ok = false;
+  }
+
+  ok = centerIsGreen(d, frame, size, "after root change") && ok;
 
   anari::release(d, green);
-  anari::release(d, mat); anari::release(d, world);
-  anari::release(d, cam); anari::release(d, rnd); anari::release(d, frame);
+  anari::release(d, mat);
+  anari::release(d, frame);
   anari::release(d, d);
 
-  if (!sampled || !sampledAgain || !constAfter) {
-    std::printf("FAIL: sampled=%d sampledAgain=%d constAfter=%d\n",
-        sampled, sampledAgain, constAfter);
-    return 1;
-  }
+  std::error_code ec;
+  fs::remove_all(rootA, ec);
+  fs::remove_all(rootB, ec);
+
+  if (!ok) { std::printf("FAIL\n"); return 1; }
   std::printf("PASS\n");
   return 0;
 }

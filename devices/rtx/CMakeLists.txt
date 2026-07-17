@@ -134,13 +134,9 @@ if(VISRTX_ENABLE_MATERIALX_SUPPORT)
   # config and its target names collide with the copy USD's pxrConfig imports
   # via find_dependency(MaterialX) — the two cannot coexist in one build.
   find_package(MaterialX 1.39 REQUIRED)
+  # Compile-time last resort of the runtime search chain (ADR 0008); also the
+  # distribution the transcoder unit tests pin.
   set(MATERIALX_LIBRARIES_DIR "${MaterialX_DIR}/../../../libraries" CACHE PATH "" FORCE)
-  set(MATERIALX_MDL_MODULES_DIR "${MATERIALX_LIBRARIES_DIR}/mdl" CACHE PATH "" FORCE)
-  # The visrtx::standard_surface builtin resolves to this shipped .mtlx by its
-  # source-tree path (compile-baked into the device); it is not installed.
-  set(VISRTX_MATERIALX_STD_SURFACE_MTLX
-    "${CMAKE_CURRENT_LIST_DIR}/device/materialx/standard_surface.mtlx"
-    CACHE FILEPATH "" FORCE)
 endif()
 add_subdirectory(device)
 add_subdirectory(apps)

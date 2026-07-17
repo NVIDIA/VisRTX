@@ -41,6 +41,7 @@
 #include <MaterialXGenShader/UnitSystem.h>
 #include <MaterialXGenShader/Util.h>
 
+#include <cstdlib>
 #include <filesystem>
 #include <map>
 #include <memory>
@@ -83,6 +84,88 @@ mx::DocumentPtr loadStdLibraries(
   return stdLib;
 }
 constexpr auto kMdlTargetVersion = mx::GenMdlOptions::MdlVersion::MDL_1_7;
+
+// The device consumes both the nodedefs (libraries/) and the MDL
+// implementation modules (libraries/mdl) — probing only libraries/ would let
+// an mdl-less root win the chain, shadow later valid roots, and fail much
+// later as a cryptic ::materialx::* import error.
+bool isDistributionRoot(const std::filesystem::path &root)
+{
+  std::error_code ec;
+  return std::filesystem::is_directory(root / "libraries" / "mdl", ec);
+}
+} // namespace
+
+const char *sourceName(DistributionRoot::Source source)
+{
+  switch (source) {
+  case DistributionRoot::Source::Explicit:
+    return "materialxSearchPaths";
+  case DistributionRoot::Source::Environment:
+    return "MATERIALX_SEARCH_PATH";
+  case DistributionRoot::Source::SelfDiscovery:
+    return "MaterialX self-discovery";
+  case DistributionRoot::Source::Baked:
+    return "compile-time last resort";
+  case DistributionRoot::Source::None:
+    break;
+  }
+  return "unresolved";
+}
+
+DistributionRoot resolveDistributionRoot(
+    nonstd::span<const std::filesystem::path> explicitRoots)
+{
+  DistributionRoot resolved;
+  auto tryRoots = [&](DistributionRoot::Source source, const auto &roots) {
+    for (const auto &entry : roots) {
+      std::filesystem::path root(entry);
+      if (isDistributionRoot(root)) {
+        resolved.root = root;
+        resolved.source = source;
+        return true;
+      }
+      resolved.trace += "\n  " + std::string(sourceName(source)) + ": "
+          + root.string() + " (no libraries/mdl directory)";
+    }
+    return false;
+  };
+
+  if (tryRoots(DistributionRoot::Source::Explicit, explicitRoots))
+    return resolved;
+
+  // mx::FileSearchPath(string) splits on the platform path-list separator.
+  if (const char *env = std::getenv("MATERIALX_SEARCH_PATH")) {
+    mx::FileSearchPath sp(env);
+    std::vector<std::filesystem::path> roots;
+    for (size_t i = 0; i < sp.size(); ++i)
+      roots.emplace_back(sp[i].asString());
+    if (tryRoots(DistributionRoot::Source::Environment, roots))
+      return resolved;
+  }
+
+  {
+    auto sp = mx::getDefaultDataSearchPath();
+    std::vector<std::filesystem::path> roots;
+    for (size_t i = 0; i < sp.size(); ++i)
+      roots.emplace_back(sp[i].asString());
+    if (tryRoots(DistributionRoot::Source::SelfDiscovery, roots))
+      return resolved;
+  }
+
+#ifdef MATERIALX_LIBRARIES_DIR
+  // Development-build last resort: the build machine's libraries dir, whose
+  // parent is the distribution root. Never the mechanism (ADR 0008).
+  const std::filesystem::path baked[] = {
+      std::filesystem::path(MATERIALX_LIBRARIES_DIR).parent_path()};
+  if (tryRoots(DistributionRoot::Source::Baked, baked))
+    return resolved;
+#endif
+
+  return resolved;
+}
+
+namespace {
 
 std::string sourceLabel(const DocumentSource &source)
 {

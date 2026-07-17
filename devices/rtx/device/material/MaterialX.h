@@ -44,6 +44,7 @@ namespace visrtx {
 struct MaterialX : public MDL
 {
   MaterialX(DeviceGlobalState *d);
+  ~MaterialX() override;
 
   void commitParameters() override;
   bool getProperty(const std::string_view &name, ANARIDataType type,
@@ -73,6 +74,12 @@ struct MaterialX : public MDL
   std::optional<std::string> m_userSelected; // last materialName the app set
   std::string m_userSourceType{"documentFile"}; // documentFile | documentInline
   std::filesystem::file_time_type m_userPathWrite{};
+
+  // Distribution generation the last transcode ran against (see
+  // DeviceGlobalState::MaterialXDistribution). A device commit that re-resolves
+  // to a different root bumps it, forcing a retranscode; the sentinel makes the
+  // first commit always mismatch.
+  uint64_t m_distributionGeneration{~uint64_t(0)};
 
   std::string m_generatedSource; // MDL written into the `source` param
   std::string m_generatedName;   // name written into the `materialName` param

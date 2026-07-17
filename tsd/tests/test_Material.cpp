@@ -27,10 +27,13 @@ SCENARIO("tsd::scene::applyMaterialXStandardSurfacePreset", "[Material]")
   {
     Material obj(tsd::scene::tokens::material::materialx);
     tsd::scene::applyMaterialXStandardSurfacePreset(obj);
-    THEN("source is the builtin and curated params have defaults")
+    THEN("source is an inline instantiation and curated params have defaults")
     {
-      REQUIRE(obj.parameter("source")->value().getString()
-          == std::string("visrtx::standard_surface"));
+      REQUIRE(obj.parameter("sourceType")->value().getString()
+          == std::string("documentInline"));
+      const auto source = obj.parameter("source")->value().getString();
+      REQUIRE(source.find("<standard_surface") != std::string::npos);
+      REQUIRE(source.find("surfacematerial") != std::string::npos);
       REQUIRE(obj.parameter("materialName")->value().getString()
           == std::string("StandardSurface"));
       REQUIRE(obj.parameter("base_color") != nullptr);

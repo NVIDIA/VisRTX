@@ -96,7 +96,16 @@ make_test(TestEmissiveIncremental)
 make_test(TestEmissiveInstanceRotatedScale)
 
 if(VISRTX_ENABLE_MATERIALX_SUPPORT)
-  make_test(TestMaterialXBuiltin)
+  make_test(TestMaterialXStandardSurfaceInline)
+  make_test(TestMaterialXSearchPaths)
+  target_compile_definitions(TestMaterialXSearchPaths PRIVATE
+    MATERIALX_LIBRARIES_DIR="${MATERIALX_LIBRARIES_DIR}")
+  make_test(TestMaterialXRootChangeTexture)
+  target_compile_definitions(TestMaterialXRootChangeTexture PRIVATE
+    MATERIALX_LIBRARIES_DIR="${MATERIALX_LIBRARIES_DIR}")
+  make_test(TestMaterialXOutageRecovery)
+  target_compile_definitions(TestMaterialXOutageRecovery PRIVATE
+    MATERIALX_LIBRARIES_DIR="${MATERIALX_LIBRARIES_DIR}")
   make_test(TestMaterialXNoDeviceCommit)
   make_test(TestMaterialXParamOverride)
   target_compile_definitions(TestMaterialXParamOverride PRIVATE

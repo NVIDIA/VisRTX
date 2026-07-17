@@ -147,8 +147,12 @@ Material::Material(Token subtype) : Object(ANARI_MATERIAL, subtype)
   } else if (subtype == tokens::material::materialx) {
     addParameter("source")
         .setValue("")
-        .setDescription("Path to a .mtlx document (or a builtin like "
-                        "visrtx::standard_surface)");
+        .setDescription("A .mtlx document: a file path (documentFile) or "
+                        "inline .mtlx XML (documentInline)");
+    addParameter("sourceType")
+        .setValue("documentFile")
+        .setDescription("How source is interpreted: documentFile or "
+                        "documentInline");
     addParameter("materialName")
         .setValue("")
         .setDescription("Material to select within the document");
@@ -166,9 +170,22 @@ anari::Object Material::makeANARIObject(anari::Device d) const
   return anari::newObject<anari::Material>(d, subtype().c_str());
 }
 
+// The instantiation is scene content (ADR 0008, devices/rtx/docs/adr): the
+// standard_surface nodedef it binds comes from the MaterialX distribution the
+// device resolves at runtime — nothing is embedded or shipped for this.
+constexpr const char *kStandardSurfaceInstantiation =
+    R"(<?xml version="1.0"?>
+<materialx version="1.39">
+  <standard_surface name="surface" type="surfaceshader" />
+  <surfacematerial name="StandardSurface" type="material">
+    <input name="surfaceshader" type="surfaceshader" nodename="surface" />
+  </surfacematerial>
+</materialx>)";
+
 void applyMaterialXStandardSurfacePreset(Material &m)
 {
-  m.setParameter("source", "visrtx::standard_surface");
+  m.setParameter("sourceType", "documentInline");
+  m.setParameter("source", kStandardSurfaceInstantiation);
   m.setParameter("materialName", "StandardSurface");
 
   auto addF = [&](const char *n, float v, float lo, float hi, const char *d) {

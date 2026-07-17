@@ -52,8 +52,11 @@
 #include "mdl/SamplerRegistry.h"
 #endif // defined(USE_MDL)
 // std
+#include <filesystem>
 #include <optional>
+#include <set>
 #include <sstream>
+#include <string>
 #include <vector>
 
 #ifdef OPAQUE
@@ -245,6 +248,23 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
   };
   std::optional<MDL> mdl;
 #endif // defined(USE_MDL)
+
+#ifdef USE_MATERIALX
+  // MaterialX distribution resolved at runtime (ADR 0008); re-resolved on
+  // device commit. `root` empty = unresolved; `trace` names the chain misses.
+  // `generation` bumps whenever the resolved root changes so committed
+  // materials know their generated MDL is stale (MaterialX::needsRetranscode).
+  // `consumers` = live materialx materials: helium's commit buffer filters
+  // no-op commits, so a generation bump must push each one back through it or
+  // an untouched material would never observe the new root.
+  struct MaterialXDistribution
+  {
+    std::filesystem::path root;
+    std::string trace;
+    uint64_t generation{0};
+    std::set<helium::BaseObject *> consumers;
+  } materialx;
+#endif // defined(USE_MATERIALX)
   // Helper methods //
 
   DeviceGlobalState(ANARIDevice d);

@@ -32,7 +32,9 @@
 #include "anari_library_visrtx_export.h"
 
 // std
+#include <algorithm>
 #include <cstdlib>
+#include <cstring>
 #ifdef USE_NVML
 // nvml
 #include <nvml.h>
@@ -66,6 +68,9 @@
 // materials
 #include "material/shaders/MatteShader.h"
 #include "material/shaders/PhysicallyBasedShader.h"
+#ifdef USE_MATERIALX
+#include "materialx/Transcoder.h"
+#endif // defined(USE_MATERIALX)
 
 // spatial field samplers
 #include "spatial_field/NvdbRectilinearSampler.h"
@@ -565,6 +570,20 @@ int VisRTXDevice::deviceGetProperty(const char *name,
     return 1;
   }
 #endif // defined(USE_MDL)
+#ifdef USE_MATERIALX
+  // Observability seam for the ADR 0008 search chain: which distribution root
+  // won. Empty string = unresolved. Lets apps (and tests) verify an explicit
+  // materialxSearchPaths took effect instead of a silent fallback.
+  if (prop == "materialx.distributionRoot" && type == ANARI_STRING) {
+    const auto root = deviceState()->materialx.root.string();
+    const auto n = std::min<uint64_t>(size, root.size() + 1);
+    if (n > 0) {
+      std::memcpy(mem, root.c_str(), n);
+      static_cast<char *>(mem)[n - 1] = '\0';
+    }
+    return 1;
+  }
+#endif // defined(USE_MATERIALX)
   return 0;
 }
 
@@ -858,9 +877,52 @@ void VisRTXDevice::syncMdlSearchPaths()
 
   auto mdlSearchPaths = parsePaths("mdlSearchPaths");
 #ifdef USE_MATERIALX
-  // setMdlSearchPaths replaces (not appends) — union before the single call so
-  // the bundled MaterialX support modules (::materialx::*) stay resolvable.
-  mdlSearchPaths.emplace_back(VISRTX_MATERIALX_MDL_DIR);
+  // Resolve the MaterialX distribution at runtime (ADR 0008): explicit param ->
+  // MATERIALX_SEARCH_PATH -> MaterialX self-discovery -> compile-time last
+  // resort. Re-resolved on every device commit so a changed param takes effect.
+  auto explicitRoots = parsePaths("materialxSearchPaths");
+  auto resolved = materialx::resolveDistributionRoot(explicitRoots);
+  auto &distribution = deviceState()->materialx;
+  if (distribution.root != resolved.root) {
+    ++distribution.generation;
+    // helium's commit buffer filters no-op commits (lastParameterChanged <=
+    // lastCommitted), so an untouched committed material would never evaluate
+    // the new generation. Push every live materialx material back through the
+    // buffer; each retranscodes against the new root on the next flush.
+    for (auto *m : distribution.consumers) {
+      // A created-but-never-committed material has nothing to retranscode —
+      // pushing it would commit half-staged params and report errors on a
+      // correct program. Its own first commit sees the new generation.
+      if (m->lastCommitted() == 0)
+        continue;
+      m->markParameterChanged();
+      deviceState()->commitBuffer.addObjectToCommit(m);
+    }
+  }
+  distribution.root = resolved.root;
+  distribution.trace = std::move(resolved.trace);
+  if (distribution.root.empty()) {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "MaterialX: no distribution found; set the materialxSearchPaths device "
+        "parameter or MATERIALX_SEARCH_PATH.%s",
+        distribution.trace.c_str());
+  } else {
+    // Falling past an explicitly-set param is not silent: the app asked for
+    // specific roots and is getting a different distribution (ADR 0008).
+    if (!explicitRoots.empty()
+        && resolved.source != materialx::DistributionRoot::Source::Explicit) {
+      reportMessage(ANARI_SEVERITY_WARNING,
+          "MaterialX: no materialxSearchPaths entry holds a distribution; "
+          "using %s: %s%s",
+          materialx::sourceName(resolved.source),
+          distribution.root.string().c_str(),
+          distribution.trace.c_str());
+    }
+    // setMdlSearchPaths replaces (not appends) — union before the single call
+    // so the distribution's MDL implementation modules (::materialx::*) stay
+    // resolvable.
+    mdlSearchPaths.emplace_back(distribution.root / "libraries" / "mdl");
+  }
 #endif // defined(USE_MATERIALX)
   deviceState()->mdl->core.setMdlSearchPaths(mdlSearchPaths);
 

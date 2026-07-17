@@ -62,3 +62,24 @@ _Avoid_: pipeline
 The volumetric data source a volume samples (structured, unstructured, NanoVDB,
 neural).
 _Avoid_: volume (a volume renders a spatial field; it is not one)
+
+### MaterialX
+
+**Distribution Document**:
+A `.mtlx` document shipped with a MaterialX installation: the standard-library
+nodedefs and their implementation modules. Never authored, embedded, or shipped
+by the device or an application — always resolved from an installation.
+_Avoid_: stdlib file, builtin document
+
+**Instantiation Document**:
+A `.mtlx` document that binds a nodedef into a usable material (a
+`surfacematerial` referencing a surfaceshader node). Scene content: authored by
+the application, possibly generated. Distinct from the Distribution Documents
+whose nodedefs it binds.
+_Avoid_: builtin, preset document
+
+**Search Chain**:
+The ordered runtime resolution of the MaterialX installation: explicit device
+parameter, then environment convention, then MaterialX self-discovery, then a
+development-build last resort. First hit wins; the earlier the source, the more
+explicit the user's intent.

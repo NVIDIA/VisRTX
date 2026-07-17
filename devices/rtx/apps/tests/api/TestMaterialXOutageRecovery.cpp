@@ -29,17 +29,29 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+// Transcode-outage recovery, three assertions in one flow:
+// 1. Push-actually-fires: switching to a BROKEN root (passes the
+//    libraries/mdl probe, transcode fails — no nodedefs) visibly degrades an
+//    UNTOUCHED committed material to the fallback. A silently-dead push would
+//    keep rendering the old compiled material.
+// 2. Failure-branch freeze: the failed retranscode must not tear down the
+//    routed args holding the user's constant red.
+// 3. Outage-window staging: a sampler bound WHILE broken must survive (routing
+//    is deferred until a material exists to route into) and take effect on
+//    recovery.
+
 #define ANARI_EXTENSION_UTILITY_IMPL
 #include <anari/anari_cpp.hpp>
 #include <anari/anari_cpp/ext/std.h>
 #include <anari/ext/visrtx/makeVisRTXDevice.h>
 #include <array>
 #include <cstdio>
+#include <filesystem>
 #include <string>
+#include <unistd.h>
 
 using vec2 = std::array<float, 2>;
 using vec3 = std::array<float, 3>;
-using vec4 = std::array<float, 4>;
 using uvec3 = std::array<unsigned int, 3>;
 using uvec2 = std::array<unsigned int, 2>;
 
@@ -47,7 +59,6 @@ static void statusFunc(const void *, ANARIDevice, ANARIObject, ANARIDataType,
     ANARIStatusSeverity s, ANARIStatusCode, const char *m)
 { if (s <= ANARI_SEVERITY_WARNING) std::fprintf(stderr, "[anari] %s\n", m); }
 
-// A 1x1 green image2D sampler (linear float, so no colorspace decode involved).
 static anari::Sampler makeGreenSampler(anari::Device d)
 {
   auto img = anari::newArray2D(d, ANARI_FLOAT32_VEC3, 1, 1);
@@ -62,29 +73,20 @@ static anari::Sampler makeGreenSampler(anari::Device d)
   return s;
 }
 
-static bool centerIsGreen(anari::Device d, anari::Frame frame, uvec2 size)
+static vec3 centerPixel(anari::Device d, anari::Frame frame, uvec2 size)
 {
   anari::render(d, frame); anari::wait(d, frame);
   auto fb = anari::map<float>(d, frame, "channel.color");
   const float *px = fb.data + 4 * (size[0] * (size[1] / 2) + size[0] / 2);
-  bool g = px[1] > 0.3f && px[1] > px[0] + 0.1f && px[1] > px[2] + 0.1f;
-  if (!g) std::printf("not green: (%.2f,%.2f,%.2f)\n", px[0], px[1], px[2]);
+  vec3 c{px[0], px[1], px[2]};
   anari::unmap(d, frame, "channel.color");
-  return g;
+  return c;
 }
-static bool centerIsRed(anari::Device d, anari::Frame frame, uvec2 size)
-{
-  anari::render(d, frame); anari::wait(d, frame);
-  auto fb = anari::map<float>(d, frame, "channel.color");
-  const float *px = fb.data + 4 * (size[0] * (size[1] / 2) + size[0] / 2);
-  bool r = px[0] > 0.3f && px[0] > px[1] + 0.1f && px[0] > px[2] + 0.1f;
-  if (!r) std::printf("not red: (%.2f,%.2f,%.2f)\n", px[0], px[1], px[2]);
-  anari::unmap(d, frame, "channel.color");
-  return r;
-}
+static bool isRed(vec3 c)
+{ return c[0] > 0.3f && c[0] > c[1] + 0.1f && c[0] > c[2] + 0.1f; }
+static bool isGreen(vec3 c)
+{ return c[1] > 0.3f && c[1] > c[0] + 0.1f && c[1] > c[2] + 0.1f; }
 
-// An application-authored instantiation (ADR 0008): the standard_surface
-// nodedef comes from the MaterialX distribution the device resolves at runtime.
 static const char *kStandardSurfaceDoc = R"(<?xml version="1.0"?>
 <materialx version="1.39">
   <standard_surface name="surface" type="surfaceshader" />
@@ -93,16 +95,63 @@ static const char *kStandardSurfaceDoc = R"(<?xml version="1.0"?>
   </surfacematerial>
 </materialx>)";
 
+namespace fs = std::filesystem;
+
+// A root whose libraries/ holds ONLY the mdl implementation modules: passes
+// the chain's libraries/mdl probe, but stdlib nodedef loading finds nothing,
+// so every transcode against it fails.
+static fs::path makeBrokenRoot()
+{
+  const fs::path realLibraries(MATERIALX_LIBRARIES_DIR);
+  auto root = fs::temp_directory_path()
+      / ("visrtx-mtlx-outage-broken-" + std::to_string(getpid()));
+  std::error_code ec;
+  fs::remove_all(root, ec);
+  fs::create_directories(root / "libraries");
+  fs::create_directory_symlink(realLibraries / "mdl", root / "libraries" / "mdl", ec);
+  if (ec) {
+    std::printf("FAIL: cannot create mdl symlink: %s\n", ec.message().c_str());
+    std::exit(1);
+  }
+  return root;
+}
+
+static fs::path makeGoodRoot()
+{
+  const fs::path realLibraries(MATERIALX_LIBRARIES_DIR);
+  auto root = fs::temp_directory_path()
+      / ("visrtx-mtlx-outage-good-" + std::to_string(getpid()));
+  std::error_code ec;
+  fs::remove_all(root, ec);
+  fs::create_directories(root);
+  fs::create_directory_symlink(realLibraries, root / "libraries", ec);
+  if (ec) {
+    std::printf("FAIL: cannot create libraries symlink: %s\n", ec.message().c_str());
+    std::exit(1);
+  }
+  return root;
+}
+
+static void setRoot(anari::Device d, const fs::path &root)
+{
+  anari::setParameter(d, d, "materialxSearchPaths", root.string());
+  anari::commitParameters(d, d);
+}
+
 int main()
 {
+  const auto rootGood = makeGoodRoot();
+  const auto rootBroken = makeBrokenRoot();
+
   auto d = anari::Device(makeVisRTXDevice(statusFunc));
+  anari::setParameter(d, d, "forceInit", true);
+  setRoot(d, rootGood);
 
   auto mat = anari::newObject<anari::Material>(d, "materialx");
   anari::setParameter(d, mat, "sourceType", std::string("documentInline"));
   anari::setParameter(d, mat, "source", std::string(kStandardSurfaceDoc));
   anari::setParameter(d, mat, "materialName", std::string("StandardSurface"));
-  auto green = makeGreenSampler(d);
-  anari::setParameter(d, mat, "base_color", green); // sampler on a clean input
+  anari::setParameter(d, mat, "base_color", vec3{1.f, 0.f, 0.f}); // constant red
   anari::commitParameters(d, mat);
 
   std::array<vec3, 4> pos = {vec3{-1,-1,0}, {1,-1,0}, {1,1,0}, {-1,1,0}};
@@ -118,6 +167,7 @@ int main()
   anari::setAndReleaseParameter(d, surf, "geometry", geom);
   anari::setParameter(d, surf, "material", mat);
   anari::commitParameters(d, surf);
+
   auto world = anari::newObject<anari::World>(d);
   anari::setParameterArray1D(d, world, "surface", &surf, 1);
   anari::commitParameters(d, world);
@@ -128,6 +178,7 @@ int main()
   anari::setParameter(d, cam, "direction", vec3{0, 0, -1});
   anari::setParameter(d, cam, "up", vec3{0, 1, 0});
   anari::commitParameters(d, cam);
+
   auto rnd = anari::newObject<anari::Renderer>(d, "default");
   anari::setParameter(d, rnd, "ambientRadiance", 1.f);
   anari::commitParameters(d, rnd);
@@ -136,33 +187,66 @@ int main()
   uvec2 size = {64, 64};
   anari::setParameter(d, frame, "size", size);
   anari::setParameter(d, frame, "channel.color", ANARI_FLOAT32_VEC4);
-  anari::setParameter(d, frame, "world", world);
-  anari::setParameter(d, frame, "camera", cam);
-  anari::setParameter(d, frame, "renderer", rnd);
+  anari::setAndReleaseParameter(d, frame, "world", world);
+  anari::setAndReleaseParameter(d, frame, "camera", cam);
+  anari::setAndReleaseParameter(d, frame, "renderer", rnd);
   anari::commitParameters(d, frame);
 
-  const bool sampled = centerIsGreen(d, frame, size);
+  bool ok = true;
+  auto c = centerPixel(d, frame, size);
+  if (!isRed(c)) {
+    std::printf("baseline: not red (%.2f,%.2f,%.2f)\n", c[0], c[1], c[2]);
+    ok = false;
+  }
 
-  // Re-commit without re-supplying base_color (as a host re-staging the
-  // material would): the textured topology must persist, not silently revert.
-  anari::commitParameters(d, mat);
-  const bool sampledAgain = centerIsGreen(d, frame, size);
+  // 1. Broken root: the device push must retranscode the UNTOUCHED material,
+  // fail, and visibly degrade to the fallback (proves the push fires).
+  setRoot(d, rootBroken);
+  c = centerPixel(d, frame, size);
+  if (isRed(c)) {
+    std::printf("outage: still red — push never fired (%.2f,%.2f,%.2f)\n",
+        c[0], c[1], c[2]);
+    ok = false;
+  }
 
-  // Topology round-trip: switch base_color back to a constant red.
-  anari::setParameter(d, mat, "base_color", vec3{1.f, 0.f, 0.f});
+  // 2. Recovery with NOTHING touched: the routed constant (only copy of the
+  // user's red — the clean param was consumed on the first commit) must have
+  // survived the failed retranscode.
+  setRoot(d, rootGood);
+  c = centerPixel(d, frame, size);
+  if (!isRed(c)) {
+    std::printf("value recovery: not red — routed constant lost "
+                "(%.2f,%.2f,%.2f)\n", c[0], c[1], c[2]);
+    ok = false;
+  }
+
+  // 3. Second outage; bind a sampler to the (previously constant) input
+  // DURING it. Routing must defer, not consume-and-drop it.
+  setRoot(d, rootBroken);
+  auto green = makeGreenSampler(d);
+  anari::setParameter(d, mat, "base_color", green);
   anari::commitParameters(d, mat);
-  const bool constAfter = centerIsRed(d, frame, size);
+  centerPixel(d, frame, size); // flush the outage commit; still fallback
+
+  // 4. Recovery: the sampler staged during the outage must route and win.
+  setRoot(d, rootGood);
+  c = centerPixel(d, frame, size);
+  if (!isGreen(c)) {
+    std::printf("sampler recovery: not green — outage-staged sampler lost "
+                "(%.2f,%.2f,%.2f)\n", c[0], c[1], c[2]);
+    ok = false;
+  }
 
   anari::release(d, green);
-  anari::release(d, mat); anari::release(d, world);
-  anari::release(d, cam); anari::release(d, rnd); anari::release(d, frame);
+  anari::release(d, mat);
+  anari::release(d, frame);
   anari::release(d, d);
 
-  if (!sampled || !sampledAgain || !constAfter) {
-    std::printf("FAIL: sampled=%d sampledAgain=%d constAfter=%d\n",
-        sampled, sampledAgain, constAfter);
-    return 1;
-  }
+  std::error_code ec;
+  fs::remove_all(rootGood, ec);
+  fs::remove_all(rootBroken, ec);
+
+  if (!ok) { std::printf("FAIL\n"); return 1; }
   std::printf("PASS\n");
   return 0;
 }

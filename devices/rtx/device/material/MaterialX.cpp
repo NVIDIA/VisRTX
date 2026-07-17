@@ -32,6 +32,7 @@
 #include "MaterialX.h"
 
 #include "materialx/Transcoder.h"
+#include "optix_visrtx.h"
 #include "sampler/CompressedImage2D.h"
 #include "sampler/Image2D.h"
 
@@ -51,19 +52,17 @@ bool is2DImageSampler(const Sampler *s)
       || dynamic_cast<const CompressedImage2D *>(s);
 }
 
-// The TSD StandardSurface preset (and apps) reference the bundled standard
-// surface by a builtin logical name rather than an install path, mirroring
-// PhysicallyBasedMDL's builtin MDL module. Resolve it to the shipped .mtlx.
-constexpr const char *kStandardSurfaceSource = "visrtx::standard_surface";
-std::string resolveMaterialXSource(const std::string &source)
-{
-  if (source == kStandardSurfaceSource)
-    return VISRTX_MATERIALX_STD_SURFACE_MTLX;
-  return source;
-}
 } // namespace
 
-MaterialX::MaterialX(DeviceGlobalState *d) : MDL(d) {}
+MaterialX::MaterialX(DeviceGlobalState *d) : MDL(d)
+{
+  d->materialx.consumers.insert(this);
+}
+
+MaterialX::~MaterialX()
+{
+  deviceState()->materialx.consumers.erase(this);
+}
 
 bool MaterialX::needsRetranscode()
 {
@@ -114,6 +113,13 @@ bool MaterialX::needsRetranscode()
   bool changed = userPath != m_userPath || userSelected != m_userSelected
       || userSourceType != m_userSourceType;
 
+  // A re-resolved distribution (root changed at device commit — including
+  // unresolved -> resolved recovery) invalidates the generated MDL even when
+  // the user's inputs are untouched: the MDL search path now serves
+  // ::materialx::* from the new root.
+  changed =
+      changed || deviceState()->materialx.generation != m_distributionGeneration;
+
   // Inline content lives in `source` (captured by userPath above); only a file
   // source has an on-disk mtime to watch.
   if (userSourceType == "documentFile") {
@@ -134,30 +140,56 @@ bool MaterialX::needsRetranscode()
 void MaterialX::transcode(const std::vector<std::string> &texturedOrigins)
 {
   const bool inlineDoc = m_userSourceType == "documentInline";
-  auto resolved = inlineDoc ? m_userPath : resolveMaterialXSource(m_userPath);
-  auto src = inlineDoc ? materialx::DocumentSource::inlineText(resolved)
-                       : materialx::DocumentSource::file(resolved);
+  auto src = inlineDoc ? materialx::DocumentSource::inlineText(m_userPath)
+                       : materialx::DocumentSource::file(m_userPath);
 
-  std::vector<std::filesystem::path> libs = {MATERIALX_LIBRARIES_DIR};
+  const auto &distribution = deviceState()->materialx;
+  m_distributionGeneration = distribution.generation;
+  if (distribution.root.empty()) {
+    reportMessage(ANARI_SEVERITY_ERROR,
+        "MaterialX: no distribution found; set the materialxSearchPaths device "
+        "parameter or MATERIALX_SEARCH_PATH.%s",
+        distribution.trace.c_str());
+    reportMessage(
+        ANARI_SEVERITY_WARNING, "MaterialX: falling back to default material");
+    // FREEZE the derived state (m_paramMap/m_materialNames/m_texturedOrigins):
+    // nothing can be recomputed without a distribution, and the routed args it
+    // keeps alive are the only surviving copy of the user's values (routing
+    // consumed the clean-name params on an earlier commit). Clearing here
+    // would let routeParameters tear them down and recovery would render
+    // nodedef defaults. Only the generated MDL is dropped — that alone drives
+    // the fallback. If the user ALSO changed the document while unresolved,
+    // the frozen mapping is stale for it; the recovery retranscode (generation
+    // bump) rebuilds it and routing's teardown then cleans any orphans.
+    m_generatedSource.clear();
+    m_generatedName.clear();
+    return;
+  }
+
+  std::vector<std::filesystem::path> libs = {distribution.root / "libraries"};
   if (!inlineDoc)
-    libs.push_back(std::filesystem::path(resolved).parent_path());
+    libs.push_back(std::filesystem::path(m_userPath).parent_path());
 
   auto r = materialx::transcodeMaterialXToMdl(
       src, m_userSelected, libs, texturedOrigins);
-  m_materialNames = r.available;
-  m_paramMap = std::move(r.paramMap);
-  m_texturedOrigins = texturedOrigins;
   if (!r.error.empty() || r.mdlSource.empty()) {
     const char *label = inlineDoc ? "<inline document>" : m_userPath.c_str();
     reportMessage(ANARI_SEVERITY_ERROR, "MaterialX: failed to transcode '%s': %s",
         label, r.error.c_str());
     reportMessage(ANARI_SEVERITY_WARNING, "MaterialX: falling back to default material");
+    // FREEZE, same invariant as the unresolved branch above: a failed
+    // transcode returns an empty mapping, and adopting it would let the
+    // routed-arg teardown delete the only copy of the user's values. Keep the
+    // last-known-good derived state; only the generated MDL drops.
     m_generatedSource.clear();
     m_generatedName.clear();
-  } else {
-    m_generatedSource = std::move(r.mdlSource);
-    m_generatedName = std::move(r.materialName);
+    return;
   }
+  m_materialNames = std::move(r.available);
+  m_paramMap = std::move(r.paramMap);
+  m_texturedOrigins = texturedOrigins;
+  m_generatedSource = std::move(r.mdlSource);
+  m_generatedName = std::move(r.materialName);
 }
 
 std::vector<std::string> MaterialX::desiredTexturedOrigins() const
@@ -229,10 +261,15 @@ void MaterialX::routeParameters()
 void MaterialX::commitParameters()
 {
   // 1. Ensure m_paramMap exists (need origins/types to decide what to texture).
-  //    On the first commit it is empty -> run a value-only transcode first.
+  //    Pass the PERSISTED textured set, never {}: the clean sampler params were
+  //    consumed by routing on an earlier commit, so a wiped set is not
+  //    reconstructable and the bound topology would silently revert to
+  //    constants (a distribution-root change or document mtime touch must keep
+  //    textures). Origins absent from a changed document are skipped by the
+  //    splice. First commit: persisted set is empty = value-only, as before.
   bool sourceChanged = needsRetranscode(); // reads/updates source/material/mtime
   if (m_paramMap.empty() || sourceChanged)
-    transcode({}); // value-only; populates m_paramMap, m_generated*, clears textured
+    transcode(m_texturedOrigins);
 
   // 2. Desired textured set (read BEFORE routing removes the clean names).
   auto desired = desiredTexturedOrigins();
@@ -248,13 +285,24 @@ void MaterialX::commitParameters()
   // change detection, so an unchanged handoff is a cheap no-op (no recompile).
   setParam("sourceType", ANARI_STRING, "code");
   setParam("source", ANARI_STRING, m_generatedSource.c_str());
-  if (m_generatedName.empty())
-    removeParam("materialName");
-  else
+  if (!m_generatedName.empty()) {
     setParam("materialName", ANARI_STRING, m_generatedName.c_str());
+  } else if (m_userSelected) {
+    // Fallback active (no generated material): keep the USER's selection in
+    // the param. Removing it would make the next needsRetranscode misread the
+    // absence as "user unset" and recover on the document's first material.
+    setParam("materialName", ANARI_STRING, m_userSelected->c_str());
+  } else {
+    removeParam("materialName");
+  }
 
-  // 5. Route clean params -> value/texture args, then delegate.
-  routeParameters();
+  // 5. Route clean params -> value/texture args, then delegate. While the
+  // fallback is active (no generated material) routing would CONSUME clean
+  // params against a mapping the fallback cannot use — a sampler bound during
+  // the outage would be dropped unrecoverably. Leave everything staged; the
+  // recovery retranscode reads and routes it.
+  if (!m_generatedSource.empty())
+    routeParameters();
   MDL::commitParameters();
 }
 

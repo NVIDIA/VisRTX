@@ -48,14 +48,25 @@ static void statusFunc(const void *, ANARIDevice, ANARIObject, ANARIDataType,
     std::fprintf(stderr, "[anari] %s\n", message);
 }
 
+// An application-authored instantiation (ADR 0008): the standard_surface
+// nodedef comes from the MaterialX distribution the device resolves at runtime.
+static const char *kStandardSurfaceDoc = R"(<?xml version="1.0"?>
+<materialx version="1.39">
+  <standard_surface name="surface" type="surfaceshader" />
+  <surfacematerial name="StandardSurface" type="material">
+    <input name="surfaceshader" type="surfaceshader" nodename="surface" />
+  </surfacematerial>
+</materialx>)";
+
 int main()
 {
   auto d = anari::Device(makeVisRTXDevice(statusFunc));
   // NO device commit + NO forceInit: exercise the lazy-init path, where the
-  // MaterialX MDL support-module search path must still be configured.
+  // MaterialX distribution (and its MDL modules dir) must still resolve.
 
   auto mat = anari::newObject<anari::Material>(d, "materialx");
-  anari::setParameter(d, mat, "source", std::string("visrtx::standard_surface"));
+  anari::setParameter(d, mat, "sourceType", std::string("documentInline"));
+  anari::setParameter(d, mat, "source", std::string(kStandardSurfaceDoc));
   anari::setParameter(d, mat, "materialName", std::string("StandardSurface"));
   // Override the default white base_color to green via the clean MaterialX name.
   anari::setParameter(d, mat, "base_color", vec3{0.f, 1.f, 0.f});

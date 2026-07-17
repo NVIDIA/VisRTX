@@ -29,13 +29,22 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+// The materialxSearchPaths device parameter is the first step of the ADR 0008
+// search chain. The param points at a symlinked temp root DISTINCT from the
+// compile-baked last resort, and the materialx.distributionRoot device
+// property must echo it back — a green render alone cannot distinguish the
+// param from a silent fallback to a later chain step, since every step here
+// resolves the same distribution content.
+
 #define ANARI_EXTENSION_UTILITY_IMPL
 #include <anari/anari_cpp.hpp>
 #include <anari/anari_cpp/ext/std.h>
 #include <anari/ext/visrtx/makeVisRTXDevice.h>
 #include <array>
 #include <cstdio>
+#include <filesystem>
 #include <string>
+#include <unistd.h>
 
 using vec3 = std::array<float, 3>;
 using uvec3 = std::array<unsigned int, 3>;
@@ -48,17 +57,59 @@ static void statusFunc(const void *, ANARIDevice, ANARIObject, ANARIDataType,
     std::fprintf(stderr, "[anari] %s\n", message);
 }
 
+static const char *kStandardSurfaceDoc = R"(<?xml version="1.0"?>
+<materialx version="1.39">
+  <standard_surface name="surface" type="surfaceshader" />
+  <surfacematerial name="StandardSurface" type="material">
+    <input name="surfaceshader" type="surfaceshader" nodename="surface" />
+  </surfacematerial>
+</materialx>)";
+
 int main()
 {
+  namespace fs = std::filesystem;
+#if defined(_WIN32)
+  constexpr char sep = ';';
+#else
+  constexpr char sep = ':';
+#endif
+  // A root the bake/env/self-discovery steps can never yield: a temp dir whose
+  // "libraries" is a symlink to the real distribution's libraries dir.
+  const fs::path realLibraries(MATERIALX_LIBRARIES_DIR);
+  const auto tempRoot = fs::temp_directory_path()
+      / ("visrtx-mtlx-searchpaths-" + std::to_string(getpid()));
+  std::error_code ec;
+  fs::remove_all(tempRoot, ec);
+  fs::create_directories(tempRoot);
+  fs::create_directory_symlink(realLibraries, tempRoot / "libraries", ec);
+  if (ec) {
+    std::printf("FAIL: cannot create libraries symlink: %s\n",
+        ec.message().c_str());
+    return 1;
+  }
+  const std::string searchPaths =
+      "/no/such/root" + std::string(1, sep) + tempRoot.string();
+
   auto d = anari::Device(makeVisRTXDevice(statusFunc));
+  anari::setParameter(d, d, "materialxSearchPaths", searchPaths);
   anari::setParameter(d, d, "forceInit", true);
-  anari::commitParameters(d, d); // initialises MDL/MaterialX search paths
+  anari::commitParameters(d, d);
+
+  // The param must WIN the chain, not merely fall through to a later step.
+  char resolvedRoot[1024] = {};
+  anariGetProperty(d, d, "materialx.distributionRoot", ANARI_STRING,
+      resolvedRoot, sizeof(resolvedRoot), ANARI_WAIT);
+  if (std::string(resolvedRoot) != tempRoot.string()) {
+    std::printf("FAIL: distributionRoot '%s' != param root '%s'\n",
+        resolvedRoot, tempRoot.string().c_str());
+    fs::remove_all(tempRoot, ec);
+    return 1;
+  }
 
   auto mat = anari::newObject<anari::Material>(d, "materialx");
-  anari::setParameter(d, mat, "source", std::string("visrtx::standard_surface"));
+  anari::setParameter(d, mat, "sourceType", std::string("documentInline"));
+  anari::setParameter(d, mat, "source", std::string(kStandardSurfaceDoc));
   anari::setParameter(d, mat, "materialName", std::string("StandardSurface"));
-  // Override the default white base_color to green via the clean MaterialX name.
-  // This also exercises the Task 2 clean-name remap.
   anari::setParameter(d, mat, "base_color", vec3{0.f, 1.f, 0.f});
   anari::commitParameters(d, mat);
 
@@ -110,6 +161,8 @@ int main()
   anari::release(d, mat);
   anari::release(d, frame);
   anari::release(d, d);
+
+  fs::remove_all(tempRoot, ec);
 
   if (!green) { std::printf("FAIL\n"); return 1; }
   std::printf("PASS\n");

@@ -31,6 +31,7 @@
 
 #include "materialx/Transcoder.h"
 #include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <vector>
 
@@ -378,6 +379,46 @@ int main()
         ok = m.type == "filename" && m.valueArg.empty() && !m.textureArg.empty()
             && m.originPath == "tim/file";
     if (!ok) { std::printf("FAIL: tiledimage tim/file not a wired-texture row\n"); return 1; }
+  }
+  {
+    using Source = visrtx::materialx::DistributionRoot::Source;
+    const auto realRoot =
+        std::filesystem::path(MATERIALX_LIBRARIES_DIR).parent_path();
+
+    // Isolate the chain from the ambient environment.
+    unsetenv("MATERIALX_SEARCH_PATH");
+
+    // Search chain (ADR 0008): an explicit root wins outright.
+    const std::filesystem::path roots[] = {"/no/such/root", realRoot};
+    auto r = visrtx::materialx::resolveDistributionRoot(roots);
+    if (r.root != realRoot || r.source != Source::Explicit) {
+      std::printf("FAIL: explicit root not resolved: '%s' (source %s)\n",
+          r.root.string().c_str(), visrtx::materialx::sourceName(r.source));
+      return 1;
+    }
+    if (r.trace.find("/no/such/root") == std::string::npos) {
+      std::printf("FAIL: trace missing the skipped root\n");
+      return 1;
+    }
+
+    // Step 2: MATERIALX_SEARCH_PATH wins when no explicit root resolves.
+    setenv("MATERIALX_SEARCH_PATH", realRoot.string().c_str(), 1);
+    const std::filesystem::path bogus[] = {"/no/such/root"};
+    auto env = visrtx::materialx::resolveDistributionRoot(bogus);
+    if (env.root != realRoot || env.source != Source::Environment) {
+      std::printf("FAIL: env step not taken: '%s' (source %s)\n",
+          env.root.string().c_str(), visrtx::materialx::sourceName(env.source));
+      return 1;
+    }
+    unsetenv("MATERIALX_SEARCH_PATH");
+
+    // A bogus explicit root falls through to a later chain step; the
+    // compile-time last resort guarantees resolution in this build.
+    auto fallback = visrtx::materialx::resolveDistributionRoot(bogus);
+    if (fallback.root.empty() || fallback.source == Source::Explicit) {
+      std::printf("FAIL: chain did not fall through past a bogus root\n");
+      return 1;
+    }
   }
   std::printf("PASS\n");
   return 0;
