@@ -217,6 +217,7 @@ WorldGPUData World::gpuData() const
   retval.numHdriLightInstances = m_instanceHdriLightGPUData.size();
 
   retval.lightPickCdf = m_lightPickCdf.dataDevice();
+  retval.lightPickDelta = m_lightPickDelta.dataDevice();
   retval.totalLightPower = m_totalLightPower;
   retval.hdriPower = m_hdriPower;
   retval.sceneRadius = m_sceneRadius;
@@ -592,10 +593,11 @@ void World::buildInstanceLightGPUData()
       geometryLights,
       totalHdriLights);
 
-  // Allocate both arrays
+  // Allocate the instance-data, HDRI, and pick arrays.
   m_instanceLightGPUData.resize(totalLights);
   m_instanceHdriLightGPUData.resize(totalHdriLights);
   m_lightPickCdf.resize(totalLights);
+  m_lightPickDelta.resize(totalLights);
 
   // Bounding-sphere radius over the committed scene, sizing the infinite
   // lights' Pick Power. Fall back to unit radius so an empty scene still
@@ -626,6 +628,7 @@ void World::buildInstanceLightGPUData()
   // Filled with each instance's raw Pick Power, then normalized into the
   // cumulative CDF in place once the total is known.
   auto *pickCdf = m_lightPickCdf.dataHost();
+  auto *pickDelta = m_lightPickDelta.dataHost();
   m_totalLightPower = 0.0f;
   m_hdriPower = 0.0f;
 
@@ -700,6 +703,9 @@ void World::buildInstanceLightGPUData()
   // stays positive — bias. The double total makes the last entry exactly 1.0
   // and preserves those masses. A zero total (every light dark) leaves the CDF
   // unused: uniform pick.
+  // All-dark: pickDelta is zeroed here and pickCdf stays at its zero raw powers
+  // (never renormalized), so the uniform-pick fallback reads neither.
+  std::fill(pickDelta, pickDelta + totalLights, 0.0f);
   if (m_totalLightPower > 0.0f) {
     double total = 0.0;
     for (size_t i = 0; i < totalLights; ++i)
@@ -707,6 +713,10 @@ void World::buildInstanceLightGPUData()
     const double invTotal = total > 0.0 ? 1.0 / total : 0.0;
     double cumulative = 0.0;
     for (size_t i = 0; i < totalLights; ++i) {
+      // delta from the raw power (still in pickCdf[i]) before it is overwritten
+      // by the cumulative value; storing the mass directly as float avoids the
+      // adjacent-difference of two ≈1.0 doubles the kernel used to do.
+      pickDelta[i] = float(pickCdf[i] * invTotal);
       cumulative += pickCdf[i];
       pickCdf[i] = cumulative * invTotal;
     }
@@ -715,6 +725,7 @@ void World::buildInstanceLightGPUData()
   m_instanceLightGPUData.upload();
   m_instanceHdriLightGPUData.upload();
   m_lightPickCdf.upload();
+  m_lightPickDelta.upload();
 }
 
 } // namespace visrtx

@@ -169,19 +169,17 @@ VISRTX_DEVICE size_t pickLightInstance(const WorldGPUData &world, float u)
 }
 
 // Discrete probability that pickLightInstance selected `idx`, folded with the
-// ambient stratum so P(pick) sums to 1 across every pick candidate. The CDF is
-// normalized by totalLightPower, so its per-slot delta is
-// power_i/totalLightPower.
+// ambient stratum so P(pick) sums to 1 across every pick candidate. lightPickDelta
+// holds power_i normalized by the double cumulative total, so folding in
+// totalLightPower/totalPower reweights it onto the ambient-inclusive partition.
 VISRTX_DEVICE float instancePickProbability(
     const WorldGPUData &world, size_t idx, float totalPower)
 {
-  // Double delta: the CDF preserves masses below float epsilon, so the delta of
-  // adjacent entries must be differenced in double or a dim light's interval
-  // collapses to zero here even though it is selectable.
-  const double lo = idx > 0 ? world.lightPickCdf[idx - 1] : 0.0;
-  const double conditional = world.lightPickCdf[idx] - lo;
-  return float(
-      conditional * double(world.totalLightPower) / double(totalPower));
+  // Read the precomputed per-slot mass (power_i/total): a dim light's interval,
+  // stored directly as float, survives here — differencing adjacent ≈1.0 CDF
+  // entries at float would collapse it even though the double CDF made it
+  // selectable.
+  return world.lightPickDelta[idx] * world.totalLightPower / totalPower;
 }
 
 // Aggregate probability that the Light Pick lands on the HDRI environment. Both

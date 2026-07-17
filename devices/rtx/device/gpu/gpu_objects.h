@@ -833,12 +833,18 @@ struct WorldGPUData
 
   // Power-proportional Light Pick (built in World::buildInstanceLightGPUData).
   // Normalized cumulative Pick Power over lightInstances (length
-  // numLightInstances, last entry == 1); pick a slot with inverseSampleCDF. The
-  // slot's discrete pick probability is lightPickCdf[i]-lightPickCdf[i-1].
-  // Double so a dim light's mass (below float epsilon of the total) is
-  // preserved as a nonzero interval — else it is unselectable while the
-  // hit-side pNee is still positive, biasing the deposit's MIS weight.
+  // numLightInstances, last entry == 1); pick a slot with inverseSampleCDF.
+  // Double so a dim light's mass (below float epsilon of the total) survives the
+  // adjacent-difference of two ≈1.0 CDF values — else it is unselectable while
+  // the hit-side pNee is still positive, biasing the deposit's MIS weight. (The
+  // 24-bit pick sample floors selection at ~2^-24 regardless; the double CDF only
+  // widens which dim slots the differencing can resolve, not which are reachable.)
   const double *lightPickCdf;
+  // Per-slot discrete pick probability power_i/total (length numLightInstances),
+  // precomputed host-side. Read this directly instead of differencing adjacent
+  // lightPickCdf entries: a standalone float represents a selected dim light's
+  // mass accurately, where the adjacent-difference of two ≈1.0 values would not.
+  const float *lightPickDelta;
   float totalLightPower; // sum of un-normalized instance Pick Powers
   float hdriPower; // subset sum over HDRI instances (env-MIS pick probability)
   float sceneRadius; // bounding-sphere radius, for the ambient term's power

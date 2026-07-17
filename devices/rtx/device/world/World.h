@@ -116,6 +116,8 @@ struct World : public Object
 
   // Power-proportional Light Pick, rebuilt with the light instances.
   HostDeviceArray<double> m_lightPickCdf;
+  // Per-slot discrete pick probability (power_i/total), parallel to m_lightPickCdf.
+  HostDeviceArray<float> m_lightPickDelta;
   float m_totalLightPower{0.f};
   float m_hdriPower{0.f};
   float m_sceneRadius{0.f};

@@ -184,8 +184,9 @@ struct InteractiveShadingPolicy
           idx = glm::min(size_t(detail::inverseSampleCDF(
                              world.lightPickCdf, int(numLights), u)),
               numLights - 1);
-          const float lo = idx > 0 ? world.lightPickCdf[idx - 1] : 0.0f;
-          pPick = world.lightPickCdf[idx] - lo;
+          // Precomputed per-slot mass (power_i/total). Read raw: this pick pool
+          // has no ambient stratum, unlike Quality's instancePickProbability.
+          pPick = world.lightPickDelta[idx];
         } else {
           idx = glm::min(size_t(u * float(numLights)), numLights - 1);
           pPick = 1.0f / float(numLights);
