@@ -23,7 +23,6 @@
 #include <mi/neuraylib/imdl_backend_api.h>
 #include <mi/neuraylib/imdl_compiler.h>
 #include <mi/neuraylib/imdl_configuration.h>
-#include <mi/neuraylib/imdl_distiller_api.h>
 #include <mi/neuraylib/imdl_entity_resolver.h>
 #include <mi/neuraylib/imdl_execution_context.h>
 #include <mi/neuraylib/imdl_factory.h>
@@ -157,13 +156,6 @@ Core::Core(mi::neuraylib::INeuray *neuray, mi::base::ILogger *logger)
         res != 0) {
       logMessage(
           mi::base::MESSAGE_SEVERITY_WARNING, "Failed to load the dds plugin");
-    }
-
-    if (mi::Sint32 res = pluginConf->load_plugin_library(
-            "mdl_distiller" MI_BASE_DLL_FILE_EXT);
-        res != 0) {
-      logMessage(mi::base::MESSAGE_SEVERITY_WARNING,
-          "Failed to load the mdl_distiller plugin");
     }
 
     m_neuray->start();
@@ -489,23 +481,6 @@ mi::neuraylib::ICompiled_material *Core::getCompiledMaterial(
   return compiledMaterial;
 }
 
-mi::neuraylib::ICompiled_material *Core::getDistilledToDiffuse(
-    const mi::neuraylib::ICompiled_material *compiledMaterial)
-{
-  auto distiller_api = make_handle(
-      m_neuray->get_api_component<mi::neuraylib::IMdl_distiller_api>());
-  mi::Sint32 result = 0;
-  auto distilledMaterial = distiller_api->distill_material(
-      compiledMaterial, "diffuse", nullptr, &result);
-  if (result != 0) {
-    logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
-        "Failed to distill material: %i\n",
-        result);
-  }
-
-  return distilledMaterial;
-}
-
 const mi::neuraylib::ITarget_code *Core::getPtxTargetCode(
     const mi::neuraylib::ICompiled_material *compiledMaterial,
     mi::neuraylib::ITransaction *transaction)
@@ -517,8 +492,6 @@ const mi::neuraylib::ITarget_code *Core::getPtxTargetCode(
       backendApi->get_backend(mi::neuraylib::IMdl_backend_api::MB_CUDA_PTX));
   auto executionContext =
       make_handle(m_mdlFactory->clone(m_executionContext.get()));
-
-  auto distilledMaterial = make_handle(getDistilledToDiffuse(compiledMaterial));
 
   ptxBackend->set_option(
       "num_texture_spaces", std::to_string(kNumTextureSpaces).c_str());
@@ -534,6 +507,10 @@ const mi::neuraylib::ITarget_code *Core::getPtxTargetCode(
   ptxBackend->set_option("inline_aggressively", "on");
   ptxBackend->set_option("opt_level", "2");
   ptxBackend->set_option("enable_exceptions", "off");
+  // Generate the BSDF auxiliary function (albedo + normal) so the albedo AOV /
+  // denoiser guide reads a faithful diffuse+glossy albedo straight from the
+  // compiled material, instead of distilling to a `diffuse` proxy.
+  ptxBackend->set_option("enable_auxiliary", "on");
 
   // Generate init, surface scattering, surface emission
   // (emission/intensity/mode), volume scattering and cutout opacity.
@@ -551,27 +528,16 @@ const mi::neuraylib::ITarget_code *Core::getPtxTargetCode(
       {"geometry.cutout_opacity", "mdlOpacity"},
   };
 
-  static mi::neuraylib::Target_function_description distilledFunctions[] = {
-      {"surface.scattering.tint", "mdlTint"},
-  };
-
   // Generate target code for the compiled material
   auto linkUnit = make_handle(
       ptxBackend->create_link_unit(transaction, executionContext.get()));
 
-  // Add main material functions (BSDF, emission, and auxiliary
-  // albedo/normal/roughness)
+  // Add main material functions. `surface.scattering` also emits the BSDF
+  // auxiliary function (mdlBsdf_auxiliary: albedo + normal) because
+  // enable_auxiliary is on.
   linkUnit->add_material(compiledMaterial,
       std::data(materialFunctions),
       std::size(materialFunctions),
-      executionContext.get());
-
-  if (!logExecutionContextMessages(executionContext.get()))
-    return {};
-
-  linkUnit->add_material(distilledMaterial.get(),
-      std::data(distilledFunctions),
-      std::size(distilledFunctions),
       executionContext.get());
 
   if (!logExecutionContextMessages(executionContext.get()))

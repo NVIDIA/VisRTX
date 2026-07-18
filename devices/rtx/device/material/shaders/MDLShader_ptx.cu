@@ -47,11 +47,11 @@ using BsdfInitFunc = mi::neuraylib::Bsdf_init_function;
 using BsdfSampleFunc = mi::neuraylib::Bsdf_sample_function;
 using BsdfEvaluateFunc = mi::neuraylib::Bsdf_evaluate_function;
 using BsdfPdfFunc = mi::neuraylib::Bsdf_pdf_function;
+using BsdfAuxiliaryFunc = mi::neuraylib::Bsdf_auxiliary_function;
 
 using EdfEvaluateFunc = mi::neuraylib::Edf_evaluate_function;
 
 //
-using TintExprFunc = mi::neuraylib::Material_function<vec3>::Type;
 using OpacityExprFunc = mi::neuraylib::Material_function<float>::Type;
 using TransmissionExprFunc = mi::neuraylib::Material_function<vec3>::Type;
 using EmissionIntensityExprFunc = mi::neuraylib::Material_function<vec3>::Type;
@@ -63,6 +63,8 @@ using BsdfSampleData = mi::neuraylib::Bsdf_sample_data;
 using BsdfEvaluateData =
     mi::neuraylib::Bsdf_evaluate_data<mi::neuraylib::DF_HSM_NONE>;
 using BsdfPdfData = mi::neuraylib::Bsdf_pdf_data;
+using BsdfAuxiliaryData =
+    mi::neuraylib::Bsdf_auxiliary_data<mi::neuraylib::DF_HSM_NONE>;
 
 using BsdfIsThinWalled = bool(
     const ShadingStateMaterial *, const ResourceData *, const char *);
@@ -71,9 +73,9 @@ VISRTX_CALLABLE BsdfInitFunc mdlInit;
 VISRTX_CALLABLE BsdfSampleFunc mdlBsdf_sample;
 VISRTX_CALLABLE BsdfEvaluateFunc mdlBsdf_evaluate;
 VISRTX_CALLABLE BsdfPdfFunc mdlBsdf_pdf;
+VISRTX_CALLABLE BsdfAuxiliaryFunc mdlBsdf_auxiliary;
 VISRTX_CALLABLE BsdfIsThinWalled mdl_isThinWalled;
 
-VISRTX_CALLABLE TintExprFunc mdlTint;
 VISRTX_CALLABLE OpacityExprFunc mdlOpacity;
 VISRTX_CALLABLE TransmissionExprFunc mdlTransmission;
 VISRTX_CALLABLE EdfEvaluateFunc mdlEmission_evaluate;
@@ -241,11 +243,24 @@ NextRay __direct_callable__nextRay(
 }
 
 // Signature must match the call inside shaderMDLSurface in MDLShader.cuh.
+// Base color for the albedo AOV / denoiser guide: the BSDF auxiliary albedo
+// (diffuse + glossy) from the compiled material. Evaluated at normal incidence
+// (k1 = shading normal) so the guide is view-independent and stable across
+// samples.
 VISRTX_CALLABLE
 vec3 __direct_callable__evaluateTint(const MDLShadingState *shadingState)
 {
-  return mdlTint(
-      &shadingState->state, &shadingState->resData, shadingState->argBlock);
+  BsdfAuxiliaryData aux_data = {};
+  aux_data.ior1 = make_float3(1.0f, 1.0f, 1.0f);
+  aux_data.ior2.x = MI_NEURAYLIB_BSDF_USE_MATERIAL_IOR;
+  aux_data.k1 = shadingState->state.normal;
+
+  mdlBsdf_auxiliary(&aux_data,
+      &shadingState->state,
+      &shadingState->resData,
+      shadingState->argBlock);
+
+  return make_vec3(aux_data.albedo_diffuse) + make_vec3(aux_data.albedo_glossy);
 }
 
 VISRTX_CALLABLE

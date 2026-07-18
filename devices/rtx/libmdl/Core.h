@@ -134,9 +134,6 @@ class Core
       const mi::neuraylib::IFunction_definition *,
       bool classCompilation = true);
 
-  mi::neuraylib::ICompiled_material *getDistilledToDiffuse(
-      const mi::neuraylib::ICompiled_material *compiledMaterial);
-
   const mi::neuraylib::ITarget_code *getPtxTargetCode(
       const mi::neuraylib::ICompiled_material *compiledMaterial,
       mi::neuraylib::ITransaction *transaction);
