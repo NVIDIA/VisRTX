@@ -27,7 +27,9 @@ namespace {
 // keeps the higher ISA.
 std::pair<int, int> ptxVersionKey(std::string_view v)
 {
-  auto isDigit = [](char c) { return std::isdigit(static_cast<unsigned char>(c)); };
+  auto isDigit = [](char c) {
+    return std::isdigit(static_cast<unsigned char>(c));
+  };
   auto it = std::find_if(cbegin(v), cend(v), isDigit);
 
   int major = 0;
@@ -84,6 +86,29 @@ std::vector<char> stitchPTXs(
   std::uint32_t infoStringBaseIndex = 0;
   // For disambiguating file ids
   std::uint32_t fileBaseIndex = 0;
+
+  // Debug line info (`.file`/`.loc`/`$L__info_string`) is only emitted under
+  // -lineinfo/-G. When absent, the renumbering passes below are pure overhead,
+  // so detect it once and skip them for release blobs. Match the bare `.file`
+  // directive (indented, tab-separated) exactly as the renumbering does — no
+  // PTX identifier can be `.file`, so this only hits the debug directive.
+  //
+  // Scan the bytes rather than infer from the CMake build type: (1) the build
+  // is Ninja Multi-Config, so the config (hence -lineinfo) is picked at build
+  // time, not configure time; (2) libmdl is standalone from the device and must
+  // not assume its build config; (3) one blob is the MDL backend's runtime PTX,
+  // whose debug info is governed by MDL exec-context options, not our CUDA
+  // flags. The scan is one pass, run once per target-code build — effectively
+  // free next to the multi-pass renumbering it gates.
+  static constexpr const auto dotFileKw = ".file"sv;
+  const bool hasDebugInfo =
+      std::any_of(std::cbegin(ptxBlobs), std::cend(ptxBlobs), [](const auto &s) {
+        return std::search(std::cbegin(s),
+                   std::cend(s),
+                   std::cbegin(dotFileKw),
+                   std::cend(dotFileKw))
+            != std::cend(s);
+      });
 
   for (const auto &s : ptxBlobs) {
     std::vector<char> blob(std::cbegin(s), std::cend(s));
@@ -223,79 +248,18 @@ std::vector<char> stitchPTXs(
       }
     }
 
-    // Only needed when we build the cuda code with -lineinfo or -G
-    // We don't know that here, so we proceed anyway.
-    // Ensure no duplicate info string for debug symbols
-    {
-      static constexpr const auto prefix = "$L__info_string"sv;
-      for (auto it = std::search(
-               begin(blob), end(blob), cbegin(prefix), cend(prefix));
-          it != end(blob);
-          it = std::search(it, end(blob), cbegin(prefix), cend(prefix))) {
-        it += size(prefix);
-        auto indexEndIt = std::find_if(
-            it, end(blob), [](char c) { return !std::isdigit(c); });
-        if (indexEndIt == end(blob))
-          break;
-
-        auto indexStr = std::string(it, indexEndIt);
-        auto index = std::stoi(indexStr);
-
-        int newIndex;
-        if (*indexEndIt == ':') {
-          newIndex = infoStringBaseIndex++;
-        } else {
-          newIndex = index + infoStringBaseIndex;
-        }
-
-        if (newIndex == index)
-          continue;
-
-        // Replace the index with the new one.
-        auto newIndexStr = std::to_string(newIndex);
-        if (size(newIndexStr) == size(indexStr)) {
-          // Same content, just copy the values
-          // Returned it points after the last copied element.
-          it = std::copy(cbegin(newIndexStr), cend(newIndexStr), it);
-        } else {
-          // Returned it points after the last removed element.
-          // Try and avoid calling erase + insert to move the data only once.
-          assert(size(newIndexStr) > size(indexStr));
-          it = std::copy_n(cbegin(newIndexStr), size(indexStr), it);
-          it = blob.insert(
-              it, cbegin(newIndexStr) + size(indexStr), cend(newIndexStr));
-        }
-      }
-    }
-
-    // Ensure no duplicate file ids for debug symbols
-    {
-      static constexpr const auto dotFilePrefix = ".file"sv;
-      static constexpr const auto dotLocPrefix = ".loc"sv;
-      static constexpr const auto inlinedAtPrefix = " inlined_at"sv;
-
-      // That's the slow code path of the stitching... Let's try and minimize
-      // the amount of traversal we need to do. Let's go with 3 linear
-      // traversal, one for each of the prefixes. WARNING: dotFilePrefix needs
-      // to be last, as it is the one that will compute the new file base index.
-      for (auto dotkword : {inlinedAtPrefix, dotLocPrefix, dotFilePrefix}) {
+    // Debug-only line-info renumbering (gated: see hasDebugInfo above).
+    if (hasDebugInfo) {
+      // Ensure no duplicate info string for debug symbols
+      {
+        static constexpr const auto prefix = "$L__info_string"sv;
         for (auto it = std::search(
-                 begin(blob), end(blob), cbegin(dotkword), cend(dotkword));
+                 begin(blob), end(blob), cbegin(prefix), cend(prefix));
             it != end(blob);
-            it = std::search(it, end(blob), cbegin(dotkword), cend(dotkword))) {
-          // Eat spaces prior to the actual index
-          it += size(dotkword);
-          if (!std::isspace(*it)) {
-            continue;
-          }
-          while (std::isspace(*it))
-            ++it;
-
-          // And go till the end of the current number
-          auto indexEndIt = it + 1;
-          while (std::isdigit(*indexEndIt))
-            ++indexEndIt;
-
+            it = std::search(it, end(blob), cbegin(prefix), cend(prefix))) {
+          it += size(prefix);
+          auto indexEndIt = std::find_if(
+              it, end(blob), [](char c) { return !std::isdigit(c); });
           if (indexEndIt == end(blob))
             break;
 
@@ -303,16 +267,14 @@ std::vector<char> stitchPTXs(
           auto index = std::stoi(indexStr);
 
           int newIndex;
-          if (dotkword == dotFilePrefix) {
-            newIndex = ++fileBaseIndex; // File indices starts at one, hence the
-                                        // pre-increment.
+          if (*indexEndIt == ':') {
+            newIndex = infoStringBaseIndex++;
           } else {
-            newIndex = index + fileBaseIndex;
+            newIndex = index + infoStringBaseIndex;
           }
 
-          if (newIndex == index) {
+          if (newIndex == index)
             continue;
-          }
 
           // Replace the index with the new one.
           auto newIndexStr = std::to_string(newIndex);
@@ -330,7 +292,74 @@ std::vector<char> stitchPTXs(
           }
         }
       }
-    }
+
+      // Ensure no duplicate file ids for debug symbols
+      {
+        static constexpr const auto dotFilePrefix = ".file"sv;
+        static constexpr const auto dotLocPrefix = ".loc"sv;
+        static constexpr const auto inlinedAtPrefix = " inlined_at"sv;
+
+        // That's the slow code path of the stitching... Let's try and minimize
+        // the amount of traversal we need to do. Let's go with 3 linear
+        // traversal, one for each of the prefixes. WARNING: dotFilePrefix needs
+        // to be last, as it is the one that will compute the new file base
+        // index.
+        for (auto dotkword : {inlinedAtPrefix, dotLocPrefix, dotFilePrefix}) {
+          for (auto it = std::search(
+                   begin(blob), end(blob), cbegin(dotkword), cend(dotkword));
+              it != end(blob);
+              it = std::search(
+                  it, end(blob), cbegin(dotkword), cend(dotkword))) {
+            // Eat spaces prior to the actual index
+            it += size(dotkword);
+            if (!std::isspace(*it)) {
+              continue;
+            }
+            while (std::isspace(*it))
+              ++it;
+
+            // And go till the end of the current number
+            auto indexEndIt = it + 1;
+            while (std::isdigit(*indexEndIt))
+              ++indexEndIt;
+
+            if (indexEndIt == end(blob))
+              break;
+
+            auto indexStr = std::string(it, indexEndIt);
+            auto index = std::stoi(indexStr);
+
+            int newIndex;
+            if (dotkword == dotFilePrefix) {
+              newIndex = ++fileBaseIndex; // File indices starts at one, hence
+                                          // the pre-increment.
+            } else {
+              newIndex = index + fileBaseIndex;
+            }
+
+            if (newIndex == index) {
+              continue;
+            }
+
+            // Replace the index with the new one.
+            auto newIndexStr = std::to_string(newIndex);
+            if (size(newIndexStr) == size(indexStr)) {
+              // Same content, just copy the values
+              // Returned it points after the last copied element.
+              it = std::copy(cbegin(newIndexStr), cend(newIndexStr), it);
+            } else {
+              // Returned it points after the last removed element.
+              // Try and avoid calling erase + insert to move the data only
+              // once.
+              assert(size(newIndexStr) > size(indexStr));
+              it = std::copy_n(cbegin(newIndexStr), size(indexStr), it);
+              it = blob.insert(
+                  it, cbegin(newIndexStr) + size(indexStr), cend(newIndexStr));
+            }
+          }
+        }
+      }
+    } // if (hasDebugInfo)
 
     fixedBlobs.push_back(std::move(blob));
     totalSize += size(s);
