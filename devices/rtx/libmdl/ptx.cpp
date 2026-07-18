@@ -12,11 +12,54 @@
 #include <set>
 #include <string>
 #include <string_view>
+#include <utility>
 
 using namespace std::string_literals;
 using namespace std::string_view_literals;
 
 namespace visrtx::libmdl {
+
+namespace {
+
+// PTX `.version M.m` as a numeric (major, minor) key. `v` is the whole
+// directive (".version 8.5"), so scan to the first digit before parsing.
+// Lexicographic string compare would pick "8.5" over "10.0" ('8' > '1'); this
+// keeps the higher ISA.
+std::pair<int, int> ptxVersionKey(std::string_view v)
+{
+  auto isDigit = [](char c) { return std::isdigit(static_cast<unsigned char>(c)); };
+  auto it = std::find_if(cbegin(v), cend(v), isDigit);
+
+  int major = 0;
+  for (; it != cend(v) && isDigit(*it); ++it)
+    major = major * 10 + (*it - '0');
+
+  int minor = 0;
+  if (it != cend(v) && *it == '.')
+    for (++it; it != cend(v) && isDigit(*it); ++it)
+      minor = minor * 10 + (*it - '0');
+
+  return {major, minor};
+}
+
+// PTX `.target sm_NN[suffix]` as the numeric arch NN. Lexicographic string
+// compare would pick "sm_52" over "sm_100" ('5' > '1'); this keeps the higher
+// arch. Non-sm targets sort below any sm_ target.
+int ptxTargetKey(std::string_view t)
+{
+  static constexpr auto smPrefix = "sm_"sv;
+  auto pos = t.find(smPrefix);
+  if (pos == std::string_view::npos)
+    return -1;
+  int arch = 0;
+  for (pos += size(smPrefix);
+      pos < size(t) && std::isdigit(static_cast<unsigned char>(t[pos]));
+      ++pos)
+    arch = arch * 10 + (t[pos] - '0');
+  return arch;
+}
+
+} // namespace
 
 std::vector<char> stitchPTXs(
     nonstd::span<const nonstd::span<const char>> ptxBlobs)
@@ -61,10 +104,10 @@ std::vector<char> stitchPTXs(
         blob.erase(it, eolIt);
 
         if (dotkword == versionKw) { // .version
-          if (sub > version)
+          if (version.empty() || ptxVersionKey(sub) > ptxVersionKey(version))
             version = sub;
         } else if (dotkword == targetKw) { //.target
-          if (sub > target)
+          if (target.empty() || ptxTargetKey(sub) > ptxTargetKey(target))
             target = sub;
         }
       }
