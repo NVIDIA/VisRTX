@@ -33,9 +33,27 @@ endif()
 
 find_path(MDL_SDK_ROOT NAMES "include/mi/mdl_sdk.h" PATHS ${MDL_SDK_PATH} ENV MDL_SDK_PATH)
 
-include(FindPackageHandleStandardArgs)
-find_package_handle_standard_args(MDL_SDK DEFAULT_MSG MDL_SDK_ROOT)
+# Parallel worker compilation (ADR 0009) relies on the MDL SDK's multiple
+# parallel transactions, first shipped in 2023.1.0. Gate the build on it so a
+# too-old SDK fails at configure, not with a runtime data race.
+set(MDL_SDK_MIN_VERSION "2023.1.0")
+if (MDL_SDK_ROOT AND EXISTS "${MDL_SDK_ROOT}/include/mi/neuraylib/version.h")
+  file(STRINGS "${MDL_SDK_ROOT}/include/mi/neuraylib/version.h" _mdl_version_line
+    REGEX "^#define[ \t]+MI_NEURAYLIB_PRODUCT_VERSION_STRING[ \t]+\"[0-9.]+\"")
+  string(REGEX MATCH "[0-9]+\\.[0-9]+\\.[0-9]+" MDL_SDK_VERSION "${_mdl_version_line}")
+  unset(_mdl_version_line)
+endif()
 
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(MDL_SDK
+  REQUIRED_VARS MDL_SDK_ROOT
+  VERSION_VAR MDL_SDK_VERSION)
+
+if (MDL_SDK_FOUND AND MDL_SDK_VERSION AND MDL_SDK_VERSION VERSION_LESS MDL_SDK_MIN_VERSION)
+  message(FATAL_ERROR
+    "MDL SDK ${MDL_SDK_VERSION} is too old: parallel MDL compilation (ADR 0009) "
+    "requires ${MDL_SDK_MIN_VERSION}+ for parallel database transactions.")
+endif()
 
 set(MDL_SDK_INCLUDE_DIR ${MDL_SDK_ROOT}/include)
 set(MDL_SDK_INCLUDE_DIRS ${MDL_SDK_ROOT}/include)
