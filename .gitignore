@@ -11,3 +11,6 @@ docs/out/*
 .todo
 *.egg-info*
 *.ipynb_checkpoints*
+
+# ctest scratch when run from the source tree
+/Testing/
