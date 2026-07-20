@@ -31,6 +31,8 @@
 
 #pragma once
 
+#include "MdlCompileCoordinator.h"
+
 #include "libmdl/ArgumentBlockDescriptor.h"
 #include "libmdl/ArgumentBlockInstance.h"
 #include "libmdl/Core.h"
@@ -46,10 +48,14 @@
 #include <mi/neuraylib/iscope.h>
 #include <mi/neuraylib/itransaction.h>
 
+#include <future>
 #include <limits>
 #include <optional>
+#include <string>
 #include <string_view>
+#include <tuple>
 #include <unordered_map>
+#include <vector>
 
 namespace visrtx::mdl {
 
@@ -86,6 +92,19 @@ class MaterialRegistry
   // path as acquireMaterial.
   AcquiredMaterial acquireMaterialFromCode(
       std::string_view source, std::string_view materialName);
+
+  // Split-phase acquire (ADR 0009). Returns immediately with a future the
+  // caller collects during finalize. The name-cache lookup, module preload and
+  // registry insert run on the coordinator thread; the expensive compile runs
+  // on a pool worker, so materials committed in one flush compile in parallel.
+  // `moduleOrSource` is a module name (fromCode=false) or inline MDL source
+  // (fromCode=true).
+  std::future<AcquiredMaterial> acquireMaterialAsync(
+      MdlCompileCoordinator &coordinator,
+      std::string moduleOrSource,
+      std::string materialName,
+      bool fromCode);
+
   void releaseMaterial(const Uuid &uuid);
 
   // For SBT management
@@ -125,7 +144,7 @@ class MaterialRegistry
     return {};
   }
 
-  const std::vector<nonstd::span<const char>> getPtxBlobs() const
+  std::vector<nonstd::span<const char>> getPtxBlobs() const
   {
     std::vector<nonstd::span<const char>> res;
     for (const auto &target : m_targetCodes) {
@@ -139,26 +158,46 @@ class MaterialRegistry
       const libmdl::ArgumentBlockDescriptor &uuid) const;
 
  private:
+  // Owned compile output passed from a worker to the coordinator.
+  struct CompileProduct
+  {
+    libmdl::Uuid uuid;
+    std::vector<char> ptxBlob;
+    libmdl::EmissionIR emission;
+    libmdl::ArgumentBlockDescriptor argBlockDescriptor;
+    libmdl::SceneDataDescriptor sceneData;
+  };
+
   // Return a previously compiled material, bumping its refcount. Empty on a
   // cache miss. No transaction needed -- the lookup is keyed on the name.
   std::optional<AcquiredMaterial> reuseCompiledMaterial(
       const std::string &fullMaterialName);
 
-  // Compile `module` (already loaded in `transaction`), cache it under
-  // `fullMaterialName`, and return it. Empty on failure.
-  std::optional<AcquiredMaterial> compileAndCacheMaterial(
-      const std::string &fullMaterialName,
-      std::string_view moduleName,
-      std::string_view materialName,
-      const mi::neuraylib::IModule *module,
-      mi::neuraylib::ITransaction *transaction);
+  // Load a module (by name, or from inline source) and commit it, so parallel
+  // worker transactions can read it without racing to re-load it. Coordinator
+  // thread. Returns false on failure.
+  bool preloadModule(const std::string &moduleOrSource, bool fromCode);
+
+  // Compile `materialName` from an already-preloaded module into a
+  // transaction-independent product. Opens its own transaction (re-loading the
+  // committed module idempotently -- an inline `code` module is not reachable
+  // by name through the search paths, so the same source path is used), so it
+  // runs on a pool worker in parallel with other compiles. Empty on failure.
+  std::optional<CompileProduct> compileMaterial(
+      const std::string &moduleOrSource,
+      const std::string &materialName,
+      bool fromCode);
+
+  // Register a compiled product under `fullMaterialName` (dedup by uuid) and
+  // return the acquired material. Coordinator thread (mutates the registry).
+  AcquiredMaterial insertCompiled(
+      const std::string &fullMaterialName, CompileProduct product);
 
   libmdl::Core *m_core;
   mi::base::Handle<mi::neuraylib::IScope> m_scope;
 
   struct TargetCode
   {
-    // mi::base::Handle<const mi::neuraylib::ITarget_code> targetCode;
     std::vector<char> ptxBlob;
     int refCount{};
     // Extracted at compile time, while the compiled material is alive (it is
@@ -168,8 +207,11 @@ class MaterialRegistry
     libmdl::SceneDataDescriptor sceneData;
   };
 
-  // Per material PTX blobs. Stored in Sbt order. Sparse structure depending on
-  // acquire/release calls.
+  // Per material PTX blobs. Sparse: empty slots are reused across
+  // acquire/release, and new slots are assigned in compile-completion order
+  // (see insertCompiled). Consumers index by uuid via
+  // getMaterialImplementationIndex, not by position, so slot order is not
+  // load-bearing.
   std::vector<TargetCode> m_targetCodes;
 
   std::unordered_map<std::string, AcquiredMaterial> m_materialNameToUuid;
