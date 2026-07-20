@@ -76,7 +76,6 @@ void CompressedImage2D::finalize()
   }
 
   const ANARIDataType format = m_image->elementType();
-  m_cuArray = {};
   if (format != ANARI_UINT8 && format != ANARI_INT8) {
     reportMessage(ANARI_SEVERITY_WARNING,
         "invalid texture type encountered in CompressedImage2D sampler (%s). Must be ANARI_UINT8 or ANARI_INT8.",
@@ -89,6 +88,10 @@ void CompressedImage2D::finalize()
     m_imageLastUpdated = imageDataModified;
 
     cleanup();
+    // Zero the handle only when actually rebuilding: an equal-stamp
+    // re-finalize (buffered re-commit) must keep the live array — zeroing it
+    // here used to leak it (cleanup() would later free a null handle).
+    m_cuArray = {};
 
     cudaChannelFormatKind channelFormatKind;
 
