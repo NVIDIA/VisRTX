@@ -518,7 +518,10 @@ const mi::neuraylib::ITarget_code *Core::getPtxTargetCode(
 
   // Generate init, surface scattering, surface emission
   // (emission/intensity/mode), volume scattering and cutout opacity.
-  static mi::neuraylib::Target_function_description materialFunctions[] = {
+  // Not static: add_material() writes function_index/return_code back into each
+  // entry, so a shared instance would be a data race across parallel compile
+  // jobs (ADR 0009). A per-call array keeps each job's writes private.
+  mi::neuraylib::Target_function_description materialFunctions[] = {
       {"init", "mdlInit"},
       {"thin_walled", "mdlThinWalled"},
 
