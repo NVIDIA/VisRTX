@@ -229,6 +229,13 @@ void MDL::syncSource()
   std::optional<std::string> materialName;
   if (hasParam("materialName"))
     materialName = getParamString("materialName", "main");
+  // A subclass that generated its source THIS flush hands it over directly —
+  // the params it staged are invisible to the getters above until next flush.
+  if (m_sourceHandoff) {
+    sourceType = m_sourceHandoff->sourceType;
+    source = m_sourceHandoff->source;
+    materialName = m_sourceHandoff->materialName;
+  }
 
   // A change to any selection input triggers a full material reload.
   if (source == m_source && sourceType == m_sourceType
@@ -244,7 +251,7 @@ void MDL::syncSource()
   const bool isMdle = libmdl::endsWith(source, ".mdle");
 
   if (sourceType == "code") {
-    if (!hasParam("source")) {
+    if (!hasParam("source") && !m_sourceHandoff) {
       reportMessage(ANARI_SEVERITY_ERROR,
           "MDL::syncSource(): sourceType 'code' requires a 'source' parameter");
     } else {

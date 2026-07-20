@@ -66,9 +66,10 @@ MaterialX::~MaterialX()
 
 bool MaterialX::needsRetranscode()
 {
-  // A successful transcode overwrites source/sourceType/materialName with the
-  // generated MDL handoff (sourceType="code"). Recognize our own write so it is
-  // not mistaken for new user input; otherwise distinguish the app's values.
+  // The MDL handoff never overwrites source/sourceType/materialName (see
+  // commitParameters step 4) — the app's params stay authoritative here. The
+  // "recognize our own write" branches below remain only as tolerance for
+  // apps that stage 'code'/generated values directly.
   auto liveSource = getParamString("source", "");
   auto liveSourceType = getParamString("sourceType", "documentFile");
 
@@ -94,7 +95,11 @@ bool MaterialX::needsRetranscode()
 
   // `source` carries the generated MDL after our handoff; recognize that so our
   // own output is not re-read as a user document.
-  std::string userPath = (liveSource == m_generatedSource) ? m_userPath : liveSource;
+  // Empty-vs-empty must not match: an app clearing `source` during an outage
+  // (m_generatedSource also "" after a FREEZE) is an unset, not our write.
+  std::string userPath = (!liveSource.empty() && liveSource == m_generatedSource)
+      ? m_userPath
+      : liveSource;
 
   std::optional<std::string> userSelected;
   if (hasParam("materialName")) {
@@ -278,23 +283,25 @@ void MaterialX::commitParameters()
   if (desired != m_texturedOrigins)
     transcode(desired);
 
-  // 4. Re-apply the MDL handoff on EVERY commit, not only when we re-transcoded.
-  // An app re-setting `source` to the .mtlx path (or helium re-staging the
-  // object) would otherwise leave the base reading a path as MDL code and
-  // silently fall back to diffuse. MDL::syncSource has its own content-based
-  // change detection, so an unchanged handoff is a cheap no-op (no recompile).
-  setParam("sourceType", ANARI_STRING, "code");
-  setParam("source", ANARI_STRING, m_generatedSource.c_str());
-  if (!m_generatedName.empty()) {
-    setParam("materialName", ANARI_STRING, m_generatedName.c_str());
-  } else if (m_userSelected) {
-    // Fallback active (no generated material): keep the USER's selection in
-    // the param. Removing it would make the next needsRetranscode misread the
-    // absence as "user unset" and recover on the document's first material.
-    setParam("materialName", ANARI_STRING, m_userSelected->c_str());
-  } else {
-    removeParam("materialName");
-  }
+  // 4. Re-apply the MDL handoff on EVERY commit, not only when we
+  // re-transcoded, via the direct m_sourceHandoff — NEVER by overwriting the
+  // source/sourceType/materialName params. Under helium snapshot-commit,
+  // staged param writes are invisible to same-flush getters (the raw .mtlx
+  // path would compile as MDL code and fall back to diffuse), and an
+  // overwritten `source` would destroy the user's document for later
+  // retranscodes (the snapshot lags a flush behind m_generatedSource, so
+  // "recognize our own write" comparisons misfire after an outage FREEZE).
+  // The app's params stay authoritative; MDL::syncSource has its own
+  // content-based change detection, so an unchanged handoff is a cheap
+  // no-op (no recompile).
+  SourceHandoff handoff;
+  handoff.sourceType = "code";
+  handoff.source = m_generatedSource;
+  if (!m_generatedName.empty())
+    handoff.materialName = m_generatedName;
+  else if (m_userSelected)
+    handoff.materialName = *m_userSelected;
+  m_sourceHandoff = std::move(handoff);
 
   // 5. Route clean params -> value/texture args, then delegate. While the
   // fallback is active (no generated material) routing would CONSUME clean
