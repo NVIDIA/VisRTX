@@ -48,9 +48,10 @@ struct PhysicallyBasedMDL : public MDL
  private:
   void translateAndRemoveParameter(std::string_view paramName);
 
-  // Captured from the post-translate `emissive.value`/`emissive.texture` keys
-  // (the pre-translate `emissive` key is consumed by the translation at first
-  // commit, so it cannot be re-read on later commits; no MDL introspection).
+  // Captured by mirroring the parameter translation (see commitParameters):
+  // a freshly committed pre-translate `emissive` key determines the binding;
+  // the post-translate `emissive.value`/`emissive.texture` keys cover later
+  // commits that don't re-set it (no MDL introspection).
   // A nonzero constant is a Geometry Light with an exact Pick Power; a bound
   // sampler is one with the live sampler-mean as Pick Power, the device
   // evaluating the compiled EDF at the synthetic next-event hit (ADR 0006).
