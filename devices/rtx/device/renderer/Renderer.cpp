@@ -417,6 +417,18 @@ void Renderer::populateFrameData(FrameGPUData &fd) const
   fd.renderer.cutPlane = m_cutPlane;
 }
 
+#ifdef USE_MDL
+// The MDL registry is owned by the coordinator thread (ADR 0009); read its
+// update timestamp through the coordinator so this render-thread check never
+// races a concurrent compile mutating the registry.
+static libmdl::TimeStamp mdlLibraryUpdateTime(DeviceGlobalState *state)
+{
+  auto &mdl = *state->mdl;
+  return mdl.coordinator.run(
+      [&] { return mdl.materialRegistry.getLastUpdateTime(); });
+}
+#endif
+
 OptixPipeline Renderer::pipeline()
 {
 #ifndef USE_MDL
@@ -424,7 +436,7 @@ OptixPipeline Renderer::pipeline()
 #else
   if (!m_pipeline
       || (deviceState()->mdl
-          && (deviceState()->mdl->materialRegistry.getLastUpdateTime()
+          && (mdlLibraryUpdateTime(deviceState())
               > m_lastMDLMaterialLibraryUpdateCheck)))
 #endif
     initOptixPipeline();
@@ -439,7 +451,7 @@ const OptixShaderBindingTable *Renderer::sbt()
 #else
   if (!m_pipeline
       || (deviceState()->mdl
-          && (deviceState()->mdl->materialRegistry.getLastUpdateTime()
+          && (mdlLibraryUpdateTime(deviceState())
               > m_lastMDLMaterialLibraryUpdateCheck)))
 #endif
 
@@ -1059,7 +1071,13 @@ void Renderer::initOptixPipeline()
 
 #ifdef USE_MDL
     if (state.mdl) {
-      for (const auto &ptxBlob : state.mdl->materialRegistry.getPtxBlobs()) {
+      // Fetch the blob list on the coordinator thread (registry owner). The
+      // spans still alias registry storage; safe here because compilation is
+      // serialized with this rebuild. Enabling parallel compilation must
+      // snapshot the blobs into owned memory before this loop.
+      auto ptxBlobs = state.mdl->coordinator.run(
+          [&] { return state.mdl->materialRegistry.getPtxBlobs(); });
+      for (const auto &ptxBlob : ptxBlobs) {
         if (ptxBlob.empty()) {
           for (auto i = 0; i < int(SurfaceShaderEntryPoints::Count); i++) {
             callableDescs.push_back({});
@@ -1157,8 +1175,7 @@ void Renderer::initOptixPipeline()
             == size_t(SurfaceShaderEntryPoints::Count));
       }
 
-      m_lastMDLMaterialLibraryUpdateCheck =
-          deviceState()->mdl->materialRegistry.getLastUpdateTime();
+      m_lastMDLMaterialLibraryUpdateCheck = mdlLibraryUpdateTime(deviceState());
     }
 #endif // defined(USE_MDL)
 

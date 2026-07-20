@@ -221,6 +221,7 @@ set(SOURCES
     mdl/Logger.cpp
     mdl/ptx.cpp
     mdl/MaterialRegistry.cpp
+    mdl/MdlCompileCoordinator.cpp
     mdl/SamplerRegistry.cpp
     mdl/SceneDataInstance.cpp
     material/MDL.cpp

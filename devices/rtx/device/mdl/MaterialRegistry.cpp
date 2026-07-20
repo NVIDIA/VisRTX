@@ -114,23 +114,73 @@ MaterialRegistry::reuseCompiledMaterial(const std::string &fullMaterialName)
   return uuidIt->second;
 }
 
-std::optional<MaterialRegistry::AcquiredMaterial>
-MaterialRegistry::compileAndCacheMaterial(const std::string &fullMaterialName,
-    std::string_view moduleName,
-    std::string_view materialName,
-    const mi::neuraylib::IModule *module,
-    mi::neuraylib::ITransaction *transaction)
+bool MaterialRegistry::preloadModule(
+    const std::string &moduleOrSource, bool fromCode)
 {
   using mi::base::make_handle;
 
-  if (!module) {
+  auto transaction = make_handle(m_core->createTransaction(m_scope.get()));
+  bool ok = false;
+  auto finalizeTransaction = nonstd::make_scope_exit([&] {
+    if (ok)
+      transaction->commit();
+    else
+      transaction->abort();
+  });
+
+  if (fromCode) {
+    auto moduleName = libmdl::makeInlineModuleName(moduleOrSource);
+    auto module = make_handle(m_core->loadModuleFromString(
+        moduleName, moduleOrSource, transaction.get()));
+    ok = module.is_valid_interface();
+  } else {
+    auto module =
+        make_handle(m_core->loadModule(moduleOrSource, transaction.get()));
+    ok = module.is_valid_interface();
+  }
+  if (!ok)
+    m_core->logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
+        "Cannot load module {}",
+        moduleOrSource);
+  return ok;
+}
+
+std::optional<MaterialRegistry::CompileProduct>
+MaterialRegistry::compileMaterial(const std::string &moduleOrSource,
+    const std::string &materialName,
+    bool fromCode)
+{
+  using mi::base::make_handle;
+
+  const std::string moduleName = fromCode
+      ? std::string(libmdl::makeInlineModuleName(moduleOrSource))
+      : moduleOrSource;
+  const auto fullMaterialName = fmt::format("{}::{}", moduleName, materialName);
+
+  auto transaction = make_handle(m_core->createTransaction(m_scope.get()));
+  bool doCommit = false;
+  auto finalizeTransaction = nonstd::make_scope_exit([&] {
+    if (doCommit)
+      transaction->commit();
+    else
+      transaction->abort();
+  });
+
+  // The module was preloaded and committed; re-load it idempotently in this
+  // worker's own transaction. Inline `code` modules are not reachable by name
+  // through the search paths, so re-load them from source.
+  auto module = fromCode
+      ? make_handle(m_core->loadModuleFromString(
+            moduleName, moduleOrSource, transaction.get()))
+      : make_handle(m_core->loadModule(moduleName, transaction.get()));
+  if (!module.is_valid_interface()) {
     m_core->logMessage(
         mi::base::MESSAGE_SEVERITY_ERROR, "Cannot find module {}", moduleName);
     return std::nullopt;
   }
 
-  auto functionDef = make_handle(
-      m_core->getFunctionDefinition(module, materialName, transaction));
+  auto functionDef = make_handle(m_core->getFunctionDefinition(
+      module.get(), materialName, transaction.get()));
   if (!functionDef.is_valid_interface()) {
     m_core->logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
         "Cannot find function {} definition in module {}",
@@ -153,7 +203,7 @@ MaterialRegistry::compileAndCacheMaterial(const std::string &fullMaterialName,
   // body resources state from that.
   auto uuid = compiledMaterial->get_hash();
   auto targetCode = make_handle(
-      m_core->getPtxTargetCode(compiledMaterial.get(), transaction));
+      m_core->getPtxTargetCode(compiledMaterial.get(), transaction.get()));
   std::vector<libmdl::TextureDescriptor> textureDescs;
   if (!targetCode.is_valid_interface()) {
     m_core->logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
@@ -260,16 +310,7 @@ MaterialRegistry::compileAndCacheMaterial(const std::string &fullMaterialName,
       targetCode.get(),
       std::move(textureDescs));
 
-  // Reuse an existing targetCode and its matching ptx generated code if we
-  // already have it.
-  if (auto it = m_uuidToIndex.find(uuid); it != std::cend(m_uuidToIndex)) {
-    auto &target = m_targetCodes[it->second];
-    ++target.refCount;
-    return AcquiredMaterial{uuid, argBlockDesc, target.sceneData};
-  }
-
-  // First time we hit this. Build a complete PTX shader from the generated
-  // blob.
+  // Build the complete PTX shader on the worker.
   auto ptxBlob = libmdl::stitchPTXs(std::vector{
       nonstd::span{reinterpret_cast<const char *>(ptx::MDLTexture.ptr),
           ptx::MDLTexture.size},
@@ -279,28 +320,58 @@ MaterialRegistry::compileAndCacheMaterial(const std::string &fullMaterialName,
           ptx::MDLShaderEvalSurfaceMaterial.size},
   });
 
-  // Find an empty slot if possible
+  // Extract the emission IR now, while the compiled material is alive — it is
+  // not retained. The material folds this IR against its live arguments at
+  // finalize to publish an emission descriptor (ADR 0007).
+  auto emission =
+      libmdl::buildEmissionIR(compiledMaterial.get(), transaction.get());
+
+  doCommit = true;
+  return CompileProduct{uuid,
+      std::move(ptxBlob),
+      std::move(emission),
+      std::move(argBlockDesc),
+      libmdl::SceneDataDescriptor(*targetCode)};
+}
+
+MaterialRegistry::AcquiredMaterial MaterialRegistry::insertCompiled(
+    const std::string &fullMaterialName, CompileProduct product)
+{
+  // Reuse an existing slot for the same compiled hash: a different name (or a
+  // concurrent duplicate compile) mapping to the same content shares one slot.
+  if (auto it = m_uuidToIndex.find(product.uuid);
+      it != std::cend(m_uuidToIndex)) {
+    auto &target = m_targetCodes[it->second];
+    ++target.refCount;
+    return AcquiredMaterial{
+        product.uuid, product.argBlockDescriptor, target.sceneData};
+  }
+
+  // Find an empty slot if possible. Slots are assigned here on the coordinator
+  // thread as each worker's compile completes, so slot indices follow
+  // compile-completion order (not submission order) and are not stable across
+  // runs. That is fine: every consumer looks a material up by uuid via
+  // getMaterialImplementationIndex, and the PTX fingerprint XORs slots so it is
+  // order-independent.
   auto targetIt = std::find_if(std::begin(m_targetCodes),
       std::end(m_targetCodes),
       [](const auto &v) { return v.refCount == 0; });
 
   if (targetIt == std::end(m_targetCodes)) {
-    targetIt = m_targetCodes.insert(std::end(m_targetCodes), {ptxBlob, 1});
+    targetIt = m_targetCodes.insert(
+        std::end(m_targetCodes), {std::move(product.ptxBlob), 1});
   } else {
-    targetIt->ptxBlob = ptxBlob;
+    targetIt->ptxBlob = std::move(product.ptxBlob);
     targetIt->refCount = 1;
   }
-  // Extract the emission IR now, while the compiled material is alive — it is
-  // not retained. The material folds this IR against its live arguments at
-  // finalize to publish an emission descriptor (ADR 0007).
-  targetIt->emission =
-      libmdl::buildEmissionIR(compiledMaterial.get(), transaction);
-  targetIt->sceneData = libmdl::SceneDataDescriptor(*targetCode);
+  targetIt->emission = std::move(product.emission);
+  targetIt->sceneData = std::move(product.sceneData);
 
   auto targetIndex = std::distance(std::begin(m_targetCodes), targetIt);
 
-  m_uuidToIndex.insert({uuid, targetIndex});
-  const AcquiredMaterial acquired{uuid, argBlockDesc, targetIt->sceneData};
+  m_uuidToIndex.insert({product.uuid, targetIndex});
+  const AcquiredMaterial acquired{
+      product.uuid, product.argBlockDescriptor, targetIt->sceneData};
   m_materialNameToUuid.insert({fullMaterialName, acquired});
 
   m_lastUpdateTS = libmdl::newTimeStamp();
@@ -308,75 +379,84 @@ MaterialRegistry::compileAndCacheMaterial(const std::string &fullMaterialName,
   m_core->logMessage(mi::base::MESSAGE_SEVERITY_DEBUG,
       "Acquired material {} with uuid {:04x}-{:04x}-{:04x}-{:04x}",
       fullMaterialName,
-      uuid.m_id1,
-      uuid.m_id2,
-      uuid.m_id3,
-      uuid.m_id4);
+      product.uuid.m_id1,
+      product.uuid.m_id2,
+      product.uuid.m_id3,
+      product.uuid.m_id4);
   return acquired;
 }
 
 MaterialRegistry::AcquiredMaterial MaterialRegistry::acquireMaterial(
     std::string_view moduleName, std::string_view materialName)
 {
-  using mi::base::make_handle;
-
-  auto fullMaterialName = fmt::format("{}::{}", moduleName, materialName);
+  const std::string module(moduleName);
+  const std::string material(materialName);
+  const auto fullMaterialName = fmt::format("{}::{}", module, material);
   m_core->logMessage(mi::base::MESSAGE_SEVERITY_INFO,
       "Acquiring material {}",
       fullMaterialName);
   if (auto cached = reuseCompiledMaterial(fullMaterialName))
     return *cached;
-
-  auto transaction = make_handle(m_core->createTransaction(m_scope.get()));
-  bool doCommit = false;
-  auto finalizeTransaction = nonstd::make_scope_exit([&] {
-    if (doCommit)
-      transaction->commit();
-    else
-      transaction->abort();
-  });
-
-  auto module = make_handle(m_core->loadModule(moduleName, transaction.get()));
-  auto material = compileAndCacheMaterial(fullMaterialName,
-      moduleName,
-      materialName,
-      module.get(),
-      transaction.get());
-  doCommit = material.has_value();
-  return material.value_or(AcquiredMaterial{});
+  if (!preloadModule(module, /*fromCode=*/false))
+    return {};
+  auto product = compileMaterial(module, material, /*fromCode=*/false);
+  if (!product)
+    return {};
+  return insertCompiled(fullMaterialName, std::move(*product));
 }
 
 MaterialRegistry::AcquiredMaterial MaterialRegistry::acquireMaterialFromCode(
     std::string_view source, std::string_view materialName)
 {
-  using mi::base::make_handle;
-
-  auto moduleName = libmdl::makeInlineModuleName(source);
-  auto fullMaterialName = fmt::format("{}::{}", moduleName, materialName);
+  const std::string src(source);
+  const std::string material(materialName);
+  const auto moduleName = libmdl::makeInlineModuleName(src);
+  const auto fullMaterialName = fmt::format("{}::{}", moduleName, material);
   m_core->logMessage(mi::base::MESSAGE_SEVERITY_INFO,
       "Acquiring material {}",
       fullMaterialName);
   if (auto cached = reuseCompiledMaterial(fullMaterialName))
     return *cached;
+  if (!preloadModule(src, /*fromCode=*/true))
+    return {};
+  auto product = compileMaterial(src, material, /*fromCode=*/true);
+  if (!product)
+    return {};
+  return insertCompiled(fullMaterialName, std::move(*product));
+}
 
-  auto transaction = make_handle(m_core->createTransaction(m_scope.get()));
-  bool doCommit = false;
-  auto finalizeTransaction = nonstd::make_scope_exit([&] {
-    if (doCommit)
-      transaction->commit();
-    else
-      transaction->abort();
+std::future<MaterialRegistry::AcquiredMaterial>
+MaterialRegistry::acquireMaterialAsync(MdlCompileCoordinator &coordinator,
+    std::string moduleOrSource,
+    std::string materialName,
+    bool fromCode)
+{
+  return coordinator.submit([this,
+                                &coordinator,
+                                moduleOrSource = std::move(moduleOrSource),
+                                materialName = std::move(materialName),
+                                fromCode]() -> AcquiredMaterial {
+    const std::string moduleName = fromCode
+        ? std::string(libmdl::makeInlineModuleName(moduleOrSource))
+        : moduleOrSource;
+    const auto fullMaterialName =
+        fmt::format("{}::{}", moduleName, materialName);
+
+    // Dedup, preload and insert mutate or read the registry / SDK database, so
+    // they run on the coordinator thread; only the compile runs here on the
+    // worker, in parallel with other materials' compiles.
+    if (auto cached = coordinator.run(
+            [&] { return reuseCompiledMaterial(fullMaterialName); }))
+      return *cached;
+    if (!coordinator.run(
+            [&] { return preloadModule(moduleOrSource, fromCode); }))
+      return {};
+    auto product = compileMaterial(moduleOrSource, materialName, fromCode);
+    if (!product)
+      return {};
+    return coordinator.run(
+        [&] { return insertCompiled(fullMaterialName, std::move(*product)); });
   });
-
-  auto module = make_handle(
-      m_core->loadModuleFromString(moduleName, source, transaction.get()));
-  auto material = compileAndCacheMaterial(fullMaterialName,
-      moduleName,
-      materialName,
-      module.get(),
-      transaction.get());
-  doCommit = material.has_value();
-  return material.value_or(AcquiredMaterial{});
 }
 
 std::optional<libmdl::ArgumentBlockInstance>
