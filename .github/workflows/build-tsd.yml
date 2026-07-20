@@ -14,6 +14,11 @@ on:
       - '.github/actions/**'
       - '.github/workflows/build-tsd.yml'
 
+# Cancel superseded PR runs; let next_release pushes finish (green history).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   build:
     runs-on: ${{ matrix.runs-on }}
@@ -28,14 +33,26 @@ jobs:
           - os: windows
             runs-on: windows-2022
             generator: Ninja
+    env:
+      SCCACHE_DIR: ${{ github.workspace }}/.sccache
+      SCCACHE_GHA_ENABLED: "false"
     steps:
     - uses: actions/checkout@v6
     - name: Setup MSVC (Windows)
       if: runner.os == 'Windows'
-      uses: ilammy/msvc-dev-cmd@v1
+      uses: ilammy/msvc-dev-cmd@a102174a2b586eec2ea151a69e6fd14404a8ce7c # v1.13.0
     - name: Install Packages
       if: ${{ matrix.os == 'linux' }}
       run: sudo apt install -y libtbb-dev
+    - name: Setup sccache
+      uses: mozilla-actions/sccache-action@d651010b8da762cde178750d8eda7b5febfe147a # v0.0.9
+    - name: Restore sccache
+      uses: actions/cache/restore@v4
+      with:
+        path: ${{ env.SCCACHE_DIR }}
+        key: sccache-tsd-${{ runner.os }}-${{ matrix.config }}-${{ github.sha }}
+        restore-keys: |
+          sccache-tsd-${{ runner.os }}-${{ matrix.config }}-
     - name: Build ANARI-SDK
       uses: ./.github/actions/build-anari-sdk
       with:
@@ -48,6 +65,9 @@ jobs:
         cmake -LA -G Ninja -B ${{github.workspace}}/build
         -DCMAKE_PREFIX_PATH=${{ github.workspace }}/deps
         -DCMAKE_BUILD_TYPE=${{ matrix.config }}
+        -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
+        -DCMAKE_POLICY_DEFAULT_CMP0141=NEW
+        -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded
         -DTSD_BUILD_APPS=ON
         -DTSD_BUILD_INTERACTIVE_APPS=OFF
         -DTSD_BUILD_UI_LIBRARY=OFF
@@ -64,6 +84,14 @@ jobs:
     - name: Unit Tests
       working-directory: ${{  github.workspace }}/build
       run: ctest -C ${{ matrix.config }} --output-on-failure
+    - name: sccache stats
+      run: sccache --show-stats
+    - name: Save sccache
+      if: success() && github.event_name == 'push'
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ env.SCCACHE_DIR }}
+        key: sccache-tsd-${{ runner.os }}-${{ matrix.config }}-${{ github.sha }}
 
   build-cuda:
     runs-on: ${{ matrix.runs-on }}
@@ -79,11 +107,14 @@ jobs:
           - os: windows
             runs-on: windows-2022
             generator: Ninja
+    env:
+      SCCACHE_DIR: ${{ github.workspace }}/.sccache
+      SCCACHE_GHA_ENABLED: "false"
     steps:
     - uses: actions/checkout@v6
     - name: Setup MSVC (Windows)
       if: runner.os == 'Windows'
-      uses: ilammy/msvc-dev-cmd@v1
+      uses: ilammy/msvc-dev-cmd@a102174a2b586eec2ea151a69e6fd14404a8ce7c # v1.13.0
     - name: Setup CUDA Toolkit
       uses: ./.github/actions/setup-cuda
       with:
@@ -91,6 +122,15 @@ jobs:
     - name: Install Packages
       if: ${{ matrix.os == 'linux' }}
       run: sudo apt install -y libtbb-dev
+    - name: Setup sccache
+      uses: mozilla-actions/sccache-action@d651010b8da762cde178750d8eda7b5febfe147a # v0.0.9
+    - name: Restore sccache
+      uses: actions/cache/restore@v4
+      with:
+        path: ${{ env.SCCACHE_DIR }}
+        key: sccache-tsd-${{ runner.os }}-cuda${{ matrix.cudaversion }}-${{ matrix.config }}-${{ github.sha }}
+        restore-keys: |
+          sccache-tsd-${{ runner.os }}-cuda${{ matrix.cudaversion }}-${{ matrix.config }}-
     - name: Build ANARI-SDK
       uses: ./.github/actions/build-anari-sdk
       with:
@@ -103,6 +143,10 @@ jobs:
         cmake -LA -G Ninja -B ${{github.workspace}}/build-tsd
         -DCMAKE_PREFIX_PATH=${{ github.workspace }}/deps
         -DCMAKE_BUILD_TYPE=${{ matrix.config }}
+        -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
+        -DCMAKE_CUDA_COMPILER_LAUNCHER=sccache
+        -DCMAKE_POLICY_DEFAULT_CMP0141=NEW
+        -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded
         -DTSD_BUILD_APPS=ON
         -DTSD_BUILD_INTERACTIVE_APPS=OFF
         -DTSD_BUILD_UI_LIBRARY=OFF
@@ -116,3 +160,11 @@ jobs:
         ${{ github.workspace }}/tsd
     - name: Build TSD (CUDA)
       run: cmake --build ${{ github.workspace }}/build-tsd --config ${{ matrix.config }} --parallel
+    - name: sccache stats
+      run: sccache --show-stats
+    - name: Save sccache
+      if: success() && github.event_name == 'push'
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ env.SCCACHE_DIR }}
+        key: sccache-tsd-${{ runner.os }}-cuda${{ matrix.cudaversion }}-${{ matrix.config }}-${{ github.sha }}

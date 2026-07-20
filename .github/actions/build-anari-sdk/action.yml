@@ -22,12 +22,37 @@ outputs:
 runs:
   using: 'composite'
   steps:
+    # Resolve the live upstream commit so the cache invalidates when the tracked
+    # branch moves — build_deps pulls a branch zip whose local files never change.
+    # The branch is derived from the build_deps URL itself so there is a single
+    # source of truth: change the URL and the cache key follows.
+    - name: Resolve ANARI-SDK commit
+      id: resolve-sha
+      shell: bash
+      run: |
+        cmakelists="${{ github.workspace }}/${{ inputs.build-deps-path }}/CMakeLists.txt"
+        ref=$(grep -oE 'ANARI-SDK/archive/refs/heads/[^"]+\.zip' "$cmakelists" \
+          | sed -E 's#.*refs/heads/(.+)\.zip#\1#')
+        if [ -z "$ref" ]; then
+          echo "Could not derive ANARI-SDK branch from $cmakelists" >&2
+          exit 1
+        fi
+        sha=$(git ls-remote https://github.com/KhronosGroup/ANARI-SDK "refs/heads/$ref" | cut -f1)
+        if [ -z "$sha" ]; then
+          echo "Failed to resolve ANARI-SDK '$ref' commit" >&2
+          exit 1
+        fi
+        echo "sha=$sha" >> "$GITHUB_OUTPUT"
+        # Slug of the build_deps path guards the key so rtx/tsd never share an
+        # entry if their build_deps diverge (Actions expressions lack replace()).
+        echo "slug=$(echo '${{ inputs.build-deps-path }}' | tr '/' '-')" >> "$GITHUB_OUTPUT"
+
     - name: Cache ANARI-SDK
       uses: actions/cache@v4
       id: cache-anari
       with:
         path: ${{ inputs.install-prefix }}
-        key: anari-sdk-${{ runner.os }}-${{ inputs.config }}-${{ inputs.generator || 'default' }}-${{ hashFiles('**/build_deps/CMakeLists.txt', '**/build_deps/superbuild_macros.cmake') }}
+        key: anari-sdk-${{ runner.os }}-${{ inputs.config }}-${{ steps.resolve-sha.outputs.slug }}-${{ steps.resolve-sha.outputs.sha }}
 
     - name: Configure ANARI-SDK CMake (with generator)
       if: steps.cache-anari.outputs.cache-hit != 'true' && inputs.generator != ''
