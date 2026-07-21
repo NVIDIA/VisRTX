@@ -203,10 +203,14 @@ class MaterialRegistry
   // committed module idempotently -- an inline `code` module is not reachable
   // by name through the search paths, so the same source path is used), so it
   // runs on a pool worker in parallel with other compiles. Empty on failure.
+  // `coordinator` serializes texture-URL resolution (the shared entity resolver
+  // is not safe to hit from parallel workers); pass null on the coordinator
+  // thread, where resolution is already serial.
   std::optional<CompileProduct> compileMaterial(
       const std::string &moduleOrSource,
       const std::string &materialName,
-      bool fromCode);
+      bool fromCode,
+      MdlCompileCoordinator *coordinator);
 
   // Register a compiled product under `fullMaterialName` (dedup by uuid) and
   // return the acquired material. Coordinator thread (mutates the registry).
