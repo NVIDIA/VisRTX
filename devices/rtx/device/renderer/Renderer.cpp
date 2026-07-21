@@ -1072,55 +1072,87 @@ void Renderer::initOptixPipeline()
 #ifdef USE_MDL
     if (state.mdl) {
       // Fetch the blob list on the coordinator thread (registry owner). The
-      // spans still alias registry storage; safe here because compilation is
-      // serialized with this rebuild. Enabling parallel compilation must
-      // snapshot the blobs into owned memory before this loop.
+      // returned spans alias registry storage, so copy each blob's bytes into an
+      // owned buffer before the parallel loop below: the workers must not read
+      // registry-owned memory that a later compile could reallocate. (finalize
+      // drains every compile future before this rebuild, so in practice nothing
+      // mutates the registry here -- this snapshot is defense in depth.)
       auto ptxBlobs = state.mdl->coordinator.run(
           [&] { return state.mdl->materialRegistry.getPtxBlobs(); });
-      for (const auto &ptxBlob : ptxBlobs) {
-        if (ptxBlob.empty()) {
-          for (auto i = 0; i < int(SurfaceShaderEntryPoints::Count); i++) {
-            callableDescs.push_back({});
-          }
-          continue;
-        }
+
+      const auto pipelineCompileOptions =
+          makeVisRTXOptixPipelineCompileOptions();
+
+      // Phase 1: create each material's OptiX module in parallel on the compile
+      // pool -- optixModuleCreate on one context is thread-safe (the built-in
+      // renderer modules already build this way). Each task has its own log
+      // buffer. The SBT assembly in phase 2 stays serial, so callable order --
+      // and thus every material's SBT offset -- is exactly the serial order.
+      struct ModuleBuild
+      {
         OptixModule module = {};
-        OptixModuleCompileOptions moduleCompileOptions = {};
-        moduleCompileOptions.maxRegisterCount =
-            OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT;
+        OptixResult result = OPTIX_SUCCESS;
+        std::string log;
+      };
+      std::vector<std::future<ModuleBuild>> builds(ptxBlobs.size());
+      for (std::size_t i = 0; i < ptxBlobs.size(); ++i) {
+        if (ptxBlobs[i].empty())
+          continue;
+        std::vector<char> blob(ptxBlobs[i].begin(), ptxBlobs[i].end());
+        builds[i] = state.mdl->coordinator.submit(
+            [optixContext = state.optixContext,
+                pipelineCompileOptions,
+                blob = std::move(blob)] {
+              OptixModuleCompileOptions moduleCompileOptions = {};
+              moduleCompileOptions.maxRegisterCount =
+                  OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT;
 #ifdef NDEBUG
-        moduleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
-        moduleCompileOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_DEFAULT;
+              moduleCompileOptions.optLevel =
+                  OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
+              moduleCompileOptions.debugLevel =
+                  OPTIX_COMPILE_DEBUG_LEVEL_DEFAULT;
 #else
-        moduleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_LEVEL_0;
-        moduleCompileOptions.debugLevel =
-            OPTIX_COMPILE_DEBUG_LEVEL_MINIMAL; // Could be FULL is -G can be
-                                               // enabled at compile time
+              moduleCompileOptions.optLevel =
+                  OPTIX_COMPILE_OPTIMIZATION_LEVEL_0;
+              moduleCompileOptions.debugLevel =
+                  OPTIX_COMPILE_DEBUG_LEVEL_MINIMAL;
 #endif
-        moduleCompileOptions.numPayloadTypes = 0;
-        moduleCompileOptions.payloadTypes = 0;
+              moduleCompileOptions.numPayloadTypes = 0;
+              moduleCompileOptions.payloadTypes = 0;
 
-        auto pipelineCompileOptions = makeVisRTXOptixPipelineCompileOptions();
+              ModuleBuild build;
+              char log[2048];
+              size_t sizeof_log = sizeof(log);
+              build.result = optixModuleCreate(optixContext,
+                  &moduleCompileOptions,
+                  &pipelineCompileOptions,
+                  std::data(blob),
+                  std::size(blob),
+                  log,
+                  &sizeof_log,
+                  &build.module);
+              build.log.assign(log, std::min(sizeof_log, sizeof(log)));
+              return build;
+            });
+      }
 
-        // optix*Create writes the actual log length back into sizeof_log (which
-        // can exceed sizeof(log) on a verbose material). Reset it to the buffer
-        // capacity before every call, or a later call in this per-material loop
-        // would treat the stale (>2048) value as the capacity and overflow log.
-        sizeof_log = sizeof(log);
-        OPTIX_CHECK(optixModuleCreate(state.optixContext,
-            &moduleCompileOptions,
-            &pipelineCompileOptions,
-            std::data(ptxBlob),
-            std::size(ptxBlob),
-            log,
-            &sizeof_log,
-            &module));
+      // Phase 2: assemble the SBT in material order.
+      for (std::size_t i = 0; i < ptxBlobs.size(); ++i) {
+        OptixModule module = {};
+        if (builds[i].valid()) {
+          auto build = builds[i].get();
+          module = build.module;
+          if (build.result != OPTIX_SUCCESS)
+            reportMessage(ANARI_SEVERITY_ERROR,
+                "optixModuleCreate failed for an MDL material: %s",
+                build.log.c_str());
+        }
 
-        // OPTIX_CHECK reports failures without unwinding, leaving `module`
-        // null on a failed create: fall back to the empty-slot placeholders
-        // instead of pushing a dead handle the release path would destroy.
+        // A null module (empty blob or failed create) falls back to the
+        // empty-slot placeholders instead of a dead handle the release path
+        // would destroy.
         if (!module) {
-          for (auto i = 0; i < int(SurfaceShaderEntryPoints::Count); i++) {
+          for (auto j = 0; j < int(SurfaceShaderEntryPoints::Count); j++) {
             callableDescs.push_back({});
           }
           continue;
@@ -1130,7 +1162,6 @@ void Renderer::initOptixPipeline()
         OptixProgramGroupDesc callableDesc = {};
         callableDesc.kind = OPTIX_PROGRAM_GROUP_KIND_CALLABLES;
         callableDesc.callables.moduleDC = module;
-        auto mdlBaseOffset = callableDescs.size();
 
         callableDesc.callables.entryFunctionNameDC = "__direct_callable__init";
         callableDescs.push_back(callableDesc);
