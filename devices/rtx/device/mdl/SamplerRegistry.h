@@ -38,8 +38,11 @@
 
 #include <mi/neuraylib/itransaction.h>
 
+#include <memory>
+#include <mutex>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 namespace visrtx {
 class DeviceGlobalState;
@@ -47,6 +50,8 @@ class Sampler;
 } // namespace visrtx
 
 namespace visrtx::mdl {
+
+class MdlCompileCoordinator;
 
 class SamplerRegistry
 {
@@ -57,6 +62,17 @@ class SamplerRegistry
   Sampler *acquireSampler(
       const std::string &filePath, libmdl::ColorSpace colorSpace);
   Sampler *acquireSampler(const libmdl::TextureDescriptor &textureDesc);
+
+  // Decode the material's texture files across the compile pool, then wait, so a
+  // material referencing many texture files decodes them in parallel. Called on
+  // the commit thread; it skips descriptors already in the sampler cache and
+  // de-duplicates repeated keys, so each unique uncached texture is decoded
+  // exactly once. acquireSampler then consumes the staged pixels (falling back
+  // to an inline decode for anything not staged -- BSDF-data, .dds, or a decode
+  // that failed). Pure stb decode runs on the workers; the sampler cache is only
+  // read here on the commit thread, which is blocked in the wait meanwhile.
+  void stageDecodeBatch(MdlCompileCoordinator &coordinator,
+      const std::vector<libmdl::TextureDescriptor> &descriptors);
 
   bool releaseSampler(const Sampler *);
 
@@ -75,7 +91,34 @@ class SamplerRegistry
     // that surfaced as an optixPipelineDestroy crash under material churn).
     int acquires{0};
   };
+  // Guards m_dbToSampler. acquireSampler runs on the (flush-serialized) commit
+  // thread, but releaseSampler runs whenever a material's refcount hits zero --
+  // which, under the device's khr_device_synchronization, is any app thread --
+  // so cache mutation must be locked. Held only around the map operations, never
+  // the decode/upload.
+  std::mutex m_cacheMutex;
   std::unordered_map<std::string, CacheEntry> m_dbToSampler;
+
+  // Frees an stb_image allocation; defined where stb is included.
+  struct StbDeleter
+  {
+    void operator()(void *p) const;
+  };
+  // Host pixels decoded off the commit thread, awaiting sampler creation.
+  struct StagedImage
+  {
+    std::unique_ptr<void, StbDeleter> data;
+    int width{};
+    int height{};
+    int channels{};
+    bool isHdr{};
+  };
+  // Decoded-but-not-yet-created textures, keyed like m_dbToSampler. Filled by
+  // decodeToStaging() on pool workers, drained by acquireSampler() on the commit
+  // thread; its own lock keeps it independent of the (commit-thread-only)
+  // sampler cache.
+  std::mutex m_stagingMutex;
+  std::unordered_map<std::string, StagedImage> m_staging;
 
   Sampler *loadFromFile(
       const std::string_view &filePath, libmdl::ColorSpace colorSpace);
@@ -85,6 +128,15 @@ class SamplerRegistry
   Sampler *loadFromImage(
       const std::string_view &filePath, libmdl::ColorSpace colorSpace);
   Sampler *loadFromTextureDesc(const libmdl::TextureDescriptor &textureDesc);
+
+  // stb decode split out of loadFromImage so it can run off the commit thread;
+  // createFromStb builds the sampler from already-decoded pixels (commit thread,
+  // device work). loadFromImage is decode + create.
+  StagedImage decodeStb(const std::string_view &filePath);
+  Sampler *createFromStb(StagedImage image, libmdl::ColorSpace colorSpace);
+  StagedImage takeStaged(const std::string &key);
+  // One texture's worker-side decode into the staging map (pure stb).
+  void decodeToStaging(const libmdl::TextureDescriptor &textureDesc);
 };
 
 } // namespace visrtx::mdl

@@ -31,6 +31,7 @@
 
 #include "SamplerRegistry.h"
 
+#include "MdlCompileCoordinator.h"
 #include "array/Array2D.h"
 #include "array/Array3D.h"
 #include "libmdl/ArgumentBlockDescriptor.h"
@@ -38,6 +39,9 @@
 #include "sampler/CompressedImage2D.h"
 #include "sampler/Image2D.h"
 #include "sampler/Image3D.h"
+
+#include <future>
+#include <unordered_set>
 
 #include <anari/frontend/anari_enums.h>
 #include <cassert>
@@ -336,26 +340,57 @@ Sampler *SamplerRegistry::loadFromDDS(
   return tex;
 }
 
-Sampler *SamplerRegistry::loadFromImage(
-    const std::string_view &filePath, libmdl::ColorSpace colorSpace)
+void SamplerRegistry::StbDeleter::operator()(void *p) const
+{
+  stbi_image_free(p);
+}
+
+SamplerRegistry::StagedImage SamplerRegistry::decodeStb(
+    const std::string_view &filePath)
 {
   auto filePathS = std::string(filePath);
   auto isHdr = stbi_is_hdr(filePathS.c_str());
 
   int width, height, n;
-  void *data = nullptr;
-
-  data = isHdr ? static_cast<void *>(
+  void *data = isHdr ? static_cast<void *>(
                      stbi_loadf(filePathS.c_str(), &width, &height, &n, 0))
-               : static_cast<void *>(
-                     stbi_load(filePathS.c_str(), &width, &height, &n, 0));
+                     : static_cast<void *>(
+                         stbi_load(filePathS.c_str(), &width, &height, &n, 0));
 
+  StagedImage image;
   if (!data || n < 1) {
+    if (data)
+      stbi_image_free(data);
+    return image;
+  }
+  image.data.reset(data);
+  image.width = width;
+  image.height = height;
+  image.channels = n;
+  image.isHdr = isHdr;
+  return image;
+}
+
+Sampler *SamplerRegistry::loadFromImage(
+    const std::string_view &filePath, libmdl::ColorSpace colorSpace)
+{
+  auto image = decodeStb(filePath);
+  if (!image.data) {
     m_core->logMessage(mi::base::details::MESSAGE_SEVERITY_WARNING,
         "Failed to load texture '{}'",
         filePath);
     return {};
   }
+  return createFromStb(std::move(image), colorSpace);
+}
+
+Sampler *SamplerRegistry::createFromStb(
+    StagedImage image, libmdl::ColorSpace colorSpace)
+{
+  const int width = image.width;
+  const int height = image.height;
+  const int n = image.channels;
+  const bool isHdr = image.isHdr;
 
   int texelType = isHdr
       ? ANARI_FLOAT32_VEC4
@@ -381,11 +416,12 @@ Sampler *SamplerRegistry::loadFromImage(
   // of borrowing it (SHARED). Borrowing forces helium to privatize a host copy
   // when the public ref is dropped while the sampler still references it -- a
   // per-texture deep copy + "making private copy of shared host array" warning,
-  // and it also leaked `data` (nothing freed the stb buffer). With a deleter
-  // the array owns and frees it: no copy, no warning, no leak.
+  // and it also leaked the buffer (nothing freed the stb allocation). With a
+  // deleter the array owns and frees it: no copy, no warning, no leak. Release
+  // it from the StagedImage so ownership transfers cleanly (no double free).
   Array2DMemoryDescriptor desc = {
       {
-          data,
+          image.data.release(),
           [](const void * /*userPtr*/, const void *appMemory) {
             stbi_image_free(const_cast<void *>(appMemory));
           },
@@ -506,21 +542,93 @@ static std::string samplerCacheKey(
       + std::string(url);
 }
 
+void SamplerRegistry::decodeToStaging(
+    const libmdl::TextureDescriptor &textureDesc)
+{
+  // Only plain image files are staged: BSDF-data tables come from the SDK and
+  // .dds is handed to the device as-is -- both take the inline path.
+  if (textureDesc.shape == libmdl::Shape::BsdfData)
+    return;
+  const auto &url = textureDesc.url;
+  if (url.empty() || (url.size() > 4 && url.substr(url.size() - 4) == ".dds"))
+    return;
+
+  const auto key = samplerCacheKey(url, textureDesc.colorSpace);
+  {
+    std::lock_guard<std::mutex> guard(m_stagingMutex);
+    if (m_staging.count(key))
+      return; // another texture slot in this flush already staged it
+  }
+  auto image = decodeStb(url);
+  if (!image.data)
+    return; // decode failed -> acquireSampler falls back to the inline path
+  std::lock_guard<std::mutex> guard(m_stagingMutex);
+  m_staging.try_emplace(key, std::move(image));
+}
+
+SamplerRegistry::StagedImage SamplerRegistry::takeStaged(const std::string &key)
+{
+  std::lock_guard<std::mutex> guard(m_stagingMutex);
+  auto it = m_staging.find(key);
+  if (it == end(m_staging))
+    return {};
+  StagedImage image = std::move(it->second);
+  m_staging.erase(it);
+  return image;
+}
+
+void SamplerRegistry::stageDecodeBatch(MdlCompileCoordinator &coordinator,
+    const std::vector<libmdl::TextureDescriptor> &descriptors)
+{
+  // Runs on the commit thread, which is the sole mutator of m_dbToSampler and is
+  // then blocked in the waits below, so reading the sampler cache here needs no
+  // lock. Skip textures already cached and collapse repeated keys, so each
+  // unique uncached texture is decoded exactly once -- a texture referenced N
+  // times (in one material or shared across the flush) is not decoded N times.
+  std::unordered_set<std::string> scheduled;
+  std::vector<std::future<void>> decodes;
+  for (const auto &desc : descriptors) {
+    if (desc.shape == libmdl::Shape::BsdfData || desc.url.empty())
+      continue;
+    if (desc.url.size() > 4 && desc.url.substr(desc.url.size() - 4) == ".dds")
+      continue;
+    auto key = samplerCacheKey(desc.url, desc.colorSpace);
+    {
+      std::lock_guard<std::mutex> guard(m_cacheMutex);
+      if (m_dbToSampler.count(key))
+        continue; // already have the sampler; acquireSampler will cache-hit
+    }
+    if (!scheduled.insert(std::move(key)).second)
+      continue; // this key is already being decoded in this batch
+    decodes.push_back(coordinator.submit(
+        [this, desc] { decodeToStaging(desc); }));
+  }
+  for (auto &decode : decodes)
+    decode.get();
+}
+
 Sampler *SamplerRegistry::acquireSampler(
     const std::string &filePath, libmdl::ColorSpace colorSpace)
 {
   auto key = samplerCacheKey(filePath, colorSpace);
-  if (auto it = m_dbToSampler.find(key); it != end(m_dbToSampler)) {
-    it->second.acquires++;
-    it->second.sampler->refInc();
-    return it->second.sampler;
+  {
+    std::lock_guard<std::mutex> guard(m_cacheMutex);
+    if (auto it = m_dbToSampler.find(key); it != end(m_dbToSampler)) {
+      it->second.acquires++;
+      it->second.sampler->refInc();
+      return it->second.sampler;
+    }
   }
 
+  // Load outside the lock (device work); acquires are flush-serialized, so no
+  // other acquire inserts this key meanwhile and release only touches existing
+  // entries -- the insert below is safe.
   auto sampler = loadFromFile(filePath, colorSpace);
   if (sampler) {
     sampler->refInc();
     sampler->refDec(helium::PUBLIC); // Drop the implicit public refcount that
                                      // we don't rely on.
+    std::lock_guard<std::mutex> guard(m_cacheMutex);
     m_dbToSampler.insert({key, {sampler, 1}});
   } else {
     m_core->logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
@@ -535,17 +643,26 @@ Sampler *SamplerRegistry::acquireSampler(
     const libmdl::TextureDescriptor &textureDesc)
 {
   auto key = samplerCacheKey(textureDesc.url, textureDesc.colorSpace);
-  if (auto it = m_dbToSampler.find(key); it != end(m_dbToSampler)) {
-    it->second.acquires++;
-    it->second.sampler->refInc();
-    return it->second.sampler;
+  // Take (and clear) any staged pixels for this key up front, so a staged
+  // texture that turns out to be a cache hit is not left lingering.
+  StagedImage staged = takeStaged(key);
+  {
+    std::lock_guard<std::mutex> guard(m_cacheMutex);
+    if (auto it = m_dbToSampler.find(key); it != end(m_dbToSampler)) {
+      it->second.acquires++;
+      it->second.sampler->refInc();
+      return it->second.sampler;
+    }
   }
 
-  auto sampler = loadFromTextureDesc(textureDesc);
+  auto sampler = staged.data
+      ? createFromStb(std::move(staged), textureDesc.colorSpace)
+      : loadFromTextureDesc(textureDesc);
   if (sampler) {
     sampler->refInc();
     sampler->refDec(helium::PUBLIC); // Drop the implicit public refcount that
                                      // we don't rely on.
+    std::lock_guard<std::mutex> guard(m_cacheMutex);
     m_dbToSampler.insert({key, {sampler, 1}});
   } else {
     m_core->logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
@@ -558,6 +675,10 @@ Sampler *SamplerRegistry::acquireSampler(
 
 bool SamplerRegistry::releaseSampler(const Sampler *sampler)
 {
+  // Runs on whatever thread drops the material's last reference (any app thread
+  // under khr_device_synchronization), so guard the cache against a concurrent
+  // acquire on the commit thread.
+  std::lock_guard<std::mutex> guard(m_cacheMutex);
   if (auto it = std::find_if(std::begin(m_dbToSampler),
           std::end(m_dbToSampler),
           [sampler](const auto &p) { return p.second.sampler == sampler; });
