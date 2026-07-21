@@ -122,6 +122,7 @@ if (VISRTX_ENABLE_MDL_SUPPORT)
   make_test(TestMdlPipelineRebuild)
   make_test(TestMdlMaterialRegistryRelease)
   make_test(TestMdlConcurrentCompile)
+  make_test(TestMdlCompileBenchmark)
   make_test(TestMdlPtxFingerprint)
   foreach(mode IN ITEMS invalid-source one-invalid-source)
     add_test(NAME TestMdlPtxFingerprintRejects-${mode}
