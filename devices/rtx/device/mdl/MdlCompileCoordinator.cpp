@@ -31,24 +31,35 @@
 
 #include "MdlCompileCoordinator.h"
 
+#include <algorithm>
 #include <cstdlib>
+#include <thread>
 
 namespace visrtx::mdl {
 
 namespace {
 
-// Worker count from VISRTX_MDL_COMPILE_THREADS (clamped to >=1). Default 1 keeps
-// compilation serial until the parallel path has proven out under the gate
-// tests; a later change promotes the default to hardware_concurrency.
+// Worker count from VISRTX_MDL_COMPILE_THREADS (clamped to >=1). Unset defaults
+// to the hardware concurrency, capped so a many-core host does not oversubscribe
+// the shared MDL SDK compiler far past the point of return (compilation is
+// bounded by the material count in practice, and the PTX-identity gate validates
+// the parallel path). Set the env to 1 to force serial compilation.
+constexpr std::size_t kMaxDefaultWorkers = 8;
+// Hard ceiling for an explicit VISRTX_MDL_COMPILE_THREADS, so a typo (e.g.
+// 100000) cannot try to spawn an absurd number of threads.
+constexpr std::size_t kMaxWorkers = 256;
+
 std::size_t resolveWorkerCount()
 {
   if (const char *env = std::getenv("VISRTX_MDL_COMPILE_THREADS")) {
     char *end = nullptr;
     const long value = std::strtol(env, &end, 10);
     if (end != env && value >= 1)
-      return static_cast<std::size_t>(value);
+      return std::clamp<std::size_t>(
+          static_cast<std::size_t>(value), 1, kMaxWorkers);
   }
-  return 1;
+  const unsigned hw = std::thread::hardware_concurrency();
+  return std::clamp<std::size_t>(hw, 1, kMaxDefaultWorkers);
 }
 
 } // namespace
@@ -62,8 +73,16 @@ MdlCompileCoordinator::MdlCompileCoordinator()
 
   const std::size_t workerCount = resolveWorkerCount();
   m_workers.reserve(workerCount);
-  for (std::size_t i = 0; i < workerCount; ++i)
-    m_workers.emplace_back([this] { workerMain(); });
+  try {
+    for (std::size_t i = 0; i < workerCount; ++i)
+      m_workers.emplace_back([this] { workerMain(); });
+  } catch (...) {
+    // A worker std::thread ctor threw: the destructor will not run during ctor
+    // unwinding, so stop the already-started threads here or their joinable
+    // members would std::terminate.
+    stop();
+    throw;
+  }
 }
 
 MdlCompileCoordinator::~MdlCompileCoordinator()
