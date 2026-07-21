@@ -153,6 +153,26 @@ class MaterialRegistry
     return res;
   }
 
+  // Order-independent content hash of every compiled material's PTX. Parallel
+  // compilation that produced different code changes this even when the render
+  // does not (ADR 0009 silent-miscompile gate). XOR combines slots so it is
+  // independent of slot order; released (empty) slots are skipped.
+  std::uint64_t ptxFingerprint() const
+  {
+    std::uint64_t acc = 0;
+    for (const auto &target : m_targetCodes) {
+      if (target.ptxBlob.empty())
+        continue;
+      std::uint64_t h = 1469598103934665603ull; // FNV-1a offset basis
+      for (char c : target.ptxBlob) {
+        h ^= static_cast<unsigned char>(c);
+        h *= 1099511628211ull; // FNV-1a prime
+      }
+      acc ^= h;
+    }
+    return acc;
+  }
+
   // Per material instance data
   std::optional<libmdl::ArgumentBlockInstance> createArgumentBlock(
       const libmdl::ArgumentBlockDescriptor &uuid) const;

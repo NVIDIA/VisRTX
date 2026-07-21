@@ -569,6 +569,18 @@ int VisRTXDevice::deviceGetProperty(const char *name,
     helium::writeToVoidP(mem, count);
     return 1;
   }
+  if (prop == "mdlPtxFingerprint" && type == ANARI_UINT64) {
+    auto &state = *deviceState();
+    if (flags & ANARI_WAIT)
+      state.commitBuffer.flush();
+    const uint64_t fp = state.mdl
+        ? state.mdl->coordinator.run([&] {
+            return state.mdl->materialRegistry.ptxFingerprint();
+          })
+        : 0ull;
+    helium::writeToVoidP(mem, fp);
+    return 1;
+  }
 #endif // defined(USE_MDL)
 #ifdef USE_MATERIALX
   // Observability seam for the ADR 0008 search chain: which distribution root
