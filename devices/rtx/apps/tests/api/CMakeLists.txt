@@ -122,7 +122,20 @@ if (VISRTX_ENABLE_MDL_SUPPORT)
   make_test(TestMdlPipelineRebuild)
   make_test(TestMdlMaterialRegistryRelease)
   make_test(TestMdlConcurrentCompile)
+  make_test(TestMdlPtxFingerprint)
+  foreach(mode IN ITEMS invalid-source one-invalid-source)
+    add_test(NAME TestMdlPtxFingerprintRejects-${mode}
+      COMMAND TestMdlPtxFingerprint --${mode})
+    set_tests_properties(TestMdlPtxFingerprintRejects-${mode} PROPERTIES
+      WILL_FAIL TRUE TIMEOUT 120)
+  endforeach()
   make_test(TestEmissiveMaterialParity)
+  # Silent-miscompile gate (ADR 0009): the same scene must produce byte-identical
+  # PTX whether compiled serially or across the worker pool. Runs the fingerprint
+  # binary under 1 and 8 compile threads and asserts the printed hashes match.
+  add_test(NAME TestMdlPtxIdentity COMMAND ${CMAKE_COMMAND}
+    -DTEST_BIN=$<TARGET_FILE:TestMdlPtxFingerprint>
+    -P ${CMAKE_CURRENT_LIST_DIR}/mdl_ptx_identity.cmake)
 endif()
 make_test(TestEmissiveInteractive)
 make_test(TestEmissiveIncremental)
