@@ -150,9 +150,24 @@ endif()
 if (TSD_USE_USD)
   find_package(OpenGL)
   find_package(X11)
-  find_package(pxr REQUIRED sdf usd usdGeom tf gf usdShade usdLux)
-  project_compile_definitions(PRIVATE -DTSD_USE_USD=1)
-  project_link_libraries(PRIVATE ${PXR_LIBRARIES})
+  # The imaging components (usdImaging/hd/hdsi/hio/pxOsd) are what the USD
+  # importer consumes: it reads OpenUSD's own resolved scene through a Hydra
+  # scene index rather than traversing schemas (ADR 0015). None of them carry a
+  # GL or X11 link dependency, so headless and CI builds are unaffected.
+  find_package(pxr REQUIRED
+    sdf usd usdGeom usdShade usdLux usdSkel usdVol
+    tf gf vt work plug
+    usdImaging hd hdsi hio pxOsd cameraUtil
+  )
+  # OpenSubdiv is required for subdivision-surface refinement; pxOsd's refiner
+  # factory includes OpenSubdiv headers that are not shipped inside the USD
+  # install, so a separate CPU-only OpenSubdiv is needed.
+  find_package(OpenSubdiv REQUIRED)
+  # PUBLIC so that consumers -- the test target in particular -- can compile
+  # conditionally against USD support. A deliberate widening of the library's
+  # interface made for testability.
+  project_compile_definitions(PUBLIC -DTSD_USE_USD=1)
+  project_link_libraries(PRIVATE ${PXR_LIBRARIES} OpenSubdiv::osdCPU)
 
   # CaseFileFormat -- SdfFileFormat plugin for EnSight .case files
   add_library(CaseFileFormat SHARED
@@ -184,7 +199,7 @@ if (TSD_USE_USD)
   install(FILES ${CMAKE_CURRENT_BINARY_DIR}/usd/plugInfo.json
     DESTINATION lib/usd/CaseFileFormat/resources)
 else()
-  project_compile_definitions(PRIVATE -DTSD_USE_USD=0)
+  project_compile_definitions(PUBLIC -DTSD_USE_USD=0)
 endif()
 
 if (TSD_USE_VTK)
