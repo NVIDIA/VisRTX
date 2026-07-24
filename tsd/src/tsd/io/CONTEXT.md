@@ -6,6 +6,8 @@ application-specific vocabulary used by SciVis Studio.
 
 ## Language
 
+### Native Persistence
+
 **Archive**:
 A native serialized representation of some TSD state. An Archive is independent
 of its carrier: it may be embedded in another representation, transmitted
@@ -82,3 +84,46 @@ _Avoid_: Load, deserialize
 **Export**:
 Convert TSD state into a non-native representation.
 _Avoid_: Save, serialize
+
+### Foreign-Format Import
+
+**Stage**:
+The composed scene an import reads a foreign representation from, identified by
+the file that was opened.
+_Avoid_: USD scene, USD file
+
+**USD Layer**:
+A single composition-arc source contributing opinions to a Stage. Always
+qualified: unqualified **Layer** means a TSD Layer and never this.
+_Avoid_: Layer (unqualified), sublayer
+
+**Prototype**:
+Content authored once and shared by every placement of it. An imported
+Prototype is one set of TSD scene objects referenced from many layer nodes,
+never a per-placement copy.
+
+**USD Instance**:
+A prim that places a Prototype at its own transform. Always qualified:
+unqualified **Instance** means the ANARI object a render index emits.
+_Avoid_: Instance (unqualified)
+
+**Purpose**:
+The visibility category of a foreign prim — `default`, `render`, `proxy`, or
+`guide` — that determines whether an import includes it.
+
+**Render Context**:
+The flavor of shading network selected from a bound foreign material, such as
+UsdPreviewSurface, MaterialX, or MDL.
+_Avoid_: shader target, material backend
+
+**Claimed Prim**:
+A prim an importer handles outside its generic conversion path, and which is
+therefore withheld from that path.
+
+**Placeholder Node**:
+A named, empty, disabled layer node standing where a prim that produced no
+renderable TSD content would have been.
+
+**Import Report**:
+A structured record of one Import: which prims became TSD scene objects and,
+for each that did not, the reason.
