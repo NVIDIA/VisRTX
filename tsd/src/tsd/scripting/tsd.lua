@@ -936,8 +936,16 @@ function tsd.io.importPLY(...) end
 function tsd.io.importHDRI(...) end
 
 --- Import a USD file.
+--
+-- The settings table mirrors the import options:
+--   purposes        = { default = true, render = true, proxy = false, guide = false }
+--   renderContexts  = { "", "glslfx" }
+--   materialMode    = "physicallyBased" | "materialx" | "mdl"
+--   refinementLevel = 2
+--   primPath        = "/World/Asset"
 ---@overload fun(scene: tsd.Scene, filename: string)
 ---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
+---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode, settings: table)
 function tsd.io.importUSD(...) end
 
 --- Import a PBRT v4 scene file.

@@ -1,0 +1,52 @@
+// Copyright 2026 NVIDIA Corporation
+// SPDX-License-Identifier: Apache-2.0
+
+#pragma once
+
+#include "tsd/io/importers/detail/usd/UsdImportContext.h"
+// usd
+#include <pxr/base/vt/array.h>
+#include <pxr/base/vt/value.h>
+#include <pxr/imaging/hd/meshSchema.h>
+#include <pxr/imaging/hd/sceneIndex.h>
+// std
+#include <string>
+#include <vector>
+
+namespace tsd::io::usd {
+
+/*
+ * A mesh after OpenSubdiv refinement: the limit-level topology together with
+ * every vertex-interpolated primvar carried through the same refinement, so
+ * that smooth assets do not arrive faceted and their attributes stay aligned
+ * with their points.
+ */
+struct RefinedMesh
+{
+  bool valid{false};
+  pxr::VtIntArray faceVertexCounts;
+  pxr::VtIntArray faceVertexIndices;
+  pxr::VtIntArray holeIndices;
+  pxr::VtVec3fArray points;
+  std::vector<std::pair<std::string, pxr::VtValue>> vertexPrimvars;
+};
+
+// True when this mesh should be refined: the Stage explicitly declares a
+// subdivision scheme other than "none" and the caller asked for refinement.
+// USD's schema default is catmullClark for every mesh, so authoring is what
+// distinguishes a subdivision surface from an ordinary polygon mesh.
+bool meshWantsRefinement(
+    const ImportContext &ctx, const pxr::SdfPath &primPath);
+
+// Refine with OpenSubdiv, honouring subdivision tags -- creases, corners, and
+// holes -- carried on the resolved prim.
+RefinedMesh refineMesh(const pxr::HdMeshSchema &meshSchema,
+    const pxr::VtIntArray &faceVertexCounts,
+    const pxr::VtIntArray &faceVertexIndices,
+    const pxr::VtIntArray &holeIndices,
+    const pxr::TfToken &orientation,
+    const pxr::VtVec3fArray &points,
+    const std::vector<std::pair<std::string, pxr::VtValue>> &vertexPrimvars,
+    int refinementLevel);
+
+} // namespace tsd::io::usd

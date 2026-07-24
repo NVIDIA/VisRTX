@@ -1,0 +1,384 @@
+// Copyright 2026 NVIDIA Corporation
+// SPDX-License-Identifier: Apache-2.0
+
+#include "tsd/io/importers/detail/usd/UsdInstancing.h"
+#include "tsd/io/importers/detail/usd/UsdGeometry.h"
+// usd
+#include <pxr/base/gf/quatf.h>
+#include <pxr/base/gf/quath.h>
+#include <pxr/imaging/hd/instancerTopologySchema.h>
+#include <pxr/imaging/hd/primOriginSchema.h>
+#include <pxr/imaging/hd/primvarsSchema.h>
+#include <pxr/imaging/hd/sceneIndexPrimView.h>
+#include <pxr/imaging/hd/tokens.h>
+#include <pxr/imaging/hd/xformSchema.h>
+#include <pxr/usd/usdGeom/xformable.h>
+// std
+#include <algorithm>
+#include <vector>
+
+namespace tsd::io::usd {
+
+using namespace tsd::core;
+
+namespace {
+
+const char *NATIVE_INSTANCING_ROOT = "/UsdNiPropagatedPrototypes";
+
+tsd::math::mat4 flattenedXformOf(
+    const pxr::HdSceneIndexBaseRefPtr &sceneIndex, const pxr::SdfPath &primPath)
+{
+  auto prim = sceneIndex->GetPrim(primPath);
+  auto xform = pxr::HdXformSchema::GetFromParent(prim.dataSource);
+  if (!xform)
+    return tsd::math::IDENTITY_MAT4;
+  auto matrix = xform.GetMatrix();
+  return matrix ? toTsdMat4(matrix->GetTypedValue(0))
+                : tsd::math::IDENTITY_MAT4;
+}
+
+// The Stage path a resolved prototype prim came from, which is where its
+// authored animation lives.
+pxr::SdfPath originOf(const pxr::HdSceneIndexPrim &prim)
+{
+  auto origin = pxr::HdPrimOriginSchema::GetFromParent(prim.dataSource);
+  if (!origin)
+    return {};
+  return origin.GetOriginPath(pxr::HdPrimOriginSchemaTokens->scenePath);
+}
+
+bool subtreeHasAnimatedTransforms(ImportContext &ctx,
+    const pxr::HdSceneIndexBaseRefPtr &sceneIndex,
+    const pxr::SdfPath &root)
+{
+  for (const pxr::SdfPath &path : pxr::HdSceneIndexPrimView(sceneIndex, root)) {
+    const auto origin = originOf(sceneIndex->GetPrim(path));
+    if (origin.IsEmpty())
+      continue;
+    auto prim = ctx.stage->GetPrimAtPath(origin);
+    if (!prim)
+      continue;
+    pxr::UsdGeomXformable xformable(prim);
+    if (!xformable)
+      continue;
+    std::vector<double> times;
+    xformable.GetTimeSamples(&times);
+    if (times.size() > 1)
+      return true;
+  }
+  return false;
+}
+
+std::shared_ptr<PrototypeContent> convertPrototype(ImportContext &ctx,
+    const pxr::HdSceneIndexBaseRefPtr &sceneIndex,
+    const pxr::SdfPath &prototypeRoot,
+    InstancerRegistry &registry)
+{
+  const auto key = prototypeRoot.GetString();
+  if (auto found = registry.prototypes.find(key);
+      found != registry.prototypes.end())
+    return found->second;
+
+  auto content = std::make_shared<PrototypeContent>();
+  content->internalTransformsAnimated =
+      subtreeHasAnimatedTransforms(ctx, sceneIndex, prototypeRoot);
+
+  if (!content->internalTransformsAnimated) {
+    const auto rootXform = flattenedXformOf(sceneIndex, prototypeRoot);
+    const auto inverseRoot = tsd::math::inverse(rootXform);
+    for (const pxr::SdfPath &path :
+        pxr::HdSceneIndexPrimView(sceneIndex, prototypeRoot)) {
+      auto prim = sceneIndex->GetPrim(path);
+      if (!isGeometryPrimType(prim.primType))
+        continue;
+      const auto bake =
+          tsd::math::mul(inverseRoot, flattenedXformOf(sceneIndex, path));
+      for (auto &surface : convertGeometry(ctx, sceneIndex, path, prim, bake))
+        content->surfaces.push_back(surface);
+    }
+    ctx.report.convertedPrims += content->surfaces.size();
+  }
+
+  registry.prototypes[key] = content;
+  return content;
+}
+
+// Expanded fallback for Prototypes whose internal transforms are animated and
+// so cannot be baked: mirror the Prototype subtree beneath each placement,
+// still sharing the converted objects.
+void expandPrototype(ImportContext &ctx,
+    const pxr::HdSceneIndexBaseRefPtr &sceneIndex,
+    const pxr::SdfPath &prototypeRoot,
+    const pxr::SdfPath &primPath,
+    const tsd::math::mat4 &parentXform,
+    LayerNodeRef parent)
+{
+  auto prim = sceneIndex->GetPrim(primPath);
+  const auto flattened = flattenedXformOf(sceneIndex, primPath);
+  const auto local = tsd::math::mul(tsd::math::inverse(parentXform), flattened);
+
+  auto node = ctx.scene.insertChildTransformNode(
+      parent, local, primPath.GetName().c_str());
+
+  if (isGeometryPrimType(prim.primType)) {
+    for (auto &surface : convertGeometry(
+             ctx, sceneIndex, primPath, prim, tsd::math::IDENTITY_MAT4))
+      ctx.scene.insertChildObjectNode(node, surface, surface->name().c_str());
+  }
+
+  for (const auto &childPath : sceneIndex->GetChildPrimPaths(primPath))
+    expandPrototype(ctx, sceneIndex, prototypeRoot, childPath, flattened, node);
+}
+
+// The per-instance transforms an instancer carries, either directly as
+// matrices or composed from translate/rotate/scale primvars.
+std::vector<tsd::math::mat4> readInstanceTransforms(
+    const pxr::HdSceneIndexPrim &prim, size_t instanceCount)
+{
+  auto primvars = pxr::HdPrimvarsSchema::GetFromParent(prim.dataSource);
+
+  auto valueOf = [&](const pxr::TfToken &name) {
+    auto primvar = primvars.GetPrimvar(name);
+    if (!primvar)
+      return pxr::VtValue();
+    auto source = primvar.GetPrimvarValue();
+    return source ? source->GetValue(0) : pxr::VtValue();
+  };
+
+  std::vector<tsd::math::mat4> retval(instanceCount, tsd::math::IDENTITY_MAT4);
+
+  const auto transforms = valueOf(pxr::HdInstancerTokens->instanceTransforms);
+  if (transforms.IsHolding<pxr::VtMatrix4dArray>()) {
+    const auto &m = transforms.UncheckedGet<pxr::VtMatrix4dArray>();
+    for (size_t i = 0; i < retval.size() && i < m.size(); ++i)
+      retval[i] = toTsdMat4(m[i]);
+    return retval;
+  }
+
+  const auto translations =
+      valueOf(pxr::HdInstancerTokens->instanceTranslations);
+  const auto rotations = valueOf(pxr::HdInstancerTokens->instanceRotations);
+  const auto scales = valueOf(pxr::HdInstancerTokens->instanceScales);
+
+  for (size_t i = 0; i < retval.size(); ++i) {
+    auto transform = tsd::math::IDENTITY_MAT4;
+
+    if (scales.IsHolding<pxr::VtVec3fArray>()) {
+      const auto &s = scales.UncheckedGet<pxr::VtVec3fArray>();
+      if (i < s.size()) {
+        transform = tsd::math::mul(
+            tsd::math::scaling_matrix(float3(s[i][0], s[i][1], s[i][2])),
+            transform);
+      }
+    }
+
+    auto applyRotation = [&](float x, float y, float z, float w) {
+      transform = tsd::math::mul(
+          tsd::math::rotation_matrix(tsd::math::float4(x, y, z, w)), transform);
+    };
+    if (rotations.IsHolding<pxr::VtQuathArray>()) {
+      const auto &r = rotations.UncheckedGet<pxr::VtQuathArray>();
+      if (i < r.size()) {
+        const auto imaginary = r[i].GetImaginary();
+        applyRotation(float(imaginary[0]),
+            float(imaginary[1]),
+            float(imaginary[2]),
+            float(r[i].GetReal()));
+      }
+    } else if (rotations.IsHolding<pxr::VtQuatfArray>()) {
+      const auto &r = rotations.UncheckedGet<pxr::VtQuatfArray>();
+      if (i < r.size()) {
+        const auto imaginary = r[i].GetImaginary();
+        applyRotation(imaginary[0], imaginary[1], imaginary[2], r[i].GetReal());
+      }
+    }
+
+    if (translations.IsHolding<pxr::VtVec3fArray>()) {
+      const auto &t = translations.UncheckedGet<pxr::VtVec3fArray>();
+      if (i < t.size()) {
+        transform = tsd::math::mul(
+            tsd::math::translation_matrix(float3(t[i][0], t[i][1], t[i][2])),
+            transform);
+      }
+    }
+
+    retval[i] = transform;
+  }
+
+  return retval;
+}
+
+struct InstancerTopology
+{
+  pxr::VtArray<pxr::SdfPath> prototypes;
+  pxr::VtArray<pxr::SdfPath> instanceLocations;
+  std::vector<pxr::VtIntArray> instanceIndices;
+  pxr::VtBoolArray mask;
+};
+
+InstancerTopology readTopology(const pxr::HdSceneIndexPrim &prim)
+{
+  InstancerTopology retval;
+  auto schema = pxr::HdInstancerTopologySchema::GetFromParent(prim.dataSource);
+  if (!schema)
+    return retval;
+
+  if (auto prototypes = schema.GetPrototypes())
+    retval.prototypes = prototypes->GetTypedValue(0);
+  if (auto locations = schema.GetInstanceLocations())
+    retval.instanceLocations = locations->GetTypedValue(0);
+  if (auto mask = schema.GetMask())
+    retval.mask = mask->GetTypedValue(0);
+
+  auto indices = schema.GetInstanceIndices();
+  for (size_t i = 0; i < indices.GetNumElements(); ++i) {
+    auto element = indices.GetElement(i);
+    retval.instanceIndices.push_back(
+        element ? element->GetTypedValue(0) : pxr::VtIntArray());
+  }
+  return retval;
+}
+
+bool instanceIsVisible(const InstancerTopology &topology, int index)
+{
+  if (topology.mask.empty())
+    return true;
+  return size_t(index) >= topology.mask.size() || topology.mask[size_t(index)];
+}
+
+} // namespace
+
+void convertInstancer(ImportContext &ctx,
+    const pxr::HdSceneIndexBaseRefPtr &sceneIndex,
+    const pxr::SdfPath &primPath,
+    const pxr::HdSceneIndexPrim &prim,
+    LayerNodeRef node,
+    InstancerRegistry &registry)
+{
+  const auto topology = readTopology(prim);
+  if (topology.prototypes.empty())
+    return;
+
+  // Native instancing is resolved against each USD Instance's own node after
+  // the hierarchy has been mirrored.
+  if (!topology.instanceLocations.empty())
+    return;
+
+  const auto transforms = readInstanceTransforms(prim, [&] {
+    size_t count = 0;
+    for (const auto &indices : topology.instanceIndices) {
+      for (int i : indices)
+        count = std::max(count, size_t(i) + 1);
+    }
+    return count;
+  }());
+
+  for (size_t protoIndex = 0; protoIndex < topology.prototypes.size();
+       ++protoIndex) {
+    auto content = convertPrototype(
+        ctx, sceneIndex, topology.prototypes[protoIndex], registry);
+
+    const auto &indices = protoIndex < topology.instanceIndices.size()
+        ? topology.instanceIndices[protoIndex]
+        : pxr::VtIntArray();
+
+    // Placements USD marks invisible are omitted rather than emitted hidden.
+    std::vector<tsd::math::mat4> placements;
+    for (int index : indices) {
+      if (!instanceIsVisible(topology, index))
+        continue;
+      if (size_t(index) < transforms.size())
+        placements.push_back(transforms[size_t(index)]);
+    }
+    if (placements.empty())
+      continue;
+
+    if (content->internalTransformsAnimated) {
+      for (size_t i = 0; i < placements.size(); ++i) {
+        auto placementNode = ctx.scene.insertChildTransformNode(node,
+            placements[i],
+            (primPath.GetName() + "_" + std::to_string(i)).c_str());
+        expandPrototype(ctx,
+            sceneIndex,
+            topology.prototypes[protoIndex],
+            topology.prototypes[protoIndex],
+            flattenedXformOf(sceneIndex, topology.prototypes[protoIndex]),
+            placementNode);
+      }
+      continue;
+    }
+
+    // One transform-array node so hardware instancing is used rather than
+    // thousands of individual nodes. Its children must be object nodes: the
+    // render index does not push a transform-array node's matrices onto the
+    // transform stack, which is why Prototype geometry is baked (ADR 0016).
+    auto transformArray =
+        ctx.scene.createArray(ANARI_FLOAT32_MAT4, placements.size());
+    transformArray->setData(placements.data(), placements.size());
+    transformArray->setName((primPath.GetString() + "_transforms").c_str());
+
+    auto arrayNode = ctx.scene.insertChildTransformArrayNode(
+        node, transformArray.data(), primPath.GetName().c_str());
+    for (auto &surface : content->surfaces)
+      ctx.scene.insertChildObjectNode(
+          arrayNode, surface, surface->name().c_str());
+  }
+}
+
+void attachNativeInstances(ImportContext &ctx,
+    const pxr::HdSceneIndexBaseRefPtr &sceneIndex,
+    InstancerRegistry &registry,
+    LayerNodeRef importRoot)
+{
+  const pxr::SdfPath root(NATIVE_INSTANCING_ROOT);
+  if (sceneIndex->GetPrim(root).dataSource == nullptr
+      && sceneIndex->GetChildPrimPaths(root).empty())
+    return;
+
+  for (const pxr::SdfPath &path : pxr::HdSceneIndexPrimView(sceneIndex, root)) {
+    auto prim = sceneIndex->GetPrim(path);
+    if (prim.primType != pxr::HdPrimTypeTokens->instancer)
+      continue;
+
+    const auto topology = readTopology(prim);
+    if (topology.prototypes.empty() || topology.instanceLocations.empty())
+      continue;
+
+    auto content =
+        convertPrototype(ctx, sceneIndex, topology.prototypes[0], registry);
+
+    const auto &indices = topology.instanceIndices.empty()
+        ? pxr::VtIntArray()
+        : topology.instanceIndices[0];
+
+    for (size_t i = 0; i < topology.instanceLocations.size(); ++i) {
+      const int index = size_t(i) < indices.size() ? indices[i] : int(i);
+      if (!instanceIsVisible(topology, index))
+        continue;
+
+      // Each USD Instance becomes one node referencing the same shared
+      // objects, so editing the Prototype's material affects every placement
+      // as it does in USD.
+      const auto locationKey = topology.instanceLocations[i].GetString();
+      auto found = registry.nodeForPrimPath.find(locationKey);
+      auto placementNode =
+          found != registry.nodeForPrimPath.end() ? found->second : importRoot;
+
+      if (content->internalTransformsAnimated) {
+        expandPrototype(ctx,
+            sceneIndex,
+            topology.prototypes[0],
+            topology.prototypes[0],
+            flattenedXformOf(sceneIndex, topology.prototypes[0]),
+            placementNode);
+      } else {
+        for (auto &surface : content->surfaces) {
+          ctx.scene.insertChildObjectNode(
+              placementNode, surface, surface->name().c_str());
+        }
+      }
+    }
+  }
+}
+
+} // namespace tsd::io::usd

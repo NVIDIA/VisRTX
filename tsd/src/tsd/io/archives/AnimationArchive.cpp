@@ -147,6 +147,20 @@ bool validateFileBinding(
     }
     return true;
   }
+  if (kind == "usdGeometry") {
+    size_t targetIndex = core::INVALID_INDEX;
+    if (!readIndex(binding, "targetIndex", targetIndex)
+        || !scene.getObject(ANARI_GEOMETRY, targetIndex)) {
+      return fail(
+          message, "USD geometry binding target is incompatible with Scene");
+    }
+    if (binding.child("stageFile") == nullptr
+        || binding.child("primPath") == nullptr) {
+      return fail(
+          message, "USD geometry binding requires a stage file and prim path");
+    }
+    return true;
+  }
   if (kind == "ensight") {
     auto *parts = binding.child("parts");
     if (!parts || parts->numChildren() == 0)

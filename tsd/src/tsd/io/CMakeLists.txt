@@ -22,6 +22,7 @@ PRIVATE
   archives/detail/SubtreeArchiveDeserialization.cpp
   animation/EnSightFileBinding.cpp
   animation/SpatialFieldFileBinding.cpp
+  UsdImport.cpp
   exporters/NanoVdbSidecar.cpp
   exporters/SceneToUSD.cpp
   exporters/StructuredVolumeToNanoVDB.cpp
@@ -31,8 +32,7 @@ PRIVATE
   importers/detail/pbrt/PbrtLexer.cpp
   importers/detail/pbrt/PbrtParser.cpp
   importers/detail/pbrt/PbrtScene.cpp
-  importers/detail/usd/MaterialCommon.cpp
-  importers/detail/usd/OmniPbrMaterial.cpp
+  animation/UsdGeometryFileBinding.cpp
   importers/import_AGX.cpp
   importers/import_ASSIMP.cpp
   importers/import_AXYZ.cpp
@@ -168,6 +168,18 @@ if (TSD_USE_USD)
   # interface made for testability.
   project_compile_definitions(PUBLIC -DTSD_USE_USD=1)
   project_link_libraries(PRIVATE ${PXR_LIBRARIES} OpenSubdiv::osdCPU)
+
+  # The USD importer's converters, which have no meaning without OpenUSD.
+  project_sources(
+  PRIVATE
+    importers/detail/usd/UsdAnimation.cpp
+    importers/detail/usd/UsdDialect.cpp
+    importers/detail/usd/UsdGeometry.cpp
+    importers/detail/usd/UsdInstancing.cpp
+    importers/detail/usd/UsdLights.cpp
+    importers/detail/usd/UsdMaterials.cpp
+    importers/detail/usd/UsdSubdivision.cpp
+  )
 
   # CaseFileFormat -- SdfFileFormat plugin for EnSight .case files
   add_library(CaseFileFormat SHARED

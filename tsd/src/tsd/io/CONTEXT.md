@@ -127,3 +127,10 @@ renderable TSD content would have been.
 **Import Report**:
 A structured record of one Import: which prims became TSD scene objects and,
 for each that did not, the reason.
+
+**Import Options**:
+The typed settings governing one Import — which Purposes to include, which
+Render Contexts to prefer, what to emit materials as, how far to refine
+subdivision surfaces, and which prim to import from. Converts to and from a
+DataTree so it can be persisted with a project and driven from scripting.
+_Avoid_: import config, import params

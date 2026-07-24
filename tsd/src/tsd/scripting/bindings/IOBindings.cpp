@@ -16,6 +16,49 @@
 
 namespace tsd::scripting {
 
+// Read USD import settings out of a Lua table. Absent keys keep their
+// defaults, so the common case stays `tsd.io.importUSD(scene, anim, file)`.
+static tsd::io::UsdImportOptions usdImportOptionsFromLuaTable(
+    const sol::table &settings)
+{
+  tsd::io::UsdImportOptions retval;
+
+  if (sol::optional<sol::table> purposes = settings["purposes"]) {
+    auto readFlag = [&](const char *name, bool &out) {
+      if (sol::optional<bool> value = (*purposes)[name])
+        out = *value;
+    };
+    readFlag("default", retval.purposes.defaultPurpose);
+    readFlag("render", retval.purposes.render);
+    readFlag("proxy", retval.purposes.proxy);
+    readFlag("guide", retval.purposes.guide);
+  }
+
+  if (sol::optional<sol::table> contexts = settings["renderContexts"]) {
+    retval.renderContexts.clear();
+    for (size_t i = 1; i <= contexts->size(); ++i) {
+      if (sol::optional<std::string> value = (*contexts)[i])
+        retval.renderContexts.push_back(*value);
+    }
+  }
+
+  if (sol::optional<std::string> mode = settings["materialMode"]) {
+    if (*mode == "materialx")
+      retval.materialMode = tsd::io::UsdMaterialMode::MATERIALX;
+    else if (*mode == "mdl")
+      retval.materialMode = tsd::io::UsdMaterialMode::MDL;
+    else
+      retval.materialMode = tsd::io::UsdMaterialMode::PHYSICALLY_BASED;
+  }
+
+  if (sol::optional<int> level = settings["refinementLevel"])
+    retval.refinementLevel = *level;
+  if (sol::optional<std::string> primPath = settings["primPath"])
+    retval.primPath = *primPath;
+
+  return retval;
+}
+
 #define TSD_LUA_IMPORT_WRAP(import_call, filename)                             \
   try {                                                                        \
     import_call;                                                               \
@@ -109,6 +152,17 @@ void registerIOBindings(sol::state &lua)
           const std::string &f,
           scene::LayerNodeRef loc) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_USD(s, anim, f.c_str(), loc), f);
+      },
+      // Settings arrive as a plain table mirroring the option names, so
+      // scripted imports can be configured without a binding per field.
+      [](scene::Scene &s,
+          animation::AnimationManager &anim,
+          const std::string &f,
+          scene::LayerNodeRef loc,
+          sol::table settings) {
+        auto options = usdImportOptionsFromLuaTable(settings);
+        TSD_LUA_IMPORT_WRAP(
+            tsd::io::import_USD(s, anim, f.c_str(), loc, options), f);
       });
 
   io["importPDB"] = sol::overload(

@@ -34,6 +34,7 @@ project_add_executable(
   test_Scene.cpp
   test_SceneArchive.cpp
   test_Token.cpp
+  test_UsdImport.cpp
 )
 if (TARGET tsd_scivis_studio_model)
   target_sources(${PROJECT_NAME} PRIVATE
@@ -87,6 +88,7 @@ add_test(NAME tsd::Parameter     COMMAND ${PROJECT_NAME} "[Parameter]"    )
 add_test(NAME tsd::Scene         COMMAND ${PROJECT_NAME} "[Scene]"        )
 add_test(NAME tsd::SceneArchive  COMMAND ${PROJECT_NAME} "[SceneArchive]" )
 add_test(NAME tsd::Token         COMMAND ${PROJECT_NAME} "[Token]"        )
+add_test(NAME tsd::UsdImport     COMMAND ${PROJECT_NAME} "[UsdImport]"    )
 if (TARGET tsd_scivis_studio_model)
   add_test(NAME tsd::SciVisStudio COMMAND ${PROJECT_NAME} "[SciVisStudio]")
 endif()

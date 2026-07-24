@@ -109,6 +109,16 @@ bool classifyFileBinding(const animation::FileBinding &binding,
         result);
   }
 
+  if (binding.kind() == "usdGeometry") {
+    return classifyObjectTarget(entries,
+        ANARI_GEOMETRY,
+        scratch.root()["targetIndex"].getValueOr<size_t>(
+            tsd::core::INVALID_INDEX),
+        inside,
+        outside,
+        result);
+  }
+
   if (binding.kind() == "ensight") {
     auto *parts = scratch.root().child("parts");
     if (!parts || parts->numChildren() == 0) {

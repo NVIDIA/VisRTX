@@ -5,6 +5,7 @@
 
 #include "tsd/core/ColorMapUtil.hpp"
 #include "tsd/core/FlatMap.hpp"
+#include "tsd/io/UsdImport.hpp"
 #include "tsd/scene/Scene.hpp"
 // std
 #include <filesystem>
@@ -84,7 +85,7 @@ void import_SMESH(Scene &scene, tsd::animation::AnimationManager &animMgr, const
 void import_SWC(Scene &scene, tsd::animation::AnimationManager &animMgr, const char *filename, LayerNodeRef location = {});
 void import_SWC_SDF(Scene &scene, tsd::animation::AnimationManager &animMgr, const char *filename, LayerNodeRef location = {});
 void import_TRK(Scene &scene, tsd::animation::AnimationManager &animMgr, const char *filename, LayerNodeRef location = {});
-void import_USD(Scene &scene, tsd::animation::AnimationManager &animMgr, const char *filename, LayerNodeRef location = {});
+UsdImportReport import_USD(Scene &scene, tsd::animation::AnimationManager &animMgr, const char *filename, LayerNodeRef location = {}, const UsdImportOptions &options = {});
 void import_VTP(Scene &scene, tsd::animation::AnimationManager &animMgr, const char *filepath, LayerNodeRef location = {});
 void import_VTU(Scene &scene, tsd::animation::AnimationManager &animMgr, const char *filepath, LayerNodeRef location, std::optional<std::string> propertyName = std::nullopt);
 void import_XYZDP(Scene &scene, tsd::animation::AnimationManager &animMgr, const char *filename, LayerNodeRef location = {});
