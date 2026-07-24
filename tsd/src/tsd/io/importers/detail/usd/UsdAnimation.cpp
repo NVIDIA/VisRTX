@@ -24,29 +24,6 @@ namespace {
 constexpr float MAX_ROTATION_STEP = float(M_PI) * 0.5f;
 constexpr int MAX_DENSIFY_DEPTH = 6;
 
-// Every animated data source contributes the times it actually authored. TSD's
-// time bases are arbitrary rather than uniform, so the only transformation is
-// a rescale onto the Stage's time-code range, keeping every binding from one
-// import on the same clock.
-std::vector<float> normalizeTimes(
-    const pxr::UsdStageRefPtr &stage, const std::vector<double> &times)
-{
-  double start = stage->GetStartTimeCode();
-  double end = stage->GetEndTimeCode();
-  if (!(end > start)) {
-    start = times.front();
-    end = times.back();
-  }
-  const double span = end - start;
-
-  std::vector<float> retval;
-  retval.reserve(times.size());
-  for (double t : times) {
-    retval.push_back(span > 0.0 ? float((t - start) / span) : 0.f);
-  }
-  return retval;
-}
-
 // Largest angle any rotation basis vector turns through between two frames.
 float rotationDelta(const tsd::math::mat4 &a, const tsd::math::mat4 &b)
 {
@@ -107,6 +84,27 @@ void densifyInterval(const TransformSampler &sampler,
 
 } // namespace
 
+std::vector<float> normalizeSampleTimes(
+    const pxr::UsdStageRefPtr &stage, const std::vector<double> &times)
+{
+  if (times.empty())
+    return {};
+
+  double start = stage->GetStartTimeCode();
+  double end = stage->GetEndTimeCode();
+  if (!(end > start)) {
+    start = times.front();
+    end = times.back();
+  }
+  const double span = end - start;
+
+  std::vector<float> retval;
+  retval.reserve(times.size());
+  for (double t : times)
+    retval.push_back(span > 0.0 ? float((t - start) / span) : 0.f);
+  return retval;
+}
+
 void addTransformAnimation(
     ImportContext &ctx, const pxr::SdfPath &primPath, LayerNodeRef node)
 {
@@ -145,7 +143,7 @@ void addTransformAnimation(
 
   auto &animation = ctx.animMgr.addAnimation(primPath.GetName());
   addTransformStepBinding(
-      animation, node, frames, normalizeTimes(ctx.stage, times));
+      animation, node, frames, normalizeSampleTimes(ctx.stage, times));
 }
 
 void addDeformingGeometryAnimation(
@@ -166,12 +164,14 @@ void addDeformingGeometryAnimation(
 
   // One eager frame is already in the Scene; the rest is pulled from the
   // retained Stage on demand (ADR 0018).
+  auto timeBase = normalizeSampleTimes(ctx.stage, sampleTimes);
   auto &animation = ctx.animMgr.addAnimation(primPath.GetName());
   animation.emplaceFileBinding<UsdGeometryFileBinding>(&ctx.scene,
       geometry.data(),
       ctx.filePath,
       primPath.GetString(),
-      std::move(sampleTimes));
+      std::move(sampleTimes),
+      std::move(timeBase));
 }
 
 } // namespace tsd::io::usd

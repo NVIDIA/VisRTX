@@ -23,8 +23,6 @@ using namespace tsd::core;
 
 namespace {
 
-const char *NATIVE_INSTANCING_ROOT = "/UsdNiPropagatedPrototypes";
-
 tsd::math::mat4 flattenedXformOf(
     const pxr::HdSceneIndexBaseRefPtr &sceneIndex, const pxr::SdfPath &primPath)
 {
@@ -83,21 +81,26 @@ std::shared_ptr<PrototypeContent> convertPrototype(ImportContext &ctx,
   content->internalTransformsAnimated =
       subtreeHasAnimatedTransforms(ctx, sceneIndex, prototypeRoot);
 
-  if (!content->internalTransformsAnimated) {
-    const auto rootXform = flattenedXformOf(sceneIndex, prototypeRoot);
-    const auto inverseRoot = tsd::math::inverse(rootXform);
-    for (const pxr::SdfPath &path :
-        pxr::HdSceneIndexPrimView(sceneIndex, prototypeRoot)) {
-      auto prim = sceneIndex->GetPrim(path);
-      if (!isGeometryPrimType(prim.primType))
-        continue;
-      const auto bake =
-          tsd::math::mul(inverseRoot, flattenedXformOf(sceneIndex, path));
-      for (auto &surface : convertGeometry(ctx, sceneIndex, path, prim, bake))
-        content->surfaces.push_back(surface);
-    }
-    ctx.report.convertedPrims += content->surfaces.size();
+  // Either way the Prototype's gprims convert exactly once and are shared by
+  // every placement. Baking is what an animated Prototype gives up, not
+  // sharing: its gprims keep their own transforms and are expanded per
+  // placement as Layer nodes referencing these same objects.
+  const auto rootXform = flattenedXformOf(sceneIndex, prototypeRoot);
+  const auto inverseRoot = tsd::math::inverse(rootXform);
+  for (const pxr::SdfPath &path :
+      pxr::HdSceneIndexPrimView(sceneIndex, prototypeRoot)) {
+    auto prim = sceneIndex->GetPrim(path);
+    if (!isGeometryPrimType(prim.primType))
+      continue;
+    const auto bake = content->internalTransformsAnimated
+        ? tsd::math::IDENTITY_MAT4
+        : tsd::math::mul(inverseRoot, flattenedXformOf(sceneIndex, path));
+    for (auto &surface : convertGeometry(ctx, sceneIndex, path, prim, bake))
+      content->surfaces.push_back(surface);
+    if (content->internalTransformsAnimated)
+      content->gprimPaths.push_back(path);
   }
+  ctx.report.convertedPrims += content->surfaces.size();
 
   registry.prototypes[key] = content;
   return content;
@@ -105,29 +108,27 @@ std::shared_ptr<PrototypeContent> convertPrototype(ImportContext &ctx,
 
 // Expanded fallback for Prototypes whose internal transforms are animated and
 // so cannot be baked: mirror the Prototype subtree beneath each placement,
-// still sharing the converted objects.
+// still referencing the objects converted once by convertPrototype().
 void expandPrototype(ImportContext &ctx,
     const pxr::HdSceneIndexBaseRefPtr &sceneIndex,
     const pxr::SdfPath &prototypeRoot,
-    const pxr::SdfPath &primPath,
-    const tsd::math::mat4 &parentXform,
+    const PrototypeContent &content,
     LayerNodeRef parent)
 {
-  auto prim = sceneIndex->GetPrim(primPath);
-  const auto flattened = flattenedXformOf(sceneIndex, primPath);
-  const auto local = tsd::math::mul(tsd::math::inverse(parentXform), flattened);
+  const auto inverseRoot =
+      tsd::math::inverse(flattenedXformOf(sceneIndex, prototypeRoot));
 
-  auto node = ctx.scene.insertChildTransformNode(
-      parent, local, primPath.GetName().c_str());
-
-  if (isGeometryPrimType(prim.primType)) {
-    for (auto &surface : convertGeometry(
-             ctx, sceneIndex, primPath, prim, tsd::math::IDENTITY_MAT4))
-      ctx.scene.insertChildObjectNode(node, surface, surface->name().c_str());
+  for (size_t i = 0;
+       i < content.surfaces.size() && i < content.gprimPaths.size();
+       ++i) {
+    const auto &path = content.gprimPaths[i];
+    const auto local =
+        tsd::math::mul(inverseRoot, flattenedXformOf(sceneIndex, path));
+    auto node = ctx.scene.insertChildTransformNode(
+        parent, local, path.GetName().c_str());
+    ctx.scene.insertChildObjectNode(
+        node, content.surfaces[i], content.surfaces[i]->name().c_str());
   }
-
-  for (const auto &childPath : sceneIndex->GetChildPrimPaths(primPath))
-    expandPrototype(ctx, sceneIndex, prototypeRoot, childPath, flattened, node);
 }
 
 // The per-instance transforms an instancer carries, either directly as
@@ -301,8 +302,7 @@ void convertInstancer(ImportContext &ctx,
         expandPrototype(ctx,
             sceneIndex,
             topology.prototypes[protoIndex],
-            topology.prototypes[protoIndex],
-            flattenedXformOf(sceneIndex, topology.prototypes[protoIndex]),
+            *content,
             placementNode);
       }
       continue;
@@ -365,12 +365,8 @@ void attachNativeInstances(ImportContext &ctx,
           found != registry.nodeForPrimPath.end() ? found->second : importRoot;
 
       if (content->internalTransformsAnimated) {
-        expandPrototype(ctx,
-            sceneIndex,
-            topology.prototypes[0],
-            topology.prototypes[0],
-            flattenedXformOf(sceneIndex, topology.prototypes[0]),
-            placementNode);
+        expandPrototype(
+            ctx, sceneIndex, topology.prototypes[0], *content, placementNode);
       } else {
         for (auto &surface : content->surfaces) {
           ctx.scene.insertChildObjectNode(

@@ -79,10 +79,6 @@ pxr::HdSceneIndexBaseRefPtr buildFilterChain(pxr::HdSceneIndexBaseRefPtr input)
 // Traversal //////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
-// The root of the subtree UsdImaging synthesises for native instancing. Its
-// contents reach the Scene through their instancers, never directly.
-const char *NATIVE_INSTANCING_ROOT = "/UsdNiPropagatedPrototypes";
-
 bool purposeIsIncluded(
     const pxr::TfToken &purpose, const UsdPurposeSelection &selection)
 {
@@ -117,7 +113,10 @@ struct Traversal
   pxr::HdSceneIndexBaseRefPtr sceneIndex;
   InstancerRegistry &instancers;
 
-  void visit(const pxr::SdfPath &primPath, LayerNodeRef parent, bool hidden);
+  void visit(const pxr::SdfPath &primPath,
+      LayerNodeRef parent,
+      bool hidden,
+      const tsd::math::mat4 &parentXform);
 
   tsd::math::mat4 localTransformOf(
       const pxr::SdfPath &primPath, bool *resetsXformStack) const;
@@ -150,8 +149,10 @@ bool Traversal::isHierarchyPrim(const pxr::SdfPath &primPath) const
   return !prim || bool(pxr::UsdGeomImageable(prim));
 }
 
-void Traversal::visit(
-    const pxr::SdfPath &primPath, LayerNodeRef parent, bool hidden)
+void Traversal::visit(const pxr::SdfPath &primPath,
+    LayerNodeRef parent,
+    bool hidden,
+    const tsd::math::mat4 &parentXform)
 {
   auto prim = sceneIndex->GetPrim(primPath);
 
@@ -191,14 +192,37 @@ void Traversal::visit(
     ctx.reportSkip(
         primPath, prim.primType.GetString(), UsdSkipReason::RESOLVED_INVISIBLE);
   }
+
+  // Visibility is imported as one static enabled/disabled state, so say when
+  // the Stage animates it rather than leaving the difference to be noticed.
+  if (auto imageable =
+          pxr::UsdGeomImageable(ctx.stage->GetPrimAtPath(primPath))) {
+    if (auto attribute = imageable.GetVisibilityAttr();
+        attribute && attribute.GetNumTimeSamples() > 0) {
+      ctx.reportSkip(primPath,
+          prim.primType.GetString(),
+          UsdSkipReason::TIME_VARYING_VALUE_DROPPED,
+          "visibility is time-sampled; imported at the Stage's start of time");
+    }
+  }
   const bool subtreeHidden = hidden || !visible;
 
   // Node for this prim //
 
   bool resetsXformStack = false;
   const auto localXform = localTransformOf(primPath, &resetsXformStack);
+
+  // A prim that resets the transform stack ignores its ancestors in USD. The
+  // node stays where its name belongs in the hierarchy and cancels the
+  // accumulated ancestor transform instead, so TSD's own composition lands on
+  // the same place USD does.
+  const auto nodeXform = resetsXformStack
+      ? tsd::math::mul(tsd::math::inverse(parentXform), localXform)
+      : localXform;
+  const auto accumulatedXform = tsd::math::mul(parentXform, nodeXform);
+
   auto node = ctx.scene.insertChildTransformNode(
-      parent, localXform, primPath.GetName().c_str());
+      parent, nodeXform, primPath.GetName().c_str());
   if (resetsXformStack)
     (*node)->setInstanceParameter("usd:resetXformStack", Any(true));
   if (subtreeHidden)
@@ -230,7 +254,7 @@ void Traversal::visit(
     convertInstancer(ctx, sceneIndex, primPath, prim, node, instancers);
     converted = true;
   } else if (isLightPrimType(prim.primType)) {
-    if (auto light = convertLight(ctx, sceneIndex, primPath, prim)) {
+    if (auto light = convertLight(ctx, primPath, prim)) {
       ctx.scene.insertChildObjectNode(node, light, primPath.GetName().c_str());
       converted = true;
     } else {
@@ -240,7 +264,7 @@ void Traversal::visit(
       return;
     }
   } else if (prim.primType == pxr::HdPrimTypeTokens->camera) {
-    convertCamera(ctx, sceneIndex, primPath, prim);
+    convertCamera(ctx, primPath);
     converted = true;
   } else if (prim.primType == pxr::HdPrimTypeTokens->material
       || prim.primType == pxr::HdPrimTypeTokens->geomSubset) {
@@ -273,7 +297,7 @@ void Traversal::visit(
   addTransformAnimation(ctx, primPath, node);
 
   for (const auto &childPath : sceneIndex->GetChildPrimPaths(primPath))
-    visit(childPath, node, subtreeHidden);
+    visit(childPath, node, subtreeHidden, accumulatedXform);
 }
 
 } // namespace
@@ -338,10 +362,10 @@ UsdImportReport import_USD(Scene &scene,
     for (const auto &childPath : sceneIndex->GetChildPrimPaths(scopeRoot)) {
       if (childPath.GetString() == NATIVE_INSTANCING_ROOT)
         continue;
-      traversal.visit(childPath, root, false);
+      traversal.visit(childPath, root, false, tsd::math::IDENTITY_MAT4);
     }
   } else {
-    traversal.visit(scopeRoot, root, false);
+    traversal.visit(scopeRoot, root, false, tsd::math::IDENTITY_MAT4);
   }
 
   // Native-instance placements live outside the mirrored hierarchy; attach

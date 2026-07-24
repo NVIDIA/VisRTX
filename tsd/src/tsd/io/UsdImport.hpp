@@ -44,6 +44,9 @@ enum class UsdMaterialMode
   MDL
 };
 
+const char *toString(UsdMaterialMode mode);
+UsdMaterialMode usdMaterialModeFromString(const std::string &name);
+
 /*
  * Typed settings for one USD Stage import. Every field has a default that
  * makes the common case need no configuration, and the whole value converts to
@@ -95,7 +98,11 @@ enum class UsdSkipReason
   TEXTURE_LOAD_FAILED,
   UNSUPPORTED_LIGHT_TYPE,
   RICHER_MATERIAL_AVAILABLE,
-  TIME_VARYING_VALUE_DROPPED
+  TIME_VARYING_VALUE_DROPPED,
+
+  // Not a reason: the count of reasons above, so that adding one does not
+  // require updating a second list.
+  COUNT
 };
 
 const char *toString(UsdSkipReason reason);

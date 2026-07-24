@@ -14,6 +14,10 @@
 
 namespace tsd::io::usd {
 
+// The root of the subtree UsdImaging synthesises for native instancing. Its
+// contents reach the Scene through their instancers, never directly.
+constexpr const char *NATIVE_INSTANCING_ROOT = "/UsdNiPropagatedPrototypes";
+
 // One Prototype converted once, as a flat set of Surfaces with each gprim's
 // Prototype-root-relative transform baked into its vertex data (ADR 0016).
 // Empty `surfaces` with `internalTransformsAnimated` set means the Prototype
@@ -21,6 +25,10 @@ namespace tsd::io::usd {
 struct PrototypeContent
 {
   std::vector<SurfaceRef> surfaces;
+  // Populated only when the Prototype could not be baked: the resolved path of
+  // the gprim each Surface came from, so placements can be expanded with the
+  // gprim's own transform while still sharing the Surface.
+  std::vector<pxr::SdfPath> gprimPaths;
   bool internalTransformsAnimated{false};
 };
 

@@ -311,6 +311,26 @@ ResolvedMaterial resolveMaterial(ImportContext &ctx,
         "reading a portable mapping instead");
   }
 
+  // Material values are imported at one time, so say when the Stage animates
+  // them rather than leaving the difference to be noticed.
+  if (auto usdPrim = ctx.stage->GetPrimAtPath(materialPath)) {
+    for (const auto &descendant : usdPrim.GetDescendants()) {
+      pxr::UsdShadeShader shader(descendant);
+      if (!shader)
+        continue;
+      bool animated = false;
+      for (const auto &input : shader.GetInputs())
+        animated = animated || input.GetAttr().GetNumTimeSamples() > 0;
+      if (animated) {
+        ctx.reportSkip(materialPath,
+            prim.primType.GetString(),
+            UsdSkipReason::TIME_VARYING_VALUE_DROPPED,
+            "shader inputs are time-sampled; imported at one time");
+        break;
+      }
+    }
+  }
+
   auto materialSchema = pxr::HdMaterialSchema::GetFromParent(prim.dataSource);
   if (!materialSchema) {
     ctx.reportSkip(materialPath,
@@ -428,8 +448,8 @@ ResolvedMaterial resolveMaterial(ImportContext &ctx,
     if (!emissive.IsEmpty())
       material->setParameter("emissive", asFloat3(emissive, float3(0.f)));
   }
-  if (!bindTexture("normal", "normal", false))
-    ; // no normal map authored
+  // A normal map is optional; nothing else stands in for it.
+  bindTexture("normal", "normal", false);
   if (!bindTexture("metallic", "metallic", false))
     setFloatIfPresent("metallic", "metallic");
   if (!bindTexture("roughness", "roughness", false))

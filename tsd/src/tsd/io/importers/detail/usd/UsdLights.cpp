@@ -4,6 +4,7 @@
 #include "tsd/io/importers/detail/usd/UsdLights.h"
 #include "tsd/animation/AnimationManager.hpp"
 #include "tsd/io/importers/detail/HDRImage.h"
+#include "tsd/io/importers/detail/usd/UsdAnimation.h"
 // usd
 #include <pxr/base/gf/camera.h>
 #include <pxr/imaging/hd/tokens.h>
@@ -187,7 +188,6 @@ bool isLightPrimType(const pxr::TfToken &primType)
 }
 
 LightRef convertLight(ImportContext &ctx,
-    const pxr::HdSceneIndexBaseRefPtr &sceneIndex,
     const pxr::SdfPath &primPath,
     const pxr::HdSceneIndexPrim &prim)
 {
@@ -276,7 +276,7 @@ LightRef convertLight(ImportContext &ctx,
     // Dome orientation is baked into the light's own direction and up rather
     // than left to a transform, because devices mishandle transformed dome
     // lights (and no corrective root transform is inserted for up-axis).
-    pxr::UsdGeomXformCache xformCache(pxr::UsdTimeCode::Default());
+    pxr::UsdGeomXformCache xformCache(ctx.importTime);
     auto worldXform = xformCache.GetLocalToWorldTransform(usdPrim);
     auto orientation = pxr::GfMatrix4d(
         // clang-format off
@@ -314,10 +314,7 @@ LightRef convertLight(ImportContext &ctx,
 // Cameras ////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
-void convertCamera(ImportContext &ctx,
-    const pxr::HdSceneIndexBaseRefPtr &sceneIndex,
-    const pxr::SdfPath &primPath,
-    const pxr::HdSceneIndexPrim &prim)
+void convertCamera(ImportContext &ctx, const pxr::SdfPath &primPath)
 {
   auto usdPrim = ctx.stage->GetPrimAtPath(primPath);
   if (!usdPrim)
@@ -328,7 +325,7 @@ void convertCamera(ImportContext &ctx,
     return;
 
   const auto name = primPath.GetName();
-  const auto defaultCamera = usdCamera.GetCamera(pxr::UsdTimeCode::Default());
+  const auto defaultCamera = usdCamera.GetCamera(ctx.importTime);
   const bool isPerspective =
       defaultCamera.GetProjection() == pxr::GfCamera::Perspective;
 
@@ -366,7 +363,7 @@ void convertCamera(ImportContext &ctx,
   };
 
   {
-    pxr::UsdGeomXformCache cache(pxr::UsdTimeCode::Default());
+    pxr::UsdGeomXformCache cache(ctx.importTime);
     auto [position, direction, up] = poseAt(cache);
     camera->setParameter("position", position);
     camera->setParameter("direction", direction);
@@ -463,9 +460,10 @@ void convertCamera(ImportContext &ctx,
     parameterArrays.push_back(aspects);
   }
 
-  // The authored times are the binding's own time base; TSD's time bases are
-  // arbitrary rather than uniform, so nothing is resampled.
-  std::vector<float> timeBase(sampleTimes.begin(), sampleTimes.end());
+  // The authored times are the binding's own time base, rescaled onto the
+  // Stage's clock so this camera shares one clock with every other binding
+  // from the same import. Nothing is resampled.
+  const auto timeBase = normalizeSampleTimes(ctx.stage, sampleTimes);
   auto &animation = ctx.animMgr.addAnimation(name);
   addValueTimeStepBindings(animation,
       camera.data(),

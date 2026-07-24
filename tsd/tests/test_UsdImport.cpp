@@ -91,27 +91,34 @@ namespace {
 // assertion it supports and keeps binary assets out of the repository.
 struct StageFixture
 {
-  StageFixture(const char *name, const std::string &contents)
-      : m_path(std::filesystem::temp_directory_path() / name)
-  {
-    std::ofstream file(m_path);
-    file << contents;
-  }
+  StageFixture(const char *name, const std::string &contents);
+  ~StageFixture();
 
-  ~StageFixture()
-  {
-    std::error_code ec;
-    std::filesystem::remove(m_path, ec);
-  }
-
-  std::string path() const
-  {
-    return m_path.string();
-  }
+  std::string path() const;
 
  private:
   std::filesystem::path m_path;
 };
+
+// Inlined definitions ////////////////////////////////////////////////////////
+
+inline StageFixture::StageFixture(const char *name, const std::string &contents)
+    : m_path(std::filesystem::temp_directory_path() / name)
+{
+  std::ofstream file(m_path);
+  file << contents;
+}
+
+inline StageFixture::~StageFixture()
+{
+  std::error_code ec;
+  std::filesystem::remove(m_path, ec);
+}
+
+inline std::string StageFixture::path() const
+{
+  return m_path.string();
+}
 
 // Depth-first search for the first node whose name matches.
 tsd::scene::LayerNodeRef findNode(tsd::scene::Layer *layer, const char *name)
@@ -125,7 +132,7 @@ tsd::scene::LayerNodeRef findNode(tsd::scene::Layer *layer, const char *name)
   return found;
 }
 
-const char *QUAD_MESH_BODY = R"(
+constexpr const char *QUAD_MESH_BODY = R"(
         int[] faceVertexCounts = [4]
         int[] faceVertexIndices = [0, 1, 2, 3]
         point3f[] points = [(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)]
@@ -1301,6 +1308,190 @@ def Xform "Rig"
             hasCameraAnimation = true;
         }
         REQUIRE(hasCameraAnimation);
+      }
+    }
+  }
+}
+
+SCENARIO(
+    "Refinement carries face-varying primvars with the surface", "[UsdImport]")
+{
+  GIVEN("A subdivision mesh whose UVs are authored per face corner")
+  {
+    StageFixture stage("tsd_test_usd_subdiv_uvs.usda", R"(#usda 1.0
+
+def Mesh "SubdivQuad"
+{
+    uniform token subdivisionScheme = "catmullClark"
+    int[] faceVertexCounts = [4]
+    int[] faceVertexIndices = [0, 1, 2, 3]
+    point3f[] points = [(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)]
+    texCoord2f[] primvars:st = [(0, 0), (1, 0), (1, 1), (0, 1)] (
+        interpolation = "faceVarying"
+    )
+}
+)");
+
+    tsd::scene::Scene scene;
+    tsd::animation::AnimationManager animMgr(&scene);
+
+    WHEN("The Stage is imported")
+    {
+      auto report = tsd::io::import_USD(scene, animMgr, stage.path().c_str());
+
+      THEN("The UVs survive refinement rather than being dropped")
+      {
+        auto geometry = scene.getObject<tsd::scene::Geometry>(0);
+        REQUIRE(geometry);
+        auto *uvs = geometry->parameterValueAsObject<tsd::scene::Array>(
+            "faceVarying.attribute0");
+        REQUIRE(uvs != nullptr);
+        REQUIRE(uvs->size() > 4);
+      }
+
+      THEN("Nothing is reported as lost")
+      {
+        REQUIRE(report.skipped.empty());
+      }
+    }
+  }
+}
+
+SCENARIO("Analytic prims without a material take their display colour",
+    "[UsdImport]")
+{
+  GIVEN("A point cloud carrying only display colour")
+  {
+    StageFixture stage("tsd_test_usd_points_display_color.usda", R"(#usda 1.0
+
+def Points "Cloud"
+{
+    point3f[] points = [(0, 0, 0), (1, 0, 0)]
+    float[] widths = [0.2, 0.4]
+    color3f[] primvars:displayColor = [(1, 0, 0)] (
+        interpolation = "constant"
+    )
+}
+)");
+
+    tsd::scene::Scene scene;
+    tsd::animation::AnimationManager animMgr(&scene);
+
+    WHEN("The Stage is imported")
+    {
+      tsd::io::import_USD(scene, animMgr, stage.path().c_str());
+
+      THEN("Its material carries the display colour, not TSD's default")
+      {
+        auto surface = scene.getObject<tsd::scene::Surface>(0);
+        REQUIRE(surface);
+        auto *material = surface->parameterValueAsObject<tsd::scene::Material>(
+            tsd::scene::tokens::surface::material);
+        REQUIRE(material != nullptr);
+        REQUIRE(material != scene.defaultMaterial().data());
+
+        const auto color =
+            material->parameterValueAs<tsd::math::float3>("color");
+        REQUIRE(color.has_value());
+        REQUIRE(color->x == Approx(1.f));
+        REQUIRE(color->y == Approx(0.f));
+      }
+
+      THEN("Authored widths become per-point radii")
+      {
+        auto geometry = scene.getObject<tsd::scene::Geometry>(0);
+        auto *radii = geometry->parameterValueAsObject<tsd::scene::Array>(
+            "vertex.radius");
+        REQUIRE(radii != nullptr);
+        REQUIRE(radii->size() == 2);
+        REQUIRE(radii->dataAs<float>()[1] == Approx(0.2f));
+      }
+    }
+  }
+}
+
+SCENARIO("A prim that resets the transform stack ignores its ancestors",
+    "[UsdImport]")
+{
+  GIVEN("A child that resets the transform stack under a moved parent")
+  {
+    StageFixture stage("tsd_test_usd_xform_reset.usda", R"(#usda 1.0
+
+def Xform "Parent"
+{
+    double3 xformOp:translate = (10, 0, 0)
+    uniform token[] xformOpOrder = ["xformOp:translate"]
+
+    def Mesh "Detached"
+    {
+        double3 xformOp:translate = (1, 2, 3)
+        uniform token[] xformOpOrder = ["!resetXformStack!", "xformOp:translate"]
+        int[] faceVertexCounts = [3]
+        int[] faceVertexIndices = [0, 1, 2]
+        point3f[] points = [(0, 0, 0), (1, 0, 0), (0, 1, 0)]
+    }
+}
+)");
+
+    tsd::scene::Scene scene;
+    tsd::animation::AnimationManager animMgr(&scene);
+
+    WHEN("The Stage is imported")
+    {
+      tsd::io::import_USD(scene, animMgr, stage.path().c_str());
+
+      THEN("Composing parent and child lands where USD puts the child")
+      {
+        auto *layer = scene.defaultLayer();
+        auto parent = findNode(layer, "Parent");
+        auto detached = findNode(layer, "Detached");
+        REQUIRE(parent);
+        REQUIRE(detached);
+
+        const auto composed = tsd::math::mul(
+            (*parent)->getTransform(), (*detached)->getTransform());
+        REQUIRE(composed[3].x == Approx(1.f));
+        REQUIRE(composed[3].y == Approx(2.f));
+        REQUIRE(composed[3].z == Approx(3.f));
+      }
+    }
+  }
+}
+
+SCENARIO("Time-varying visibility is reported rather than lost", "[UsdImport]")
+{
+  GIVEN("A mesh whose visibility is animated")
+  {
+    StageFixture stage("tsd_test_usd_animated_visibility.usda", R"(#usda 1.0
+(
+    startTimeCode = 0
+    endTimeCode = 2
+)
+
+def Mesh "Blinker"
+{
+    token visibility.timeSamples = {
+        0: "inherited",
+        1: "invisible",
+    }
+    int[] faceVertexCounts = [3]
+    int[] faceVertexIndices = [0, 1, 2]
+    point3f[] points = [(0, 0, 0), (1, 0, 0), (0, 1, 0)]
+}
+)");
+
+    tsd::scene::Scene scene;
+    tsd::animation::AnimationManager animMgr(&scene);
+
+    WHEN("The Stage is imported")
+    {
+      auto report = tsd::io::import_USD(scene, animMgr, stage.path().c_str());
+
+      THEN("The caller is told the animation was not represented")
+      {
+        REQUIRE(
+            report.countOf(tsd::io::UsdSkipReason::TIME_VARYING_VALUE_DROPPED)
+            == 1);
       }
     }
   }

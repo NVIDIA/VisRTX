@@ -98,13 +98,87 @@ anari::DataType anariTypeOfPrimvar(const pxr::VtValue &value)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// Mesh conversion ////////////////////////////////////////////////////////////
+// Shared conversion helpers //////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
-pxr::VtIntArray intArrayOf(const pxr::HdIntArrayDataSourceHandle &source)
+// Prototype-internal transforms are baked into vertex data (ADR 0016);
+// everything else passes through untouched.
+std::vector<float3> bakedPositions(
+    const pxr::VtVec3fArray &source, const tsd::math::mat4 &bakeXform)
 {
-  return source ? source->GetTypedValue(0) : pxr::VtIntArray();
+  const bool bake = bakeXform != tsd::math::IDENTITY_MAT4;
+  std::vector<float3> retval;
+  retval.reserve(source.size());
+  for (const auto &p : source) {
+    float3 v(p[0], p[1], p[2]);
+    if (bake) {
+      const auto t = tsd::math::mul(bakeXform, float4(v.x, v.y, v.z, 1.f));
+      v = float3(t.x, t.y, t.z);
+    }
+    retval.push_back(v);
+  }
+  return retval;
 }
+
+// USD authors widths; TSD geometry takes radii.
+void bindRadiiFromWidths(ImportContext &ctx,
+    GeometryRef &geometry,
+    const Primvar &widths,
+    size_t vertexCount)
+{
+  if (!widths.valid() || !widths.value.IsHolding<pxr::VtFloatArray>())
+    return;
+  const auto &w = widths.value.UncheckedGet<pxr::VtFloatArray>();
+  if (w.empty())
+    return;
+
+  std::vector<float> radii;
+  radii.reserve(vertexCount);
+  for (size_t i = 0; i < vertexCount; ++i)
+    radii.push_back(0.5f * w[std::min(i, w.size() - 1)]);
+
+  auto array = ctx.scene.createArray(ANARI_FLOAT32, radii.size());
+  array->setData(radii.data(), radii.size());
+  geometry->setParameterObject("vertex.radius", *array);
+}
+
+// The material a resolved prim binds, or an empty path when it binds none.
+pxr::SdfPath boundMaterialPathOf(const pxr::HdSceneIndexPrim &prim)
+{
+  auto bindings = pxr::HdMaterialBindingsSchema::GetFromParent(prim.dataSource);
+  if (auto binding = bindings.GetMaterialBinding()) {
+    if (auto path = binding.GetPath())
+      return path->GetTypedValue(0);
+  }
+  return {};
+}
+
+// A prim with no bound material takes its colour from the display-colour and
+// display-opacity primvars, so unmaterialed content looks as it does in a
+// reference viewer instead of taking TSD's default.
+MaterialRef displayColorMaterial(ImportContext &ctx,
+    const pxr::SdfPath &primPath,
+    const Primvar &displayColor,
+    const Primvar &displayOpacity)
+{
+  auto retval = ctx.scene.createObject<Material>(tokens::material::matte);
+  retval->setName((primPath.GetString() + "_displayColor").c_str());
+  if (displayColor.valid()
+      && displayColor.value.IsHolding<pxr::VtVec3fArray>()) {
+    const auto &c = displayColor.value.UncheckedGet<pxr::VtVec3fArray>();
+    retval->setParameter("color", float3(c[0][0], c[0][1], c[0][2]));
+  }
+  if (displayOpacity.valid()
+      && displayOpacity.value.IsHolding<pxr::VtFloatArray>()) {
+    const auto &o = displayOpacity.value.UncheckedGet<pxr::VtFloatArray>();
+    retval->setParameter("opacity", o[0]);
+  }
+  return retval;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Mesh conversion ////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 
 // Expand a uniform (per-face) primvar to per-triangle values using the
 // triangulation's record of which coarse face each triangle came from.
@@ -168,7 +242,6 @@ namespace {
 // matches the triangulated topology.
 void bindMeshPrimvar(ImportContext &ctx,
     GeometryRef &geometry,
-    const pxr::SdfPath &primPath,
     const pxr::HdMeshUtil &meshUtil,
     const ConvertedMesh &mesh,
     const Primvar &primvar,
@@ -243,13 +316,17 @@ std::vector<SurfaceRef> convertMesh(ImportContext &ctx,
       : pxr::HdTokens->rightHanded;
 
   if (meshWantsRefinement(ctx, primPath)) {
-    std::vector<std::pair<std::string, pxr::VtValue>> vertexPrimvars;
+    MeshPrimvars sourcePrimvars;
     for (const auto &[name, primvar] : primvars) {
+      if (name == pxr::HdPrimvarsSchemaTokens->points.GetString())
+        continue;
       if (primvar.interpolation == pxr::HdPrimvarSchemaTokens->vertex
-          || primvar.interpolation == pxr::HdPrimvarSchemaTokens->varying) {
-        if (name != pxr::HdPrimvarsSchemaTokens->points.GetString())
-          vertexPrimvars.emplace_back(name, primvar.value);
-      }
+          || primvar.interpolation == pxr::HdPrimvarSchemaTokens->varying)
+        sourcePrimvars.vertex.emplace_back(name, primvar.value);
+      else if (primvar.interpolation == pxr::HdPrimvarSchemaTokens->faceVarying)
+        sourcePrimvars.faceVarying.emplace_back(name, primvar.value);
+      else if (primvar.interpolation == pxr::HdPrimvarSchemaTokens->uniform)
+        sourcePrimvars.uniform.emplace_back(name, primvar.value);
     }
 
     auto refined = refineMesh(meshSchema,
@@ -258,34 +335,21 @@ std::vector<SurfaceRef> convertMesh(ImportContext &ctx,
         holeIndices,
         orientation,
         points.value.UncheckedGet<pxr::VtVec3fArray>(),
-        vertexPrimvars,
+        sourcePrimvars,
         ctx.options.refinementLevel);
 
     if (refined.valid) {
       faceVertexCounts = refined.faceVertexCounts;
       faceVertexIndices = refined.faceVertexIndices;
-      holeIndices = pxr::VtIntArray(); // holes are consumed by refinement
+      holeIndices = refined.holeIndices;
       points.value = pxr::VtValue(refined.points);
-      for (auto &[name, value] : refined.vertexPrimvars)
-        primvars[name].value = value;
-
-      // Primvars interpolated per face corner do not survive this refinement
-      // path: their topology changes with the surface. Drop them rather than
-      // bind values that no longer line up with the refined mesh.
-      for (auto it = primvars.begin(); it != primvars.end();) {
-        if (it->second.interpolation == pxr::HdPrimvarSchemaTokens->faceVarying
-            || it->second.interpolation
-                == pxr::HdPrimvarSchemaTokens->uniform) {
-          ctx.reportSkip(primPath,
-              prim.primType.GetString(),
-              UsdSkipReason::UNSUPPORTED_PRIM_TYPE,
-              "primvar '" + it->first
-                  + "' is not carried through subdivision refinement");
-          it = primvars.erase(it);
-        } else {
-          ++it;
-        }
-      }
+      auto writeBack = [&](const std::vector<NamedPrimvar> &group) {
+        for (const auto &[name, value] : group)
+          primvars[name].value = value;
+      };
+      writeBack(refined.primvars.vertex);
+      writeBack(refined.primvars.faceVarying);
+      writeBack(refined.primvars.uniform);
     }
   }
 
@@ -304,31 +368,14 @@ std::vector<SurfaceRef> convertMesh(ImportContext &ctx,
     return {};
 
   // Resolve the bound material first: it names the UV primvar to bind.
-  auto materialBindings =
-      pxr::HdMaterialBindingsSchema::GetFromParent(prim.dataSource);
-  pxr::SdfPath boundMaterialPath;
-  if (auto binding = materialBindings.GetMaterialBinding()) {
-    if (auto path = binding.GetPath())
-      boundMaterialPath = path->GetTypedValue(0);
-  }
-  const auto resolved = resolveMaterial(ctx, sceneIndex, boundMaterialPath);
+  const auto resolved =
+      resolveMaterial(ctx, sceneIndex, boundMaterialPathOf(prim));
 
   auto geometry = ctx.scene.createObject<Geometry>(tokens::geometry::triangle);
   geometry->setName(primPath.GetText());
 
-  // Vertex positions, with Prototype-internal transforms baked in (ADR 0016).
-  const auto &sourcePoints = points.value.UncheckedGet<pxr::VtVec3fArray>();
-  std::vector<float3> positions;
-  positions.reserve(sourcePoints.size());
-  const bool bake = bakeXform != tsd::math::IDENTITY_MAT4;
-  for (const auto &p : sourcePoints) {
-    float3 v(p[0], p[1], p[2]);
-    if (bake) {
-      const auto t = tsd::math::mul(bakeXform, float4(v.x, v.y, v.z, 1.f));
-      v = float3(t.x, t.y, t.z);
-    }
-    positions.push_back(v);
-  }
+  const auto positions =
+      bakedPositions(points.value.UncheckedGet<pxr::VtVec3fArray>(), bakeXform);
   mesh.vertexPosition =
       ctx.scene.createArray(ANARI_FLOAT32_VEC3, positions.size());
   mesh.vertexPosition->setData(positions.data(), positions.size());
@@ -344,19 +391,18 @@ std::vector<SurfaceRef> convertMesh(ImportContext &ctx,
   // name order so the attribute assignment is deterministic.
   const auto normals = lookup(pxr::HdPrimvarsSchemaTokens->normals.GetString());
   if (normals.valid())
-    bindMeshPrimvar(ctx, geometry, primPath, meshUtil, mesh, normals, "normal");
+    bindMeshPrimvar(ctx, geometry, meshUtil, mesh, normals, "normal");
 
   const std::string uvName =
       resolved.uvPrimvarName.empty() ? "st" : resolved.uvPrimvarName;
   const auto uvs = lookup(uvName);
   if (uvs.valid())
-    bindMeshPrimvar(ctx, geometry, primPath, meshUtil, mesh, uvs, "attribute0");
+    bindMeshPrimvar(ctx, geometry, meshUtil, mesh, uvs, "attribute0");
 
   const auto displayColor = lookup(pxr::HdTokens->displayColor.GetString());
   if (displayColor.valid()
       && displayColor.interpolation != pxr::HdPrimvarSchemaTokens->constant) {
-    bindMeshPrimvar(
-        ctx, geometry, primPath, meshUtil, mesh, displayColor, "color");
+    bindMeshPrimvar(ctx, geometry, meshUtil, mesh, displayColor, "color");
   }
 
   int nextAttribute = 1;
@@ -374,7 +420,6 @@ std::vector<SurfaceRef> convertMesh(ImportContext &ctx,
       continue;
     bindMeshPrimvar(ctx,
         geometry,
-        primPath,
         meshUtil,
         mesh,
         primvar,
@@ -385,23 +430,10 @@ std::vector<SurfaceRef> convertMesh(ImportContext &ctx,
 
   auto material = resolved.material;
   if (!material) {
-    // No bound material: take colour from the display-colour primvars so that
-    // unmaterialed content looks as it does in a reference viewer instead of
-    // taking TSD's default.
-    material = ctx.scene.createObject<Material>(tokens::material::matte);
-    material->setName((primPath.GetString() + "_displayColor").c_str());
-    if (displayColor.valid()
-        && displayColor.value.IsHolding<pxr::VtVec3fArray>()) {
-      const auto &c = displayColor.value.UncheckedGet<pxr::VtVec3fArray>();
-      material->setParameter("color", float3(c[0][0], c[0][1], c[0][2]));
-    }
-    const auto displayOpacity =
-        lookup(pxr::HdTokens->displayOpacity.GetString());
-    if (displayOpacity.valid()
-        && displayOpacity.value.IsHolding<pxr::VtFloatArray>()) {
-      const auto &o = displayOpacity.value.UncheckedGet<pxr::VtFloatArray>();
-      material->setParameter("opacity", o[0]);
-    }
+    material = displayColorMaterial(ctx,
+        primPath,
+        displayColor,
+        lookup(pxr::HdTokens->displayOpacity.GetString()));
   }
 
   // Per-face material subsets each become their own Surface over their own
@@ -469,15 +501,9 @@ std::vector<SurfaceRef> convertMesh(ImportContext &ctx,
         subsetGeometry->setParameterObject(Token(name), *array);
     }
 
-    auto subsetBindings =
-        pxr::HdMaterialBindingsSchema::GetFromParent(subsetPrim.dataSource);
-    pxr::SdfPath subsetMaterialPath;
-    if (auto binding = subsetBindings.GetMaterialBinding()) {
-      if (auto path = binding.GetPath())
-        subsetMaterialPath = path->GetTypedValue(0);
-    }
     auto subsetMaterial =
-        resolveMaterial(ctx, sceneIndex, subsetMaterialPath).material;
+        resolveMaterial(ctx, sceneIndex, boundMaterialPathOf(subsetPrim))
+            .material;
 
     retval.push_back(ctx.scene.createSurface(subsetPath.GetText(),
         subsetGeometry,
@@ -496,35 +522,22 @@ std::vector<SurfaceRef> convertMesh(ImportContext &ctx,
 // Points and curves //////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
-std::vector<float3> bakedPositions(
-    const pxr::VtVec3fArray &source, const tsd::math::mat4 &bakeXform)
-{
-  const bool bake = bakeXform != tsd::math::IDENTITY_MAT4;
-  std::vector<float3> retval;
-  retval.reserve(source.size());
-  for (const auto &p : source) {
-    float3 v(p[0], p[1], p[2]);
-    if (bake) {
-      const auto t = tsd::math::mul(bakeXform, float4(v.x, v.y, v.z, 1.f));
-      v = float3(t.x, t.y, t.z);
-    }
-    retval.push_back(v);
-  }
-  return retval;
-}
-
+// Points, curves, and quadrics resolve their material the same way a mesh
+// does, including the display-colour fallback for unmaterialed prims.
 MaterialRef materialForPrim(ImportContext &ctx,
     const pxr::HdSceneIndexBaseRefPtr &sceneIndex,
+    const pxr::SdfPath &primPath,
     const pxr::HdSceneIndexPrim &prim)
 {
-  auto bindings = pxr::HdMaterialBindingsSchema::GetFromParent(prim.dataSource);
-  pxr::SdfPath path;
-  if (auto binding = bindings.GetMaterialBinding()) {
-    if (auto p = binding.GetPath())
-      path = p->GetTypedValue(0);
-  }
-  auto material = resolveMaterial(ctx, sceneIndex, path).material;
-  return material ? material : ctx.scene.defaultMaterial();
+  if (auto material =
+          resolveMaterial(ctx, sceneIndex, boundMaterialPathOf(prim)).material)
+    return material;
+
+  auto primvars = pxr::HdPrimvarsSchema::GetFromParent(prim.dataSource);
+  return displayColorMaterial(ctx,
+      primPath,
+      readPrimvar(primvars, pxr::HdTokens->displayColor),
+      readPrimvar(primvars, pxr::HdTokens->displayOpacity));
 }
 
 std::vector<SurfaceRef> convertPoints(ImportContext &ctx,
@@ -549,21 +562,14 @@ std::vector<SurfaceRef> convertPoints(ImportContext &ctx,
   positionArray->setData(positions.data(), positions.size());
   geometry->setParameterObject("vertex.position", *positionArray);
 
-  const auto widths =
-      readPrimvar(primvars, pxr::HdPrimvarsSchemaTokens->widths);
-  if (widths.valid() && widths.value.IsHolding<pxr::VtFloatArray>()) {
-    const auto &w = widths.value.UncheckedGet<pxr::VtFloatArray>();
-    std::vector<float> radii;
-    radii.reserve(positions.size());
-    for (size_t i = 0; i < positions.size(); ++i)
-      radii.push_back(0.5f * w[std::min(i, w.size() - 1)]);
-    auto radiusArray = ctx.scene.createArray(ANARI_FLOAT32, radii.size());
-    radiusArray->setData(radii.data(), radii.size());
-    geometry->setParameterObject("vertex.radius", *radiusArray);
-  }
+  bindRadiiFromWidths(ctx,
+      geometry,
+      readPrimvar(primvars, pxr::HdPrimvarsSchemaTokens->widths),
+      positions.size());
 
-  return {ctx.scene.createSurface(
-      primPath.GetText(), geometry, materialForPrim(ctx, sceneIndex, prim))};
+  return {ctx.scene.createSurface(primPath.GetText(),
+      geometry,
+      materialForPrim(ctx, sceneIndex, primPath, prim))};
 }
 
 std::vector<SurfaceRef> convertCurves(ImportContext &ctx,
@@ -609,21 +615,14 @@ std::vector<SurfaceRef> convertCurves(ImportContext &ctx,
     geometry->setParameterObject("primitive.index", *indexArray);
   }
 
-  const auto widths =
-      readPrimvar(primvars, pxr::HdPrimvarsSchemaTokens->widths);
-  if (widths.valid() && widths.value.IsHolding<pxr::VtFloatArray>()) {
-    const auto &w = widths.value.UncheckedGet<pxr::VtFloatArray>();
-    std::vector<float> radii;
-    radii.reserve(positions.size());
-    for (size_t i = 0; i < positions.size(); ++i)
-      radii.push_back(0.5f * w[std::min(i, w.size() - 1)]);
-    auto radiusArray = ctx.scene.createArray(ANARI_FLOAT32, radii.size());
-    radiusArray->setData(radii.data(), radii.size());
-    geometry->setParameterObject("vertex.radius", *radiusArray);
-  }
+  bindRadiiFromWidths(ctx,
+      geometry,
+      readPrimvar(primvars, pxr::HdPrimvarsSchemaTokens->widths),
+      positions.size());
 
-  return {ctx.scene.createSurface(
-      primPath.GetText(), geometry, materialForPrim(ctx, sceneIndex, prim))};
+  return {ctx.scene.createSurface(primPath.GetText(),
+      geometry,
+      materialForPrim(ctx, sceneIndex, primPath, prim))};
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -712,8 +711,9 @@ std::vector<SurfaceRef> convertQuadric(ImportContext &ctx,
     return {};
 
   geometry->setName(primPath.GetText());
-  return {ctx.scene.createSurface(
-      primPath.GetText(), geometry, materialForPrim(ctx, sceneIndex, prim))};
+  return {ctx.scene.createSurface(primPath.GetText(),
+      geometry,
+      materialForPrim(ctx, sceneIndex, primPath, prim))};
 }
 
 } // namespace

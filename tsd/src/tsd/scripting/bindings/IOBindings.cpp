@@ -16,9 +16,11 @@
 
 namespace tsd::scripting {
 
+namespace {
+
 // Read USD import settings out of a Lua table. Absent keys keep their
 // defaults, so the common case stays `tsd.io.importUSD(scene, anim, file)`.
-static tsd::io::UsdImportOptions usdImportOptionsFromLuaTable(
+tsd::io::UsdImportOptions usdImportOptionsFromLuaTable(
     const sol::table &settings)
 {
   tsd::io::UsdImportOptions retval;
@@ -42,14 +44,8 @@ static tsd::io::UsdImportOptions usdImportOptionsFromLuaTable(
     }
   }
 
-  if (sol::optional<std::string> mode = settings["materialMode"]) {
-    if (*mode == "materialx")
-      retval.materialMode = tsd::io::UsdMaterialMode::MATERIALX;
-    else if (*mode == "mdl")
-      retval.materialMode = tsd::io::UsdMaterialMode::MDL;
-    else
-      retval.materialMode = tsd::io::UsdMaterialMode::PHYSICALLY_BASED;
-  }
+  if (sol::optional<std::string> mode = settings["materialMode"])
+    retval.materialMode = tsd::io::usdMaterialModeFromString(*mode);
 
   if (sol::optional<int> level = settings["refinementLevel"])
     retval.refinementLevel = *level;
@@ -58,6 +54,8 @@ static tsd::io::UsdImportOptions usdImportOptionsFromLuaTable(
 
   return retval;
 }
+
+} // namespace
 
 #define TSD_LUA_IMPORT_WRAP(import_call, filename)                             \
   try {                                                                        \

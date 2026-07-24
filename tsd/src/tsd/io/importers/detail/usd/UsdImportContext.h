@@ -10,6 +10,7 @@
 #include "tsd/scene/Scene.hpp"
 // usd
 #include <pxr/base/gf/matrix4d.h>
+#include <pxr/imaging/hd/dataSourceTypeDefs.h>
 #include <pxr/usd/sdf/path.h>
 #include <pxr/usd/usd/stage.h>
 // std
@@ -65,6 +66,7 @@ struct ImportContext
 // Small conversions shared by every converter /////////////////////////////////
 
 tsd::math::mat4 toTsdMat4(const pxr::GfMatrix4d &m);
+pxr::VtIntArray intArrayOf(const pxr::HdIntArrayDataSourceHandle &source);
 
 // Inlined definitions ////////////////////////////////////////////////////////
 
@@ -79,6 +81,11 @@ inline void ImportContext::reportSkip(const pxr::SdfPath &primPath,
       toString(reason),
       detail.empty() ? "" : " -- ",
       detail.c_str());
+}
+
+inline pxr::VtIntArray intArrayOf(const pxr::HdIntArrayDataSourceHandle &source)
+{
+  return source ? source->GetTypedValue(0) : pxr::VtIntArray();
 }
 
 inline tsd::math::mat4 toTsdMat4(const pxr::GfMatrix4d &m)

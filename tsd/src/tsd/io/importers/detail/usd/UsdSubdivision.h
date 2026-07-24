@@ -11,15 +11,29 @@
 #include <pxr/imaging/hd/sceneIndex.h>
 // std
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace tsd::io::usd {
 
+// A named primvar value, flattened out of any indexing.
+using NamedPrimvar = std::pair<std::string, pxr::VtValue>;
+
+/*
+ * The primvars of one mesh, split by the interpolation that decides how
+ * OpenSubdiv must carry them through refinement.
+ */
+struct MeshPrimvars
+{
+  std::vector<NamedPrimvar> vertex; // vertex and varying
+  std::vector<NamedPrimvar> faceVarying; // one value per face corner
+  std::vector<NamedPrimvar> uniform; // one value per face
+};
+
 /*
  * A mesh after OpenSubdiv refinement: the limit-level topology together with
- * every vertex-interpolated primvar carried through the same refinement, so
- * that smooth assets do not arrive faceted and their attributes stay aligned
- * with their points.
+ * every primvar carried through the same refinement, so that smooth assets do
+ * not arrive faceted and their attributes stay aligned with their points.
  */
 struct RefinedMesh
 {
@@ -28,7 +42,7 @@ struct RefinedMesh
   pxr::VtIntArray faceVertexIndices;
   pxr::VtIntArray holeIndices;
   pxr::VtVec3fArray points;
-  std::vector<std::pair<std::string, pxr::VtValue>> vertexPrimvars;
+  MeshPrimvars primvars;
 };
 
 // True when this mesh should be refined: the Stage explicitly declares a
@@ -46,7 +60,7 @@ RefinedMesh refineMesh(const pxr::HdMeshSchema &meshSchema,
     const pxr::VtIntArray &holeIndices,
     const pxr::TfToken &orientation,
     const pxr::VtVec3fArray &points,
-    const std::vector<std::pair<std::string, pxr::VtValue>> &vertexPrimvars,
+    const MeshPrimvars &primvars,
     int refinementLevel);
 
 } // namespace tsd::io::usd

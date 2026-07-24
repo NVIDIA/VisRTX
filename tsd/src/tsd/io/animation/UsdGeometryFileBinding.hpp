@@ -27,11 +27,15 @@ namespace tsd::io {
  */
 struct UsdGeometryFileBinding : public tsd::animation::FileBinding
 {
+  // `sampleTimes` are the prim's authored time codes; `timeBase` is those
+  // same samples on the animation clock, so the frame chosen for a given time
+  // follows the authored spacing rather than an even grid.
   UsdGeometryFileBinding(scene::Scene *scene,
       scene::Geometry *geometry,
       std::string stageFile,
       std::string primPath,
-      std::vector<double> sampleTimes);
+      std::vector<double> sampleTimes,
+      std::vector<float> timeBase);
 
   // FileBinding interface //
 
@@ -39,9 +43,8 @@ struct UsdGeometryFileBinding : public tsd::animation::FileBinding
   void toDataNode(tsd::core::DataNode &node) const override;
   void onDefragment(const scene::IndexRemapper &cb) override;
 
-  // Pull the vertex arrays for the sample nearest `t`, which is normalized
-  // across the binding's authored sample times. No-ops if the frame has not
-  // changed.
+  // Pull the vertex arrays for the authored sample `t` falls in. No-ops if
+  // the frame has not changed.
   void update(float t) override;
 
   size_t frameCount() const;
@@ -60,6 +63,7 @@ struct UsdGeometryFileBinding : public tsd::animation::FileBinding
   std::string m_stageFile;
   std::string m_primPath;
   std::vector<double> m_sampleTimes;
+  std::vector<float> m_timeBase;
   int m_currentFrame{0};
 
   // Opened lazily on the first update and retained thereafter, so scrubbing

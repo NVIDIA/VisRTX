@@ -8,9 +8,7 @@
 
 namespace tsd::io {
 
-// Helper functions ///////////////////////////////////////////////////////////
-
-static const char *materialModeToString(UsdMaterialMode mode)
+const char *toString(UsdMaterialMode mode)
 {
   switch (mode) {
   case UsdMaterialMode::MATERIALX:
@@ -23,11 +21,11 @@ static const char *materialModeToString(UsdMaterialMode mode)
   }
 }
 
-static UsdMaterialMode materialModeFromString(const std::string &s)
+UsdMaterialMode usdMaterialModeFromString(const std::string &name)
 {
-  if (s == "materialx")
+  if (name == "materialx")
     return UsdMaterialMode::MATERIALX;
-  if (s == "mdl")
+  if (name == "mdl")
     return UsdMaterialMode::MDL;
   return UsdMaterialMode::PHYSICALLY_BASED;
 }
@@ -46,7 +44,7 @@ void UsdImportOptions::toDataNode(core::DataNode &node) const
   for (const auto &context : renderContexts)
     contextsNode.append() = context;
 
-  node["materialMode"] = std::string(materialModeToString(materialMode));
+  node["materialMode"] = std::string(toString(materialMode));
   node["refinementLevel"] = refinementLevel;
   node["primPath"] = primPath;
 }
@@ -72,7 +70,7 @@ void UsdImportOptions::fromDataNode(const core::DataNode &node)
   }
 
   if (const auto *n = node.child("materialMode"))
-    materialMode = materialModeFromString(n->getValueOr<std::string>(""));
+    materialMode = usdMaterialModeFromString(n->getValueOr<std::string>(""));
   if (const auto *n = node.child("refinementLevel"))
     refinementLevel = n->getValueOr<int>(refinementLevel);
   if (const auto *n = node.child("primPath"))
@@ -100,6 +98,8 @@ const char *toString(UsdSkipReason reason)
     return "richer material network available";
   case UsdSkipReason::TIME_VARYING_VALUE_DROPPED:
     return "time-varying value dropped";
+  case UsdSkipReason::COUNT:
+    break;
   }
   return "unknown";
 }
@@ -125,17 +125,9 @@ std::string UsdImportReport::summary() const
       + std::to_string(skipped.size()) + " skipped";
 
   // Counts by reason, in enum order, omitting reasons that did not occur.
-  const UsdSkipReason allReasons[] = {UsdSkipReason::PURPOSE_EXCLUDED,
-      UsdSkipReason::RESOLVED_INVISIBLE,
-      UsdSkipReason::UNSUPPORTED_PRIM_TYPE,
-      UsdSkipReason::MATERIAL_RESOLUTION_FAILED,
-      UsdSkipReason::TEXTURE_LOAD_FAILED,
-      UsdSkipReason::UNSUPPORTED_LIGHT_TYPE,
-      UsdSkipReason::RICHER_MATERIAL_AVAILABLE,
-      UsdSkipReason::TIME_VARYING_VALUE_DROPPED};
-
   bool first = true;
-  for (auto reason : allReasons) {
+  for (int i = 0; i < int(UsdSkipReason::COUNT); ++i) {
+    const auto reason = UsdSkipReason(i);
     const auto count = countOf(reason);
     if (count == 0)
       continue;

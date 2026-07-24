@@ -3,6 +3,7 @@
 
 #include "tsd/io/animation/UsdGeometryFileBinding.hpp"
 // tsd_core
+#include "tsd/animation/Interpolation.hpp"
 #include "tsd/core/DataTree.hpp"
 #include "tsd/core/Logging.hpp"
 #include "tsd/scene/objects/Array.hpp"
@@ -39,12 +40,14 @@ UsdGeometryFileBinding::UsdGeometryFileBinding(scene::Scene *scene,
     scene::Geometry *geometry,
     std::string stageFile,
     std::string primPath,
-    std::vector<double> sampleTimes)
+    std::vector<double> sampleTimes,
+    std::vector<float> timeBase)
     : FileBinding(scene),
       m_geometry(geometry),
       m_stageFile(std::move(stageFile)),
       m_primPath(std::move(primPath)),
-      m_sampleTimes(std::move(sampleTimes))
+      m_sampleTimes(std::move(sampleTimes)),
+      m_timeBase(std::move(timeBase))
 {}
 
 std::string UsdGeometryFileBinding::kind() const
@@ -55,13 +58,17 @@ std::string UsdGeometryFileBinding::kind() const
 void UsdGeometryFileBinding::toDataNode(core::DataNode &node) const
 {
   auto *geometry = m_geometry.get();
-  node["targetIndex"] = geometry ? geometry->index() : size_t(-1);
+  node["targetIndex"] = geometry ? geometry->index() : tsd::core::INVALID_INDEX;
   node["stageFile"] = m_stageFile;
   node["primPath"] = m_primPath;
 
   auto &timesNode = node["sampleTimes"];
   for (double t : m_sampleTimes)
     timesNode.append() = float(t);
+
+  auto &timeBaseNode = node["timeBase"];
+  for (float t : m_timeBase)
+    timeBaseNode.append() = t;
 }
 
 void UsdGeometryFileBinding::onDefragment(const scene::IndexRemapper &cb)
@@ -91,7 +98,8 @@ void UsdGeometryFileBinding::addCallbackToAnimation(
 UsdGeometryFileBinding *UsdGeometryFileBinding::addToAnimation(
     tsd::animation::Animation &anim, scene::Scene &scene, core::DataNode &node)
 {
-  const auto targetIndex = node["targetIndex"].getValueOr<size_t>(size_t(-1));
+  const auto targetIndex =
+      node["targetIndex"].getValueOr<size_t>(tsd::core::INVALID_INDEX);
   auto *geometry = static_cast<scene::Geometry *>(
       scene.getObject(ANARI_GEOMETRY, targetIndex));
   if (!geometry) {
@@ -108,11 +116,19 @@ UsdGeometryFileBinding *UsdGeometryFileBinding::addToAnimation(
     });
   }
 
+  std::vector<float> timeBase;
+  if (auto *timeBaseNode = node.child("timeBase")) {
+    timeBaseNode->foreach_child([&](core::DataNode &n) {
+      timeBase.push_back(n.getValueOr<float>(0.f));
+    });
+  }
+
   return &anim.emplaceFileBinding<UsdGeometryFileBinding>(&scene,
       geometry,
       node["stageFile"].getValueOr<std::string>(""),
       node["primPath"].getValueOr<std::string>(""),
-      std::move(sampleTimes));
+      std::move(sampleTimes),
+      std::move(timeBase));
 }
 
 #if TSD_USE_USD
@@ -122,9 +138,10 @@ void UsdGeometryFileBinding::update(float t)
   if (m_sampleTimes.empty() || !scene())
     return;
 
-  const int frameCount = int(m_sampleTimes.size());
-  const int frame =
-      std::clamp(int(std::round(t * float(frameCount - 1))), 0, frameCount - 1);
+  // Pick the authored sample `t` falls in, so playback follows the authored
+  // spacing rather than an even grid.
+  const auto sample = tsd::animation::findTimeSample(m_timeBase, t);
+  const int frame = int(sample.alpha >= 0.5f ? sample.hi : sample.lo);
   if (frame == m_currentFrame && m_stage)
     return;
 
