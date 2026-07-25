@@ -169,6 +169,25 @@ if (TSD_USE_USD)
   project_compile_definitions(PUBLIC -DTSD_USE_USD=1)
   project_link_libraries(PRIVATE ${PXR_LIBRARIES} OpenSubdiv::osdCPU)
 
+  # MaterialX passthrough needs OpenUSD's own HdMtlx document conversion, which
+  # is only present when OpenUSD was built with PXR_ENABLE_MATERIALX_SUPPORT.
+  # Detect it rather than requiring it, so installs without it still build --
+  # the importer reports the mode as unavailable and emits portable materials.
+  # pxrConfig already points MaterialX_DIR at the build OpenUSD was linked
+  # against, so no extra hint is normally needed.
+  find_package(MaterialX QUIET)
+  if (MaterialX_FOUND
+      AND EXISTS "${PXR_INCLUDE_DIRS}/pxr/imaging/hdMtlx/hdMtlx.h")
+    project_compile_definitions(PUBLIC -DTSD_USD_HAS_MATERIALX=1)
+    project_link_libraries(PRIVATE MaterialXCore MaterialXFormat)
+    message(STATUS "TSD: USD import has native MaterialX passthrough")
+  else()
+    project_compile_definitions(PUBLIC -DTSD_USD_HAS_MATERIALX=0)
+    message(STATUS
+      "TSD: OpenUSD lacks hdMtlx -- USD import will report MaterialX"
+      " passthrough as unavailable and emit portable materials instead")
+  endif()
+
   # The USD importer's converters, which have no meaning without OpenUSD.
   project_sources(
   PRIVATE

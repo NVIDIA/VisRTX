@@ -13,6 +13,12 @@
 #include <pxr/usd/usdShade/connectableAPI.h>
 #include <pxr/usd/usdShade/material.h>
 #include <pxr/usd/usdShade/shader.h>
+#if TSD_USD_HAS_MATERIALX
+#include <MaterialXCore/Document.h>
+#include <MaterialXFormat/XmlIo.h>
+#include <pxr/imaging/hd/dataSourceMaterialNetworkInterface.h>
+#include <pxr/imaging/hdMtlx/hdMtlx.h>
+#endif
 // std
 #include <string>
 #include <vector>
@@ -28,6 +34,9 @@ const pxr::TfToken PREVIEW_SURFACE_ID("UsdPreviewSurface");
 const pxr::TfToken UV_TEXTURE_ID("UsdUVTexture");
 const pxr::TfToken PRIMVAR_READER_ID("UsdPrimvarReader_float2");
 const pxr::TfToken TRANSFORM_2D_ID("UsdTransform2d");
+
+// The Render Context OpenUSD publishes MaterialX networks under.
+const pxr::TfToken MATERIALX_CONTEXT("mtlx");
 
 // One resolved UsdPreviewSurface network, walked lazily out of the Hydra
 // material network container.
@@ -247,6 +256,72 @@ MaterialRef tryMdlPassthrough(
   return {};
 }
 
+#if TSD_USD_HAS_MATERIALX
+
+// Native MaterialX passthrough. The document is generated from the resolved
+// network by OpenUSD's own conversion, so a MaterialX network passes through
+// intact and a preview-surface network converts through its MaterialX node
+// definitions. Returns a null ref when no network converts, so the caller can
+// fall back to a portable mapping.
+MaterialRef tryMaterialXPassthrough(ImportContext &ctx,
+    const pxr::SdfPath &materialPath,
+    const pxr::HdSceneIndexPrim &prim,
+    const pxr::HdMaterialNetworkSchema &network)
+{
+  if (!network || !network.GetNodes())
+    return {};
+
+  auto surfaceTerminal =
+      network.GetTerminals().Get(pxr::HdMaterialTerminalTokens->surface);
+  if (!surfaceTerminal)
+    return {};
+  auto terminalPathSource = surfaceTerminal.GetUpstreamNodePath();
+  if (!terminalPathSource)
+    return {};
+  const auto terminalNode = terminalPathSource->GetTypedValue(0);
+
+  pxr::HdDataSourceMaterialNetworkInterface networkInterface(
+      materialPath, network.GetContainer(), prim.dataSource);
+
+  // Only a terminal MaterialX itself defines can be converted. A
+  // UsdPreviewSurface terminal has no MaterialX node definition, and asking
+  // for one anyway yields a document that fails MaterialX's own validation.
+  if (!pxr::HdMtlxGetNodeDef(networkInterface.GetNodeType(terminalNode),
+          pxr::HdMtlxStdLibraries()))
+    return {};
+
+  auto document = pxr::HdMtlxCreateMtlxDocumentFromHdMaterialNetworkInterface(
+      &networkInterface,
+      terminalNode,
+      networkInterface.GetNodeInputConnectionNames(terminalNode),
+      pxr::HdMtlxStdLibraries());
+  if (!document)
+    return {};
+
+  // The document names its own surface material node; TSD selects by that
+  // name rather than assuming one derived from the prim path.
+  std::string materialName;
+  for (const auto &node : document->getMaterialNodes()) {
+    materialName = node->getName();
+    break;
+  }
+  if (materialName.empty())
+    return {};
+
+  const auto xml = MaterialX::writeToXmlString(document);
+  if (xml.empty())
+    return {};
+
+  auto retval = ctx.scene.createObject<Material>(tokens::material::materialx);
+  retval->setName(materialPath.GetString().c_str());
+  retval->setParameter("sourceType", "documentInline");
+  retval->setParameter("source", xml.c_str());
+  retval->setParameter("materialName", materialName.c_str());
+  return retval;
+}
+
+#endif
+
 // Try each Render Context in the caller's preference order, falling back per
 // material so a Stage mixing network flavours resolves completely either way.
 pxr::HdMaterialNetworkSchema selectNetwork(
@@ -286,22 +361,43 @@ ResolvedMaterial resolveMaterial(ImportContext &ctx,
   }
 
   auto prim = sceneIndex->GetPrim(materialPath);
+  auto materialSchema = pxr::HdMaterialSchema::GetFromParent(prim.dataSource);
+
+  auto cacheAndReturn = [&](MaterialRef material) {
+    ctx.materialCache[key] = material;
+    ctx.uvPrimvarCache[key] = std::string();
+    ResolvedMaterial retval;
+    retval.material = material;
+    return retval;
+  };
 
   // Native passthrough modes are opt-in; each falls back to the portable
   // mapping, saying so, rather than dropping the material.
   if (ctx.options.materialMode == UsdMaterialMode::MDL) {
-    if (auto material = tryMdlPassthrough(ctx, materialPath)) {
-      ctx.materialCache[key] = material;
-      ctx.uvPrimvarCache[key] = std::string();
-      ResolvedMaterial retval;
-      retval.material = material;
-      return retval;
-    }
+    if (auto material = tryMdlPassthrough(ctx, materialPath))
+      return cacheAndReturn(material);
     ctx.reportSkip(materialPath,
         prim.primType.GetString(),
         UsdSkipReason::RICHER_MATERIAL_AVAILABLE,
         "no MDL network authored; reading a portable mapping instead");
   } else if (ctx.options.materialMode == UsdMaterialMode::MATERIALX) {
+#if TSD_USD_HAS_MATERIALX
+    // Prefer an authored MaterialX network, but a preview-surface network also
+    // converts through its own MaterialX node definitions.
+    if (materialSchema) {
+      auto network = materialSchema.GetMaterialNetwork(MATERIALX_CONTEXT);
+      if (!network || !network.GetNodes())
+        network = selectNetwork(materialSchema, ctx.options.renderContexts);
+      if (auto material =
+              tryMaterialXPassthrough(ctx, materialPath, prim, network))
+        return cacheAndReturn(material);
+    }
+    ctx.reportSkip(materialPath,
+        prim.primType.GetString(),
+        UsdSkipReason::RICHER_MATERIAL_AVAILABLE,
+        "no network could be converted to a MaterialX document; reading a"
+        " portable mapping instead");
+#else
     // MaterialX passthrough needs OpenUSD's HdMtlx document conversion, which
     // this build of OpenUSD does not ship.
     ctx.reportSkip(materialPath,
@@ -309,6 +405,7 @@ ResolvedMaterial resolveMaterial(ImportContext &ctx,
         UsdSkipReason::RICHER_MATERIAL_AVAILABLE,
         "MaterialX passthrough is unavailable in this OpenUSD build; "
         "reading a portable mapping instead");
+#endif
   }
 
   // Material values are imported at one time, so say when the Stage animates
@@ -331,7 +428,6 @@ ResolvedMaterial resolveMaterial(ImportContext &ctx,
     }
   }
 
-  auto materialSchema = pxr::HdMaterialSchema::GetFromParent(prim.dataSource);
   if (!materialSchema) {
     ctx.reportSkip(materialPath,
         prim.primType.GetString(),

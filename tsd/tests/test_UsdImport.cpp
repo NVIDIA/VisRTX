@@ -843,6 +843,189 @@ def Xform "World"
   }
 }
 
+SCENARIO("Native material passthrough is opt-in", "[UsdImport]")
+{
+  // The material a Surface actually uses, rather than whatever happens to sit
+  // at index 0 of the pool (which is the Scene's own default material).
+  auto boundMaterial = [](tsd::scene::Scene &scene) {
+    auto surface = scene.getObject<tsd::scene::Surface>(0);
+    REQUIRE(surface);
+    auto *material = surface->parameterValueAsObject<tsd::scene::Material>(
+        tsd::scene::tokens::surface::material);
+    REQUIRE(material != nullptr);
+    return material;
+  };
+
+  auto stringParameter = [](tsd::scene::Material *material, const char *name) {
+    auto *p = material->parameter(name);
+    return p ? p->value().getString() : std::string();
+  };
+
+  GIVEN("A Stage whose material is an ordinary preview surface")
+  {
+    StageFixture stage("tsd_test_usd_preview_material.usda", R"(#usda 1.0
+
+def Xform "World"
+{
+    def Material "Surface"
+    {
+        token outputs:surface.connect = </World/Surface/PBR.outputs:surface>
+        def Shader "PBR"
+        {
+            uniform token info:id = "UsdPreviewSurface"
+            color3f inputs:diffuseColor = (0.8, 0.2, 0.1)
+            float inputs:roughness = 0.4
+            token outputs:surface
+        }
+    }
+
+    def Mesh "Quad" (
+        prepend apiSchemas = ["MaterialBindingAPI"]
+    )
+    {
+        int[] faceVertexCounts = [4]
+        int[] faceVertexIndices = [0, 1, 2, 3]
+        point3f[] points = [(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)]
+        rel material:binding = </World/Surface>
+    }
+}
+)");
+
+    WHEN("The default material mode is used")
+    {
+      tsd::scene::Scene scene;
+      tsd::animation::AnimationManager animMgr(&scene);
+      auto report = tsd::io::import_USD(scene, animMgr, stage.path().c_str());
+
+      THEN("A portable physically-based material is emitted")
+      {
+        REQUIRE(boundMaterial(scene)->subtype()
+            == tsd::scene::tokens::material::physicallyBased);
+        REQUIRE(report.skipped.empty());
+      }
+    }
+
+    WHEN("A native passthrough is asked for that this material cannot give")
+    {
+      tsd::scene::Scene scene;
+      tsd::animation::AnimationManager animMgr(&scene);
+      tsd::io::UsdImportOptions options;
+      options.materialMode = tsd::io::UsdMaterialMode::MDL;
+      auto report = tsd::io::import_USD(
+          scene, animMgr, stage.path().c_str(), {}, options);
+
+      THEN("The fallback to a portable mapping is reported, not silent")
+      {
+        REQUIRE(boundMaterial(scene)->subtype()
+            == tsd::scene::tokens::material::physicallyBased);
+        REQUIRE(
+            report.countOf(tsd::io::UsdSkipReason::RICHER_MATERIAL_AVAILABLE)
+            == 1);
+      }
+    }
+
+#if TSD_USD_HAS_MATERIALX
+    WHEN("MaterialX emission is asked for")
+    {
+      tsd::scene::Scene scene;
+      tsd::animation::AnimationManager animMgr(&scene);
+      tsd::io::UsdImportOptions options;
+      options.materialMode = tsd::io::UsdMaterialMode::MATERIALX;
+      auto report = tsd::io::import_USD(
+          scene, animMgr, stage.path().c_str(), {}, options);
+
+      THEN("A preview surface falls back rather than emitting a bad document")
+      {
+        // MaterialX has no node definition for UsdPreviewSurface, so there is
+        // nothing to pass through; the portable mapping is used and said so.
+        REQUIRE(boundMaterial(scene)->subtype()
+            == tsd::scene::tokens::material::physicallyBased);
+        REQUIRE(
+            report.countOf(tsd::io::UsdSkipReason::RICHER_MATERIAL_AVAILABLE)
+            == 1);
+      }
+    }
+#endif
+  }
+
+#if TSD_USD_HAS_MATERIALX
+  GIVEN("A Stage with an authored MaterialX network")
+  {
+    StageFixture stage("tsd_test_usd_materialx.usda", R"(#usda 1.0
+
+def Xform "World"
+{
+    def Material "Surface"
+    {
+        token outputs:mtlx:surface.connect = </World/Surface/Standard.outputs:surface>
+
+        def Shader "Standard"
+        {
+            uniform token info:id = "ND_standard_surface_surfaceshader"
+            color3f inputs:base_color = (0.8, 0.2, 0.1)
+            float inputs:specular_roughness = 0.4
+            token outputs:surface
+        }
+    }
+
+    def Mesh "Quad" (
+        prepend apiSchemas = ["MaterialBindingAPI"]
+    )
+    {
+        int[] faceVertexCounts = [4]
+        int[] faceVertexIndices = [0, 1, 2, 3]
+        point3f[] points = [(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)]
+        rel material:binding = </World/Surface>
+    }
+}
+)");
+
+    WHEN("MaterialX emission is asked for")
+    {
+      tsd::scene::Scene scene;
+      tsd::animation::AnimationManager animMgr(&scene);
+      tsd::io::UsdImportOptions options;
+      options.materialMode = tsd::io::UsdMaterialMode::MATERIALX;
+      auto report = tsd::io::import_USD(
+          scene, animMgr, stage.path().c_str(), {}, options);
+
+      THEN("The network passes through as an inline MaterialX document")
+      {
+        auto *material = boundMaterial(scene);
+        REQUIRE(material->subtype() == tsd::scene::tokens::material::materialx);
+        REQUIRE(stringParameter(material, "sourceType") == "documentInline");
+
+        const auto source = stringParameter(material, "source");
+        REQUIRE(source.find("<materialx") != std::string::npos);
+        REQUIRE(source.find("standard_surface") != std::string::npos);
+
+        const auto materialName = stringParameter(material, "materialName");
+        REQUIRE_FALSE(materialName.empty());
+        REQUIRE(source.find(materialName) != std::string::npos);
+      }
+
+      THEN("Nothing is reported as lost")
+      {
+        REQUIRE(report.skipped.empty());
+      }
+    }
+
+    WHEN("The default material mode is used")
+    {
+      tsd::scene::Scene scene;
+      tsd::animation::AnimationManager animMgr(&scene);
+      tsd::io::import_USD(scene, animMgr, stage.path().c_str());
+
+      THEN("The portable mapping is still what arrives")
+      {
+        REQUIRE(boundMaterial(scene)->subtype()
+            != tsd::scene::tokens::material::materialx);
+      }
+    }
+  }
+#endif
+}
+
 SCENARIO(
     "A prim with no bound material takes its display colour", "[UsdImport]")
 {
