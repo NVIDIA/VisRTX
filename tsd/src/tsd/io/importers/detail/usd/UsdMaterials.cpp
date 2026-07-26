@@ -20,6 +20,7 @@
 #include <pxr/imaging/hdMtlx/hdMtlx.h>
 #endif
 // std
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -258,6 +259,86 @@ MaterialRef tryMdlPassthrough(
 
 #if TSD_USD_HAS_MATERIALX
 
+// The node a generated document holds under `name`, which OpenUSD's conversion
+// places inside a node graph rather than at the document's top level.
+MaterialX::NodePtr documentNode(
+    const MaterialX::DocumentPtr &document, const std::string &name)
+{
+  if (auto node = document->getNode(name))
+    return node;
+  for (const auto &graph : document->getNodeGraphs()) {
+    if (auto node = graph->getNode(name))
+      return node;
+  }
+  return {};
+}
+
+// Rewrite the document's texture filenames to absolute paths.
+//
+// OpenUSD's conversion writes SdfAssetPath::GetAssetPath() -- the path exactly
+// as authored -- and leaves resolution to whoever consumes the document, which
+// is why it also hands back the texture nodes it wrote. That contract does not
+// survive TSD's handoff: the document travels to the device as inline text,
+// with no file of its own for a relative path to be relative to. So the paths
+// have to be absolute before they leave here.
+//
+// The anchor is the same one the rest of this importer uses for textures: the
+// resolved path when the Stage's resolver produced one, and the Stage's own
+// directory otherwise. The fallback is what carries UDIM sets, whose paths
+// name no file that a resolver could have resolved.
+void resolveTexturePaths(ImportContext &ctx,
+    const pxr::SdfPath &materialPath,
+    const std::string &primType,
+    const MaterialX::DocumentPtr &document,
+    const pxr::HdMtlxTexturePrimvarData &textures,
+    pxr::HdDataSourceMaterialNetworkInterface &networkInterface)
+{
+  for (const auto &nodePath : textures.hdTextureNodes) {
+    const auto nodeName = pxr::HdMtlxCreateNameFromPath(nodePath);
+    auto inputNames = textures.mxHdTextureMap.find(nodeName);
+    if (inputNames == textures.mxHdTextureMap.end())
+      continue;
+
+    auto node = documentNode(document, nodeName);
+    if (!node)
+      continue;
+
+    for (const auto &inputName : inputNames->second) {
+      auto input = node->getInput(inputName);
+      if (!input)
+        continue;
+
+      const auto value = networkInterface.GetNodeParameterValue(
+          pxr::TfToken(nodePath.GetString()), pxr::TfToken(inputName));
+      if (!value.IsHolding<pxr::SdfAssetPath>())
+        continue;
+
+      const auto assetPath = value.UncheckedGet<pxr::SdfAssetPath>();
+      auto file = assetPath.GetResolvedPath();
+      if (file.empty())
+        file = assetPath.GetAssetPath();
+      if (file.empty())
+        continue;
+      if (!isAbsolute(file))
+        file = ctx.basePath + file;
+
+      input->setValueString(file);
+
+      // A path holding a MaterialX token names a set of tiles rather than a
+      // file, so there is nothing to look for; anything else that is missing
+      // now is worth saying, because the device that opens it later cannot
+      // say which Stage prim asked for it.
+      if (file.find('<') == std::string::npos
+          && !std::filesystem::exists(file)) {
+        ctx.reportSkip(materialPath,
+            primType,
+            UsdSkipReason::TEXTURE_LOAD_FAILED,
+            file);
+      }
+    }
+  }
+}
+
 // Native MaterialX passthrough. The document is generated from the resolved
 // network by OpenUSD's own conversion, so a MaterialX network passes through
 // intact and a preview-surface network converts through its MaterialX node
@@ -290,13 +371,18 @@ MaterialRef tryMaterialXPassthrough(ImportContext &ctx,
           pxr::HdMtlxStdLibraries()))
     return {};
 
+  pxr::HdMtlxTexturePrimvarData textures;
   auto document = pxr::HdMtlxCreateMtlxDocumentFromHdMaterialNetworkInterface(
       &networkInterface,
       terminalNode,
       networkInterface.GetNodeInputConnectionNames(terminalNode),
-      pxr::HdMtlxStdLibraries());
+      pxr::HdMtlxStdLibraries(),
+      &textures);
   if (!document)
     return {};
+
+  resolveTexturePaths(
+      ctx, materialPath, prim.primType.GetString(), document, textures, networkInterface);
 
   // The document names its own surface material node; TSD selects by that
   // name rather than assuming one derived from the prim path.

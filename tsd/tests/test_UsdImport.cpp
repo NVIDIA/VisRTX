@@ -120,6 +120,37 @@ inline std::string StageFixture::path() const
   return m_path.string();
 }
 
+// A file standing where a texture would be. Only its existence is under test
+// -- nothing in the import opens it -- so its contents do not matter.
+struct TextureFixture
+{
+  explicit TextureFixture(const char *name);
+  ~TextureFixture();
+
+  std::string path() const;
+
+ private:
+  std::filesystem::path m_path;
+};
+
+inline TextureFixture::TextureFixture(const char *name)
+    : m_path(std::filesystem::temp_directory_path() / name)
+{
+  std::ofstream file(m_path);
+  file << "not really a texture";
+}
+
+inline TextureFixture::~TextureFixture()
+{
+  std::error_code ec;
+  std::filesystem::remove(m_path, ec);
+}
+
+inline std::string TextureFixture::path() const
+{
+  return m_path.string();
+}
+
 // Depth-first search for the first node whose name matches.
 tsd::scene::LayerNodeRef findNode(tsd::scene::Layer *layer, const char *name)
 {
@@ -1053,6 +1084,148 @@ def Xform "World"
       {
         REQUIRE(boundMaterial(scene)->subtype()
             != tsd::scene::tokens::material::materialx);
+      }
+    }
+  }
+
+  // An inline document has no file of its own for a relative path to be
+  // relative to, so a texture that stays relative is a texture the device
+  // cannot open.
+  GIVEN("A MaterialX network reading textures by relative path")
+  {
+    TextureFixture present("tsd_test_usd_mtlx_present.png");
+
+    StageFixture stage("tsd_test_usd_materialx_textures.usda", R"(#usda 1.0
+
+def Xform "World"
+{
+    def Material "Surface"
+    {
+        token outputs:mtlx:surface.connect = </World/Surface/Standard.outputs:surface>
+
+        def Shader "Present"
+        {
+            uniform token info:id = "ND_image_color3"
+            asset inputs:file = @tsd_test_usd_mtlx_present.png@
+            color3f outputs:out
+        }
+
+        def Shader "Tiled"
+        {
+            uniform token info:id = "ND_image_color3"
+            asset inputs:file = @tiles/tsd_test_tile.<UDIM>.png@
+            color3f outputs:out
+        }
+
+        def Shader "Standard"
+        {
+            uniform token info:id = "ND_standard_surface_surfaceshader"
+            color3f inputs:base_color.connect = </World/Surface/Present.outputs:out>
+            color3f inputs:coat_color.connect = </World/Surface/Tiled.outputs:out>
+            token outputs:surface
+        }
+    }
+
+    def Mesh "Quad" (
+        prepend apiSchemas = ["MaterialBindingAPI"]
+    )
+    {
+        int[] faceVertexCounts = [4]
+        int[] faceVertexIndices = [0, 1, 2, 3]
+        point3f[] points = [(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)]
+        rel material:binding = </World/Surface>
+    }
+}
+)");
+
+    WHEN("MaterialX emission is asked for")
+    {
+      tsd::scene::Scene scene;
+      tsd::animation::AnimationManager animMgr(&scene);
+      tsd::io::UsdImportOptions options;
+      options.materialMode = tsd::io::UsdMaterialMode::MATERIALX;
+      auto report = tsd::io::import_USD(
+          scene, animMgr, stage.path().c_str(), {}, options);
+
+      const auto source =
+          stringParameter(boundMaterial(scene), "source");
+
+      THEN("Texture paths leave as absolute paths")
+      {
+        REQUIRE(source.find(present.path()) != std::string::npos);
+        REQUIRE(source.find("\"tsd_test_usd_mtlx_present.png\"")
+            == std::string::npos);
+      }
+
+      THEN("A tile set is anchored without losing its token")
+      {
+        const auto tiled =
+            (std::filesystem::temp_directory_path() / "tiles").string();
+        REQUIRE(source.find(tiled) != std::string::npos);
+        REQUIRE(source.find("<UDIM>") != std::string::npos);
+      }
+
+      THEN("The texture that exists is not reported as missing")
+      {
+        for (const auto &skip : report.skipped) {
+          const bool missedThisOne =
+              skip.reason == tsd::io::UsdSkipReason::TEXTURE_LOAD_FAILED
+              && skip.detail == present.path();
+          REQUIRE_FALSE(missedThisOne);
+        }
+      }
+    }
+  }
+
+  GIVEN("A MaterialX network naming a texture that is not there")
+  {
+    StageFixture stage("tsd_test_usd_materialx_missing.usda", R"(#usda 1.0
+
+def Xform "World"
+{
+    def Material "Surface"
+    {
+        token outputs:mtlx:surface.connect = </World/Surface/Standard.outputs:surface>
+
+        def Shader "Missing"
+        {
+            uniform token info:id = "ND_image_color3"
+            asset inputs:file = @tsd_test_usd_absent.png@
+            color3f outputs:out
+        }
+
+        def Shader "Standard"
+        {
+            uniform token info:id = "ND_standard_surface_surfaceshader"
+            color3f inputs:base_color.connect = </World/Surface/Missing.outputs:out>
+            token outputs:surface
+        }
+    }
+
+    def Mesh "Quad" (
+        prepend apiSchemas = ["MaterialBindingAPI"]
+    )
+    {
+        int[] faceVertexCounts = [4]
+        int[] faceVertexIndices = [0, 1, 2, 3]
+        point3f[] points = [(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)]
+        rel material:binding = </World/Surface>
+    }
+}
+)");
+
+    WHEN("MaterialX emission is asked for")
+    {
+      tsd::scene::Scene scene;
+      tsd::animation::AnimationManager animMgr(&scene);
+      tsd::io::UsdImportOptions options;
+      options.materialMode = tsd::io::UsdMaterialMode::MATERIALX;
+      auto report = tsd::io::import_USD(
+          scene, animMgr, stage.path().c_str(), {}, options);
+
+      THEN("The Import Report names it rather than leaving it to the device")
+      {
+        REQUIRE(report.contains(tsd::io::UsdSkipReason::TEXTURE_LOAD_FAILED));
       }
     }
   }
