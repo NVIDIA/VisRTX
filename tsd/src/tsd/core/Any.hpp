@@ -234,19 +234,6 @@ inline T Any::get() const
   return getAs<T>(type());
 }
 
-// getAs<>() static_asserts on ANARI_STRING because strings live outside the
-// fixed-size storage getAs<>() memcpys from; route through getString() instead.
-template <>
-inline std::string Any::get<std::string>() const
-{
-  // is(ANARI_STRING) rather than is<std::string>(), whose specialization is
-  // declared further down: using it here would instantiate the primary
-  // template first and make that specialization ill-formed.
-  if (!is(ANARI_STRING))
-    throw std::runtime_error("get() called with invalid type on tsd::Any");
-  return getString();
-}
-
 template <typename T>
 inline T Any::getAs(anari::DataType expectedType) const
 {
@@ -305,6 +292,16 @@ template <>
 inline bool Any::is<std::string>() const
 {
   return is(ANARI_STRING);
+}
+
+// getAs<>() static_asserts on ANARI_STRING because strings live outside the
+// fixed-size storage it memcpys from; route through getString() instead.
+template <>
+inline std::string Any::get<std::string>() const
+{
+  if (!is<std::string>())
+    throw std::runtime_error("get() called with invalid type on tsd::Any");
+  return getString();
 }
 
 inline bool Any::is(anari::DataType t) const

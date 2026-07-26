@@ -37,7 +37,7 @@ Requires ANARI-SDK 0.15.0+ (`find_package(anari)` must succeed).
 cmake -DVISRTX_BUILD_TSD=ON -DTSD_BUILD_APPS=ON ...
 ```
 
-Key optional CMake flags: `TSD_USE_LUA`, `TSD_USE_ASSIMP`, `TSD_USE_HDF5`, `TSD_USE_MPI`, `TSD_USE_NETWORKING`, `TSD_USE_VTK`, `TSD_USE_SILO`, `TSD_USE_USD`.
+Key optional CMake flags: `TSD_USE_LUA`, `TSD_USE_ASSIMP`, `TSD_USE_HDF5`, `TSD_USE_MPI`, `TSD_USE_NETWORKING`, `TSD_USE_VTK`, `TSD_USE_SILO`, `TSD_USE_USD`, `TSD_USE_OIIO`.
 
 ## Tests
 

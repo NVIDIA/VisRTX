@@ -128,6 +128,13 @@ else()
   project_compile_definitions(PRIVATE -DTSD_USE_HDF5=0)
 endif()
 
+# OpenUSD's Hio was the alternative here, since a USD-enabled build already
+# links it -- but base Hio decodes TIFF only through its hioOiio plugin, which
+# is not built in the OpenUSD installs this importer targets (they ship
+# hioOpenEXR and hioAvif). Going via Hio would therefore still require
+# OpenImageIO, with an extra plugin indirection in front of it, so depend on
+# OpenImageIO directly and keep the TIFF path available to non-USD builds too.
+#
 # PUBLIC so the test target can assert on the TIFF path only where a decoder
 # exists, the same widening TSD_USE_USD makes for the same reason.
 if (TSD_USE_OIIO)

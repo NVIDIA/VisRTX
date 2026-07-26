@@ -36,8 +36,8 @@ import report with a reason, so the cost is visible, and the anchored absolute
 path is still written into the document, so a consumer that gains UDIM support
 finds a well-formed path waiting. `SdfAssetPath::GetResolvedPath()` is empty
 for every UDIM path -- a `<UDIM>` path names no file, so no resolver resolves
-it -- which is why that path comes from the Stage-directory fallback anchor
-(ADR-adjacent, see commit `0ed23586`) rather than from USD.
+it -- which is why that path comes from `UsdMaterials.cpp`'s Stage-directory
+fallback anchor rather than from USD's own resolution.
 
 Revisit this when ANARI gains a tiled-texture or texture-array sampler, or when
 VisRTX's MDL runtime grows tile-indexed lookup. Until one of those exists,

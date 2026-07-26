@@ -325,6 +325,21 @@ SamplerRef importDdsTexture(
                    : SamplerRef{};
 }
 
+// Decoded texels are always float, so channel count alone picks the type.
+static int texelTypeForChannelCount(int numChannels)
+{
+  switch (numChannels) {
+  case 1:
+    return ANARI_FLOAT32;
+  case 2:
+    return ANARI_FLOAT32_VEC2;
+  case 3:
+    return ANARI_FLOAT32_VEC3;
+  default:
+    return ANARI_FLOAT32_VEC4;
+  }
+}
+
 static ArrayRef importStbTextureArray(Scene &scene,
     const void *data,
     size_t numBytes,
@@ -362,15 +377,8 @@ static ArrayRef importStbTextureArray(Scene &scene,
       return {};
     }
 
-    int texelType = ANARI_FLOAT32_VEC4;
-    if (n == 3)
-      texelType = ANARI_FLOAT32_VEC3;
-    else if (n == 2)
-      texelType = ANARI_FLOAT32_VEC2;
-    else if (n == 1)
-      texelType = ANARI_FLOAT32;
-
-    dataArray = scene.createArray(texelType, width, height);
+    dataArray =
+        scene.createArray(texelTypeForChannelCount(n), width, height);
     dataArray->setData(decodedData);
     cache[textureId] = dataArray;
 
@@ -437,13 +445,17 @@ static SamplerRef importExrTexture(
 #endif
 
 #if TSD_USE_OIIO
-// stb decodes LDR files to float and applies the sRGB transfer function via
-// stbi_ldr_to_hdr_gamma(); OpenImageIO hands back the raw normalized values, so
-// the decode is applied here to keep every texture path on the same contract.
-// Alpha stays untouched, matching stb.
-static void srgbToLinearInPlace(float *texels, size_t numTexels, int numChannels)
+// stb decodes LDR files to float through stbi_ldr_to_hdr_gamma(), a plain
+// pow(x, 2.2) rather than the true sRGB EOTF; OpenImageIO hands back the raw
+// normalized values, so the same curve is applied here to keep every texture
+// path on one contract. stb takes an odd channel count to be all-color and an
+// even one to end in alpha (stb_image.h: `if (comp & 1) n = comp; else
+// n = comp-1`), which is what leaves alpha linear -- match that exactly, or a
+// 2-channel grey+alpha image gets its alpha gamma-corrected.
+static void applyGamma22InPlace(float *texels, size_t numTexels, int numChannels)
 {
-  const int numColorChannels = std::min(numChannels, 3);
+  const int numColorChannels =
+      (numChannels & 1) ? numChannels : numChannels - 1;
   for (size_t t = 0; t < numTexels; t++) {
     float *texel = texels + t * numChannels;
     for (int c = 0; c < numColorChannels; c++)
@@ -461,7 +473,14 @@ static SamplerRef importOiioTexture(
   if (auto dataArray = cache[cacheKey]; dataArray.valid())
     return makeTextureSampler(scene, dataArray, filepath);
 
-  auto image = OIIO::ImageInput::open(filepath);
+  // OpenImageIO premultiplies unassociated alpha into the colour channels by
+  // default; stb never does. Ask for the file's own values so a TIFF with
+  // alpha lands on the same contract as every other texture path.
+  OIIO::ImageSpec config;
+  config.attribute("oiio:UnassociatedAlpha", 1);
+
+  // The returned unique_ptr's deleter closes the file on every exit path.
+  auto image = OIIO::ImageInput::open(filepath, &config);
   if (!image) {
     logError("[importTexture] failed to open texture '%s': %s",
         filepath.c_str(),
@@ -477,9 +496,11 @@ static SamplerRef importOiioTexture(
     logWarning("[importTexture] texture '%s' with %i channels not imported",
         filepath.c_str(),
         numChannels);
-    image->close();
     return {};
   }
+  // stb only ever gamma-decodes integer input; a float or half TIFF already
+  // carries linear values, so applying the curve to it would darken the image.
+  const bool fileIsIntegral = !spec.format.is_floating_point();
 
   std::vector<float> texels(size_t(width) * height * numChannels);
   if (!image->read_image(
@@ -487,23 +508,14 @@ static SamplerRef importOiioTexture(
     logError("[importTexture] failed to decode texture '%s': %s",
         filepath.c_str(),
         image->geterror().c_str());
-    image->close();
     return {};
   }
-  image->close();
 
-  if (!isLinear)
-    srgbToLinearInPlace(texels.data(), size_t(width) * height, numChannels);
+  if (!isLinear && fileIsIntegral)
+    applyGamma22InPlace(texels.data(), size_t(width) * height, numChannels);
 
-  int texelType = ANARI_FLOAT32_VEC4;
-  if (numChannels == 3)
-    texelType = ANARI_FLOAT32_VEC3;
-  else if (numChannels == 2)
-    texelType = ANARI_FLOAT32_VEC2;
-  else if (numChannels == 1)
-    texelType = ANARI_FLOAT32;
-
-  auto dataArray = scene.createArray(texelType, width, height);
+  auto dataArray = scene.createArray(
+      texelTypeForChannelCount(numChannels), width, height);
   dataArray->setData(texels.data());
   cache[cacheKey] = dataArray;
 

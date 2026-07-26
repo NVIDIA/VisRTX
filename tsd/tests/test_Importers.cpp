@@ -70,6 +70,52 @@ SCENARIO(
 
 namespace {
 
+// A 1x1 uncompressed grey+alpha 8-bit TIFF. Two channels is the case where
+// stb's rule -- an even channel count ends in alpha, an odd one is all colour
+// -- diverges from "the first three channels are colour", so it is the only
+// shape that catches alpha being gamma-corrected.
+struct GreyAlphaTiffFixture
+{
+  explicit GreyAlphaTiffFixture(const char *name)
+      : m_path(std::filesystem::temp_directory_path() / name)
+  {
+    const unsigned char tiff[] = {
+        // clang-format off
+        'I', 'I', 0x2a, 0x00, 0x08, 0x00, 0x00, 0x00, // header, IFD at 8
+        0x0a, 0x00, // 10 IFD entries
+        0x00, 0x01, 0x03, 0x00, 0x01, 0, 0, 0, 0x01, 0x00, 0, 0, // width = 1
+        0x01, 0x01, 0x03, 0x00, 0x01, 0, 0, 0, 0x01, 0x00, 0, 0, // height = 1
+        0x02, 0x01, 0x03, 0x00, 0x02, 0, 0, 0, 0x08, 0x00, 0x08, 0x00, // bits
+        0x03, 0x01, 0x03, 0x00, 0x01, 0, 0, 0, 0x01, 0x00, 0, 0, // no compress
+        0x06, 0x01, 0x03, 0x00, 0x01, 0, 0, 0, 0x01, 0x00, 0, 0, // black-is-0
+        0x11, 0x01, 0x04, 0x00, 0x01, 0, 0, 0, 0x86, 0x00, 0, 0, // strip @ 134
+        0x15, 0x01, 0x03, 0x00, 0x01, 0, 0, 0, 0x02, 0x00, 0, 0, // 2 samples
+        0x16, 0x01, 0x03, 0x00, 0x01, 0, 0, 0, 0x01, 0x00, 0, 0, // 1 row/strip
+        0x17, 0x01, 0x04, 0x00, 0x01, 0, 0, 0, 0x02, 0x00, 0, 0, // 2 bytes
+        0x52, 0x01, 0x03, 0x00, 0x01, 0, 0, 0, 0x02, 0x00, 0, 0, // unassoc a
+        0x00, 0x00, 0x00, 0x00, // no next IFD
+        0x60, 0x40 // one grey + alpha texel
+        // clang-format on
+    };
+    std::ofstream file(m_path, std::ios::binary);
+    file.write(reinterpret_cast<const char *>(tiff), sizeof(tiff));
+  }
+
+  ~GreyAlphaTiffFixture()
+  {
+    std::error_code ec;
+    std::filesystem::remove(m_path, ec);
+  }
+
+  std::string path() const
+  {
+    return m_path.string();
+  }
+
+ private:
+  std::filesystem::path m_path;
+};
+
 // A 1x1 uncompressed RGB8 TIFF, little-endian, written by hand: stb has no
 // TIFF decoder, so the fixture has to be a genuinely decodable file for the
 // OpenImageIO branch to be exercised at all. Layout is header(8) + a 9-entry
@@ -174,4 +220,32 @@ SCENARIO("TIFF textures decode into float texel arrays", "[Importers]")
     }
 #endif
   }
+
+#if TSD_USE_OIIO
+  GIVEN("A 1x1 grey+alpha TIFF file")
+  {
+    GreyAlphaTiffFixture tiff("tsd_test_1x1_greyalpha.tif");
+
+    tsd::scene::Scene scene;
+    tsd::io::TextureCache cache;
+
+    WHEN("It is imported as an sRGB texture")
+    {
+      auto sampler = tsd::io::importTexture(
+          scene, tiff.path(), cache, /*isLinear=*/false);
+
+      THEN("Only the grey channel is gamma-decoded, leaving alpha linear")
+      {
+        REQUIRE(sampler);
+        auto *image =
+            sampler->parameterValueAsObject<tsd::scene::Array>("image");
+        REQUIRE(image != nullptr);
+        REQUIRE(image->elementType() == ANARI_FLOAT32_VEC2);
+        const auto *texels = image->dataAs<tsd::core::math::float2>();
+        REQUIRE(texels[0].x == Approx(std::pow(0x60 / 255.f, 2.2f)));
+        REQUIRE(texels[0].y == Approx(0x40 / 255.f));
+      }
+    }
+  }
+#endif
 }
