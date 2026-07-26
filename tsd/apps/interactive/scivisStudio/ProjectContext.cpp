@@ -1795,6 +1795,8 @@ const char *toString(tsd::io::ImporterType importerType)
     return "OBJ";
   case tsd::io::ImporterType::PDB:
     return "PDB";
+  case tsd::io::ImporterType::PBRT:
+    return "PBRT";
   case tsd::io::ImporterType::PLY:
     return "PLY";
   case tsd::io::ImporterType::POINTSBIN_MULTIFILE:
@@ -1809,10 +1811,14 @@ const char *toString(tsd::io::ImporterType importerType)
     return "SMESH_ANIMATION";
   case tsd::io::ImporterType::SWC:
     return "SWC";
+  case tsd::io::ImporterType::SWC_SDF:
+    return "SWC_SDF";
   case tsd::io::ImporterType::TRK:
     return "TRK";
   case tsd::io::ImporterType::USD:
     return "USD";
+  case tsd::io::ImporterType::USD_MATX:
+    return "USD_MATX";
   case tsd::io::ImporterType::VTP:
     return "VTP";
   case tsd::io::ImporterType::VTU:

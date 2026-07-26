@@ -1022,6 +1022,39 @@ def Xform "World"
             != tsd::scene::tokens::material::materialx);
       }
     }
+
+    // The importer's MaterialX mode is only reachable from an application
+    // through an Importer Type, so the dispatch is worth pinning separately
+    // from the option it sets.
+    WHEN("The file is imported through the USD_MATX Importer Type")
+    {
+      tsd::scene::Scene scene;
+      tsd::animation::AnimationManager animMgr(&scene);
+      tsd::io::import_file(scene,
+          animMgr,
+          {tsd::io::ImporterType::USD_MATX, stage.path()});
+
+      THEN("MaterialX materials arrive without asking for options")
+      {
+        REQUIRE(boundMaterial(scene)->subtype()
+            == tsd::scene::tokens::material::materialx);
+      }
+    }
+
+    WHEN("The file is imported through the plain USD Importer Type")
+    {
+      tsd::scene::Scene scene;
+      tsd::animation::AnimationManager animMgr(&scene);
+      tsd::io::import_file(scene,
+          animMgr,
+          {tsd::io::ImporterType::USD, stage.path()});
+
+      THEN("The portable mapping is what arrives")
+      {
+        REQUIRE(boundMaterial(scene)->subtype()
+            != tsd::scene::tokens::material::materialx);
+      }
+    }
   }
 #endif
 }

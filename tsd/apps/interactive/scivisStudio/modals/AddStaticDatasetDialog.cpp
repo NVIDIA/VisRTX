@@ -27,7 +27,7 @@ struct DatasetSourceChoice
   bool subtree = false;
 };
 
-constexpr std::array<DatasetSourceChoice, 27> SOURCES = {{
+constexpr std::array<DatasetSourceChoice, 28> SOURCES = {{
     {"AGX", tsd::io::ImporterType::AGX},
     {"ASSIMP", tsd::io::ImporterType::ASSIMP},
     {"ASSIMP_FLAT", tsd::io::ImporterType::ASSIMP_FLAT},
@@ -49,6 +49,7 @@ constexpr std::array<DatasetSourceChoice, 27> SOURCES = {{
     {"SWC", tsd::io::ImporterType::SWC},
     {"TRK", tsd::io::ImporterType::TRK},
     {"USD", tsd::io::ImporterType::USD},
+    {"USD_MATX", tsd::io::ImporterType::USD_MATX},
     {"VTP", tsd::io::ImporterType::VTP},
     {"VTU", tsd::io::ImporterType::VTU},
     {"XYZDP", tsd::io::ImporterType::XYZDP},

@@ -146,6 +146,8 @@ static void printUsage(const char *programName)
   std::cout << "  -silo <file...>            Import Silo files\n";
   std::cout << "  -usd <file...>             Import USD files\n";
   std::cout
+      << "  -usd_matx <file...>        Import USD files as native MaterialX\n";
+  std::cout
       << "  -l, --layer <name>         Specify layer name for following imports\n";
   std::cout
       << "  -assimp <file...>          Import via ASSIMP (supports many formats)\n";

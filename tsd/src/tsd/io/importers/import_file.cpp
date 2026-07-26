@@ -108,7 +108,11 @@ void import_file(Scene &scene,
     tsd::io::import_TRK(scene, animMgr, file.c_str(), root);
   else if (f.first == ImporterType::USD)
     tsd::io::import_USD(scene, animMgr, file.c_str(), root);
-  else if (f.first == ImporterType::VTP)
+  else if (f.first == ImporterType::USD_MATX) {
+    UsdImportOptions options;
+    options.materialMode = UsdMaterialMode::MATERIALX;
+    tsd::io::import_USD(scene, animMgr, file.c_str(), root, options);
+  } else if (f.first == ImporterType::VTP)
     tsd::io::import_VTP(scene, animMgr, file.c_str(), root);
   else if (f.first == ImporterType::VTU) {
     std::optional<std::string> prop;

@@ -78,6 +78,8 @@ Use one of these flags before filenames to select how those files are loaded:
 - `-swc`
 - `-trk`
 - `-usd`
+- `-usd_matx` (USD, emitting native MaterialX materials rather than a portable
+  mapping; falls back per material where no MaterialX network converts)
 - `-vtp`
 - `-vtu`
 - `-xyzdp`
