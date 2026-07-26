@@ -273,7 +273,28 @@ MaterialX::NodePtr documentNode(
   return {};
 }
 
-// Rewrite the document's texture filenames to absolute paths.
+// One texture a generated document reads, found on the way through.
+struct DocumentTexture
+{
+  // The document-relative path of the `filename` input, which is the name the
+  // device publishes the input under and expects a sampler bound to.
+  std::string inputPath;
+  std::string file;
+  bool isLinear{true};
+};
+
+// Whether a texture carries colour rather than data, and so must be de-gamma'd
+// on load. The document says so per input; MaterialX names the encoding, not
+// the file format, so anything that is not an sRGB encoding is data.
+bool inputIsLinear(const MaterialX::InputPtr &input)
+{
+  const auto colorSpace = input->getActiveColorSpace();
+  return colorSpace != "srgb_texture" && colorSpace != "srgb_tx"
+      && colorSpace != "sRGB";
+}
+
+// Rewrite the document's texture filenames to absolute paths, and collect what
+// was found so the caller can bind samplers to it.
 //
 // OpenUSD's conversion writes SdfAssetPath::GetAssetPath() -- the path exactly
 // as authored -- and leaves resolution to whoever consumes the document, which
@@ -286,13 +307,14 @@ MaterialX::NodePtr documentNode(
 // resolved path when the Stage's resolver produced one, and the Stage's own
 // directory otherwise. The fallback is what carries UDIM sets, whose paths
 // name no file that a resolver could have resolved.
-void resolveTexturePaths(ImportContext &ctx,
+std::vector<DocumentTexture> resolveTexturePaths(ImportContext &ctx,
     const pxr::SdfPath &materialPath,
     const std::string &primType,
     const MaterialX::DocumentPtr &document,
     const pxr::HdMtlxTexturePrimvarData &textures,
     pxr::HdDataSourceMaterialNetworkInterface &networkInterface)
 {
+  std::vector<DocumentTexture> retval;
   for (const auto &nodePath : textures.hdTextureNodes) {
     const auto nodeName = pxr::HdMtlxCreateNameFromPath(nodePath);
     auto inputNames = textures.mxHdTextureMap.find(nodeName);
@@ -328,15 +350,24 @@ void resolveTexturePaths(ImportContext &ctx,
       // file, so there is nothing to look for; anything else that is missing
       // now is worth saying, because the device that opens it later cannot
       // say which Stage prim asked for it.
-      if (file.find('<') == std::string::npos
-          && !std::filesystem::exists(file)) {
+      if (file.find('<') != std::string::npos) {
         ctx.reportSkip(materialPath,
             primType,
             UsdSkipReason::TEXTURE_LOAD_FAILED,
-            file);
+            file + " (tiled texture sets are not supported)");
+        continue;
       }
+      if (!std::filesystem::exists(file)) {
+        ctx.reportSkip(
+            materialPath, primType, UsdSkipReason::TEXTURE_LOAD_FAILED, file);
+        continue;
+      }
+
+      retval.push_back({input->getNamePath(), file, inputIsLinear(input)});
     }
   }
+
+  return retval;
 }
 
 // Native MaterialX passthrough. The document is generated from the resolved
@@ -381,8 +412,12 @@ MaterialRef tryMaterialXPassthrough(ImportContext &ctx,
   if (!document)
     return {};
 
-  resolveTexturePaths(
-      ctx, materialPath, prim.primType.GetString(), document, textures, networkInterface);
+  const auto documentTextures = resolveTexturePaths(ctx,
+      materialPath,
+      prim.primType.GetString(),
+      document,
+      textures,
+      networkInterface);
 
   // The document names its own surface material node; TSD selects by that
   // name rather than assuming one derived from the prim path.
@@ -403,6 +438,26 @@ MaterialRef tryMaterialXPassthrough(ImportContext &ctx,
   retval->setParameter("sourceType", "documentInline");
   retval->setParameter("source", xml.c_str());
   retval->setParameter("materialName", materialName.c_str());
+
+  // A device reads the document's texels from samplers bound to the `filename`
+  // inputs by their document path, not by opening the files itself -- the
+  // document is inline text and names no search root a renderer could resolve
+  // against. TSD loads them here for the same reason it does for a preview
+  // surface, and through the same cache, so a texture shared between materials
+  // is read once.
+  for (const auto &texture : documentTextures) {
+    auto sampler = importTexture(
+        ctx.scene, texture.file, ctx.textureCache, texture.isLinear);
+    if (!sampler) {
+      ctx.reportSkip(materialPath,
+          prim.primType.GetString(),
+          UsdSkipReason::TEXTURE_LOAD_FAILED,
+          texture.file);
+      continue;
+    }
+    retval->setParameterObject(Token(texture.inputPath.c_str()), *sampler);
+  }
+
   return retval;
 }
 

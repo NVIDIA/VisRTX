@@ -120,8 +120,10 @@ inline std::string StageFixture::path() const
   return m_path.string();
 }
 
-// A file standing where a texture would be. Only its existence is under test
-// -- nothing in the import opens it -- so its contents do not matter.
+// A real, decodable texture for the lifetime of one scenario. The import binds
+// samplers by loading these, so a stand-in file with arbitrary bytes would not
+// exercise the path -- this is a 1x1 uncompressed true-colour TGA, the
+// smallest thing the image loader accepts that can be written by hand.
 struct TextureFixture
 {
   explicit TextureFixture(const char *name);
@@ -136,8 +138,20 @@ struct TextureFixture
 inline TextureFixture::TextureFixture(const char *name)
     : m_path(std::filesystem::temp_directory_path() / name)
 {
-  std::ofstream file(m_path);
-  file << "not really a texture";
+  const unsigned char tga[] = {
+      0, // no image ID
+      0, // no colour map
+      2, // uncompressed true-colour
+      0, 0, 0, 0, 0, // empty colour map spec
+      0, 0, 0, 0, // origin
+      1, 0, // width
+      1, 0, // height
+      24, // bits per pixel
+      0, // descriptor
+      0x20, 0x40, 0x60 // one BGR pixel
+  };
+  std::ofstream file(m_path, std::ios::binary);
+  file.write(reinterpret_cast<const char *>(tga), sizeof(tga));
 }
 
 inline TextureFixture::~TextureFixture()
@@ -1093,7 +1107,7 @@ def Xform "World"
   // cannot open.
   GIVEN("A MaterialX network reading textures by relative path")
   {
-    TextureFixture present("tsd_test_usd_mtlx_present.png");
+    TextureFixture present("tsd_test_usd_mtlx_present.tga");
 
     StageFixture stage("tsd_test_usd_materialx_textures.usda", R"(#usda 1.0
 
@@ -1106,7 +1120,7 @@ def Xform "World"
         def Shader "Present"
         {
             uniform token info:id = "ND_image_color3"
-            asset inputs:file = @tsd_test_usd_mtlx_present.png@
+            asset inputs:file = @tsd_test_usd_mtlx_present.tga@
             color3f outputs:out
         }
 
@@ -1153,7 +1167,7 @@ def Xform "World"
       THEN("Texture paths leave as absolute paths")
       {
         REQUIRE(source.find(present.path()) != std::string::npos);
-        REQUIRE(source.find("\"tsd_test_usd_mtlx_present.png\"")
+        REQUIRE(source.find("\"tsd_test_usd_mtlx_present.tga\"")
             == std::string::npos);
       }
 
@@ -1173,6 +1187,35 @@ def Xform "World"
               && skip.detail == present.path();
           REQUIRE_FALSE(missedThisOne);
         }
+      }
+
+      // The device reads texels from samplers bound to the document's
+      // `filename` inputs by their document path, not by opening the files
+      // itself, so a material without them renders untextured however correct
+      // its paths are.
+      THEN("A sampler is bound to the input by its document path")
+      {
+        REQUIRE(scene.numberOfObjects(ANARI_SAMPLER) == 1);
+
+        // The name is the contract: the device publishes each textured input
+        // under its MaterialX element path.
+        auto *material = boundMaterial(scene);
+        std::string boundName;
+        for (size_t i = 0; i < material->numParameters(); i++) {
+          if (material->parameterAt(i).value().type() == ANARI_SAMPLER)
+            boundName = material->parameterNameAt(i);
+        }
+        REQUIRE_FALSE(boundName.empty());
+        // The document path, node graph included -- the same string the device's
+        // shader generator reports as the port's path.
+        REQUIRE(boundName == "_/Present/file");
+      }
+
+      THEN("A tile set binds nothing, and says so")
+      {
+        REQUIRE(report.contains(tsd::io::UsdSkipReason::TEXTURE_LOAD_FAILED));
+        // Only the one loadable texture became a sampler.
+        REQUIRE(scene.numberOfObjects(ANARI_SAMPLER) == 1);
       }
     }
   }
