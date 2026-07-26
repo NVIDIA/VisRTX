@@ -276,6 +276,13 @@ test("ref:setParameter with bool", function()
   assert(val == true, "caps should be true")
 end)
 
+test("ref:setParameter with string", function()
+  local mat = scene:createMaterial("matte")
+  mat:setParameter("alphaMode", "blend")
+  local val = mat:getParameter("alphaMode")
+  assert(val == "blend", "alphaMode should round-trip as a string")
+end)
+
 test("ref.name property", function()
   local geom = scene:createGeometry("sphere")
   geom.name = "myGeometry"

@@ -5,6 +5,8 @@
 #include "catch.hpp"
 // tsd
 #include "tsd/scene/Parameter.hpp"
+// std
+#include <string>
 
 namespace {
 
@@ -113,6 +115,52 @@ SCENARIO("tsd::scene::Parameter interface", "[Parameter]")
     {
       prop.setMax({});
       REQUIRE(!prop.hasMax());
+    }
+  }
+}
+
+SCENARIO("tsd::core::Any recognizes strings through the generic accessors",
+    "[Parameter]")
+{
+  // ANARITypeFor<std::string> is ANARI_UNKNOWN, so the generic is<>/get<>
+  // templates silently miss ANARI_STRING unless Any specializes them. Callers
+  // that reach for is<std::string>() -- the Lua bindings among them -- then
+  // treat every string parameter as absent.
+  GIVEN("An Any holding a string")
+  {
+    tsd::core::Any value = std::string("hello");
+
+    THEN("Its type is ANARI_STRING")
+    {
+      REQUIRE(value.type() == ANARI_STRING);
+    }
+
+    THEN("is<std::string>() reports the string")
+    {
+      REQUIRE(value.is<std::string>());
+      REQUIRE(!value.is<int>());
+      REQUIRE(!value.is<float>());
+    }
+
+    THEN("get<std::string>() returns the string")
+    {
+      REQUIRE(value.get<std::string>() == "hello");
+    }
+
+    THEN("getValueOr<std::string>() returns the string")
+    {
+      REQUIRE(value.getValueOr<std::string>("fallback") == "hello");
+    }
+  }
+
+  GIVEN("An Any holding a non-string")
+  {
+    tsd::core::Any value = 5;
+
+    THEN("It is not mistaken for a string")
+    {
+      REQUIRE(!value.is<std::string>());
+      REQUIRE(value.getValueOr<std::string>("fallback") == "fallback");
     }
   }
 }
