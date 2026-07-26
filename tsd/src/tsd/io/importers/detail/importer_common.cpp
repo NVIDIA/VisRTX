@@ -16,6 +16,10 @@
 #ifndef _WIN32
 #include "tinyexr.h"
 #endif
+#if TSD_USE_OIIO
+// OpenImageIO
+#include <OpenImageIO/imageio.h>
+#endif
 // anari
 #include <anari/anari_cpp/ext/linalg.h>
 // std
@@ -432,6 +436,81 @@ static SamplerRef importExrTexture(
 }
 #endif
 
+#if TSD_USE_OIIO
+// stb decodes LDR files to float and applies the sRGB transfer function via
+// stbi_ldr_to_hdr_gamma(); OpenImageIO hands back the raw normalized values, so
+// the decode is applied here to keep every texture path on the same contract.
+// Alpha stays untouched, matching stb.
+static void srgbToLinearInPlace(float *texels, size_t numTexels, int numChannels)
+{
+  const int numColorChannels = std::min(numChannels, 3);
+  for (size_t t = 0; t < numTexels; t++) {
+    float *texel = texels + t * numChannels;
+    for (int c = 0; c < numColorChannels; c++)
+      texel[c] = std::pow(texel[c], 2.2f);
+  }
+}
+
+// TIFF is the format the USD/MaterialX assets reach for that stb cannot decode.
+// OpenImageIO covers it (and everything else it has a reader for) without TSD
+// taking on a format-specific decoder.
+static SamplerRef importOiioTexture(
+    Scene &scene, const std::string &filepath, TextureCache &cache, bool isLinear)
+{
+  auto cacheKey = makeTextureCacheKey(filepath, isLinear);
+  if (auto dataArray = cache[cacheKey]; dataArray.valid())
+    return makeTextureSampler(scene, dataArray, filepath);
+
+  auto image = OIIO::ImageInput::open(filepath);
+  if (!image) {
+    logError("[importTexture] failed to open texture '%s': %s",
+        filepath.c_str(),
+        OIIO::geterror().c_str());
+    return {};
+  }
+
+  const auto &spec = image->spec();
+  const int width = spec.width;
+  const int height = spec.height;
+  const int numChannels = spec.nchannels;
+  if (width < 1 || height < 1 || numChannels < 1 || numChannels > 4) {
+    logWarning("[importTexture] texture '%s' with %i channels not imported",
+        filepath.c_str(),
+        numChannels);
+    image->close();
+    return {};
+  }
+
+  std::vector<float> texels(size_t(width) * height * numChannels);
+  if (!image->read_image(
+          0, 0, 0, numChannels, OIIO::TypeDesc::FLOAT, texels.data())) {
+    logError("[importTexture] failed to decode texture '%s': %s",
+        filepath.c_str(),
+        image->geterror().c_str());
+    image->close();
+    return {};
+  }
+  image->close();
+
+  if (!isLinear)
+    srgbToLinearInPlace(texels.data(), size_t(width) * height, numChannels);
+
+  int texelType = ANARI_FLOAT32_VEC4;
+  if (numChannels == 3)
+    texelType = ANARI_FLOAT32_VEC3;
+  else if (numChannels == 2)
+    texelType = ANARI_FLOAT32_VEC2;
+  else if (numChannels == 1)
+    texelType = ANARI_FLOAT32;
+
+  auto dataArray = scene.createArray(texelType, width, height);
+  dataArray->setData(texels.data());
+  cache[cacheKey] = dataArray;
+
+  return makeTextureSampler(scene, dataArray, filepath);
+}
+#endif
+
 SamplerRef importTexture(
     Scene &scene, std::string filepath, TextureCache &cache, bool isLinear)
 {
@@ -451,6 +530,17 @@ SamplerRef importTexture(
 #ifndef _WIN32
   } else if (ext == ".exr") {
     tex = importExrTexture(scene, filepath, cache);
+#endif
+  } else if (ext == ".tif" || ext == ".tiff") {
+#if TSD_USE_OIIO
+    tex = importOiioTexture(scene, filepath, cache, isLinear);
+#else
+    // Falling through to stb would fail with a decode error that says nothing
+    // about the actual cause, which is that TSD was built without OpenImageIO.
+    logError(
+        "[importTexture] cannot decode TIFF texture '%s': TSD was built without"
+        " OpenImageIO (set TSD_USE_OIIO=ON)",
+        filepath.c_str());
 #endif
   } else {
     tex = importStbTexture(scene, filepath, cache, isLinear);

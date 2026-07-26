@@ -128,6 +128,16 @@ else()
   project_compile_definitions(PRIVATE -DTSD_USE_HDF5=0)
 endif()
 
+# PUBLIC so the test target can assert on the TIFF path only where a decoder
+# exists, the same widening TSD_USE_USD makes for the same reason.
+if (TSD_USE_OIIO)
+  find_package(OpenImageIO REQUIRED)
+  project_compile_definitions(PUBLIC -DTSD_USE_OIIO=1)
+  project_link_libraries(PRIVATE OpenImageIO::OpenImageIO)
+else()
+  project_compile_definitions(PUBLIC -DTSD_USE_OIIO=0)
+endif()
+
 if(TSD_USE_TORCH)
   find_package(Torch REQUIRED)
   if (MSVC)
