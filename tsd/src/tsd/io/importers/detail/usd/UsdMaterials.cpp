@@ -349,7 +349,10 @@ std::vector<DocumentTexture> resolveTexturePaths(ImportContext &ctx,
       // A path holding a MaterialX token names a set of tiles rather than a
       // file, so there is nothing to look for; anything else that is missing
       // now is worth saying, because the device that opens it later cannot
-      // say which Stage prim asked for it.
+      // say which Stage prim asked for it. Reporting the tile set rather than
+      // approximating it is a deliberate stance -- an ANARI sampler is a
+      // single image and neither TSD nor the device has anywhere to send the
+      // remaining tiles' texels. See ADR 0019.
       if (file.find('<') != std::string::npos) {
         ctx.reportSkip(materialPath,
             primType,
