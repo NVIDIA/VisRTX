@@ -1272,6 +1272,71 @@ def Xform "World"
       }
     }
   }
+
+  // MaterialX matches a node to its definition on the exact set of inputs, so
+  // a connection between mismatched types leaves the surface node resolving to
+  // nothing. Emitting it anyway puts the failure inside the device, where it
+  // reads as `Could not find a nodedef for node 'Surface'` and the prim
+  // silently renders with the default material.
+  GIVEN("A MaterialX network connecting a color3 output to a float input")
+  {
+    StageFixture stage("tsd_test_usd_materialx_mistyped.usda", R"(#usda 1.0
+
+def Xform "World"
+{
+    def Material "Surface"
+    {
+        token outputs:mtlx:surface.connect = </World/Surface/Standard.outputs:surface>
+
+        def Shader "Tint"
+        {
+            uniform token info:id = "ND_constant_color3"
+            color3f inputs:value = (0.25, 0.5, 0.75)
+            color3f outputs:out
+        }
+
+        def Shader "Standard"
+        {
+            uniform token info:id = "ND_standard_surface_surfaceshader"
+            float inputs:specular_roughness.connect = </World/Surface/Tint.outputs:out>
+            token outputs:surface
+        }
+    }
+
+    def Mesh "Quad" (
+        prepend apiSchemas = ["MaterialBindingAPI"]
+    )
+    {
+        int[] faceVertexCounts = [4]
+        int[] faceVertexIndices = [0, 1, 2, 3]
+        point3f[] points = [(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)]
+        rel material:binding = </World/Surface>
+    }
+}
+)");
+
+    WHEN("MaterialX emission is asked for")
+    {
+      tsd::scene::Scene scene;
+      tsd::animation::AnimationManager animMgr(&scene);
+      tsd::io::UsdImportOptions options;
+      options.materialMode = tsd::io::UsdMaterialMode::MATERIALX;
+      auto report = tsd::io::import_USD(
+          scene, animMgr, stage.path().c_str(), {}, options);
+
+      THEN("The Import Report names it rather than leaving it to the device")
+      {
+        REQUIRE(
+            report.contains(tsd::io::UsdSkipReason::MATERIAL_RESOLUTION_FAILED));
+      }
+
+      THEN("The portable mapping is what arrives, not a document")
+      {
+        REQUIRE(boundMaterial(scene)->subtype()
+            != tsd::scene::tokens::material::materialx);
+      }
+    }
+  }
 #endif
 }
 

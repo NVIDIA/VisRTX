@@ -15,12 +15,15 @@
 #include <pxr/usd/usdShade/shader.h>
 #if TSD_USD_HAS_MATERIALX
 #include <MaterialXCore/Document.h>
+#include <MaterialXCore/Node.h>
 #include <MaterialXFormat/XmlIo.h>
 #include <pxr/imaging/hd/dataSourceMaterialNetworkInterface.h>
 #include <pxr/imaging/hdMtlx/hdMtlx.h>
 #endif
 // std
+#include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <string>
 #include <vector>
 
@@ -373,6 +376,87 @@ std::vector<DocumentTexture> resolveTexturePaths(ImportContext &ctx,
   return retval;
 }
 
+// Write the generated document to `TSD_USD_MATERIALX_DUMP_DIR` when that is
+// set, named after the material prim.
+//
+// The documents TSD emits are inline text handed straight to a device, so when
+// one of them fails the device's shader generation there is otherwise nothing
+// to look at: the error names a node inside a document nobody kept. Dumping
+// here rather than device-side is deliberate -- the XML exists in full at this
+// point, and TSD is where the node names being complained about are minted.
+void dumpDocument(const pxr::SdfPath &materialPath, const std::string &xml)
+{
+  const char *dir = std::getenv("TSD_USD_MATERIALX_DUMP_DIR");
+  if (dir == nullptr || *dir == '\0')
+    return;
+
+  std::error_code ec;
+  std::filesystem::create_directories(dir, ec);
+
+  auto name = materialPath.GetString();
+  for (auto &c : name) {
+    if (c == '/' || c == ':')
+      c = '_';
+  }
+  const auto file = (std::filesystem::path(dir) / (name + ".mtlx")).string();
+
+  std::ofstream out(file, std::ios::binary | std::ios::trunc);
+  if (!out) {
+    core::logWarning(
+        "[import_USD] could not open '%s' to dump MaterialX document",
+        file.c_str());
+    return;
+  }
+  out << xml;
+  core::logStatus("[import_USD] %s: MaterialX document dumped to %s",
+      materialPath.GetText(),
+      file.c_str());
+}
+
+// Whether every node in the document resolves to a MaterialX node definition,
+// which is what a device's shader generator needs to compile it.
+//
+// MaterialX matches a node to its definition on category, type and the exact
+// set of inputs, so a network that connects an input to an upstream output of
+// a different type resolves to nothing. The document still writes out, and the
+// failure surfaces only once it reaches the device, as `Could not find a
+// nodedef for node '<name>'` -- after which shader generation stops and the
+// prim silently renders with the default material. Checking here turns that
+// into a reported skip and a portable-mapping fallback.
+//
+// The check runs on a copy, because resolution needs the standard libraries
+// present in the document and importing them into the document TSD emits would
+// inline the whole of MaterialX into the XML that travels to the device.
+bool documentResolves(const MaterialX::DocumentPtr &document, std::string &why)
+{
+  auto probe = MaterialX::createDocument();
+  probe->copyContentFrom(document);
+  probe->importLibrary(pxr::HdMtlxStdLibraries());
+
+  std::string unresolved;
+  for (const auto &element : probe->traverseTree()) {
+    auto node = element->asA<MaterialX::Node>();
+    if (node && !node->getNodeDef()) {
+      unresolved += (unresolved.empty() ? "" : ", ") + node->getName() + " <"
+          + node->getCategory() + ">";
+    }
+  }
+  if (unresolved.empty())
+    return true;
+
+  // MaterialX's own validation says which port is at fault, where the failed
+  // lookup only says which node it gave up on. Report both.
+  std::string message;
+  probe->validate(&message);
+  if (const auto end = message.find('\n'); end != std::string::npos)
+    message.resize(end);
+
+  why = "no MaterialX node definition for " + unresolved;
+  if (!message.empty())
+    why += " -- " + message;
+  return false;
+}
+
 // Native MaterialX passthrough. The document is generated from the resolved
 // network by OpenUSD's own conversion, so a MaterialX network passes through
 // intact and a preview-surface network converts through its MaterialX node
@@ -424,16 +508,45 @@ MaterialRef tryMaterialXPassthrough(ImportContext &ctx,
 
   // The document names its own surface material node; TSD selects by that
   // name rather than assuming one derived from the prim path.
+  const auto materialNodes = document->getMaterialNodes();
   std::string materialName;
-  for (const auto &node : document->getMaterialNodes()) {
-    materialName = node->getName();
-    break;
-  }
-  if (materialName.empty())
-    return {};
+  if (!materialNodes.empty())
+    materialName = materialNodes.front()->getName();
 
   const auto xml = MaterialX::writeToXmlString(document);
-  if (xml.empty())
+  if (!xml.empty())
+    dumpDocument(materialPath, xml);
+
+  // Checked after the texture pass rather than before it, so that a document
+  // being discarded does not take its tile-set and missing-texture reports
+  // down with it -- the fallback mapping reads the network by
+  // UsdPreviewSurface names and would report none of them. Checked before any
+  // sampler is created, so nothing is bound to a document that is thrown away.
+  if (std::string why; !documentResolves(document, why)) {
+    ctx.reportSkip(materialPath,
+        prim.primType.GetString(),
+        UsdSkipReason::MATERIAL_RESOLUTION_FAILED,
+        why);
+    return {};
+  }
+
+  // One network converts to one material node in the normal case. More than
+  // one means the name picked above is a guess, so say which names were on
+  // offer rather than let a silently wrong pick reach the device.
+  if (materialNodes.size() > 1) {
+    std::string names;
+    for (const auto &node : materialNodes)
+      names += (names.empty() ? "" : ", ") + node->getName();
+    core::logWarning(
+        "[import_USD] %s: MaterialX document has %zu material nodes (%s); "
+        "using '%s'",
+        materialPath.GetText(),
+        materialNodes.size(),
+        names.c_str(),
+        materialName.c_str());
+  }
+
+  if (materialName.empty() || xml.empty())
     return {};
 
   auto retval = ctx.scene.createObject<Material>(tokens::material::materialx);
