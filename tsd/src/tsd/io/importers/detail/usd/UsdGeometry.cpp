@@ -23,6 +23,7 @@
 // std
 #include <algorithm>
 #include <map>
+#include <numeric>
 #include <string>
 #include <utility>
 #include <vector>
@@ -180,6 +181,23 @@ MaterialRef displayColorMaterial(ImportContext &ctx,
 // Mesh conversion ////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
+// Apply a transform to the float-typed array a primvar holds, whatever its
+// component count. Anything else has no ANARI attribute slot and so yields an
+// empty value.
+template <typename Fn>
+pxr::VtValue transformFloatArray(const pxr::VtValue &value, Fn &&fn)
+{
+  if (value.IsHolding<pxr::VtFloatArray>())
+    return pxr::VtValue(fn(value.UncheckedGet<pxr::VtFloatArray>()));
+  if (value.IsHolding<pxr::VtVec2fArray>())
+    return pxr::VtValue(fn(value.UncheckedGet<pxr::VtVec2fArray>()));
+  if (value.IsHolding<pxr::VtVec3fArray>())
+    return pxr::VtValue(fn(value.UncheckedGet<pxr::VtVec3fArray>()));
+  if (value.IsHolding<pxr::VtVec4fArray>())
+    return pxr::VtValue(fn(value.UncheckedGet<pxr::VtVec4fArray>()));
+  return {};
+}
+
 // Expand a uniform (per-face) primvar to per-triangle values using the
 // triangulation's record of which coarse face each triangle came from.
 template <typename T>
@@ -199,30 +217,71 @@ pxr::VtArray<T> expandUniform(
 pxr::VtValue expandUniformValue(
     const pxr::VtValue &value, const pxr::VtIntArray &primitiveParams)
 {
-  if (value.IsHolding<pxr::VtFloatArray>())
-    return pxr::VtValue(expandUniform(
-        value.UncheckedGet<pxr::VtFloatArray>(), primitiveParams));
-  if (value.IsHolding<pxr::VtVec2fArray>())
-    return pxr::VtValue(expandUniform(
-        value.UncheckedGet<pxr::VtVec2fArray>(), primitiveParams));
-  if (value.IsHolding<pxr::VtVec3fArray>())
-    return pxr::VtValue(expandUniform(
-        value.UncheckedGet<pxr::VtVec3fArray>(), primitiveParams));
-  if (value.IsHolding<pxr::VtVec4fArray>())
-    return pxr::VtValue(expandUniform(
-        value.UncheckedGet<pxr::VtVec4fArray>(), primitiveParams));
-  return {};
+  return transformFloatArray(value, [&](const auto &source) {
+    return expandUniform(source, primitiveParams);
+  });
 }
 
-// Everything one converted mesh needs to hand to the Surface builder. The
-// vertex arrays are created once and shared by every material subset.
+// Select the values belonging to a chosen set of triangles out of an array
+// laid out in triangle order -- one value per triangle for per-primitive data,
+// three for per-corner data.
+template <typename T>
+pxr::VtArray<T> gatherTriangles(const pxr::VtArray<T> &source,
+    const std::vector<uint32_t> &triangles,
+    size_t valuesPerTriangle)
+{
+  pxr::VtArray<T> retval;
+  retval.reserve(triangles.size() * valuesPerTriangle);
+  for (uint32_t triangle : triangles) {
+    const size_t base = size_t(triangle) * valuesPerTriangle;
+    for (size_t i = 0; i < valuesPerTriangle; ++i)
+      retval.push_back(source[base + i]);
+  }
+  return retval;
+}
+
+pxr::VtValue gatherTrianglesValue(const pxr::VtValue &value,
+    const std::vector<uint32_t> &triangles,
+    size_t valuesPerTriangle)
+{
+  return transformFloatArray(value, [&](const auto &source) {
+    return gatherTriangles(source, triangles, valuesPerTriangle);
+  });
+}
+
+// Everything one converted mesh needs to hand to the Surface builder.
 struct ConvertedMesh
 {
   ArrayRef vertexPosition;
-  std::vector<std::pair<Token, ArrayRef>> sharedParameters;
   pxr::VtVec3iArray triangleIndices;
   pxr::VtIntArray primitiveParams;
 };
+
+// A primvar expanded onto the triangulated topology and ready to bind. Vertex
+// data stays as authored and is indexed by the triangle indices, so its Array
+// is created once and shared by every Surface built from the mesh; uniform and
+// face-varying data are laid out in triangle order and have to be gathered per
+// Surface, because a subset draws only some of the triangles.
+struct TriangulatedPrimvar
+{
+  pxr::VtValue value;
+  const char *prefix{nullptr};
+  size_t valuesPerTriangle{0};
+  ArrayRef sharedArray;
+
+  // Vertex data is the only kind every Surface can point at unchanged.
+  bool isShared() const;
+};
+
+bool TriangulatedPrimvar::isShared() const
+{
+  return valuesPerTriangle == 0;
+}
+
+// Kept sorted by name: the order primvars are visited decides which of them
+// takes each spare attribute slot, and that has to be stable across runs. This
+// is why the mesh converter reaches for std::map rather than FlatMap.
+using TriangulatedPrimvars = std::map<std::string, TriangulatedPrimvar>;
 
 } // namespace
 
@@ -238,42 +297,147 @@ bool isGeometryPrimType(const pxr::TfToken &primType)
 
 namespace {
 
-// Bind one primvar onto a geometry, tessellating or expanding it so that it
-// matches the triangulated topology.
-void bindMeshPrimvar(ImportContext &ctx,
-    GeometryRef &geometry,
-    const pxr::HdMeshUtil &meshUtil,
+// Expand every primvar that has an attribute slot onto the triangulated
+// topology, once, so that each Surface built from the mesh only has to select
+// the values for its own triangles. Primvars whose expansion fails or comes up
+// short of the triangulation are left out rather than bound partially.
+TriangulatedPrimvars triangulatePrimvars(const pxr::HdMeshUtil &meshUtil,
     const ConvertedMesh &mesh,
-    const Primvar &primvar,
+    const std::map<std::string, Primvar> &primvars)
+{
+  TriangulatedPrimvars retval;
+  for (const auto &[name, primvar] : primvars) {
+    if (name == pxr::HdPrimvarsSchemaTokens->points.GetString()
+        || name == pxr::HdTokens->displayOpacity.GetString())
+      continue;
+
+    TriangulatedPrimvar attribute;
+    attribute.prefix = prefixForInterpolation(primvar.interpolation);
+    if (!attribute.prefix || anariTypeOfPrimvar(primvar.value) == ANARI_UNKNOWN)
+      continue;
+
+    if (primvar.interpolation == pxr::HdPrimvarSchemaTokens->uniform) {
+      attribute.value = expandUniformValue(primvar.value, mesh.primitiveParams);
+      attribute.valuesPerTriangle = 1;
+    } else if (primvar.interpolation
+        == pxr::HdPrimvarSchemaTokens->faceVarying) {
+      const auto result = meshUtil.ComputeTriangulatedFaceVaryingPrimvar(
+          pxr::HdGetValueData(primvar.value),
+          int(primvar.value.GetArraySize()),
+          pxr::HdGetValueTupleType(primvar.value).type,
+          &attribute.value);
+      if (result != pxr::HdMeshComputationResult::Success)
+        continue;
+      attribute.valuesPerTriangle = 3;
+    } else {
+      attribute.value = primvar.value;
+    }
+
+    // Whatever will be gathered has to cover the whole triangulation, since
+    // any subset may ask for any triangle. Vertex data is bound as authored
+    // and indexed by the triangle indices, so there is nothing to check here.
+    if (!attribute.value.IsArrayValued() || attribute.value.GetArraySize() == 0
+        || attribute.value.GetArraySize()
+            < mesh.triangleIndices.size() * attribute.valuesPerTriangle)
+      continue;
+
+    retval.emplace(name, std::move(attribute));
+  }
+  return retval;
+}
+
+// Bind one expanded primvar onto a geometry drawing `triangles`.
+void bindTrianglePrimvar(ImportContext &ctx,
+    GeometryRef &geometry,
+    TriangulatedPrimvar &primvar,
+    const std::vector<uint32_t> &triangles,
     const std::string &tsdName)
 {
-  const char *prefix = prefixForInterpolation(primvar.interpolation);
-  if (!prefix)
-    return;
-
-  pxr::VtValue value = primvar.value;
-  if (primvar.interpolation == pxr::HdPrimvarSchemaTokens->uniform)
-    value = expandUniformValue(value, mesh.primitiveParams);
-  else if (primvar.interpolation == pxr::HdPrimvarSchemaTokens->faceVarying) {
-    pxr::VtValue triangulated;
-    const auto result = meshUtil.ComputeTriangulatedFaceVaryingPrimvar(
-        pxr::HdGetValueData(primvar.value),
-        int(primvar.value.GetArraySize()),
-        pxr::HdGetValueTupleType(primvar.value).type,
-        &triangulated);
-    if (result != pxr::HdMeshComputationResult::Success)
+  ArrayRef array;
+  if (primvar.isShared()) {
+    if (!primvar.sharedArray) {
+      primvar.sharedArray = ctx.scene.createArray(
+          anariTypeOfPrimvar(primvar.value), primvar.value.GetArraySize());
+      primvar.sharedArray->setData(pxr::HdGetValueData(primvar.value));
+    }
+    array = primvar.sharedArray;
+  } else {
+    const auto selected = gatherTrianglesValue(
+        primvar.value, triangles, primvar.valuesPerTriangle);
+    if (!selected.IsArrayValued() || selected.GetArraySize() == 0)
       return;
-    value = triangulated;
+    array = ctx.scene.createArray(
+        anariTypeOfPrimvar(selected), selected.GetArraySize());
+    array->setData(pxr::HdGetValueData(selected));
   }
 
-  const auto type = anariTypeOfPrimvar(value);
-  if (type == ANARI_UNKNOWN || !value.IsArrayValued()
-      || value.GetArraySize() == 0)
-    return;
+  geometry->setParameterObject(
+      Token((primvar.prefix + tsdName).c_str()), *array);
+}
 
-  auto array = ctx.scene.createArray(type, value.GetArraySize());
-  array->setData(pxr::HdGetValueData(value));
-  geometry->setParameterObject(Token((prefix + tsdName).c_str()), *array);
+// Append the triangles one coarse face produced to a Surface's selection.
+void appendTrianglesOfFace(std::vector<uint32_t> &selection,
+    const std::vector<std::vector<uint32_t>> &trianglesOfFace,
+    size_t face)
+{
+  const auto &triangles = trianglesOfFace[face];
+  selection.insert(selection.end(), triangles.begin(), triangles.end());
+}
+
+// One Surface's worth of the mesh: the triangles it draws, with every primvar
+// re-indexed to match. `uvName` is whichever primvar this Surface's own
+// material reads, which is why the attribute slots cannot be assigned once for
+// the whole mesh.
+GeometryRef buildTriangleGeometry(ImportContext &ctx,
+    const ConvertedMesh &mesh,
+    TriangulatedPrimvars &attributes,
+    const std::vector<uint32_t> &triangles,
+    const std::string &uvName,
+    const char *name)
+{
+  auto geometry = ctx.scene.createObject<Geometry>(tokens::geometry::triangle);
+  geometry->setName(name);
+  geometry->setParameterObject("vertex.position", *mesh.vertexPosition);
+
+  std::vector<uint3> indices;
+  indices.reserve(triangles.size());
+  for (uint32_t triangle : triangles) {
+    const auto &t = mesh.triangleIndices[triangle];
+    indices.push_back(uint3(t[0], t[1], t[2]));
+  }
+  auto indexArray = ctx.scene.createArray(ANARI_UINT32_VEC3, indices.size());
+  indexArray->setData(indices.data(), indices.size());
+  geometry->setParameterObject("primitive.index", *indexArray);
+
+  auto bind = [&](const std::string &primvarName, const std::string &tsdName) {
+    auto found = attributes.find(primvarName);
+    if (found != attributes.end())
+      bindTrianglePrimvar(ctx, geometry, found->second, triangles, tsdName);
+  };
+
+  // Normals, UVs, display colour, then any remaining primvars in name order so
+  // the attribute assignment is deterministic.
+  const auto normalsName = pxr::HdPrimvarsSchemaTokens->normals.GetString();
+  const auto colorName = pxr::HdTokens->displayColor.GetString();
+  bind(normalsName, "normal");
+  bind(uvName, "attribute0");
+  bind(colorName, "color");
+
+  int nextAttribute = 1;
+  for (auto &[primvarName, primvar] : attributes) {
+    if (nextAttribute > 3)
+      break;
+    if (primvarName == normalsName || primvarName == colorName
+        || primvarName == uvName)
+      continue;
+    bindTrianglePrimvar(ctx,
+        geometry,
+        primvar,
+        triangles,
+        "attribute" + std::to_string(nextAttribute++));
+  }
+
+  return geometry;
 }
 
 std::vector<SurfaceRef> convertMesh(ImportContext &ctx,
@@ -371,60 +535,13 @@ std::vector<SurfaceRef> convertMesh(ImportContext &ctx,
   const auto resolved =
       resolveMaterial(ctx, sceneIndex, boundMaterialPathOf(prim));
 
-  auto geometry = ctx.scene.createObject<Geometry>(tokens::geometry::triangle);
-  geometry->setName(primPath.GetText());
-
   const auto positions =
       bakedPositions(points.value.UncheckedGet<pxr::VtVec3fArray>(), bakeXform);
   mesh.vertexPosition =
       ctx.scene.createArray(ANARI_FLOAT32_VEC3, positions.size());
   mesh.vertexPosition->setData(positions.data(), positions.size());
-  geometry->setParameterObject("vertex.position", *mesh.vertexPosition);
 
-  auto indexArray =
-      ctx.scene.createArray(ANARI_UINT32_VEC3, mesh.triangleIndices.size());
-  indexArray->setData(
-      (const uint3 *)mesh.triangleIndices.data(), mesh.triangleIndices.size());
-  geometry->setParameterObject("primitive.index", *indexArray);
-
-  // Normals, UVs, display colour, then any remaining float-typed primvars in
-  // name order so the attribute assignment is deterministic.
-  const auto normals = lookup(pxr::HdPrimvarsSchemaTokens->normals.GetString());
-  if (normals.valid())
-    bindMeshPrimvar(ctx, geometry, meshUtil, mesh, normals, "normal");
-
-  const std::string uvName =
-      resolved.uvPrimvarName.empty() ? "st" : resolved.uvPrimvarName;
-  const auto uvs = lookup(uvName);
-  if (uvs.valid())
-    bindMeshPrimvar(ctx, geometry, meshUtil, mesh, uvs, "attribute0");
-
-  const auto displayColor = lookup(pxr::HdTokens->displayColor.GetString());
-  if (displayColor.valid()
-      && displayColor.interpolation != pxr::HdPrimvarSchemaTokens->constant) {
-    bindMeshPrimvar(ctx, geometry, meshUtil, mesh, displayColor, "color");
-  }
-
-  int nextAttribute = 1;
-  for (const auto &[name, primvar] : primvars) {
-    if (nextAttribute > 3)
-      break;
-    if (name == pxr::HdPrimvarsSchemaTokens->points.GetString()
-        || name == pxr::HdPrimvarsSchemaTokens->normals.GetString()
-        || name == pxr::HdTokens->displayColor.GetString()
-        || name == pxr::HdTokens->displayOpacity.GetString() || name == uvName)
-      continue;
-    if (anariTypeOfPrimvar(primvar.value) == ANARI_UNKNOWN)
-      continue;
-    if (!prefixForInterpolation(primvar.interpolation))
-      continue;
-    bindMeshPrimvar(ctx,
-        geometry,
-        meshUtil,
-        mesh,
-        primvar,
-        "attribute" + std::to_string(nextAttribute++));
-  }
+  auto attributes = triangulatePrimvars(meshUtil, mesh, primvars);
 
   // Material //
 
@@ -432,12 +549,21 @@ std::vector<SurfaceRef> convertMesh(ImportContext &ctx,
   if (!material) {
     material = displayColorMaterial(ctx,
         primPath,
-        displayColor,
+        lookup(pxr::HdTokens->displayColor.GetString()),
         lookup(pxr::HdTokens->displayOpacity.GetString()));
   }
 
+  // A material names the primvar its texture reader wants. A subset without a
+  // material of its own falls back to this one, and this one to the
+  // conventional name.
+  const std::string meshUvName =
+      resolved.uvPrimvarName.empty() ? "st" : resolved.uvPrimvarName;
+
+  std::vector<uint32_t> allTriangles(mesh.triangleIndices.size());
+  std::iota(allTriangles.begin(), allTriangles.end(), 0u);
+
   // Per-face material subsets each become their own Surface over their own
-  // index array, sharing this mesh's vertex arrays.
+  // triangles, sharing this mesh's vertex arrays.
   std::vector<SurfaceRef> retval;
   std::vector<pxr::SdfPath> subsetPaths;
   for (const auto &childPath : sceneIndex->GetChildPrimPaths(primPath)) {
@@ -447,6 +573,8 @@ std::vector<SurfaceRef> convertMesh(ImportContext &ctx,
   }
 
   if (subsetPaths.empty()) {
+    auto geometry = buildTriangleGeometry(
+        ctx, mesh, attributes, allTriangles, meshUvName, primPath.GetText());
     retval.push_back(
         ctx.scene.createSurface(primPath.GetText(), geometry, material));
     return retval;
@@ -465,6 +593,8 @@ std::vector<SurfaceRef> convertMesh(ImportContext &ctx,
     trianglesOfFace[size_t(face)].push_back(uint32_t(i));
   }
 
+  std::vector<bool> faceIsClaimed(trianglesOfFace.size(), false);
+
   for (const auto &subsetPath : subsetPaths) {
     auto subsetPrim = sceneIndex->GetPrim(subsetPath);
     auto subsetSchema =
@@ -473,44 +603,56 @@ std::vector<SurfaceRef> convertMesh(ImportContext &ctx,
     if (faceIndices.empty())
       continue;
 
-    std::vector<uint3> subsetTriangles;
+    std::vector<uint32_t> subsetTriangles;
     for (int face : faceIndices) {
       if (face < 0 || size_t(face) >= trianglesOfFace.size())
         continue;
-      for (uint32_t triangle : trianglesOfFace[size_t(face)]) {
-        const auto &t = mesh.triangleIndices[triangle];
-        subsetTriangles.push_back(uint3(t[0], t[1], t[2]));
-      }
+      faceIsClaimed[size_t(face)] = true;
+      appendTrianglesOfFace(subsetTriangles, trianglesOfFace, size_t(face));
     }
     if (subsetTriangles.empty())
       continue;
 
-    auto subsetGeometry =
-        ctx.scene.createObject<Geometry>(tokens::geometry::triangle);
-    subsetGeometry->setName(subsetPath.GetText());
-    subsetGeometry->setParameterObject("vertex.position", *mesh.vertexPosition);
-    auto subsetIndex =
-        ctx.scene.createArray(ANARI_UINT32_VEC3, subsetTriangles.size());
-    subsetIndex->setData(subsetTriangles.data(), subsetTriangles.size());
-    subsetGeometry->setParameterObject("primitive.index", *subsetIndex);
+    // A subset resolves its own material, which may read a different UV
+    // primvar than the mesh's does, so its attributes are bound to suit it.
+    const auto subsetResolved =
+        resolveMaterial(ctx, sceneIndex, boundMaterialPathOf(subsetPrim));
+    const std::string &subsetUvName = subsetResolved.uvPrimvarName.empty()
+        ? meshUvName
+        : subsetResolved.uvPrimvarName;
 
-    // Share every vertex-interpolated attribute the parent mesh carries.
-    for (const auto &name :
-        {"vertex.normal", "vertex.attribute0", "vertex.color"}) {
-      if (auto *array = geometry->parameterValueAsObject<Array>(name))
-        subsetGeometry->setParameterObject(Token(name), *array);
-    }
-
-    auto subsetMaterial =
-        resolveMaterial(ctx, sceneIndex, boundMaterialPathOf(subsetPrim))
-            .material;
+    auto subsetGeometry = buildTriangleGeometry(ctx,
+        mesh,
+        attributes,
+        subsetTriangles,
+        subsetUvName,
+        subsetPath.GetText());
 
     retval.push_back(ctx.scene.createSurface(subsetPath.GetText(),
         subsetGeometry,
-        subsetMaterial ? subsetMaterial : material));
+        subsetResolved.material ? subsetResolved.material : material));
   }
 
-  if (retval.empty()) {
+  // Faces no subset claimed keep the mesh's own binding rather than going
+  // missing with the geometry that no Surface would have drawn.
+  std::vector<uint32_t> unclaimedTriangles;
+  for (size_t face = 0; face < trianglesOfFace.size(); ++face) {
+    if (!faceIsClaimed[face])
+      appendTrianglesOfFace(unclaimedTriangles, trianglesOfFace, face);
+  }
+
+  // No subset drew anything -- with nothing to divide the mesh up, draw all of
+  // it, including any triangle whose coarse face could not be identified.
+  if (retval.empty())
+    unclaimedTriangles = allTriangles;
+
+  if (!unclaimedTriangles.empty()) {
+    auto geometry = buildTriangleGeometry(ctx,
+        mesh,
+        attributes,
+        unclaimedTriangles,
+        meshUvName,
+        primPath.GetText());
     retval.push_back(
         ctx.scene.createSurface(primPath.GetText(), geometry, material));
   }
