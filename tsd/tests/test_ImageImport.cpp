@@ -507,11 +507,11 @@ SCENARIO(
     {
       // Half-scale in v, as USD's uvTransform or PBRT's vscale would give.
       tsd::io::SamplerSettings settings;
-      settings.uvTransform = tsd::core::math::mat4(float4(1.f, 0.f, 0.f, 0.f),
-          float4(0.f, 0.5f, 0.f, 0.f),
-          float4(0.f, 0.f, 1.f, 0.f),
-          float4(0.f, 0.f, 0.f, 1.f));
-      settings.hasUvTransform = true;
+      settings.uvTransform =
+          tsd::io::UvTransform{tsd::core::math::mat4(float4(1.f, 0.f, 0.f, 0.f),
+              float4(0.f, 0.5f, 0.f, 0.f),
+              float4(0.f, 0.f, 1.f, 0.f),
+              float4(0.f, 0.f, 0.f, 1.f))};
 
       auto sampler = tsd::io::importTexture(
           scene, texture.path(), cache, /*isLinear=*/false, settings);

@@ -38,6 +38,11 @@ void import_HDRI(Scene &scene,
         img.rowOrder,
         rgb.data());
 
+    if (!image) {
+      logError("[import_HDRI] failed to store radiance for '%s'", filepath);
+      return;
+    }
+
     auto [inst, hdri] = scene.insertNewChildObjectNode<Light>(
         location ? location : scene.defaultLayer()->root(),
         tokens::light::hdri);

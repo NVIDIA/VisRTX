@@ -915,12 +915,11 @@ static SamplerSettings pbrtSamplerSettings(const pbrt::ParamList &params)
   if (us == 1.f && vs == 1.f && ud == 0.f && vd == 0.f)
     return settings;
 
-  settings.uvTransform = mat4{float4(us, 0.f, 0.f, 0.f),
-      float4(0.f, vs, 0.f, 0.f),
-      float4(0.f, 0.f, 1.f, 0.f),
-      float4(0.f, 0.f, 0.f, 1.f)};
-  settings.uvOffset = float4(ud, vd, 0.f, 0.f);
-  settings.hasUvTransform = true;
+  settings.uvTransform = UvTransform{mat4{float4(us, 0.f, 0.f, 0.f),
+                                         float4(0.f, vs, 0.f, 0.f),
+                                         float4(0.f, 0.f, 1.f, 0.f),
+                                         float4(0.f, 0.f, 0.f, 1.f)},
+      float4(ud, vd, 0.f, 0.f)};
   return settings;
 }
 

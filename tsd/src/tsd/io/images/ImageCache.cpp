@@ -89,8 +89,8 @@ Image ImageCache::acquire(const ImageSource &source)
   auto resolved = source;
   resolved.colorSpace = detail::colorSpaceForFile(source.id, source.colorSpace);
 
-  if (auto *cached = lookup(resolved))
-    return *cached;
+  if (auto cached = find(resolved))
+    return cached;
 
   return store(
       resolved, detail::decodeImageFile(resolved.id, resolved.colorSpace));
@@ -105,8 +105,8 @@ Image ImageCache::acquire(const ImageSource &source,
   resolved.colorSpace =
       detail::colorSpaceForFormatHint(formatHint, source.colorSpace);
 
-  if (auto *cached = lookup(resolved))
-    return *cached;
+  if (auto cached = find(resolved))
+    return cached;
 
   return store(resolved,
       detail::decodeImageFromMemory(
@@ -120,8 +120,8 @@ Image ImageCache::acquireDecoded(const ImageSource &source,
     RowOrder rowOrder,
     const void *texels)
 {
-  if (auto *cached = lookup(source))
-    return *cached;
+  if (auto cached = find(source))
+    return cached;
 
   detail::DecodedImage decoded;
   decoded.elementType = elementType;
@@ -149,12 +149,6 @@ void ImageCache::clear()
 size_t ImageCache::size() const
 {
   return m_images.size();
-}
-
-Image *ImageCache::lookup(const ImageSource &source)
-{
-  auto found = m_images.find(keyOf(source));
-  return found == m_images.end() ? nullptr : &found->second;
 }
 
 Image ImageCache::store(
@@ -219,14 +213,12 @@ SamplerRef makeImageSampler(Scene &scene,
   // against the bottom-up coordinates every importer now hands ANARI. Undo
   // that here, composed onto the caller's own transform rather than replacing
   // it, which is why makeImageSampler owns inTransform/inOffset outright.
-  auto uvTransform = settings.uvTransform;
-  auto uvOffset = settings.uvOffset;
-  if (image.blockCompressed)
-    composeVFlip(uvTransform, uvOffset);
-
-  if (settings.hasUvTransform || image.blockCompressed) {
-    sampler->setParameter("inTransform", uvTransform);
-    sampler->setParameter("inOffset", uvOffset);
+  if (settings.uvTransform || image.blockCompressed) {
+    auto uv = settings.uvTransform.value_or(UvTransform{});
+    if (image.blockCompressed)
+      composeVFlip(uv.transform, uv.offset);
+    sampler->setParameter("inTransform", uv.transform);
+    sampler->setParameter("inOffset", uv.offset);
   }
   sampler->setName(fileOf(displayName).c_str());
 

@@ -106,7 +106,7 @@ static std::string attributeNameForTexCoord(int texCoord)
 // decode path nothing here expands to float or applies a gamma curve in
 // software -- the *_SRGB formats let the device apply the true sRGB EOTF.
 static anari::DataType gltfTexelType(
-    const tinygltf::Image &image, bool isLinear, int textureIndex)
+    const tinygltf::Image &image, bool isLinear)
 {
   const int channels = image.component - 1;
   switch (image.pixel_type) {
@@ -182,6 +182,9 @@ static SamplerRef importGLTFTexture(Scene &scene,
     const tinygltf::Model &model,
     int textureIndex,
     ImageCache &cache,
+    // Scopes the cache id to this glTF: image names are local to a file, so
+    // two assets each naming an image "diffuse" are different images.
+    const std::string &sourcePrefix,
     bool isLinear = false,
     const char *samplerName = nullptr,
     int texCoord = 0)
@@ -203,12 +206,12 @@ static SamplerRef importGLTFTexture(Scene &scene,
     return {};
   }
 
-  const auto elementType = gltfTexelType(image, isLinear, textureIndex);
+  const auto elementType = gltfTexelType(image, isLinear);
   if (elementType == ANARI_UNKNOWN)
     return {};
 
   const ImageSource source{
-      "gltf:"s + imageId, isLinear ? ColorSpace::LINEAR : ColorSpace::SRGB};
+      sourcePrefix + imageId, isLinear ? ColorSpace::LINEAR : ColorSpace::SRGB};
   // tinygltf decodes through stb, which hands back the picture's first row
   // first whatever the container stored.
   auto decoded = cache.acquireDecoded(source,
@@ -241,7 +244,7 @@ static void applyNormalTextureScale(SamplerRef sampler, float scale)
 }
 
 static std::vector<MaterialRef> importGLTFMaterials(
-    Scene &scene, const tinygltf::Model &model)
+    Scene &scene, const tinygltf::Model &model, const std::string &filename)
 {
   // This function supports the following glTF material extensions:
   // - KHR_materials_transmission: transmission factor and texture
@@ -254,6 +257,7 @@ static std::vector<MaterialRef> importGLTFMaterials(
 
   std::vector<MaterialRef> materials;
   ImageCache cache(&scene);
+  const auto sourcePrefix = "gltf:"s + filename + ":";
 
   for (const auto &gltfMaterial : model.materials) {
     MaterialRef material;
@@ -272,6 +276,7 @@ static std::vector<MaterialRef> importGLTFMaterials(
             model,
             pbr.baseColorTexture.index,
             cache,
+            sourcePrefix,
             false,
             "baseColor",
             pbr.baseColorTexture.texCoord)) {
@@ -292,6 +297,7 @@ static std::vector<MaterialRef> importGLTFMaterials(
             model,
             pbr.baseColorTexture.index,
             cache,
+            sourcePrefix,
             true,
             "opacity",
             pbr.baseColorTexture.texCoord)) {
@@ -311,6 +317,7 @@ static std::vector<MaterialRef> importGLTFMaterials(
             model,
             pbr.metallicRoughnessTexture.index,
             cache,
+            sourcePrefix,
             true,
             "metallic",
             pbr.metallicRoughnessTexture.texCoord)) {
@@ -331,6 +338,7 @@ static std::vector<MaterialRef> importGLTFMaterials(
             model,
             pbr.metallicRoughnessTexture.index,
             cache,
+            sourcePrefix,
             true,
             "roughness",
             pbr.metallicRoughnessTexture.texCoord)) {
@@ -350,6 +358,7 @@ static std::vector<MaterialRef> importGLTFMaterials(
             model,
             gltfMaterial.normalTexture.index,
             cache,
+            sourcePrefix,
             true,
             "normal",
             gltfMaterial.normalTexture.texCoord)) {
@@ -363,6 +372,7 @@ static std::vector<MaterialRef> importGLTFMaterials(
             model,
             gltfMaterial.occlusionTexture.index,
             cache,
+            sourcePrefix,
             true,
             "occlusion",
             gltfMaterial.occlusionTexture.texCoord)) {
@@ -387,6 +397,7 @@ static std::vector<MaterialRef> importGLTFMaterials(
             model,
             gltfMaterial.emissiveTexture.index,
             cache,
+            sourcePrefix,
             false,
             "emissive",
             gltfMaterial.emissiveTexture.texCoord)) {
@@ -433,6 +444,7 @@ static std::vector<MaterialRef> importGLTFMaterials(
               model,
               transmissionTextureIndex,
               cache,
+              sourcePrefix,
               true,
               "transmission",
               transmissionTexCoord)) {
@@ -479,6 +491,7 @@ static std::vector<MaterialRef> importGLTFMaterials(
               model,
               thicknessTextureIndex,
               cache,
+              sourcePrefix,
               true,
               "thickness",
               thicknessTexCoord)) {
@@ -528,6 +541,7 @@ static std::vector<MaterialRef> importGLTFMaterials(
               model,
               clearcoatTextureIndex,
               cache,
+              sourcePrefix,
               true,
               "clearcoat",
               clearcoatTexCoord)) {
@@ -554,6 +568,7 @@ static std::vector<MaterialRef> importGLTFMaterials(
               model,
               clearcoatRoughnessTextureIndex,
               cache,
+              sourcePrefix,
               true,
               "clearcoatRoughness",
               clearcoatRoughnessTexCoord)) {
@@ -578,6 +593,7 @@ static std::vector<MaterialRef> importGLTFMaterials(
               model,
               clearcoatNormalTextureIndex,
               cache,
+              sourcePrefix,
               true,
               "clearcoatNormal",
               clearcoatNormalTexCoord)) {
@@ -608,6 +624,7 @@ static std::vector<MaterialRef> importGLTFMaterials(
               model,
               specularTextureIndex,
               cache,
+              sourcePrefix,
               true,
               "specular",
               specularTexCoord)) {
@@ -634,6 +651,7 @@ static std::vector<MaterialRef> importGLTFMaterials(
               model,
               specularColorTextureIndex,
               cache,
+              sourcePrefix,
               false,
               "specularColor",
               specularColorTexCoord)) {
@@ -671,6 +689,7 @@ static std::vector<MaterialRef> importGLTFMaterials(
               model,
               sheenColorTextureIndex,
               cache,
+              sourcePrefix,
               false,
               "sheenColor",
               sheenColorTexCoord)) {
@@ -697,6 +716,7 @@ static std::vector<MaterialRef> importGLTFMaterials(
               model,
               sheenRoughnessTextureIndex,
               cache,
+              sourcePrefix,
               true,
               "sheenRoughness",
               sheenRoughnessTexCoord)) {
@@ -734,6 +754,7 @@ static std::vector<MaterialRef> importGLTFMaterials(
               model,
               iridescenceTextureIndex,
               cache,
+              sourcePrefix,
               true,
               "iridescence",
               iridescenceTexCoord)) {
@@ -769,6 +790,7 @@ static std::vector<MaterialRef> importGLTFMaterials(
               model,
               iridescenceThicknessTextureIndex,
               cache,
+              sourcePrefix,
               true,
               "iridescenceThickness",
               iridescenceThicknessTexCoord)) {
@@ -1413,7 +1435,7 @@ void import_GLTF(Scene &scene,
   scene.beginLayerEditBatch();
 
   // Import materials
-  auto materials = importGLTFMaterials(scene, model);
+  auto materials = importGLTFMaterials(scene, model, filename);
 
   // Import meshes
   auto surfaces = importGLTFMeshes(scene, model, materials);

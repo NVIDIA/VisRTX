@@ -29,11 +29,15 @@ struct DecodedImage
   bool blockCompressed{false};
   tsd::core::Token compressedFormat;
 
-  explicit operator bool() const
-  {
-    return elementType != ANARI_UNKNOWN && !texels.empty();
-  }
+  explicit operator bool() const;
 };
+
+// Inlined definitions ////////////////////////////////////////////////////////
+
+inline DecodedImage::operator bool() const
+{
+  return elementType != ANARI_UNKNOWN && !texels.empty();
+}
 
 // Whether a file's own encoding overrides the color space a caller asked for.
 // EXR carries linear values and DDS carries its encoding in the block format,

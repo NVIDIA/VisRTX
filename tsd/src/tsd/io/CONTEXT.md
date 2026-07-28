@@ -134,3 +134,35 @@ Render Contexts to prefer, what to emit materials as, how far to refine
 subdivision surfaces, and which prim to import from. Converts to and from a
 DataTree so it can be persisted with a project and driven from scripting.
 _Avoid_: import config, import params
+
+### Images
+
+**Image**:
+A decoded picture resident in a scene, held as an Array of texels. Identified
+by its content, not by the sampler built from it: two materials binding the
+same file at the same Color Space share one Image.
+
+**Image Source**:
+What identifies an Image's content — a resolved absolute path for a
+file-backed image, or an importer-scoped stable id otherwise
+(`gltf:<file>:<image>`, `assimp://embedded/<n>`, `pbrt:<file>::normal`) —
+together with the Color Space it was decoded for.
+_Avoid_: texture key, cache key
+
+**Image Cache**:
+The owner of every decoded Image for one scene. It holds the scene it caches
+for, so a cached Array can never reach a different one, and it must not
+outlive that scene.
+_Avoid_: texture cache
+
+**Row Order**:
+Which row of a picture a texel array stores first. Decoders declare the Row
+Order their library produced; the Image Cache normalizes to ANARI
+orientation — row 0 is the bottom row — and no importer flips texels itself.
+See [ADR 0014](../../../docs/adr/0014-store-images-in-anari-orientation.md).
+_Avoid_: flipped, vertical orientation, y-up
+
+**Color Space**:
+How a file's values relate to the linear values a renderer wants, either sRGB
+or linear. Formats carrying an encoding of their own — EXR, and the block
+format of a DDS — ignore what a caller asks for.

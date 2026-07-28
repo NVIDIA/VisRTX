@@ -4,7 +4,9 @@ A decoded image resident in a TSD Scene is stored in ANARI orientation: the
 array's row 0 is the bottom row of the picture, so texture coordinate `(0, 0)`
 addresses the lower-left corner. Importers hand ANARI texture coordinates in
 ANARI's convention, converting from the source format's where they differ —
-glTF and PBRT flip `v`, and ASSIMP simply stops asking for `aiProcess_FlipUVs`.
+glTF flips `v` because glTF's runs down the image, while PBRT stops flipping it
+and ASSIMP stops asking for `aiProcess_FlipUVs`, both of those formats being
+v-up already.
 Decoders declare the row order their library produced and `ImageCache`
 normalizes; no importer flips texels itself. Previously each of seven decode
 paths carried its own unstated assumption, and the assumptions cancelled for

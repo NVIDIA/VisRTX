@@ -3,9 +3,11 @@
 
 #pragma once
 
+#include "tsd/core/TypeMacros.hpp"
 #include "tsd/scene/Scene.hpp"
 // std
 #include <cstddef>
+#include <optional>
 #include <string>
 #include <unordered_map>
 
@@ -49,10 +51,7 @@ struct Image
   // texel grid, so they cannot be reordered; makeImageSampler compensates.
   bool blockCompressed{false};
 
-  explicit operator bool() const
-  {
-    return texels.valid();
-  }
+  explicit operator bool() const;
 };
 
 // Owns decoded images for one Scene. Holds the Scene it caches for so a cached
@@ -62,6 +61,11 @@ class ImageCache
  public:
   ImageCache() = default;
   explicit ImageCache(tsd::scene::Scene *scene);
+
+  // Copyable and moveable: an ImageCache is a value the caller owns, and
+  // ImportContext holds one by value.
+  TSD_DEFAULT_COPYABLE(ImageCache)
+  TSD_DEFAULT_MOVEABLE(ImageCache)
 
   tsd::scene::Scene *scene() const;
 
@@ -90,11 +94,17 @@ class ImageCache
   size_t size() const;
 
  private:
-  Image *lookup(const ImageSource &source);
   Image store(const ImageSource &source, detail::DecodedImage &&decoded);
 
   tsd::scene::Scene *m_scene{nullptr};
   std::unordered_map<std::string, Image> m_images;
+};
+
+// An importer's own uv transform, in the form ANARI takes it.
+struct UvTransform
+{
+  tsd::math::mat4 transform{tsd::math::IDENTITY_MAT4};
+  tsd::math::float4 offset{0.f, 0.f, 0.f, 0.f};
 };
 
 // How a sampler reads the image it is bound to. Everything a binding can vary
@@ -108,17 +118,22 @@ struct SamplerSettings
   const char *wrapMode1{"repeat"};
   const char *wrapMode2{"repeat"};
   const char *filter{"linear"};
-  // The importer's own uv transform, in the same form ANARI takes it.
-  tsd::math::mat4 uvTransform{tsd::math::IDENTITY_MAT4};
-  tsd::math::float4 uvOffset{0.f, 0.f, 0.f, 0.f};
-  // Set only when the importer authored a transform, so a sampler that wants
-  // none is left without the parameters entirely rather than with an identity.
-  bool hasUvTransform{false};
+  // The importer's own uv transform, in the same form ANARI takes it. Unset
+  // where the importer authored none, so a sampler that wants no transform is
+  // left without the parameters entirely rather than with an identity.
+  std::optional<UvTransform> uvTransform;
 };
 
 tsd::scene::SamplerRef makeImageSampler(tsd::scene::Scene &scene,
     const Image &image,
     const std::string &displayName,
     const SamplerSettings &settings = {});
+
+// Inlined definitions ////////////////////////////////////////////////////////
+
+inline Image::operator bool() const
+{
+  return texels.valid();
+}
 
 } // namespace tsd::io

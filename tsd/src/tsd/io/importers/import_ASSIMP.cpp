@@ -5,10 +5,11 @@
 #define TSD_USE_ASSIMP 1
 #endif
 
-#include <vector>
 #include "tsd/core/Logging.hpp"
 #include "tsd/io/importers.hpp"
 #include "tsd/io/importers/detail/importer_common.hpp"
+// std
+#include <vector>
 #if TSD_USE_ASSIMP
 // assimp
 #include <assimp/postprocess.h>
@@ -290,13 +291,12 @@ static std::vector<MaterialRef> importASSIMPMaterials(
       aiUVTransform uvTransform;
       if (aiGetMaterialUVTransform(assimpMat, pKey, type, index, &uvTransform)
           == AI_SUCCESS) {
-        settings.uvTransform =
+        settings.uvTransform = UvTransform{
             mat4({uvTransform.mScaling.x, 0.f, 0.f, uvTransform.mTranslation.x},
                 {0.f, uvTransform.mScaling.y, 0.f, uvTransform.mTranslation.y},
                 {0.f, 0.f, 1.f, 0.f},
-                {0.0f, 0.0f, 0.f, 1.f});
+                {0.0f, 0.0f, 0.f, 1.f})};
       }
-      settings.hasUvTransform = true;
       return settings;
     };
 

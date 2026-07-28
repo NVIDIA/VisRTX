@@ -777,8 +777,10 @@ ResolvedMaterial resolveMaterial(ImportContext &ctx,
     SamplerSettings settings;
     settings.wrapMode1 = wrapS.c_str();
     settings.wrapMode2 = wrapT.c_str();
-    settings.uvTransform = uvTransformOfTexture(walker, texturePath);
-    settings.hasUvTransform = settings.uvTransform != math::IDENTITY_MAT4;
+    if (const auto uvTransform = uvTransformOfTexture(walker, texturePath);
+        uvTransform != math::IDENTITY_MAT4) {
+      settings.uvTransform = UvTransform{uvTransform};
+    }
 
     const bool isLinear = textureIsLinear(walker, texturePath, colorRole);
     auto sampler =
