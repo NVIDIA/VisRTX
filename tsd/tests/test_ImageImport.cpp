@@ -143,6 +143,29 @@ std::string ddsFixtureContents()
   return dds;
 }
 
+// A 1x2 Radiance HDR: red on top, blue on the bottom. The scanline data is
+// flat RGBE rather than run-length encoded, which stb takes for any image
+// under eight texels wide.
+std::string hdrFixtureContents()
+{
+  // Mantissa plus a shared exponent of 129, so the bright channel reads a
+  // little under 2.0 and the others are zero.
+  const unsigned char scanlines[] = {
+      0xff,
+      0x00,
+      0x00,
+      0x81, // top row: red
+      0x00,
+      0x00,
+      0xff,
+      0x81 // bottom row: blue
+  };
+
+  std::string hdr = "#?RADIANCE\nFORMAT=32-bit_rle_rgbe\n\n-Y 2 +X 1\n";
+  hdr.append(reinterpret_cast<const char *>(scanlines), sizeof(scanlines));
+  return hdr;
+}
+
 // Texel readers ///////////////////////////////////////////////////////////////
 
 // Importers do not agree on an element type -- the shared path expands to
@@ -406,6 +429,36 @@ SCENARIO("Decoded images are stored in ANARI orientation", "[ImageImport]")
         REQUIRE(image->dim(1) == 2);
         REQUIRE(isBottomRowColor(texelAsFloat3(image, 0)));
         REQUIRE(isTopRowColor(texelAsFloat3(image, 1)));
+      }
+    }
+  }
+}
+
+SCENARIO("An imported HDRI's radiance is in ANARI orientation", "[ImageImport]")
+{
+  GIVEN("A 1x2 Radiance HDR, red on top and blue on the bottom")
+  {
+    TempFile hdri("tsd_test_orient.hdr", hdrFixtureContents());
+
+    tsd::scene::Scene scene;
+    tsd::animation::AnimationManager animMgr(&scene);
+
+    WHEN("It is imported as a dome light")
+    {
+      tsd::io::import_HDRI(scene, animMgr, hdri.path().c_str());
+
+      THEN("Row 0 of the radiance array is the bottom row of the picture")
+      {
+        REQUIRE(scene.numberOfObjects(ANARI_LIGHT) == 1);
+        auto light = scene.getObject<tsd::scene::Light>(0);
+        REQUIRE(light);
+        auto *radiance =
+            light->parameterValueAsObject<tsd::scene::Array>("radiance");
+        REQUIRE(radiance != nullptr);
+        REQUIRE(radiance->dim(0) == 1);
+        REQUIRE(radiance->dim(1) == 2);
+        REQUIRE(isBottomRowColor(texelAsFloat3(radiance, 0)));
+        REQUIRE(isTopRowColor(texelAsFloat3(radiance, 1)));
       }
     }
   }

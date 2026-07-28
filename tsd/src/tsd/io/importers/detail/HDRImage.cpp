@@ -168,9 +168,11 @@ bool HDRImage::import(std::string fileName)
 
   if (extension == ".hdr") {
     int w, h, n;
+    // Bottom row first, matching the EXR branch below and the orientation a
+    // Scene stores images in.
     stbi_set_flip_vertically_on_load(1);
     const float *imgData = stbi_loadf(fileName.c_str(), &w, &h, &n, STBI_rgb);
-    stbi_set_flip_vertically_on_load(0); // Restore default top-down orientation
+    stbi_set_flip_vertically_on_load(0); // this flag is global to stb
     width = w;
     height = h;
     numComponents = 3; // because of STBI_rgb

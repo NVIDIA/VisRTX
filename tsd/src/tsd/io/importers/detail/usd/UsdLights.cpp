@@ -174,10 +174,20 @@ ArrayRef readDomeRadiance(ImportContext &ctx,
   for (auto &texel : rgb)
     texel *= radiometry.color;
 
-  auto retval =
-      ctx.scene.createArray(ANARI_FLOAT32_VEC3, image.width, image.height);
-  retval->setData(rgb.data());
-  return retval;
+  // Keyed on the radiometry as well as the file: the scale above is baked
+  // into the texels, so two dome lights sharing a file but not a colour are
+  // genuinely different images.
+  const auto id = "usd:domelight:" + file + ":"
+      + std::to_string(radiometry.color.x) + ","
+      + std::to_string(radiometry.color.y) + ","
+      + std::to_string(radiometry.color.z);
+  auto acquired = ctx.textureCache.acquireDecoded({id, ColorSpace::LINEAR},
+      ANARI_FLOAT32_VEC3,
+      image.width,
+      image.height,
+      image.rowOrder,
+      rgb.data());
+  return acquired.texels;
 }
 
 } // namespace
