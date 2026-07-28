@@ -19,6 +19,43 @@ scratch, check whether a TSD primitive already fits:
 
 ---
 
+## Store Non-Owning Members as Pointers, Never References
+
+Parent §6 allows raw pointers or ref wrappers for non-owning references; in TSD
+a class member that refers to something it does not own is **always a raw
+pointer**, default-initialized to `nullptr`:
+
+```cpp
+class ImageCache
+{
+ public:
+  ImageCache(Scene *scene);
+  Scene *scene() const;
+
+ private:
+  Scene *m_scene{nullptr};   // not Scene &
+};
+```
+
+This is the established shape — `Layer::m_scene`, `AnariHandleCache::m_scene`,
+`AnyObjectUsePtr::m_scene`, and every `tsd/network/messages/` type store the
+scene this way. A reference member silently deletes assignment and forces the
+binding at construction, which breaks the movable-not-copyable lifetime that
+`TSD_DEFAULT_MOVEABLE` and `DECLARE_OBJECT_DEFAULT_LIFETIME` declare
+everywhere else.
+
+The cost is that null becomes representable. Handle it at the boundary rather
+than pushing the check onto callers: return the type's existing empty/failure
+value (see Fallible Returns in parent §8), the way `self()` does in the object
+skeleton below.
+
+**This rule is about stored members only.** Function parameters stay
+references where the argument is required and non-null — the importer and
+exporter signatures in File I/O below take `Scene &` deliberately, and that
+does not change.
+
+---
+
 ## Scene Mutation and Notification
 
 - Subclass `BaseUpdateDelegate` for any consumer that needs to react to scene
