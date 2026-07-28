@@ -21,6 +21,7 @@ project_add_executable(
   test_FlatMap.cpp
   test_Forest.cpp
   test_Geometry.cpp
+  test_ImageImport.cpp
   test_Importers.cpp
   test_LayerSubtreeArchive.cpp
   test_Manipulator.cpp
@@ -74,6 +75,7 @@ add_test(NAME tsd::DataTree      COMMAND ${PROJECT_NAME} "[DataTree]"     )
 add_test(NAME tsd::FlatMap       COMMAND ${PROJECT_NAME} "[FlatMap]"      )
 add_test(NAME tsd::Forest        COMMAND ${PROJECT_NAME} "[Forest]"       )
 add_test(NAME tsd::Geometry      COMMAND ${PROJECT_NAME} "[Geometry]"     )
+add_test(NAME tsd::ImageImport   COMMAND ${PROJECT_NAME} "[ImageImport]"  )
 add_test(NAME tsd::Importers     COMMAND ${PROJECT_NAME} "[Importers]"    )
 add_test(NAME tsd::LayerSubtreeArchive
   COMMAND ${PROJECT_NAME} "[LayerSubtreeArchive]")
