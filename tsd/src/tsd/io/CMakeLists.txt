@@ -114,12 +114,14 @@ project_link_libraries(PRIVATE tsd::nanovdb)
 
 ## Setup optional dependencies ##
 
+# PUBLIC so the test target can assert on the ASSIMP importer only where it
+# exists, the same widening TSD_USE_OIIO and TSD_USE_USD make below.
 if (TSD_USE_ASSIMP)
   find_package(assimp REQUIRED)
-  project_compile_definitions(PRIVATE -DTSD_USE_ASSIMP=1)
+  project_compile_definitions(PUBLIC -DTSD_USE_ASSIMP=1)
   project_link_libraries(PRIVATE assimp::assimp)
 else()
-  project_compile_definitions(PRIVATE -DTSD_USE_ASSIMP=0)
+  project_compile_definitions(PUBLIC -DTSD_USE_ASSIMP=0)
 endif()
 
 if (TSD_USE_HDF5)

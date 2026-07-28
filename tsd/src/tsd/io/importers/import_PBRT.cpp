@@ -46,9 +46,8 @@ float3 getFloat3(const pbrt::ParamList &p, const std::string &name, float3 def)
 // Defined later — shared with the lights/area-emitters path so that
 // `"spectrum reflectance" [λ v λ v …]`, `"blackbody"`, etc. resolve
 // identically for materials, lights, and any other RGB triple lookup.
-static float3 resolveEmissionColor(const pbrt::ParamList &params,
-    const std::string &name,
-    float3 fallback);
+static float3 resolveEmissionColor(
+    const pbrt::ParamList &params, const std::string &name, float3 fallback);
 
 float3 getRgb(
     const pbrt::ParamList &p, const std::string &name, float3 def = float3(1.f))
@@ -217,8 +216,6 @@ static GeometryRef buildTriangleMesh(Scene &scene, const pbrt::Shape &shape)
     auto uvArr = scene.createArray(ANARI_FLOAT32_VEC2, numUV);
     auto *outUV = uvArr->mapAs<float2>();
     std::memcpy(outUV, uv.data(), numUV * sizeof(float2));
-    for (size_t i = 0; i < numUV; i++)
-      outUV[i].y = 1.f - outUV[i].y;
     uvArr->unmap();
     geom->setParameterObject("vertex.attribute0", *uvArr);
   }
@@ -425,8 +422,6 @@ static GeometryRef buildPlyMesh(
     auto *outUV = uvArr->mapAs<float2>();
     std::memcpy(
         outUV, texcoords->buffer.get(), texcoords->count * sizeof(float2));
-    for (size_t i = 0; i < texcoords->count; i++)
-      outUV[i].y = 1.f - outUV[i].y;
     uvArr->unmap();
     geom->setParameterObject("vertex.attribute0", *uvArr);
   }
@@ -683,8 +678,8 @@ static bool convertNanoVdbMediumShape(Scene &scene,
 {
   const auto filename = medium.params.getString("filename");
   if (filename.empty()) {
-    logWarning(
-        "[import_PBRT] nanovdb medium '%s' missing filename", mediumName.c_str());
+    logWarning("[import_PBRT] nanovdb medium '%s' missing filename",
+        mediumName.c_str());
     return false;
   }
 
@@ -713,8 +708,10 @@ static bool convertNanoVdbMediumShape(Scene &scene,
 
   // PBRT albedo = sigma_s / (sigma_a + sigma_s). For a sampled spectrum
   // we fall back on resolveEmissionColor's mean-of-samples behaviour.
-  const float3 sigmaA = resolveEmissionColor(medium.params, "sigma_a", float3(0.f));
-  const float3 sigmaS = resolveEmissionColor(medium.params, "sigma_s", float3(1.f));
+  const float3 sigmaA =
+      resolveEmissionColor(medium.params, "sigma_a", float3(0.f));
+  const float3 sigmaS =
+      resolveEmissionColor(medium.params, "sigma_s", float3(1.f));
   const float3 extinction = sigmaA + sigmaS;
   float3 albedo(1.f);
   if (extinction.x > 0.f)
@@ -903,28 +900,28 @@ static BakedTexture combineMix(
   return out;
 }
 
-// Apply PBRT v4's UV-coordinate transform (`uscale`, `vscale`, `udelta`,
-// `vdelta`) to a sampler via its `inTransform`/`inOffset`. PBRT samples the
-// image at `(us*u + ud, vs*v + vd)` in its v-up convention. Our importer has
-// already flipped each vertex's v to ANARI's v-down convention, and the
-// image is also stored top-down, so the equivalent fetch on our side is
-// `(us*u_a + ud, vs*v_a + (1 - vs - vd))` — the v-flip cancels into the
-// constant offset.
-static void applyPbrtUvTransform(
-    SamplerRef &sampler, const pbrt::ParamList &params)
+// PBRT v4's UV-coordinate transform (`uscale`, `vscale`, `udelta`, `vdelta`),
+// as sampler settings. PBRT samples the image at `(us*u + ud, vs*v + vd)` in
+// its v-up convention, which is now also ANARI's, so this is the transform
+// verbatim.
+static SamplerSettings pbrtSamplerSettings(const pbrt::ParamList &params)
 {
+  SamplerSettings settings;
+
   const float us = params.getFloat("uscale", 1.f);
   const float vs = params.getFloat("vscale", 1.f);
   const float ud = params.getFloat("udelta", 0.f);
   const float vd = params.getFloat("vdelta", 0.f);
   if (us == 1.f && vs == 1.f && ud == 0.f && vd == 0.f)
-    return;
-  mat4 m{float4(us, 0.f, 0.f, 0.f),
+    return settings;
+
+  settings.uvTransform = mat4{float4(us, 0.f, 0.f, 0.f),
       float4(0.f, vs, 0.f, 0.f),
       float4(0.f, 0.f, 1.f, 0.f),
       float4(0.f, 0.f, 0.f, 1.f)};
-  sampler->setParameter("inTransform", m);
-  sampler->setParameter("inOffset", float4(ud, 1.f - vs - vd, 0.f, 0.f));
+  settings.uvOffset = float4(ud, vd, 0.f, 0.f);
+  settings.hasUvTransform = true;
+  return settings;
 }
 
 static BakedTexture bakeTexture(Scene &scene,
@@ -1013,10 +1010,13 @@ static BakedTexture bakeTexture(Scene &scene,
     // PBRT splits image textures by colorType: "spectrum" is sRGB color
     // data, "float" is linear scalar data (roughness, masks, bumps).
     const bool isLinear = (texDef.colorType == "float");
-    auto sampler = importTexture(scene, fullPath, texCache, isLinear);
+    auto sampler = importTexture(scene,
+        fullPath,
+        texCache,
+        isLinear,
+        pbrtSamplerSettings(texDef.params));
     if (!sampler)
       return {};
-    applyPbrtUvTransform(sampler, texDef.params);
     // Per the ANARI sampler spec, a fetched texel is completed to four
     // components with the missing first three defaulting to 0. A 1-channel
     // grayscale image bound to a color slot therefore reads `baseColor.xyz
@@ -1185,7 +1185,7 @@ static bool resolveImagemapChain(const pbrt::Scene &pbrtScene,
           fv && !fv->empty())
         k *= (*fv)[0];
       else if (auto *sv = std::get_if<std::vector<std::string>>(&it->second);
-          sv && !sv->empty() && nextTex.empty())
+               sv && !sv->empty() && nextTex.empty())
         nextTex = (*sv)[0];
     }
     if (nextTex.empty())
@@ -1216,8 +1216,7 @@ static SamplerRef importHeightAsNormalMap(Scene &scene,
 {
   // Key under a separate id so this doesn't collide with any value-domain
   // sampler that may already exist for the same file.
-  const ImageSource source{"pbrt:" + filepath + "::normal",
-      ColorSpace::LINEAR};
+  const ImageSource source{"pbrt:" + filepath + "::normal", ColorSpace::LINEAR};
 
   if (auto cached = texCache.find(source))
     return makeImageSampler(scene, cached, fileOf(filepath) + "_bump");
@@ -1245,7 +1244,10 @@ static SamplerRef importHeightAsNormalMap(Scene &scene,
       const float hx = raw[y * w + xp] - raw[y * w + xm];
       const float hy = raw[yp * w + x] - raw[ym * w + x];
       const float nx = -hx * k;
-      const float ny = -hy * k;
+      // `hy` runs down the decoded image, but the array this lands in is
+      // stored bottom-up, so the row axis the gradient was taken over is
+      // reversed relative to the `v` that will fetch it.
+      const float ny = hy * k;
       const float nz = 1.f;
       const float invLen = 1.f / std::sqrt(nx * nx + ny * ny + nz * nz);
       // Pack [-1,1] -> [0,1] (glTF normal-map convention).
@@ -1346,7 +1348,7 @@ static float resolveDielectricEta(const pbrt::ParamList &params, float def)
   if (auto *fv = std::get_if<std::vector<float>>(&it->second)) {
     eta = extract(*fv, def);
   } else if (auto *sv = std::get_if<std::vector<std::string>>(&it->second);
-      sv && !sv->empty()) {
+             sv && !sv->empty()) {
     logWarning(
         "[import_PBRT] dielectric: named spectrum '%s' for eta "
         "not supported, using %.3f",
@@ -1915,7 +1917,7 @@ static MaterialRef applyShapeAlpha(Scene &scene,
     floatAlpha = std::clamp((*fv)[0], 0.f, 1.f);
     haveFloatAlpha = true;
   } else if (auto *sv = std::get_if<std::vector<std::string>>(&alphaIt->second);
-      sv && !sv->empty()) {
+             sv && !sv->empty()) {
     const auto &alphaTexName = (*sv)[0];
     auto texIt = pbrtScene.textures.find(alphaTexName);
     if (texIt == pbrtScene.textures.end()) {
@@ -2181,7 +2183,8 @@ static void convertLight(Scene &scene,
     if (radiance) {
       // HDRI-driven: PBRT v4 layers blackbody/rgb L and `scale` on top of
       // the image. Carry that as the `color` multiplier.
-      color = applyScale(params, resolveEmissionColor(params, "L"), exposureScale);
+      color =
+          applyScale(params, resolveEmissionColor(params, "L"), exposureScale);
     } else {
       // Filename-less / load failure: bake the resolved emission directly
       // into a 1x1 radiance pixel so `radiance` carries the actual light.

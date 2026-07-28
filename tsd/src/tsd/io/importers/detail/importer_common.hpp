@@ -32,7 +32,8 @@ tsd::scene::ArrayRef readArray(
 tsd::scene::SamplerRef importTexture(tsd::scene::Scene &scene,
     std::string filepath,
     ImageCache &cache,
-    bool isLinear = false);
+    bool isLinear = false,
+    const SamplerSettings &settings = {});
 tsd::scene::SamplerRef importTextureFromMemory(tsd::scene::Scene &scene,
     const std::string &cacheKey,
     const std::string &displayName,
@@ -40,7 +41,8 @@ tsd::scene::SamplerRef importTextureFromMemory(tsd::scene::Scene &scene,
     size_t numBytes,
     ImageCache &cache,
     bool isLinear = false,
-    const std::string &formatHint = "");
+    const std::string &formatHint = "",
+    const SamplerSettings &settings = {});
 tsd::scene::SamplerRef importRawTexture2D(tsd::scene::Scene &scene,
     const std::string &cacheKey,
     const std::string &displayName,
@@ -48,7 +50,8 @@ tsd::scene::SamplerRef importRawTexture2D(tsd::scene::Scene &scene,
     size_t width,
     size_t height,
     ImageCache &cache,
-    bool isLinear = false);
+    bool isLinear = false,
+    const SamplerSettings &settings = {});
 
 tsd::scene::SamplerRef makeDefaultColorMapSampler(
     tsd::scene::Scene &scene, const tsd::math::float2 &range);
@@ -69,7 +72,10 @@ bool calcTangentsForTriangleMesh(const tsd::math::uint3 *indices,
     tsd::math::float4 *tangents,
     size_t numIndices,
     size_t numVertices,
-    bool flipTexCoordY = true,
+    // Importers hand ANARI v-up coordinates, which is what mikktspace wants,
+    // so this only exists for a caller reading a source format's raw v-down
+    // coordinates directly.
+    bool flipTexCoordY = false,
     bool faceVaryingTangents = false);
 
 #if TSD_USE_VTK

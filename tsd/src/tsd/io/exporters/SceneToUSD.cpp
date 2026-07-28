@@ -49,6 +49,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <future>
@@ -126,6 +127,25 @@ pxr::SdfPath allocateUniquePath(
   return newPath;
 }
 
+// Scene arrays are in ANARI orientation -- row 0 is the picture's bottom row
+// -- while PNG and EXR are both top-down formats, so a texture written
+// straight out would come back mirrored. See
+// docs/adr/0014-store-images-in-anari-orientation.md.
+static std::vector<char> topDownRowsOf(const Array *image)
+{
+  const auto width = image->dim(0);
+  const auto height = image->dim(1);
+  const auto rowBytes = width * image->elementSize();
+
+  std::vector<char> rows(rowBytes * height);
+  const auto *src = static_cast<const char *>(image->data());
+  for (size_t r = 0; r < height; ++r)
+    std::memcpy(rows.data() + r * rowBytes,
+        src + (height - 1 - r) * rowBytes,
+        rowBytes);
+  return rows;
+}
+
 static std::filesystem::path tsdSamplerToFile(
     pxr::UsdStageRefPtr &stage, const Sampler *sampler)
 {
@@ -160,24 +180,25 @@ static std::filesystem::path tsdSamplerToFile(
       outputBasePath += ".exr";
       int channels = (format == ANARI_FLOAT32_VEC3) ? 3 : 4;
 
-      textureWriteQueue.push_back(std::async([=]() -> std::string {
-        const char *err = nullptr;
-        int ret = SaveEXR(reinterpret_cast<const float *>(image->data()),
-            width,
-            height,
-            channels,
-            0,
-            outputBasePath.string().c_str(),
-            &err);
-        if (ret != TINYEXR_SUCCESS && err) {
-          auto result =
-              "Failed to save "s + outputBasePath.string() + " : " + err;
-          FreeEXRErrorMessage(err);
-          return result;
-        } else {
-          return "Saved "s + outputBasePath.string();
-        }
-      }));
+      textureWriteQueue.push_back(
+          std::async([=, rows = topDownRowsOf(image)]() -> std::string {
+            const char *err = nullptr;
+            int ret = SaveEXR(reinterpret_cast<const float *>(rows.data()),
+                width,
+                height,
+                channels,
+                0,
+                outputBasePath.string().c_str(),
+                &err);
+            if (ret != TINYEXR_SUCCESS && err) {
+              auto result =
+                  "Failed to save "s + outputBasePath.string() + " : " + err;
+              FreeEXRErrorMessage(err);
+              return result;
+            } else {
+              return "Saved "s + outputBasePath.string();
+            }
+          }));
     } else {
       // Write as PNG for LDR data
       outputBasePath += ".png";
@@ -191,19 +212,20 @@ static std::filesystem::path tsdSamplerToFile(
         channels = 1;
 
       if (channels > 0) {
-        textureWriteQueue.push_back(std::async([=]() -> std::string {
-          int ret = stbi_write_png(outputBasePath.string().c_str(),
-              width,
-              height,
-              channels,
-              image->data(),
-              width * channels);
-          if (!ret) {
-            return "Failed to save "s + outputBasePath.string();
-          } else {
-            return "Saved "s + outputBasePath.string();
-          }
-        }));
+        textureWriteQueue.push_back(
+            std::async([=, rows = topDownRowsOf(image)]() -> std::string {
+              int ret = stbi_write_png(outputBasePath.string().c_str(),
+                  width,
+                  height,
+                  channels,
+                  rows.data(),
+                  width * channels);
+              if (!ret) {
+                return "Failed to save "s + outputBasePath.string();
+              } else {
+                return "Saved "s + outputBasePath.string();
+              }
+            }));
       }
     }
   } else if (sampler->subtype() == tokens::sampler::compressedImage2D) {

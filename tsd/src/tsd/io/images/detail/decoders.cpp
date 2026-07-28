@@ -64,8 +64,12 @@ DecodedImage decodeStb(
   stbi_ldr_to_hdr_scale(1.0f);
   stbi_ldr_to_hdr_gamma(colorSpace == ColorSpace::LINEAR ? 1.0f : 2.2f);
 
-  float *decoded = stbi_loadf_from_memory(
-      static_cast<const stbi_uc *>(data), int(numBytes), &width, &height, &n, 0);
+  float *decoded = stbi_loadf_from_memory(static_cast<const stbi_uc *>(data),
+      int(numBytes),
+      &width,
+      &height,
+      &n,
+      0);
 
   if (!decoded) {
     logError("[decodeImage] failed to decode image '%s'", id);
@@ -84,8 +88,8 @@ DecodedImage decodeStb(
   // stb hands back the picture's first row first, whatever the container's own
   // storage order was -- it undoes BMP's and TGA's bottom-up layouts itself.
   image.rowOrder = RowOrder::TOP_DOWN;
-  const size_t numBytesOut = size_t(width) * size_t(height) * size_t(n)
-      * sizeof(float);
+  const size_t numBytesOut =
+      size_t(width) * size_t(height) * size_t(n) * sizeof(float);
   image.texels.assign(reinterpret_cast<const char *>(decoded),
       reinterpret_cast<const char *>(decoded) + numBytesOut);
 
@@ -307,8 +311,7 @@ DecodedImage decodeOiio(const std::string &path, ColorSpace colorSpace)
   }
 
   if (colorSpace == ColorSpace::SRGB && fileIsIntegral) {
-    applyGamma22InPlace(
-        texels, size_t(width) * size_t(height), numChannels);
+    applyGamma22InPlace(texels, size_t(width) * size_t(height), numChannels);
   }
 
   return image;

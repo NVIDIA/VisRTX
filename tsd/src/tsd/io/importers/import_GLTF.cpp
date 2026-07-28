@@ -207,8 +207,8 @@ static SamplerRef importGLTFTexture(Scene &scene,
   if (elementType == ANARI_UNKNOWN)
     return {};
 
-  const ImageSource source{"gltf:"s + imageId,
-      isLinear ? ColorSpace::LINEAR : ColorSpace::SRGB};
+  const ImageSource source{
+      "gltf:"s + imageId, isLinear ? ColorSpace::LINEAR : ColorSpace::SRGB};
   // tinygltf decodes through stb, which hands back the picture's first row
   // first whatever the container stored.
   auto decoded = cache.acquireDecoded(source,
@@ -984,6 +984,9 @@ static std::vector<SurfaceRef> importGLTFMeshes(Scene &scene,
               scene.createArray(ANARI_FLOAT32_VEC2, texCoordAccessor.count);
           auto *texCoordDataOut = vertexTexCoordArray->mapAs<float2>();
           copyStridedData(model, texCoordIt->second, texCoordDataOut);
+          // glTF's `v` runs down the image; ANARI's runs up it.
+          for (size_t v = 0; v < texCoordAccessor.count; ++v)
+            texCoordDataOut[v].y = 1.f - texCoordDataOut[v].y;
           vertexTexCoordArray->unmap();
 
           const std::string attributeName =
@@ -1102,6 +1105,10 @@ static std::vector<SurfaceRef> importGLTFMeshes(Scene &scene,
                 : std::vector<float3>{};
             auto texCoords =
                 copyAccessorData<float2>(model, texCoordIt->second);
+            // Raw accessor data is glTF's v-down; match the v-up coordinates
+            // that landed on the geometry above.
+            for (auto &uv : texCoords)
+              uv.y = 1.f - uv.y;
 
             // Get or generate indices
             std::vector<uint3> indices;
@@ -1148,7 +1155,7 @@ static std::vector<SurfaceRef> importGLTFMeshes(Scene &scene,
                   tangents,
                   indices.size(),
                   posAccessor.count,
-                  true,
+                  false,
                   outputFaceVaryingTangents);
 
               vertexTangentArray->unmap();

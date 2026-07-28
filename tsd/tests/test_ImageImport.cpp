@@ -103,6 +103,46 @@ std::string tgaFixtureContents()
   return std::string(reinterpret_cast<const char *>(tga), sizeof(tga));
 }
 
+// An 8x8 BC1 DDS: the top half of every block is red, the bottom half blue.
+// Block-compressed texels are the one case the import layer cannot reorder, so
+// this is the fixture that exercises the sampler-side compensation instead.
+std::string ddsFixtureContents()
+{
+  // One BC1 block: color0 = red, color1 = blue, then four rows of 2-bit
+  // indices, top row first -- rows 0 and 1 pick color0, rows 2 and 3 color1.
+  const unsigned char block[] = {
+      0x00, 0xf8, 0x1f, 0x00, 0x00, 0x00, 0x55, 0x55};
+
+  std::string dds;
+  auto u32 = [&dds](std::uint32_t v) {
+    dds.append(reinterpret_cast<const char *>(&v), sizeof(v));
+  };
+
+  dds += "DDS ";
+  u32(124); // header size
+  u32(0x1 | 0x2 | 0x4 | 0x1000
+      | 0x80000); // CAPS|HEIGHT|WIDTH|PIXELFORMAT|LINEARSIZE
+  u32(8); // height
+  u32(8); // width
+  u32(4 * sizeof(block)); // linear size: four 4x4 blocks
+  u32(0); // depth
+  u32(1); // mip levels
+  for (int i = 0; i < 11; ++i)
+    u32(0); // reserved
+  u32(32); // pixel format size
+  u32(0x4); // DDPF_FOURCC
+  dds += "DXT1";
+  for (int i = 0; i < 5; ++i)
+    u32(0); // bit counts and masks, unused for a fourCC format
+  u32(0x1000); // DDSCAPS_TEXTURE
+  for (int i = 0; i < 4; ++i)
+    u32(0); // caps2..4, reserved2
+
+  for (int i = 0; i < 4; ++i)
+    dds.append(reinterpret_cast<const char *>(block), sizeof(block));
+  return dds;
+}
+
 // Texel readers ///////////////////////////////////////////////////////////////
 
 // Importers do not agree on an element type -- the shared path expands to
@@ -221,8 +261,8 @@ std::string mtlContents(const std::string &textureName)
       + textureName + "\n";
 }
 
-std::string gltfContents(const std::string &binName,
-    const std::string &textureName)
+std::string gltfContents(
+    const std::string &binName, const std::string &textureName)
 {
   // glTF's `v` runs down the image per the spec, so the top of the quad
   // carries v = 0.
@@ -371,6 +411,70 @@ SCENARIO("Decoded images are stored in ANARI orientation", "[ImageImport]")
   }
 }
 
+SCENARIO(
+    "Block-compressed images get their flip from the sampler", "[ImageImport]")
+{
+  // BC blocks are 4x4, so the texels stay as the file authored them -- top-down
+  // -- and makeImageSampler compensates in the sampler's uv transform. The
+  // assertion is on where a coordinate lands, not on the matrix.
+  auto fetchedV = [](tsd::scene::SamplerRef sampler, float v) {
+    auto *transform = sampler->parameter("inTransform");
+    auto *offset = sampler->parameter("inOffset");
+    REQUIRE(transform != nullptr);
+    REQUIRE(offset != nullptr);
+    const auto uv =
+        tsd::core::math::mul(transform->value().get<tsd::core::math::mat4>(),
+            float4(0.f, v, 0.f, 1.f))
+        + offset->value().get<float4>();
+    return uv.y;
+  };
+
+  GIVEN("An 8x8 BC1 DDS, red on top and blue on the bottom")
+  {
+    TempFile texture("tsd_test_orient.dds", ddsFixtureContents());
+
+    tsd::scene::Scene scene;
+    tsd::io::ImageCache cache(&scene);
+
+    WHEN("It is imported with no uv transform of its own")
+    {
+      auto sampler = tsd::io::importTexture(scene, texture.path(), cache);
+
+      THEN("The sampler reverses v, so v = 1 reaches the block stream's top")
+      {
+        REQUIRE(sampler);
+        REQUIRE(sampler->subtype()
+            == tsd::scene::tokens::sampler::compressedImage2D);
+        REQUIRE(fetchedV(sampler, 1.f) == Approx(0.f).margin(1e-5));
+        REQUIRE(fetchedV(sampler, 0.f) == Approx(1.f).margin(1e-5));
+      }
+    }
+
+    WHEN("It is imported by a caller that authored its own uv transform")
+    {
+      // Half-scale in v, as USD's uvTransform or PBRT's vscale would give.
+      tsd::io::SamplerSettings settings;
+      settings.uvTransform = tsd::core::math::mat4(float4(1.f, 0.f, 0.f, 0.f),
+          float4(0.f, 0.5f, 0.f, 0.f),
+          float4(0.f, 0.f, 1.f, 0.f),
+          float4(0.f, 0.f, 0.f, 1.f));
+      settings.hasUvTransform = true;
+
+      auto sampler = tsd::io::importTexture(
+          scene, texture.path(), cache, /*isLinear=*/false, settings);
+
+      THEN("The flip composes onto that transform rather than replacing it")
+      {
+        REQUIRE(sampler);
+        // The caller's transform sends v = 1 to 0.5; the flip then sends 0.5
+        // to 0.5, and v = 0 to 1.
+        REQUIRE(fetchedV(sampler, 1.f) == Approx(0.5f).margin(1e-5));
+        REQUIRE(fetchedV(sampler, 0.f) == Approx(1.f).margin(1e-5));
+      }
+    }
+  }
+}
+
 // Importer-level contract /////////////////////////////////////////////////////
 
 // The property that has to hold whatever the storage convention is: the corner
@@ -383,8 +487,7 @@ SCENARIO("An imported quad's top corner addresses the image's top row",
   GIVEN("An OBJ quad textured with the fixture image")
   {
     TempFile texture("tsd_test_orient.tga", tgaFixtureContents());
-    TempFile mtl(
-        "tsd_test_orient.mtl", mtlContents("tsd_test_orient.tga"));
+    TempFile mtl("tsd_test_orient.mtl", mtlContents("tsd_test_orient.tga"));
     TempFile obj("tsd_test_orient.obj", objContents("tsd_test_orient.mtl"));
 
     tsd::scene::Scene scene;
@@ -402,6 +505,34 @@ SCENARIO("An imported quad's top corner addresses the image's top row",
       }
     }
   }
+
+#if TSD_USE_ASSIMP
+  // Through the glTF fixture rather than the OBJ one: ASSIMP reports a
+  // GL-style shading model for OBJ, and that branch of the material importer
+  // binds no textures at all, so an OBJ would assert nothing here.
+  GIVEN("The same glTF quad, read through ASSIMP")
+  {
+    TempFile texture("tsd_test_orient.tga", tgaFixtureContents());
+    TempFile bin("tsd_test_orient.bin", gltfBufferContents());
+    TempFile gltf("tsd_test_orient.gltf",
+        gltfContents("tsd_test_orient.bin", "tsd_test_orient.tga"));
+
+    tsd::scene::Scene scene;
+    tsd::animation::AnimationManager animMgr(&scene);
+
+    WHEN("It is imported")
+    {
+      tsd::io::import_ASSIMP(scene, animMgr, gltf.path().c_str());
+
+      THEN("The top corner samples the top row")
+      {
+        const auto *image = fixtureImage(scene);
+        REQUIRE(image != nullptr);
+        REQUIRE(isTopRowColor(sampleAsAnari(image, uvAtTopOfQuad(scene))));
+      }
+    }
+  }
+#endif
 
   GIVEN("A glTF quad textured with the fixture image")
   {
@@ -429,8 +560,7 @@ SCENARIO("An imported quad's top corner addresses the image's top row",
   GIVEN("A PBRT quad textured with the fixture image")
   {
     TempFile texture("tsd_test_orient.tga", tgaFixtureContents());
-    TempFile pbrt(
-        "tsd_test_orient.pbrt", pbrtContents("tsd_test_orient.tga"));
+    TempFile pbrt("tsd_test_orient.pbrt", pbrtContents("tsd_test_orient.tga"));
 
     tsd::scene::Scene scene;
     tsd::animation::AnimationManager animMgr(&scene);

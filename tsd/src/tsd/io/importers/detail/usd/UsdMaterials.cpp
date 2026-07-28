@@ -768,8 +768,21 @@ ResolvedMaterial resolveMaterial(ImportContext &ctx,
     if (!isAbsolute(file))
       file = ctx.basePath + file;
 
+    // Everything the binding varies goes in before the sampler is built:
+    // makeImageSampler owns inTransform/inOffset, because a block-compressed
+    // image needs a v-flip composed into them that a later setParameter here
+    // would drop.
+    const auto wrapS = wrapModeOf(walker, texturePath, "wrapS");
+    const auto wrapT = wrapModeOf(walker, texturePath, "wrapT");
+    SamplerSettings settings;
+    settings.wrapMode1 = wrapS.c_str();
+    settings.wrapMode2 = wrapT.c_str();
+    settings.uvTransform = uvTransformOfTexture(walker, texturePath);
+    settings.hasUvTransform = settings.uvTransform != math::IDENTITY_MAT4;
+
     const bool isLinear = textureIsLinear(walker, texturePath, colorRole);
-    auto sampler = importTexture(ctx.scene, file, ctx.textureCache, isLinear);
+    auto sampler =
+        importTexture(ctx.scene, file, ctx.textureCache, isLinear, settings);
     if (!sampler) {
       ctx.reportSkip(materialPath,
           prim.primType.GetString(),
@@ -777,15 +790,6 @@ ResolvedMaterial resolveMaterial(ImportContext &ctx,
           file);
       return false;
     }
-
-    sampler->setParameter(
-        "wrapMode1", wrapModeOf(walker, texturePath, "wrapS").c_str());
-    sampler->setParameter(
-        "wrapMode2", wrapModeOf(walker, texturePath, "wrapT").c_str());
-    sampler->setParameter("inAttribute", "attribute0");
-    const auto uvTransform = uvTransformOfTexture(walker, texturePath);
-    if (uvTransform != math::IDENTITY_MAT4)
-      sampler->setParameter("inTransform", uvTransform);
 
     material->setParameterObject(Token(tsdName), *sampler);
     return true;

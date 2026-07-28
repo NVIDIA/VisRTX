@@ -5,10 +5,10 @@
 #define TSD_USE_ASSIMP 1
 #endif
 
+#include <vector>
 #include "tsd/core/Logging.hpp"
 #include "tsd/io/importers.hpp"
 #include "tsd/io/importers/detail/importer_common.hpp"
-#include <vector>
 #if TSD_USE_ASSIMP
 // assimp
 #include <assimp/postprocess.h>
@@ -23,20 +23,21 @@ using namespace tsd::core;
 
 #if TSD_USE_ASSIMP
 
-static SamplerRef importEmbeddedTexture(
-    Scene &scene,
+static SamplerRef importEmbeddedTexture(Scene &scene,
     const aiTexture *embeddedTexture,
     int embeddedTextureIndex,
     ImageCache &cache,
-    bool isLinear)
+    bool isLinear,
+    const SamplerSettings &settings)
 {
   const std::string filename = embeddedTexture->mFilename.C_Str();
   const std::string textureId = embeddedTextureIndex >= 0
       ? "assimp://embedded/" + std::to_string(embeddedTextureIndex)
       : "assimp://embedded-name/" + filename;
   const std::string displayName = filename.empty()
-      ? (embeddedTextureIndex >= 0 ? "embedded_" + std::to_string(embeddedTextureIndex)
-                                   : "embedded_texture")
+      ? (embeddedTextureIndex >= 0
+                ? "embedded_" + std::to_string(embeddedTextureIndex)
+                : "embedded_texture")
       : filename;
   const bool validTexture = embeddedTexture->pcData != nullptr;
   logDebug(
@@ -47,8 +48,8 @@ static SamplerRef importEmbeddedTexture(
       embeddedTexture->achFormatHint);
 
   if (!validTexture) {
-    logWarning("[import_ASSIMP] invalid embedded texture '%s'",
-        displayName.c_str());
+    logWarning(
+        "[import_ASSIMP] invalid embedded texture '%s'", displayName.c_str());
     return {};
   }
 
@@ -60,9 +61,11 @@ static SamplerRef importEmbeddedTexture(
         embeddedTexture->mWidth,
         cache,
         isLinear,
-        embeddedTexture->achFormatHint);
+        embeddedTexture->achFormatHint,
+        settings);
     if (!tex) {
-      logWarning("[import_ASSIMP] failed to decode embedded texture '%s' (hint: %s)",
+      logWarning(
+          "[import_ASSIMP] failed to decode embedded texture '%s' (hint: %s)",
           displayName.c_str(),
           embeddedTexture->achFormatHint);
     }
@@ -71,7 +74,8 @@ static SamplerRef importEmbeddedTexture(
 
   std::vector<uint8_t> rgba(
       size_t(embeddedTexture->mWidth) * size_t(embeddedTexture->mHeight) * 4);
-  for (size_t i = 0; i < size_t(embeddedTexture->mWidth) * embeddedTexture->mHeight;
+  for (size_t i = 0;
+       i < size_t(embeddedTexture->mWidth) * embeddedTexture->mHeight;
        ++i) {
     const auto &src = embeddedTexture->pcData[i];
     rgba[i * 4 + 0] = src.r;
@@ -87,7 +91,8 @@ static SamplerRef importEmbeddedTexture(
       embeddedTexture->mWidth,
       embeddedTexture->mHeight,
       cache,
-      isLinear);
+      isLinear,
+      settings);
 }
 
 static std::vector<SurfaceRef> importASSIMPSurfaces(Scene &scene,
@@ -109,29 +114,27 @@ static std::vector<SurfaceRef> importASSIMPSurfaces(Scene &scene,
     auto vertexNormalArray = mesh->HasNormals()
         ? scene.createArray(ANARI_FLOAT32_VEC3, numVertices)
         : ArrayRef{};
-    float3 *outNormals = vertexNormalArray ? vertexNormalArray->mapAs<float3>()
-                                           : nullptr;
+    float3 *outNormals =
+        vertexNormalArray ? vertexNormalArray->mapAs<float3>() : nullptr;
 
     auto vertexTexCoordArray = mesh->HasTextureCoords(0 /*texcord set*/)
         ? scene.createArray(ANARI_FLOAT32_VEC2, numVertices)
         : ArrayRef{};
-    float2 *outTexCoords = vertexTexCoordArray
-        ? vertexTexCoordArray->mapAs<float2>()
-        : nullptr;
+    float2 *outTexCoords =
+        vertexTexCoordArray ? vertexTexCoordArray->mapAs<float2>() : nullptr;
 
     auto vertexTangentArray = mesh->HasTangentsAndBitangents()
         ? scene.createArray(ANARI_FLOAT32_VEC4, numVertices)
         : ArrayRef{};
-    float4 *outTangents = vertexTangentArray
-        ? vertexTangentArray->mapAs<float4>()
-        : nullptr;
+    float4 *outTangents =
+        vertexTangentArray ? vertexTangentArray->mapAs<float4>() : nullptr;
 
     // TODO: test for AI_MAX_NUMBER_OF_COLOR_SETS, import all..
     auto vertexColorArray = mesh->mColors[0]
         ? scene.createArray(ANARI_FLOAT32_VEC4, numVertices)
         : ArrayRef{};
-    float4 *outColors = vertexColorArray ? vertexColorArray->mapAs<float4>()
-                                         : nullptr;
+    float4 *outColors =
+        vertexColorArray ? vertexColorArray->mapAs<float4>() : nullptr;
 
     for (unsigned j = 0; j < mesh->mNumVertices; ++j) {
       aiVector3D v = mesh->mVertices[j];
@@ -254,39 +257,47 @@ static std::vector<MaterialRef> importASSIMPMaterials(
     MaterialRef m;
 
     auto loadTexture = [&](const aiString &texName,
-                           bool isLinear = false) -> SamplerRef {
+                           bool isLinear = false,
+                           const SamplerSettings &settings = {}) -> SamplerRef {
       SamplerRef tex;
       if (texName.length != 0) {
         auto [embeddedTexture, embeddedTextureIndex] =
             a_scene->GetEmbeddedTextureAndIndex(texName.C_Str());
         if (embeddedTexture) {
-          tex = importEmbeddedTexture(
-              scene, embeddedTexture, embeddedTextureIndex, cache, isLinear);
+          tex = importEmbeddedTexture(scene,
+              embeddedTexture,
+              embeddedTextureIndex,
+              cache,
+              isLinear,
+              settings);
+        } else {
+          tex = importTexture(
+              scene, basePath + texName.C_Str(), cache, isLinear, settings);
         }
-        else
-          tex =
-              importTexture(scene, basePath + texName.C_Str(), cache, isLinear);
       }
 
       return tex;
     };
 
-    auto getTextureUVTransform = [&](const char *pKey,
-                                     unsigned int type,
-                                     unsigned int index = 0) -> mat4 {
+    // The uv transform goes to loadTexture rather than onto the returned
+    // sampler, because makeImageSampler owns inTransform/inOffset: a
+    // block-compressed image needs a v-flip composed into them, and setting
+    // them here afterwards would drop it.
+    auto getTextureUVSettings = [&](const char *pKey,
+                                    unsigned int type,
+                                    unsigned int index = 0) -> SamplerSettings {
+      SamplerSettings settings;
       aiUVTransform uvTransform;
       if (aiGetMaterialUVTransform(assimpMat, pKey, type, index, &uvTransform)
           == AI_SUCCESS) {
-        return mat4(
-            {uvTransform.mScaling.x, 0.f, 0.f, uvTransform.mTranslation.x},
-            {0.f, uvTransform.mScaling.y, 0.f, uvTransform.mTranslation.y},
-            {0.f, 0.f, 1.f, 0.f},
-            {0.0f, 0.0f, 0.f, 1.f});
+        settings.uvTransform =
+            mat4({uvTransform.mScaling.x, 0.f, 0.f, uvTransform.mTranslation.x},
+                {0.f, uvTransform.mScaling.y, 0.f, uvTransform.mTranslation.y},
+                {0.f, 0.f, 1.f, 0.f},
+                {0.0f, 0.0f, 0.f, 1.f});
       }
-      return {{1.0f, 0.0f, 0.0f, 0.0f},
-          {0.0f, 1.0f, 0.0f, 0.0f},
-          {0.0f, 0.0f, 1.0f, 0.0f},
-          {0.0f, 0.0f, 0.0f, 1.0f}};
+      settings.hasUvTransform = true;
+      return settings;
     };
 
     if (matType == aiShadingMode_PBR_BRDF) {
@@ -296,10 +307,10 @@ static std::vector<MaterialRef> importASSIMPMaterials(
       if (aiString baseColorTexture;
           assimpMat->GetTexture(AI_MATKEY_BASE_COLOR_TEXTURE, &baseColorTexture)
           == AI_SUCCESS) {
-        if (auto sampler = loadTexture(baseColorTexture); sampler) {
-          auto tx = getTextureUVTransform(
-              AI_MATKEY_UVTRANSFORM(aiTextureType_BASE_COLOR, 0));
-          sampler->setParameter("inTransform", tx);
+        auto settings = getTextureUVSettings(
+            AI_MATKEY_UVTRANSFORM(aiTextureType_BASE_COLOR, 0));
+        if (auto sampler = loadTexture(baseColorTexture, false, settings);
+            sampler) {
           m->setParameterObject("baseColor", *sampler);
         }
       } else if (aiColor3D baseColor;
@@ -312,10 +323,10 @@ static std::vector<MaterialRef> importASSIMPMaterials(
       if (aiString metallicTexture;
           assimpMat->GetTexture(AI_MATKEY_METALLIC_TEXTURE, &metallicTexture)
           == AI_SUCCESS) {
-        if (auto sampler = loadTexture(metallicTexture, true); sampler) {
-          auto tx = getTextureUVTransform(
-              AI_MATKEY_UVTRANSFORM(aiTextureType_METALNESS, 0));
-          sampler->setParameter("inTransform", tx);
+        auto settings = getTextureUVSettings(
+            AI_MATKEY_UVTRANSFORM(aiTextureType_METALNESS, 0));
+        if (auto sampler = loadTexture(metallicTexture, true, settings);
+            sampler) {
           // - Metallic is blue
           sampler->setParameter("outTransform",
               mat4({0, 0, 0, 0}, {0, 0, 0, 0}, {1, 0, 0, 0}, {0, 0, 0, 1}));
@@ -330,11 +341,11 @@ static std::vector<MaterialRef> importASSIMPMaterials(
       if (aiString roughnessTexture;
           assimpMat->GetTexture(AI_MATKEY_ROUGHNESS_TEXTURE, &roughnessTexture)
           == AI_SUCCESS) {
-        if (auto sampler = loadTexture(roughnessTexture, true); sampler) {
+        auto settings = getTextureUVSettings(
+            AI_MATKEY_UVTRANSFORM(aiTextureType_DIFFUSE_ROUGHNESS, 0));
+        if (auto sampler = loadTexture(roughnessTexture, true, settings);
+            sampler) {
           // Map red to red/blue as expected by our gltf pbr implementation
-          auto tx = getTextureUVTransform(
-              AI_MATKEY_UVTRANSFORM(aiTextureType_DIFFUSE_ROUGHNESS, 0));
-          sampler->setParameter("inTransform", tx);
           // - Roughness is green
           sampler->setParameter("outTransform",
               mat4({0, 0, 0, 0}, {1, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 1}));
@@ -352,24 +363,24 @@ static std::vector<MaterialRef> importASSIMPMaterials(
           assimpMat->GetTexture(
               AI_MATKEY_ANISOTROPY_TEXTURE, &anisotropyTexture)
           == AI_SUCCESS) {
-        if (auto sampler = loadTexture(anisotropyTexture, true); sampler) {
+        auto settings = getTextureUVSettings(
+            AI_MATKEY_UVTRANSFORM(aiTextureType_ANISOTROPY, 0));
+        if (auto sampler = loadTexture(anisotropyTexture, true, settings);
+            sampler) {
           // Map red to red/green/blue as expected by our gltf pbr
           // implementation
-          auto tx = getTextureUVTransform(
-              AI_MATKEY_UVTRANSFORM(aiTextureType_ANISOTROPY, 0));
-          sampler->setParameter("inTransform", tx);
           // - Tangent/bitangent Direction is red/green
           //   and remap from [0:1] to [-1:1]
           sampler->setParameter("outTransform",
               mat4({2, 0, 0, 0}, {0, 2, 0, 0}, {0, 0, 0, 0}, {-1, -1, 0, 1}));
           m->setParameterObject("anisotropyDirection", *sampler);
         }
-        if (auto sampler = loadTexture(anisotropyTexture, true); sampler) {
+        auto settings = getTextureUVSettings(
+            AI_MATKEY_UVTRANSFORM(aiTextureType_ANISOTROPY, 0));
+        if (auto sampler = loadTexture(anisotropyTexture, true, settings);
+            sampler) {
           // Map red to red/green/blue as expected by our gltf pbr
           // implementation
-          auto tx = getTextureUVTransform(
-              AI_MATKEY_UVTRANSFORM(aiTextureType_ANISOTROPY, 0));
-          sampler->setParameter("inTransform", tx);
           // - Strength is blue
           sampler->setParameter("outTransform",
               mat4({0, 0, 0, 0}, {0, 0, 0, 0}, {1, 0, 0, 0}, {0, 0, 0, 1}));
@@ -410,10 +421,10 @@ static std::vector<MaterialRef> importASSIMPMaterials(
           assimpMat->GetTexture(
               AI_MATKEY_SHEEN_COLOR_TEXTURE, &sheenColorTexture)
           == AI_SUCCESS) {
-        if (auto sampler = loadTexture(sheenColorTexture); sampler) {
-          auto tx = getTextureUVTransform(
-              AI_MATKEY_UVTRANSFORM(aiTextureType_SHEEN, 0));
-          sampler->setParameter("inTransform", tx);
+        auto settings =
+            getTextureUVSettings(AI_MATKEY_UVTRANSFORM(aiTextureType_SHEEN, 0));
+        if (auto sampler = loadTexture(sheenColorTexture, false, settings);
+            sampler) {
           m->setParameterObject("sheenColor", *sampler);
         }
       } else if (aiColor3D sheenColor;
@@ -426,10 +437,10 @@ static std::vector<MaterialRef> importASSIMPMaterials(
           assimpMat->GetTexture(
               AI_MATKEY_SHEEN_ROUGHNESS_TEXTURE, &sheenRoughnessTexture)
           == AI_SUCCESS) {
-        if (auto sampler = loadTexture(sheenRoughnessTexture, true); sampler) {
-          auto tx = getTextureUVTransform(
-              AI_MATKEY_UVTRANSFORM(aiTextureType_SHEEN, 1));
-          sampler->setParameter("inTransform", tx);
+        auto settings =
+            getTextureUVSettings(AI_MATKEY_UVTRANSFORM(aiTextureType_SHEEN, 1));
+        if (auto sampler = loadTexture(sheenRoughnessTexture, true, settings);
+            sampler) {
           m->setParameterObject("sheenRoughness", *sampler);
         }
       } else if (ai_real sheenRoughnessFactor;
@@ -443,10 +454,10 @@ static std::vector<MaterialRef> importASSIMPMaterials(
       if (aiString clearcoatTexture;
           assimpMat->GetTexture(AI_MATKEY_CLEARCOAT_TEXTURE, &clearcoatTexture)
           == AI_SUCCESS) {
-        if (auto sampler = loadTexture(clearcoatTexture, true); sampler) {
-          auto tx = getTextureUVTransform(
-              AI_MATKEY_UVTRANSFORM(aiTextureType_CLEARCOAT, 0));
-          sampler->setParameter("inTransform", tx);
+        auto settings = getTextureUVSettings(
+            AI_MATKEY_UVTRANSFORM(aiTextureType_CLEARCOAT, 0));
+        if (auto sampler = loadTexture(clearcoatTexture, true, settings);
+            sampler) {
           m->setParameterObject("clearcoat", *sampler);
         }
       } else if (ai_real clearcoatFactor;
@@ -459,11 +470,11 @@ static std::vector<MaterialRef> importASSIMPMaterials(
           assimpMat->GetTexture(
               AI_MATKEY_CLEARCOAT_ROUGHNESS_TEXTURE, &clearcoatRoughnessTexture)
           == AI_SUCCESS) {
-        if (auto sampler = loadTexture(clearcoatRoughnessTexture, true);
+        auto settings = getTextureUVSettings(
+            AI_MATKEY_UVTRANSFORM(aiTextureType_CLEARCOAT, 1));
+        if (auto sampler =
+                loadTexture(clearcoatRoughnessTexture, true, settings);
             sampler) {
-          auto tx = getTextureUVTransform(
-              AI_MATKEY_UVTRANSFORM(aiTextureType_CLEARCOAT, 1));
-          sampler->setParameter("inTransform", tx);
           m->setParameterObject("clearcoatRoughness", *sampler);
         }
       } else if (ai_real clearcoatRoughnessFactor;
@@ -478,10 +489,10 @@ static std::vector<MaterialRef> importASSIMPMaterials(
           assimpMat->GetTexture(
               AI_MATKEY_CLEARCOAT_NORMAL_TEXTURE, &clearcoatNormalTexture)
           == AI_SUCCESS) {
-        if (auto sampler = loadTexture(clearcoatNormalTexture, true); sampler) {
-          auto tx = getTextureUVTransform(
-              AI_MATKEY_UVTRANSFORM(aiTextureType_CLEARCOAT, 2));
-          sampler->setParameter("inTransform", tx);
+        auto settings = getTextureUVSettings(
+            AI_MATKEY_UVTRANSFORM(aiTextureType_CLEARCOAT, 2));
+        if (auto sampler = loadTexture(clearcoatNormalTexture, true, settings);
+            sampler) {
           m->setParameterObject("clearcoatNormal", *sampler);
         }
       }
@@ -490,10 +501,10 @@ static std::vector<MaterialRef> importASSIMPMaterials(
       if (aiString emissiveTexture;
           assimpMat->GetTexture(aiTextureType_EMISSIVE, 0, &emissiveTexture)
           == AI_SUCCESS) {
-        if (auto sampler = loadTexture(emissiveTexture); sampler) {
-          auto tx = getTextureUVTransform(
-              AI_MATKEY_UVTRANSFORM(aiTextureType_EMISSIVE, 0));
-          sampler->setParameter("inTransform", tx);
+        auto settings = getTextureUVSettings(
+            AI_MATKEY_UVTRANSFORM(aiTextureType_EMISSIVE, 0));
+        if (auto sampler = loadTexture(emissiveTexture, false, settings);
+            sampler) {
           m->setParameterObject("emissive", *sampler);
         }
       } else if (aiColor3D emissiveColor;
@@ -513,10 +524,10 @@ static std::vector<MaterialRef> importASSIMPMaterials(
           assimpMat->GetTexture(
               aiTextureType_AMBIENT_OCCLUSION, 0, &occlusionTexture)
           == AI_SUCCESS) {
-        if (auto sampler = loadTexture(occlusionTexture, true); sampler) {
-          auto tx = getTextureUVTransform(
-              AI_MATKEY_UVTRANSFORM(aiTextureType_AMBIENT_OCCLUSION, 0));
-          sampler->setParameter("inTransform", tx);
+        auto settings = getTextureUVSettings(
+            AI_MATKEY_UVTRANSFORM(aiTextureType_AMBIENT_OCCLUSION, 0));
+        if (auto sampler = loadTexture(occlusionTexture, true, settings);
+            sampler) {
           m->setParameterObject("occlusion", *sampler);
         }
       }
@@ -525,10 +536,10 @@ static std::vector<MaterialRef> importASSIMPMaterials(
       if (aiString normalTexture;
           assimpMat->GetTexture(aiTextureType_NORMALS, 0, &normalTexture)
           == AI_SUCCESS) {
-        if (auto sampler = loadTexture(normalTexture, true); sampler) {
-          auto tx = getTextureUVTransform(
-              AI_MATKEY_UVTRANSFORM(aiTextureType_NORMALS, 0));
-          sampler->setParameter("inTransform", tx);
+        auto settings = getTextureUVSettings(
+            AI_MATKEY_UVTRANSFORM(aiTextureType_NORMALS, 0));
+        if (auto sampler = loadTexture(normalTexture, true, settings);
+            sampler) {
           m->setParameterObject("normal", *sampler);
         }
       }
@@ -543,10 +554,10 @@ static std::vector<MaterialRef> importASSIMPMaterials(
           assimpMat->GetTexture(
               AI_MATKEY_TRANSMISSION_TEXTURE, &transmissionTexture)
           == AI_SUCCESS) {
-        if (auto sampler = loadTexture(transmissionTexture, true); sampler) {
-          auto tx = getTextureUVTransform(
-              AI_MATKEY_UVTRANSFORM(aiTextureType_TRANSMISSION, 0));
-          sampler->setParameter("inTransform", tx);
+        auto settings = getTextureUVSettings(
+            AI_MATKEY_UVTRANSFORM(aiTextureType_TRANSMISSION, 0));
+        if (auto sampler = loadTexture(transmissionTexture, true, settings);
+            sampler) {
           m->setParameterObject("transmission", *sampler);
         }
       }
@@ -690,8 +701,9 @@ void import_ASSIMP(Scene &scene,
 
   Assimp::Importer importer;
 
-  auto importFlags = aiProcess_Triangulate | aiProcess_JoinIdenticalVertices
-      | aiProcess_FlipUVs;
+  // No aiProcess_FlipUVs: assimp's own output is already v-up, which is what
+  // ANARI wants. See docs/adr/0014-store-images-in-anari-orientation.md.
+  auto importFlags = aiProcess_Triangulate | aiProcess_JoinIdenticalVertices;
   if (flatten)
     importFlags |= aiProcess_PreTransformVertices;
 

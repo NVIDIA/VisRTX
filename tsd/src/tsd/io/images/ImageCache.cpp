@@ -26,11 +26,11 @@ namespace {
 
 // The row order a decoded image is stored in once it is resident in a Scene.
 //
-// This is what every decoder is normalized to and the only place in the tree
-// that decides orientation. It is TOP_DOWN here because that is what all seven
-// decode paths produced before this component existed; docs/adr/ records the
-// move to ANARI orientation.
-constexpr RowOrder SCENE_ROW_ORDER = RowOrder::TOP_DOWN;
+// ANARI orientation: row 0 is the bottom row of the picture, so texture
+// coordinate (0, 0) addresses the lower-left corner. This is what every
+// decoder is normalized to and the only place in the tree that decides
+// orientation. See docs/adr/0014-store-images-in-anari-orientation.md.
+constexpr RowOrder SCENE_ROW_ORDER = RowOrder::BOTTOM_UP;
 
 std::string keyOf(const ImageSource &source)
 {
@@ -61,6 +61,20 @@ void normalizeRowOrder(detail::DecodedImage &image)
   image.rowOrder = SCENE_ROW_ORDER;
 }
 
+// Compose `v -> 1 - v` onto a sampler's uv transform, applied after whatever
+// the importer authored: the fetch becomes flip(T*uv + offset). Premultiplying
+// by diag(1, -1, 1, 1) negates the transform's v row whatever the caller put
+// there, and the +1 lands in the offset.
+void composeVFlip(tsd::math::mat4 &transform, tsd::math::float4 &offset)
+{
+  const tsd::math::mat4 flip{tsd::math::float4(1.f, 0.f, 0.f, 0.f),
+      tsd::math::float4(0.f, -1.f, 0.f, 0.f),
+      tsd::math::float4(0.f, 0.f, 1.f, 0.f),
+      tsd::math::float4(0.f, 0.f, 0.f, 1.f)};
+  transform = tsd::math::mul(flip, transform);
+  offset = tsd::math::mul(flip, offset) + tsd::math::float4(0.f, 1.f, 0.f, 0.f);
+}
+
 } // namespace
 
 ImageCache::ImageCache(Scene *scene) : m_scene(scene) {}
@@ -73,14 +87,13 @@ Scene *ImageCache::scene() const
 Image ImageCache::acquire(const ImageSource &source)
 {
   auto resolved = source;
-  resolved.colorSpace =
-      detail::colorSpaceForFile(source.id, source.colorSpace);
+  resolved.colorSpace = detail::colorSpaceForFile(source.id, source.colorSpace);
 
   if (auto *cached = lookup(resolved))
     return *cached;
 
-  return store(resolved,
-      detail::decodeImageFile(resolved.id, resolved.colorSpace));
+  return store(
+      resolved, detail::decodeImageFile(resolved.id, resolved.colorSpace));
 }
 
 Image ImageCache::acquire(const ImageSource &source,
@@ -200,9 +213,20 @@ SamplerRef makeImageSampler(Scene &scene,
   sampler->setParameter("wrapMode1", settings.wrapMode1);
   sampler->setParameter("wrapMode2", settings.wrapMode2);
   sampler->setParameter("filter", settings.filter);
-  if (settings.hasUvTransform) {
-    sampler->setParameter("inTransform", settings.uvTransform);
-    sampler->setParameter("inOffset", settings.uvOffset);
+
+  // Block-compressed texels are the one thing normalizeRowOrder cannot
+  // reverse, so they are still stored as the file authored them -- top-down,
+  // against the bottom-up coordinates every importer now hands ANARI. Undo
+  // that here, composed onto the caller's own transform rather than replacing
+  // it, which is why makeImageSampler owns inTransform/inOffset outright.
+  auto uvTransform = settings.uvTransform;
+  auto uvOffset = settings.uvOffset;
+  if (image.blockCompressed)
+    composeVFlip(uvTransform, uvOffset);
+
+  if (settings.hasUvTransform || image.blockCompressed) {
+    sampler->setParameter("inTransform", uvTransform);
+    sampler->setParameter("inOffset", uvOffset);
   }
   sampler->setName(fileOf(displayName).c_str());
 

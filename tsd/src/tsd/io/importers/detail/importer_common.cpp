@@ -101,7 +101,7 @@ tsd::scene::ArrayRef readArray(
   return retval;
 }
 
-// Texture import shims /////////////////////////////////////////////////////////
+// Texture import shims ///////////////////////////////////////////////////////
 
 // These forward to tsd::io::images, which owns decoding, orientation, keying,
 // and lifetime for every image in the tree. They exist so the ~20 importer
@@ -116,8 +116,11 @@ ColorSpace colorSpaceOf(bool isLinear)
 
 } // namespace
 
-SamplerRef importTexture(
-    Scene &scene, std::string filepath, ImageCache &cache, bool isLinear)
+SamplerRef importTexture(Scene &scene,
+    std::string filepath,
+    ImageCache &cache,
+    bool isLinear,
+    const SamplerSettings &settings)
 {
   std::transform(
       filepath.begin(), filepath.end(), filepath.begin(), [](char c) {
@@ -125,7 +128,7 @@ SamplerRef importTexture(
       });
 
   auto image = cache.acquire({filepath, colorSpaceOf(isLinear)});
-  return makeImageSampler(scene, image, filepath);
+  return makeImageSampler(scene, image, filepath, settings);
 }
 
 SamplerRef importTextureFromMemory(Scene &scene,
@@ -135,11 +138,12 @@ SamplerRef importTextureFromMemory(Scene &scene,
     size_t numBytes,
     ImageCache &cache,
     bool isLinear,
-    const std::string &formatHint)
+    const std::string &formatHint,
+    const SamplerSettings &settings)
 {
   auto image = cache.acquire(
       {cacheKey, colorSpaceOf(isLinear)}, data, numBytes, formatHint);
-  return makeImageSampler(scene, image, displayName);
+  return makeImageSampler(scene, image, displayName, settings);
 }
 
 SamplerRef importRawTexture2D(Scene &scene,
@@ -149,7 +153,8 @@ SamplerRef importRawTexture2D(Scene &scene,
     size_t width,
     size_t height,
     ImageCache &cache,
-    bool isLinear)
+    bool isLinear,
+    const SamplerSettings &settings)
 {
   auto image = cache.acquireDecoded({cacheKey, colorSpaceOf(isLinear)},
       isLinear ? ANARI_UFIXED8_VEC4 : ANARI_UFIXED8_RGBA_SRGB,
@@ -157,9 +162,8 @@ SamplerRef importRawTexture2D(Scene &scene,
       height,
       RowOrder::TOP_DOWN,
       data);
-  return makeImageSampler(scene, image, displayName);
+  return makeImageSampler(scene, image, displayName, settings);
 }
-
 
 SamplerRef makeDefaultColorMapSampler(Scene &scene, const float2 &range)
 {
@@ -394,7 +398,7 @@ static core::TransferFunction importParaViewTransferFunction(
         filepath.c_str());
     return {};
   } else if (const auto arrayStart = jsonContent.find("[", rgbPointsPos);
-      arrayStart == std::string::npos) {
+             arrayStart == std::string::npos) {
     logError(
         "[importParaViewTransferFunction] Invalid RGBPoints format in file: %s",
         filepath.c_str());
@@ -479,7 +483,7 @@ static core::TransferFunction importParaViewTransferFunction(
           std::istringstream opacitySS(opacityContent);
 
           for (std::string opacityToken;
-              std::getline(opacitySS, opacityToken, ',');) {
+               std::getline(opacitySS, opacityToken, ',');) {
             // Trim whitespace
             if (const auto first = opacityToken.find_first_not_of(" \t\n\r");
                 first != std::string::npos) {
@@ -607,7 +611,7 @@ std::vector<UserColorMap> loadUserColorMaps(
 
   std::vector<fs::path> files;
   for (fs::directory_iterator it(directory, ec), end; !ec && it != end;
-      it.increment(ec)) {
+       it.increment(ec)) {
     const auto &entry = *it;
     if (!entry.is_regular_file(ec))
       continue;
@@ -624,17 +628,17 @@ std::vector<UserColorMap> loadUserColorMaps(
         ec.message().c_str());
   }
 
-  std::sort(files.begin(), files.end(), [](const fs::path &a,
-                                      const fs::path &b) {
-    return a.stem().string() < b.stem().string();
-  });
+  std::sort(
+      files.begin(), files.end(), [](const fs::path &a, const fs::path &b) {
+        return a.stem().string() < b.stem().string();
+      });
 
   std::vector<UserColorMap> colorMaps;
   for (const auto &file : files) {
     auto tfn = importTransferFunction(file.string());
     if (tfn.colorPoints.size() < 2) {
-      logWarning("[loadUserColorMaps] Skipping color map '%s'",
-          file.string().c_str());
+      logWarning(
+          "[loadUserColorMaps] Skipping color map '%s'", file.string().c_str());
       continue;
     }
 
@@ -643,7 +647,8 @@ std::vector<UserColorMap> loadUserColorMaps(
     colorMap.path = file;
     colorMap.colorPoints = std::move(tfn.colorPoints);
 
-    auto existing = std::find_if(colorMaps.begin(), colorMaps.end(),
+    auto existing = std::find_if(colorMaps.begin(),
+        colorMaps.end(),
         [&](const UserColorMap &other) { return other.name == colorMap.name; });
     if (existing != colorMaps.end()) {
       logStatus("[loadUserColorMaps] Replaced color map '%s' from '%s'",
