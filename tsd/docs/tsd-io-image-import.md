@@ -1,20 +1,32 @@
 # Central image import for tsd_io
 
+> **Status: steps 0-3 landed** (`98e4a1e8`..`21d4d741` on `usd-import-rework`).
+> The contract itself is recorded in
+> [ADR 0014](adr/0014-store-images-in-anari-orientation.md); this document
+> keeps the survey that motivated it and tracks what is left. The Survey below
+> describes the tree *before* the change and is retained as the record of why.
+> See [Status](#status) and [Remaining work](#remaining-work).
+
 ## Summary
 
-Every importer that reads texels reaches a different decoder, and each one
-carries a private, undocumented assumption about which row of the decoded
-image is row 0. The assumptions cancel out for glTF, ASSIMP, and PBRT and do
-not cancel for OBJ and USD, which is why textures from those two formats come
-out vertically mirrored. Nothing downstream corrects it: no render index or
-sampler code in TSD flips anything.
+Every importer that read texels reached a different decoder, and each one
+carried a private, undocumented assumption about which row of the decoded
+image is row 0. The assumptions cancelled out for glTF, ASSIMP, and PBRT and
+did not cancel for OBJ and USD, which is why textures from those two formats
+came out vertically mirrored. Nothing downstream corrected it: no render index
+or sampler code in TSD flipped anything.
 
-This proposes one image-import component with a single stated orientation
+This proposed one image-import component with a single stated orientation
 contract — decoded texels are stored in ANARI orientation, row 0 is the bottom
 row — plus a scene-scoped cache so a texture referenced from many places is
-decoded once.
+decoded once. The contract and the component landed; the cache is still scoped
+to one importer call rather than one import.
 
 ## Survey
+
+*Everything in this section describes the tree at `017f7d91`, before the
+change. It is kept because the reasoning, not just the conclusion, is what a
+future decoder author needs.*
 
 ### Decode paths in the tree today
 
@@ -207,7 +219,13 @@ behavior change.
 One place: `ImageCache`'s store step, between decode and `Array::setData`. Each
 decoder reports `RowOrder`; stb, tinyexr, OIIO, and tinygltf report
 `TOP_DOWN`, and the cache reverses rows before the texels reach the scene.
-`HDRImage` stops flipping and reports `TOP_DOWN` like everything else.
+
+> **As landed:** `HDRImage` did *not* stop flipping. It keeps its own decode,
+> because it handles multipart EXR and forces three channels and the shared
+> path does neither, and it declares `BOTTOM_UP` rather than flipping twice.
+> That satisfies the contract — a decoder declares, the cache normalizes —
+> but it does mean two places in the tree reverse rows. See
+> [Remaining work](#remaining-work).
 
 **Block-compressed DDS is the one exception.** BC blocks are 4×4, so a
 vertical flip requires decode and re-encode, which defeats the point of
@@ -219,6 +237,14 @@ exact and costs nothing at runtime. Callers that set their own `inTransform`
 must compose rather than overwrite — a `composeVFlip(mat4 &, float4 &)` helper
 keeps that honest. The alternative, decoding DDS to RGBA and flipping, is
 simpler but throws away the compression.
+
+> **As landed:** this recommendation was ratified and implemented, with one
+> change of shape. Rather than a `composeVFlip` helper that callers must
+> remember to use, `makeImageSampler` owns `inTransform`/`inOffset` outright
+> and takes the importer's own transform through `SamplerSettings`. A caller
+> cannot overwrite the flip, because it no longer sets those parameters
+> itself. `tests/test_ImageImport.cpp` asserts both the flip and that it
+> composes onto a caller's transform rather than replacing it.
 
 ### Importer changes that must land with the flip
 
@@ -234,6 +260,12 @@ commit:
 | USD | none — becomes correct |
 | `SceneToUSD` | flip rows when writing PNG (`:195`) and EXR (`:167`), which are top-down formats |
 | `calcTangentsForTriangleMesh` | default `flipTexCoordY` to `false`; both callers (`import_ASSIMP.cpp:217`, `import_GLTF.cpp:1213`) pass `false` |
+
+One wrinkle this table missed: glTF's tangent path does not read the texture
+coordinates it just stored, it re-reads the raw accessor data, which is still
+glTF's v-down. So it flips that local copy too before handing it to
+mikktspace. ASSIMP's caller reads the stored coordinates and simply takes the
+new default.
 
 Normal maps are unaffected. mikktspace is fed v-up coordinates in both the old
 and new schemes — today via `flipTexCoordY = true` undoing the v-down
@@ -255,6 +287,10 @@ at:
 - Nothing caches across unrelated user actions, so a texture edited on disk is
   picked up on the next import without invalidation machinery.
 
+> **Not implemented.** `ImageCache` exists and is scoped to a `Scene`, but each
+> importer still constructs its own, so reuse stops at the importer-call
+> boundary. This is [remaining work item 1](#1-one-cache-per-import-not-per-importer).
+
 `ImageSource::id` is the resolved absolute path for file-backed images and an
 importer-scoped stable string otherwise (`"gltf:<file>:image<N>"`,
 `"assimp:<file>:embedded<N>"`, `"pbrt:<file>::normal"`). The cache key is
@@ -264,33 +300,122 @@ importer-scoped stable string otherwise (`"gltf:<file>:image<N>"`,
 
 The glTF path already keeps the file's integer type and uses ANARI's `*_SRGB`
 element formats; the shared path expands to `ANARI_FLOAT32*` and applies
-`pow(x, 2.2)` in software (`importer_common.cpp:455`). Moving the shared path
-onto native types would cut texture memory 4× for the common 8-bit case and
-replace the 2.2 gamma approximation with the true sRGB EOTF the device
-applies, deleting `applyGamma22InPlace` and the comment at `:448` explaining
-why the OIIO path has to imitate stb's approximation. This is worth doing but
-is a separable change; it should not ride along with the orientation fix.
+`pow(x, 2.2)` in software (`images/detail/decoders.cpp:251`). Moving the
+shared path onto native types would cut texture memory 4× for the common
+8-bit case and replace the 2.2 gamma approximation with the true sRGB EOTF the
+device applies, deleting `applyGamma22InPlace` and the comment above it
+explaining why the OIIO path has to imitate stb's approximation. This is worth
+doing but is a separable change; it should not ride along with the orientation
+fix.
 
-## Sequencing
+## Status
 
-0. **Characterize.** One tiny asset per format (glTF, OBJ, USD, PBRT, ASSIMP,
-   DDS, EXR, TIFF, HDRI) with a distinguishable corner, and a test in
-   `tests/test_Importers.cpp` asserting the texel that the material's uv `(0,0)`
-   resolves to. This is what makes the flip safe, and it fails for OBJ and USD
-   before any code moves.
-1. **Introduce `tsd/io/images`** with the contract, `ImageCache`, and the
-   decoders moved over unchanged. `importTexture` and friends become shims.
-   No behavior change.
-2. **Flip**, together with every importer change in the table above. Behavior
-   change, gated by step 0.
-3. **Fold in the stragglers** — `importGLTFTexture` onto `acquireDecoded`,
-   `importHeightAsNormalMap` and `HDRImage` onto the cache. Delete the dead
-   `flipNormalMapY` parameter.
-4. **Native element types** (follow-on above).
+| Step | | |
+|---|---|---|
+| 0 | Characterize | **Landed** `98e4a1e8` |
+| 1 | Introduce `tsd/io/images` | **Landed** `d27547b8` |
+| 2 | Flip | **Landed** `c4106e72` |
+| 3 | Fold in the stragglers | **Landed in part** `860cf337` |
+| 4 | Native element types | **Not started** |
 
-Steps 1–3 are mechanical once step 0 exists. Step 2 is the only one that can
-regress a scene, and it is the whole point.
+Step 0 became `tests/test_ImageImport.cpp` (tag `[ImageImport]`). It ran red
+exactly where this document predicted — glTF and PBRT passed the end-to-end
+assertion, OBJ and USD failed it — which is the local evidence for the survey
+above, arrived at independently of the source reading that produced it.
 
-An ADR recording the orientation contract belongs with step 2, since it is the
-kind of decision `docs/adr/` exists for and every future decoder needs to
-find it.
+Two corrections to this document's step 0, established before it was written:
+fixtures are synthesized into the temp directory rather than checked in,
+following the TGA in `tests/test_UsdImport.cpp` and the TIFF in
+`tests/test_Importers.cpp`; and the assertion is a scene query rather than a
+render, so no device is needed. One 1x2 TGA serves OBJ, glTF, PBRT, USD, and
+ASSIMP; DDS and Radiance HDR have fixtures of their own.
+
+## Remaining work
+
+Roughly in the order that pays off soonest.
+
+### 1. One cache per import, not per importer
+
+This document's [Cache lifetime](#cache-lifetime) section is the one part of
+step 1 that was not implemented. Every importer still builds a function-local
+`ImageCache` (`import_OBJ.cpp:59`, `import_GLTF.cpp:259`,
+`import_ASSIMP.cpp:249`, `import_PBRT.cpp:2321`, `UsdImportContext.h:56`,
+`import_HDRI.cpp:33`), so reuse still exists only *within* one importer call.
+The stated payoff — "a USD stage that references an OBJ decodes it twice" —
+is unfixed.
+
+What it needs: `import_file()` owning one cache and threading it to whichever
+importer it dispatches to, plus the overload taking an existing `ImageCache &`
+for an application importing many files as one operation. That is an
+`ImageCache &` parameter across the importer signatures in `importers.hpp`,
+which is why it did not ride along with a behavior change.
+
+Prerequisite already done: `ImageSource` ids are file-scoped
+(`gltf:<file>:<image>`), so sharing a cache across files is safe.
+
+### 2. Retire the shims
+
+`importTexture`, `importTextureFromMemory`, and `importRawTexture2D`
+(`importer_common.hpp:32-54`) are pure forwarding to `ImageCache` and
+`makeImageSampler`. They exist so the ~20 call sites did not churn in the same
+commit as the behavior change, which has now happened. Two ways to do the same
+thing is the state this work set out to remove, so they should go once
+something else is touching those call sites anyway — item 1 is the natural
+moment.
+
+### 3. PBRT's infinite light
+
+`loadInfiniteRadiance` (`import_PBRT.cpp:2094`, `:2107`) is the last place
+outside `ImageCache` calling `scene.createArray` for image data. It consumes
+`HDRImage`'s raw buffer and, for a square source, runs it through
+`convertEqualAreaToEquirectangular`, whose frame of reference is documented in
+terms of the buffer layout it is handed.
+
+It is correct as it stands. Moving it onto the cache means rewriting that
+conversion's frame of reference — three sign changes — and there is no test
+holding it, because a PBRT equal-area HDRI is not cheap to synthesize. Write
+the fixture first.
+
+### 4. `HDRImage`'s own flip
+
+`HDRImage` reverses rows in both branches (`HDRImage.cpp:81`, `:173`) and
+declares `BOTTOM_UP`. The contract holds, but "one place flips" does not.
+Folding it into the shared path means teaching `decodeImageFile` about
+multipart EXR and about forcing three channels; worth doing when something
+else needs multipart EXR, not before.
+
+### 5. Native element types
+
+Unchanged from [the follow-on above](#follow-on-preserve-element-types), and
+still the largest single win: the shared path expands every image to
+`ANARI_FLOAT32_*` (`decoders.cpp:43`) and applies `pow(x, 2.2)` in software
+(`decoders.cpp:251`). Moving to the file's own type and ANARI's `*_SRGB`
+formats — which the glTF path already does — would cut texture memory 4× for
+the common 8-bit case and replace the gamma approximation with the true sRGB
+EOTF the device applies, deleting `applyGamma22InPlace` and the comment above
+it explaining why the OIIO path has to imitate stb.
+
+Note this interacts with the orientation tests: they read texels through a
+helper that already handles both `ANARI_FLOAT32_*` and `ANARI_UFIXED8_*`, so
+they should survive the change unmodified. That is deliberate.
+
+### 6. Test coverage gaps
+
+- `decodeExr` and `decodeOiio` both declare `RowOrder::TOP_DOWN` with nothing
+  asserting it. An EXR fixture is cheap — tinyexr can write one. A TIFF
+  fixture exists in `tests/test_Importers.cpp` but is 1x1, so it says nothing
+  about row order; widening it to 1x2 would.
+- `convertEqualAreaToEquirectangular` is untested, which is what blocks item 3.
+
+## Discovered along the way
+
+Not part of this work, recorded because the tests surfaced it and it will
+mislead someone otherwise.
+
+**ASSIMP binds no textures for OBJ.** ASSIMP reports a GL-style shading model
+for OBJ files, and that branch of `importASSIMPMaterials`
+(`import_ASSIMP.cpp`, the `else // GL-like dflt. material` case) sets colour
+and opacity and nothing else — no texture slot is read. An OBJ with a
+`map_Kd` therefore imports untextured through ASSIMP, while the same file
+imports correctly through `import_OBJ`. This is why the ASSIMP orientation
+test goes through the glTF fixture instead.
