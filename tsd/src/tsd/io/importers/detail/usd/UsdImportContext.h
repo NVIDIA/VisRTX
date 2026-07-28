@@ -53,7 +53,7 @@ struct ImportContext
   pxr::UsdTimeCode importTime{pxr::UsdTimeCode::EarliestTime()};
 
   // Caches keyed by resolved prim path, so shared content converts once.
-  TextureCache textureCache;
+  ImageCache textureCache{&scene};
   std::unordered_map<std::string, MaterialRef> materialCache;
   std::unordered_map<std::string, std::string> uvPrimvarCache;
 

@@ -8,18 +8,8 @@
 #include "tsd/core/Token.hpp"
 // tsd_io
 #include "tsd/io/importers.hpp"
-#include "tsd/io/importers/detail/dds.h"
 // mikktspace
 #include "mikktspace.h"
-// stb_image
-#include "stb_image.h"
-#ifndef _WIN32
-#include "tinyexr.h"
-#endif
-#if TSD_USE_OIIO
-// OpenImageIO
-#include <OpenImageIO/imageio.h>
-#endif
 // anari
 #include <anari/anari_cpp/ext/linalg.h>
 // std
@@ -34,11 +24,6 @@
 #include <sstream>
 #include <system_error>
 #include <vector>
-
-using U64Vec2 = tsd::math::vec<std::uint64_t, 2>;
-namespace anari {
-ANARI_TYPEFOR_SPECIALIZATION(U64Vec2, ANARI_UINT64_VEC2);
-}
 
 namespace tsd::io {
 
@@ -98,11 +83,6 @@ std::vector<std::string> splitString(const std::string &s, char delim)
   return result;
 }
 
-std::string makeTextureCacheKey(const std::string &textureId, bool isLinear)
-{
-  return textureId + (isLinear ? "_linear" : "_srgb");
-}
-
 tsd::scene::ArrayRef readArray(
     tsd::scene::Scene &scene, anari::DataType elementType, std::FILE *fp)
 {
@@ -121,444 +101,31 @@ tsd::scene::ArrayRef readArray(
   return retval;
 }
 
-static SamplerRef makeTextureSampler(
-    Scene &scene, ArrayRef dataArray, const std::string &displayName)
+// Texture import shims /////////////////////////////////////////////////////////
+
+// These forward to tsd::io::images, which owns decoding, orientation, keying,
+// and lifetime for every image in the tree. They exist so the ~20 importer
+// call sites keep one signature; new code should use ImageCache directly.
+
+namespace {
+
+ColorSpace colorSpaceOf(bool isLinear)
 {
-  auto tex = scene.createObject<Sampler>(tokens::sampler::image2D);
-
-  tex->setParameterObject("image", *dataArray);
-  tex->setParameter("inAttribute", "attribute0");
-  tex->setParameter("wrapMode1", "repeat");
-  tex->setParameter("wrapMode2", "repeat");
-  tex->setParameter("filter", "linear");
-  tex->setName(fileOf(displayName).c_str());
-
-  return tex;
+  return isLinear ? ColorSpace::LINEAR : ColorSpace::SRGB;
 }
 
-static SamplerRef makeCompressedTextureSampler(
-    Scene &scene, ArrayRef dataArray, const std::string &displayName)
-{
-  auto compressedFormat =
-      dataArray->getMetadataValue("compressedFormat").getString();
-
-  auto tex = scene.createObject<Sampler>(tokens::sampler::compressedImage2D);
-  tex->setParameterObject("image", *dataArray);
-  tex->setParameter("format", compressedFormat.c_str());
-  tex->setParameter(
-      "size", dataArray->getMetadataValue("imageSize").get<U64Vec2>());
-  tex->setParameter("inAttribute", "attribute0");
-  tex->setParameter("wrapMode1", "repeat");
-  tex->setParameter("wrapMode2", "repeat");
-  tex->setParameter("filter", "linear");
-  tex->setName(fileOf(displayName).c_str());
-
-  return tex;
-}
-
-static ArrayRef importDdsTextureArray(Scene &scene,
-    const void *data,
-    size_t numBytes,
-    const std::string &textureId,
-    TextureCache &cache)
-{
-  auto dataArray = cache[textureId];
-  if (!dataArray.valid()) {
-    if (numBytes < sizeof(dds::DdsFile)) {
-      logError("[importDdsTexture] invalid DDS buffer '%s'", textureId.c_str());
-      return {};
-    }
-
-    auto dds = reinterpret_cast<const dds::DdsFile *>(data);
-    if (dds->magic != dds::DDS_MAGIC
-        || dds->header.size != sizeof(dds::DdsHeader)) {
-      logError("[importDdsTexture] invalid DDS buffer '%s'", textureId.c_str());
-      return {};
-    }
-
-    // Check if we have a dxt10 header
-    constexpr const auto baseReqFlags = dds::DDSD_CAPS | dds::DDSD_HEIGHT
-        | dds::DDSD_WIDTH | dds::DDSD_PIXELFORMAT;
-    if ((dds->header.flags & baseReqFlags) != baseReqFlags) {
-      logError("[importDdsTexture] invalid DDS buffer '%s'", textureId.c_str());
-      return {};
-    }
-
-    constexpr const auto textureReqFlags = dds::DDSCAPS_TEXTURE;
-    if ((dds->header.caps & textureReqFlags) != textureReqFlags) {
-      logError("[importDdsTexture] invalid DDS buffer '%s'", textureId.c_str());
-      return {};
-    }
-
-    Token compressedFormat = {};
-    Token format = {};
-    bool alpha = dds->header.pixelFormat.flags & dds::DDPF_ALPHAPIXELS;
-    switch (dds::getDxgiFormat(dds)) {
-    case dds::DXGI_FORMAT_BC1_UNORM: {
-      // BC1: RGB/RGBA, 1bit alpha
-      compressedFormat = alpha ? "BC1_RGBA" : "BC1_RGB";
-      break;
-    }
-    case dds::DXGI_FORMAT_BC1_UNORM_SRGB: {
-      // BC1: RGB/RGBA, 1bit alpha
-      compressedFormat = alpha ? "BC1_RGBA_SRGB" : "BC1_RGB_SRGB";
-      break;
-    }
-    case dds::DXGI_FORMAT_BC2_UNORM: {
-      // BC2: RGB/RGBA, 4bit alpha
-      compressedFormat = "BC2";
-      break;
-    }
-    case dds::DXGI_FORMAT_BC2_UNORM_SRGB: {
-      // BC2: RGB/RGBA, 4bit alpha
-      compressedFormat = "BC2_SRGB";
-      break;
-    }
-    case dds::DXGI_FORMAT_BC3_UNORM: {
-      // BC3: RGB/RGBA, 8bit alpha
-      compressedFormat = "BC3";
-      break;
-    }
-    case dds::DXGI_FORMAT_BC3_UNORM_SRGB: {
-      // BC3: RGB/RGBA, 8bit alpha
-      compressedFormat = "BC3_SRGB";
-      break;
-    }
-    case dds::DXGI_FORMAT_BC4_UNORM: {
-      // BC4: R/RG
-      compressedFormat = "BC4";
-      break;
-    }
-    case dds::DXGI_FORMAT_BC4_SNORM: {
-      // BC4: R/RG
-      compressedFormat = "BC4_SNORM";
-      break;
-    }
-    case dds::DXGI_FORMAT_BC5_UNORM: {
-      // BC5: RG/RGBA
-      compressedFormat = "BC5";
-      break;
-    }
-    case dds::DXGI_FORMAT_BC5_SNORM: {
-      // BC5: RG/RGBA
-      compressedFormat = "BC5_SNORM";
-      break;
-    }
-    case dds::DXGI_FORMAT_BC6H_UF16: {
-      // BC6H: RGB
-      compressedFormat = "BC6H_UFLOAT";
-      break;
-    }
-    case dds::DXGI_FORMAT_BC6H_SF16: {
-      // BC6H: RGB
-      compressedFormat = "BC6H_SFLOAT";
-      break;
-    }
-    case dds::DXGI_FORMAT_BC7_UNORM: {
-      // BC7: RGB/RGBA
-      compressedFormat = "BC7";
-      break;
-    }
-    case dds::DXGI_FORMAT_BC7_UNORM_SRGB: {
-      // BC7: RGB/RGBA
-      compressedFormat = "BC7_SRGB";
-      break;
-    }
-
-    default: {
-      logError("[importDdsTexture] unsupported DDS format '%c%c%c%c' for '%s'",
-          dds->header.pixelFormat.fourCC & 0xff,
-          (dds->header.pixelFormat.fourCC >> 8) & 0xff,
-          (dds->header.pixelFormat.fourCC >> 16) & 0xff,
-          (dds->header.pixelFormat.fourCC >> 24) & 0xff,
-          textureId.c_str());
-      break;
-    }
-    }
-
-    if (compressedFormat) {
-      // Simple  implementation that only handling single level mipmaps
-      // and non cubemap textures.
-      auto linearSize = dds::computeLinearSize(dds);
-
-      if ((dds->header.flags & dds::DDSD_LINEARSIZE)
-          && (linearSize != dds->header.pitchOrLinearSize)) {
-        logError(
-            "[importDdsTexture] ignoring invalid linear size %u (should be %u) for compressed texture '%s'",
-            dds->header.pitchOrLinearSize,
-            linearSize,
-            textureId.c_str());
-      }
-
-      dataArray = scene.createArray(ANARI_INT8, linearSize);
-      dataArray->setData(dds::getDataPointer(dds));
-      dataArray->setMetadataValue("compressedFormat", compressedFormat.value());
-      dataArray->setMetadataValue(
-          "imageSize", U64Vec2(dds->header.width, dds->header.height));
-      cache[textureId] = dataArray;
-    } else {
-      logError("Unspported texture format for '%s'", textureId.c_str());
-      return {};
-    }
-  }
-
-  return dataArray;
-}
-
-SamplerRef importDdsTexture(
-    Scene &scene, std::string filepath, TextureCache &cache)
-{
-  if (auto dataArray = cache[filepath]; dataArray.valid())
-    return makeCompressedTextureSampler(scene, dataArray, filepath);
-
-  std::ifstream ifs(filepath, std::ios::in | std::ios::binary);
-  if (!ifs.is_open()) {
-    logError("[importDdsTexture] failed to open file '%s'", filepath.c_str());
-    return {};
-  }
-
-  std::vector<char> buffer(
-      (std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
-  auto dataArray = importDdsTextureArray(
-      scene, buffer.data(), buffer.size(), filepath, cache);
-  return dataArray ? makeCompressedTextureSampler(scene, dataArray, filepath)
-                   : SamplerRef{};
-}
-
-// Decoded texels are always float, so channel count alone picks the type.
-static int texelTypeForChannelCount(int numChannels)
-{
-  switch (numChannels) {
-  case 1:
-    return ANARI_FLOAT32;
-  case 2:
-    return ANARI_FLOAT32_VEC2;
-  case 3:
-    return ANARI_FLOAT32_VEC3;
-  default:
-    return ANARI_FLOAT32_VEC4;
-  }
-}
-
-static ArrayRef importStbTextureArray(Scene &scene,
-    const void *data,
-    size_t numBytes,
-    const std::string &textureId,
-    TextureCache &cache,
-    bool isLinear)
-{
-  auto dataArray = cache[textureId];
-  if (!dataArray.valid()) {
-    int width, height, n;
-    if (isLinear) {
-      stbi_ldr_to_hdr_scale(1.0f);
-      stbi_ldr_to_hdr_gamma(1.0f);
-    } else {
-      stbi_ldr_to_hdr_scale(1.0f);
-      stbi_ldr_to_hdr_gamma(2.2f);
-    }
-    void *decodedData =
-        stbi_loadf_from_memory(static_cast<const stbi_uc *>(data),
-            int(numBytes),
-            &width,
-            &height,
-            &n,
-            0);
-
-    if (!decodedData || n < 1) {
-      if (!decodedData) {
-        logError(
-            "[importTexture] failed to import texture '%s'", textureId.c_str());
-      } else {
-        logWarning("[importTexture] texture '%s' with %i channels not imported",
-            textureId.c_str(),
-            n);
-      }
-      return {};
-    }
-
-    dataArray =
-        scene.createArray(texelTypeForChannelCount(n), width, height);
-    dataArray->setData(decodedData);
-    cache[textureId] = dataArray;
-
-    stbi_image_free(decodedData);
-  }
-
-  return dataArray;
-}
-
-SamplerRef importStbTexture(
-    Scene &scene, std::string filepath, TextureCache &cache, bool isLinear)
-{
-  auto cacheKey = makeTextureCacheKey(filepath, isLinear);
-  if (auto dataArray = cache[cacheKey]; dataArray.valid())
-    return makeTextureSampler(scene, dataArray, filepath);
-
-  std::ifstream ifs(filepath, std::ios::in | std::ios::binary);
-  if (!ifs.is_open()) {
-    logError("[importTexture] failed to open texture '%s'", filepath.c_str());
-    return {};
-  }
-
-  std::vector<char> buffer(
-      (std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
-  auto dataArray = importStbTextureArray(
-      scene, buffer.data(), buffer.size(), cacheKey, cache, isLinear);
-  return dataArray ? makeTextureSampler(scene, dataArray, filepath)
-                   : SamplerRef{};
-}
-
-#ifndef _WIN32
-// Follow actual HDRI importer: tinyexr is excluded on Windows; to be
-// investigated.
-static SamplerRef importExrTexture(
-    Scene &scene, const std::string &filepath, TextureCache &cache)
-{
-  // EXR is always linear (no sRGB encoding); collapse both cache buckets onto
-  // the linear key so a .exr can't be imported twice as srgb vs linear.
-  auto cacheKey = makeTextureCacheKey(filepath, /*isLinear=*/true);
-  if (auto dataArray = cache[cacheKey]; dataArray.valid())
-    return makeTextureSampler(scene, dataArray, filepath);
-
-  float *rgba = nullptr;
-  int width = 0;
-  int height = 0;
-  const char *err = nullptr;
-  int ret = LoadEXR(&rgba, &width, &height, filepath.c_str(), &err);
-  if (ret != TINYEXR_SUCCESS) {
-    logError("[importTexture] failed to load EXR '%s': %s",
-        filepath.c_str(),
-        err ? err : "unknown error");
-    if (err)
-      FreeEXRErrorMessage(err);
-    return {};
-  }
-
-  auto dataArray = scene.createArray(ANARI_FLOAT32_VEC4, width, height);
-  dataArray->setData(rgba);
-  cache[cacheKey] = dataArray;
-  free(rgba);
-
-  return makeTextureSampler(scene, dataArray, filepath);
-}
-#endif
-
-#if TSD_USE_OIIO
-// stb decodes LDR files to float through stbi_ldr_to_hdr_gamma(), a plain
-// pow(x, 2.2) rather than the true sRGB EOTF; OpenImageIO hands back the raw
-// normalized values, so the same curve is applied here to keep every texture
-// path on one contract. stb takes an odd channel count to be all-color and an
-// even one to end in alpha (stb_image.h: `if (comp & 1) n = comp; else
-// n = comp-1`), which is what leaves alpha linear -- match that exactly, or a
-// 2-channel grey+alpha image gets its alpha gamma-corrected.
-static void applyGamma22InPlace(float *texels, size_t numTexels, int numChannels)
-{
-  const int numColorChannels =
-      (numChannels & 1) ? numChannels : numChannels - 1;
-  for (size_t t = 0; t < numTexels; t++) {
-    float *texel = texels + t * numChannels;
-    for (int c = 0; c < numColorChannels; c++)
-      texel[c] = std::pow(texel[c], 2.2f);
-  }
-}
-
-// TIFF is the format the USD/MaterialX assets reach for that stb cannot decode.
-// OpenImageIO covers it (and everything else it has a reader for) without TSD
-// taking on a format-specific decoder.
-static SamplerRef importOiioTexture(
-    Scene &scene, const std::string &filepath, TextureCache &cache, bool isLinear)
-{
-  auto cacheKey = makeTextureCacheKey(filepath, isLinear);
-  if (auto dataArray = cache[cacheKey]; dataArray.valid())
-    return makeTextureSampler(scene, dataArray, filepath);
-
-  // OpenImageIO premultiplies unassociated alpha into the colour channels by
-  // default; stb never does. Ask for the file's own values so a TIFF with
-  // alpha lands on the same contract as every other texture path.
-  OIIO::ImageSpec config;
-  config.attribute("oiio:UnassociatedAlpha", 1);
-
-  // The returned unique_ptr's deleter closes the file on every exit path.
-  auto image = OIIO::ImageInput::open(filepath, &config);
-  if (!image) {
-    logError("[importTexture] failed to open texture '%s': %s",
-        filepath.c_str(),
-        OIIO::geterror().c_str());
-    return {};
-  }
-
-  const auto &spec = image->spec();
-  const int width = spec.width;
-  const int height = spec.height;
-  const int numChannels = spec.nchannels;
-  if (width < 1 || height < 1 || numChannels < 1 || numChannels > 4) {
-    logWarning("[importTexture] texture '%s' with %i channels not imported",
-        filepath.c_str(),
-        numChannels);
-    return {};
-  }
-  // stb only ever gamma-decodes integer input; a float or half TIFF already
-  // carries linear values, so applying the curve to it would darken the image.
-  const bool fileIsIntegral = !spec.format.is_floating_point();
-
-  std::vector<float> texels(size_t(width) * height * numChannels);
-  if (!image->read_image(
-          0, 0, 0, numChannels, OIIO::TypeDesc::FLOAT, texels.data())) {
-    logError("[importTexture] failed to decode texture '%s': %s",
-        filepath.c_str(),
-        image->geterror().c_str());
-    return {};
-  }
-
-  if (!isLinear && fileIsIntegral)
-    applyGamma22InPlace(texels.data(), size_t(width) * height, numChannels);
-
-  auto dataArray = scene.createArray(
-      texelTypeForChannelCount(numChannels), width, height);
-  dataArray->setData(texels.data());
-  cache[cacheKey] = dataArray;
-
-  return makeTextureSampler(scene, dataArray, filepath);
-}
-#endif
+} // namespace
 
 SamplerRef importTexture(
-    Scene &scene, std::string filepath, TextureCache &cache, bool isLinear)
+    Scene &scene, std::string filepath, ImageCache &cache, bool isLinear)
 {
   std::transform(
       filepath.begin(), filepath.end(), filepath.begin(), [](char c) {
         return c == '\\' ? '/' : c;
       });
 
-  auto ext = extensionOf(filepath);
-  std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) {
-    return std::tolower(c);
-  });
-
-  SamplerRef tex;
-  if (ext == ".dds") {
-    tex = importDdsTexture(scene, filepath, cache);
-#ifndef _WIN32
-  } else if (ext == ".exr") {
-    tex = importExrTexture(scene, filepath, cache);
-#endif
-  } else if (ext == ".tif" || ext == ".tiff") {
-#if TSD_USE_OIIO
-    tex = importOiioTexture(scene, filepath, cache, isLinear);
-#else
-    // Falling through to stb would fail with a decode error that says nothing
-    // about the actual cause, which is that TSD was built without OpenImageIO.
-    logError(
-        "[importTexture] cannot decode TIFF texture '%s': TSD was built without"
-        " OpenImageIO (set TSD_USE_OIIO=ON)",
-        filepath.c_str());
-#endif
-  } else {
-    tex = importStbTexture(scene, filepath, cache, isLinear);
-  }
-
-  return tex;
+  auto image = cache.acquire({filepath, colorSpaceOf(isLinear)});
+  return makeImageSampler(scene, image, filepath);
 }
 
 SamplerRef importTextureFromMemory(Scene &scene,
@@ -566,28 +133,13 @@ SamplerRef importTextureFromMemory(Scene &scene,
     const std::string &displayName,
     const void *data,
     size_t numBytes,
-    TextureCache &cache,
+    ImageCache &cache,
     bool isLinear,
     const std::string &formatHint)
 {
-  std::string format = formatHint;
-  std::transform(
-      format.begin(), format.end(), format.begin(), [](unsigned char c) {
-        return std::tolower(c);
-      });
-
-  if (format == "dds") {
-    auto dataArray =
-        importDdsTextureArray(scene, data, numBytes, cacheKey, cache);
-    return dataArray
-        ? makeCompressedTextureSampler(scene, dataArray, displayName)
-        : SamplerRef{};
-  }
-
-  auto dataArray =
-      importStbTextureArray(scene, data, numBytes, cacheKey, cache, isLinear);
-  return dataArray ? makeTextureSampler(scene, dataArray, displayName)
-                   : SamplerRef{};
+  auto image = cache.acquire(
+      {cacheKey, colorSpaceOf(isLinear)}, data, numBytes, formatHint);
+  return makeImageSampler(scene, image, displayName);
 }
 
 SamplerRef importRawTexture2D(Scene &scene,
@@ -596,20 +148,18 @@ SamplerRef importRawTexture2D(Scene &scene,
     const void *data,
     size_t width,
     size_t height,
-    TextureCache &cache,
+    ImageCache &cache,
     bool isLinear)
 {
-  auto dataArray = cache[cacheKey];
-
-  if (!dataArray.valid()) {
-    auto format = isLinear ? ANARI_UFIXED8_VEC4 : ANARI_UFIXED8_RGBA_SRGB;
-    dataArray = scene.createArray(format, width, height);
-    dataArray->setData(data);
-    cache[cacheKey] = dataArray;
-  }
-
-  return makeTextureSampler(scene, dataArray, displayName);
+  auto image = cache.acquireDecoded({cacheKey, colorSpaceOf(isLinear)},
+      isLinear ? ANARI_UFIXED8_VEC4 : ANARI_UFIXED8_RGBA_SRGB,
+      width,
+      height,
+      RowOrder::TOP_DOWN,
+      data);
+  return makeImageSampler(scene, image, displayName);
 }
+
 
 SamplerRef makeDefaultColorMapSampler(Scene &scene, const float2 &range)
 {

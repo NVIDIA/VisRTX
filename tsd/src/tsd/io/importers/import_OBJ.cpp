@@ -56,7 +56,7 @@ void import_OBJ(Scene &scene,
   std::vector<MaterialRef> materials;
   materials.resize(objdata.materials.size());
 
-  TextureCache cache;
+  ImageCache cache(&scene);
 
   auto getMaterial = [&](size_t i) -> MaterialRef {
     auto &m = materials[i];

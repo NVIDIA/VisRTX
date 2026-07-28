@@ -931,7 +931,7 @@ static BakedTexture bakeTexture(Scene &scene,
     const pbrt::Scene &pbrtScene,
     const std::string &textureName,
     const std::string &basePath,
-    TextureCache &texCache);
+    ImageCache &texCache);
 
 // Resolve a PBRT texture-or-constant slot ("rgb tex1" / "float tex1" /
 // "texture tex1"). Used by both `scale` and `mix`.
@@ -940,7 +940,7 @@ static BakedTexture bakeTextureSlot(Scene &scene,
     const std::string &paramName,
     const pbrt::Scene &pbrtScene,
     const std::string &basePath,
-    TextureCache &texCache)
+    ImageCache &texCache)
 {
   auto it = params.values.find(paramName);
   if (it == params.values.end()) {
@@ -989,7 +989,7 @@ static BakedTexture bakeTexture(Scene &scene,
     const pbrt::Scene &pbrtScene,
     const std::string &textureName,
     const std::string &basePath,
-    TextureCache &texCache)
+    ImageCache &texCache)
 {
   auto texIt = pbrtScene.textures.find(textureName);
   if (texIt == pbrtScene.textures.end()) {
@@ -1116,7 +1116,7 @@ static void resolveTexture(Scene &scene,
     const pbrt::MaterialDef &matDef,
     const pbrt::Scene &pbrtScene,
     const std::string &basePath,
-    TextureCache &texCache,
+    ImageCache &texCache,
     anari::DataType paramType = ANARI_FLOAT32_VEC3)
 {
   auto texName = matDef.params.getString(texParamName);
@@ -1212,63 +1212,61 @@ static bool resolveImagemapChain(const pbrt::Scene &pbrtScene,
 static SamplerRef importHeightAsNormalMap(Scene &scene,
     const std::string &filepath,
     float heightScale,
-    TextureCache &texCache)
+    ImageCache &texCache)
 {
-  // Cache under a separate key so we don't collide with any value-domain
+  // Key under a separate id so this doesn't collide with any value-domain
   // sampler that may already exist for the same file.
-  const std::string cacheKey = filepath + "::normal";
-  auto cached = texCache[cacheKey];
+  const ImageSource source{"pbrt:" + filepath + "::normal",
+      ColorSpace::LINEAR};
 
-  if (!cached.valid()) {
-    int w = 0, h = 0, channels = 0;
-    stbi_ldr_to_hdr_scale(1.f);
-    stbi_ldr_to_hdr_gamma(1.f);
-    float *raw = stbi_loadf(filepath.c_str(), &w, &h, &channels, 1);
-    if (!raw) {
-      logWarning(
-          "[import_PBRT] displacement: failed to load '%s'", filepath.c_str());
-      return {};
-    }
+  if (auto cached = texCache.find(source))
+    return makeImageSampler(scene, cached, fileOf(filepath) + "_bump");
 
-    constexpr float kBumpStrength = 16.f;
-    const float k = heightScale * kBumpStrength;
-
-    auto arr = scene.createArray(ANARI_FLOAT32_VEC4, size_t(w), size_t(h));
-    auto *out = arr->mapAs<float4>();
-    for (int y = 0; y < h; ++y) {
-      for (int x = 0; x < w; ++x) {
-        const int xp = (x + 1) % w;
-        const int xm = (x - 1 + w) % w;
-        const int yp = std::min(y + 1, h - 1);
-        const int ym = std::max(y - 1, 0);
-        const float hx = raw[y * w + xp] - raw[y * w + xm];
-        const float hy = raw[yp * w + x] - raw[ym * w + x];
-        const float nx = -hx * k;
-        const float ny = -hy * k;
-        const float nz = 1.f;
-        const float invLen = 1.f / std::sqrt(nx * nx + ny * ny + nz * nz);
-        // Pack [-1,1] -> [0,1] (glTF normal-map convention).
-        out[size_t(y) * w + x] = float4(nx * invLen * 0.5f + 0.5f,
-            ny * invLen * 0.5f + 0.5f,
-            nz * invLen * 0.5f + 0.5f,
-            1.f);
-      }
-    }
-    arr->unmap();
-    stbi_image_free(raw);
-
-    cached = arr;
-    texCache[cacheKey] = cached;
+  int w = 0, h = 0, channels = 0;
+  stbi_ldr_to_hdr_scale(1.f);
+  stbi_ldr_to_hdr_gamma(1.f);
+  float *raw = stbi_loadf(filepath.c_str(), &w, &h, &channels, 1);
+  if (!raw) {
+    logWarning(
+        "[import_PBRT] displacement: failed to load '%s'", filepath.c_str());
+    return {};
   }
 
-  auto sampler = scene.createObject<Sampler>(tokens::sampler::image2D);
-  sampler->setParameterObject("image", *cached);
-  sampler->setParameter("inAttribute", "attribute0");
-  sampler->setParameter("wrapMode1", "repeat");
-  sampler->setParameter("wrapMode2", "repeat");
-  sampler->setParameter("filter", "linear");
-  sampler->setName((fileOf(filepath) + "_bump").c_str());
-  return sampler;
+  constexpr float kBumpStrength = 16.f;
+  const float k = heightScale * kBumpStrength;
+
+  std::vector<float4> texels(size_t(w) * size_t(h));
+  for (int y = 0; y < h; ++y) {
+    for (int x = 0; x < w; ++x) {
+      const int xp = (x + 1) % w;
+      const int xm = (x - 1 + w) % w;
+      const int yp = std::min(y + 1, h - 1);
+      const int ym = std::max(y - 1, 0);
+      const float hx = raw[y * w + xp] - raw[y * w + xm];
+      const float hy = raw[yp * w + x] - raw[ym * w + x];
+      const float nx = -hx * k;
+      const float ny = -hy * k;
+      const float nz = 1.f;
+      const float invLen = 1.f / std::sqrt(nx * nx + ny * ny + nz * nz);
+      // Pack [-1,1] -> [0,1] (glTF normal-map convention).
+      texels[size_t(y) * w + x] = float4(nx * invLen * 0.5f + 0.5f,
+          ny * invLen * 0.5f + 0.5f,
+          nz * invLen * 0.5f + 0.5f,
+          1.f);
+    }
+  }
+  stbi_image_free(raw);
+
+  // stb hands back the picture's first row first, and the gradient above was
+  // taken over that row order.
+  auto image = texCache.acquireDecoded(source,
+      ANARI_FLOAT32_VEC4,
+      size_t(w),
+      size_t(h),
+      RowOrder::TOP_DOWN,
+      texels.data());
+
+  return makeImageSampler(scene, image, fileOf(filepath) + "_bump");
 }
 
 // Approximate normal-incidence reflectance for common PBRT named metal spectra.
@@ -1431,7 +1429,7 @@ static MaterialRef convertMaterial(Scene &scene,
     const std::string &materialName,
     const std::string &interiorMedium,
     const std::string &basePath,
-    TextureCache &texCache,
+    ImageCache &texCache,
     std::map<MaterialCacheKey, MaterialRef> &matCache)
 {
   if (materialName.empty())
@@ -1898,7 +1896,7 @@ static MaterialRef applyShapeAlpha(Scene &scene,
     const pbrt::Shape &shape,
     const pbrt::Scene &pbrtScene,
     const std::string &basePath,
-    TextureCache &texCache)
+    ImageCache &texCache)
 {
   // PBRT v4: shape "alpha" can be a float (uniform cutoff/blend) or a
   // texture reference. The parser stores floats as a vector<float> and
@@ -2114,7 +2112,7 @@ static void convertLight(Scene &scene,
     const pbrt::LightDef &lightDef,
     LayerNodeRef parent,
     const std::string &basePath,
-    TextureCache &texCache,
+    ImageCache &texCache,
     float exposureScale = 1.f)
 {
   (void)texCache;
@@ -2318,7 +2316,7 @@ void import_PBRT(Scene &scene,
   auto root = scene.insertChildNode(
       location ? location : scene.defaultLayer()->root(), file.c_str());
 
-  TextureCache texCache;
+  ImageCache texCache(&scene);
   std::map<MaterialCacheKey, MaterialRef> matCache;
   std::map<std::string, SpatialFieldRef> volumeFieldCache;
 

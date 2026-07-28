@@ -27,14 +27,13 @@ static SamplerRef importEmbeddedTexture(
     Scene &scene,
     const aiTexture *embeddedTexture,
     int embeddedTextureIndex,
-    TextureCache &cache,
+    ImageCache &cache,
     bool isLinear)
 {
   const std::string filename = embeddedTexture->mFilename.C_Str();
   const std::string textureId = embeddedTextureIndex >= 0
       ? "assimp://embedded/" + std::to_string(embeddedTextureIndex)
       : "assimp://embedded-name/" + filename;
-  const std::string cacheKey = makeTextureCacheKey(textureId, isLinear);
   const std::string displayName = filename.empty()
       ? (embeddedTextureIndex >= 0 ? "embedded_" + std::to_string(embeddedTextureIndex)
                                    : "embedded_texture")
@@ -55,7 +54,7 @@ static SamplerRef importEmbeddedTexture(
 
   if (embeddedTexture->mHeight == 0) {
     auto tex = importTextureFromMemory(scene,
-        cacheKey,
+        textureId,
         displayName,
         embeddedTexture->pcData,
         embeddedTexture->mWidth,
@@ -82,7 +81,7 @@ static SamplerRef importEmbeddedTexture(
   }
 
   return importRawTexture2D(scene,
-      cacheKey,
+      textureId,
       displayName,
       rgba.data(),
       embeddedTexture->mWidth,
@@ -243,7 +242,7 @@ static std::vector<MaterialRef> importASSIMPMaterials(
 {
   std::vector<MaterialRef> materials;
 
-  TextureCache cache;
+  ImageCache cache(&scene);
 
   std::string basePath = pathOf(filename);
 

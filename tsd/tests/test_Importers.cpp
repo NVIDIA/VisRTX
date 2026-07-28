@@ -171,7 +171,7 @@ SCENARIO("TIFF textures decode into float texel arrays", "[Importers]")
     TiffFixture tiff("tsd_test_1x1_rgb8.tif");
 
     tsd::scene::Scene scene;
-    tsd::io::TextureCache cache;
+    tsd::io::ImageCache cache(&scene);
 
     WHEN("It is imported as a linear texture")
     {
@@ -227,7 +227,7 @@ SCENARIO("TIFF textures decode into float texel arrays", "[Importers]")
     GreyAlphaTiffFixture tiff("tsd_test_1x1_greyalpha.tif");
 
     tsd::scene::Scene scene;
-    tsd::io::TextureCache cache;
+    tsd::io::ImageCache cache(&scene);
 
     WHEN("It is imported as an sRGB texture")
     {

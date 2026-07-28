@@ -23,6 +23,8 @@ PRIVATE
   animation/EnSightFileBinding.cpp
   animation/SpatialFieldFileBinding.cpp
   UsdImport.cpp
+  images/ImageCache.cpp
+  images/detail/decoders.cpp
   exporters/NanoVdbSidecar.cpp
   exporters/SceneToUSD.cpp
   exporters/StructuredVolumeToNanoVDB.cpp

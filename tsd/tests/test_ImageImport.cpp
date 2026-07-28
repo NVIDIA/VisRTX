@@ -349,7 +349,7 @@ SCENARIO("Decoded images are stored in ANARI orientation", "[ImageImport]")
     TempFile texture("tsd_test_orient.tga", tgaFixtureContents());
 
     tsd::scene::Scene scene;
-    tsd::io::TextureCache cache;
+    tsd::io::ImageCache cache(&scene);
 
     WHEN("It is imported through the shared texture path")
     {

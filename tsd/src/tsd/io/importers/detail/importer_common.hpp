@@ -5,11 +5,11 @@
 
 #include "tsd/animation/Animation.hpp"
 #include "tsd/core/ColorMapUtil.hpp"
+#include "tsd/io/images.hpp"
 #include "tsd/scene/Scene.hpp"
 // std
 #include <cstdio>
 #include <string>
-#include <unordered_map>
 #include <vector>
 #if TSD_USE_VTK
 // vtk
@@ -28,19 +28,17 @@ std::vector<std::string> splitString(const std::string &s, char delim);
 tsd::scene::ArrayRef readArray(
     tsd::scene::Scene &scene, anari::DataType elementType, std::FILE *fp);
 
-using TextureCache = std::unordered_map<std::string, tsd::scene::ArrayRef>;
-std::string makeTextureCacheKey(
-    const std::string &textureId, bool isLinear = false);
+// Thin shims over tsd::io::images; see the note above their definitions.
 tsd::scene::SamplerRef importTexture(tsd::scene::Scene &scene,
     std::string filepath,
-    TextureCache &cache,
+    ImageCache &cache,
     bool isLinear = false);
 tsd::scene::SamplerRef importTextureFromMemory(tsd::scene::Scene &scene,
     const std::string &cacheKey,
     const std::string &displayName,
     const void *data,
     size_t numBytes,
-    TextureCache &cache,
+    ImageCache &cache,
     bool isLinear = false,
     const std::string &formatHint = "");
 tsd::scene::SamplerRef importRawTexture2D(tsd::scene::Scene &scene,
@@ -49,7 +47,7 @@ tsd::scene::SamplerRef importRawTexture2D(tsd::scene::Scene &scene,
     const void *data,
     size_t width,
     size_t height,
-    TextureCache &cache,
+    ImageCache &cache,
     bool isLinear = false);
 
 tsd::scene::SamplerRef makeDefaultColorMapSampler(
