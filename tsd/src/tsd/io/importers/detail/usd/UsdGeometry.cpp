@@ -326,7 +326,11 @@ TriangulatedPrimvars triangulatePrimvars(const pxr::HdMeshUtil &meshUtil,
           int(primvar.value.GetArraySize()),
           pxr::HdGetValueTupleType(primvar.value).type,
           &attribute.value);
-      if (result != pxr::HdMeshComputationResult::Success)
+      // Unchanged means the mesh is already all triangles: the flattened
+      // input is already one value per triangle corner, in triangle order.
+      if (result == pxr::HdMeshComputationResult::Unchanged)
+        attribute.value = primvar.value;
+      else if (result != pxr::HdMeshComputationResult::Success)
         continue;
       attribute.valuesPerTriangle = 3;
     } else {

@@ -948,6 +948,74 @@ def Xform "World"
   }
 }
 
+SCENARIO(
+    "Face-varying primvars survive an already-triangulated mesh", "[UsdImport]")
+{
+  GIVEN("An all-triangle mesh with indexed face-varying UVs and normals")
+  {
+    // Hydra's triangulator reports this topology as Unchanged rather than
+    // producing a copy of the input, a distinct result from Success that the
+    // conversion must not mistake for failure -- pre-triangulated exports
+    // carry every face-varying primvar down this path.
+    StageFixture stage("tsd_test_usd_triangulated_facevarying.usda", R"(#usda 1.0
+
+def Xform "World"
+{
+    def Mesh "Triangles"
+    {
+        int[] faceVertexCounts = [3, 3]
+        int[] faceVertexIndices = [0, 1, 2, 0, 2, 3]
+        point3f[] points = [(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)]
+        texCoord2f[] primvars:st = [(0, 0), (1, 0), (1, 1), (0, 1)] (
+            interpolation = "faceVarying"
+        )
+        int[] primvars:st:indices = [0, 1, 2, 0, 2, 3]
+        normal3f[] primvars:normals = [(0, 0, 1), (0, 0, 1), (0, 0, 1),
+                                       (0, 0, 1), (0, 0, 1), (0, 0, 1)] (
+            interpolation = "faceVarying"
+        )
+    }
+}
+)");
+
+    tsd::scene::Scene scene;
+    tsd::animation::AnimationManager animMgr(&scene);
+
+    WHEN("The Stage is imported")
+    {
+      tsd::io::import_USD(scene, animMgr, stage.path().c_str());
+
+      THEN("The UVs arrive flattened, one value per triangle corner")
+      {
+        auto geometry = findGeometry(scene, "/World/Triangles");
+        REQUIRE(geometry);
+
+        auto *uvs = geometry->parameterValueAsObject<tsd::scene::Array>(
+            "faceVarying.attribute0");
+        REQUIRE(uvs != nullptr);
+        REQUIRE(uvs->size() == 6);
+
+        const auto *uv = uvs->dataAs<tsd::math::float2>();
+        REQUIRE(uv[3].x == Approx(0.0f)); // second triangle's first corner
+        REQUIRE(uv[4].x == Approx(1.0f));
+        REQUIRE(uv[5].x == Approx(0.0f));
+        REQUIRE(uv[5].y == Approx(1.0f));
+      }
+
+      THEN("The normals arrive too")
+      {
+        auto geometry = findGeometry(scene, "/World/Triangles");
+        REQUIRE(geometry);
+
+        auto *normals = geometry->parameterValueAsObject<tsd::scene::Array>(
+            "faceVarying.normal");
+        REQUIRE(normals != nullptr);
+        REQUIRE(normals->size() == 6);
+      }
+    }
+  }
+}
+
 SCENARIO("A subset binds the UV primvar its own material reads", "[UsdImport]")
 {
   GIVEN("Two subsets whose materials read differently named UV primvars")
