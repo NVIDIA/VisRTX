@@ -72,6 +72,7 @@ struct Denoiser : public Object
   DeviceBuffer m_state;
   DeviceBuffer m_scratch;
   DeviceBuffer m_intensity; // whole-frame HDR autoexposure, shared by all tiles
+  DeviceBuffer m_averageColor; // whole-frame AOV exposure, shared by all tiles
   uint32_t m_tileW{0};
   uint32_t m_tileH{0};
   uint32_t m_overlap{0};
