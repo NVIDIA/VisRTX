@@ -87,6 +87,45 @@ mark_as_advanced(VISRTX_ENABLE_HDRI_SAMPLING_DEBUG)
 
 find_package(anari 0.16.0 REQUIRED)
 find_package(CUDAToolkit 12 REQUIRED)
+
+# Minimum GPU the built device runs on. Every OptiX version VisRTX builds
+# against accepts SM 5.0 (Maxwell) as its floor, so 50 is the widest reach and
+# costs nothing over a higher value. Raise it to 75 for Turing and newer only:
+# CUDA 13 removed pre-Turing code generation, so that is mandatory there.
+if(CUDAToolkit_FOUND)
+  if(CUDAToolkit_VERSION_MAJOR LESS_EQUAL 12)
+    set(VISRTX_MIN_ARCH 50 CACHE STRING "Minimum CUDA compute capability (50, 75, 86, ...)")
+  else()
+    set(VISRTX_MIN_ARCH 75 CACHE STRING "Minimum CUDA compute capability (50, 75, 86, ...)")
+  endif()
+endif()
+
+if(NOT VISRTX_MIN_ARCH MATCHES "^[0-9][0-9]+$" OR VISRTX_MIN_ARCH LESS 50)
+  message(FATAL_ERROR
+    "VISRTX_MIN_ARCH must be a compute capability of 50 or above (OptiX's own floor), got '${VISRTX_MIN_ARCH}'")
+endif()
+
+# Cooperative vectors need Ada. Raise the floor rather than overriding any
+# single consumer of it, so the host and OptiX module PTX targets and the MDL
+# backend stay in agreement. A floor already above 89 is left alone.
+#
+# This is a normal (non-cache) set: it shadows the cached value for this
+# configure and its subdirectories, so every consumer below sees 89, while the
+# cache keeps the user's original entry. Reconfigure re-raises cleanly, so the
+# cache never silently disagrees with the build.
+if(VISRTX_ENABLE_NEURAL AND VISRTX_MIN_ARCH LESS 89)
+  message(STATUS
+    "VISRTX_ENABLE_NEURAL raises VISRTX_MIN_ARCH from ${VISRTX_MIN_ARCH} to 89")
+  set(VISRTX_MIN_ARCH 89)
+endif()
+
+# Finally validate MIN_ARCH againt the target CUDA toolkit
+if(VISRTX_MIN_ARCH LESS 75 AND CUDAToolkit_VERSION_MAJOR GREATER 12)
+  message(FATAL_ERROR
+    "VISRTX_MIN_ARCH=${VISRTX_MIN_ARCH} requires CUDA 12.x: CUDA ${CUDAToolkit_VERSION_MAJOR} "
+    "removed code generation for pre-Turing architectures. "
+    "Build with CUDA 12, or configure with -DVISRTX_MIN_ARCH=75.")
+endif()
 find_package(glm MODULE REQUIRED)
 
 ## Get OptiX headers ##
@@ -107,6 +146,10 @@ else()
   message(FATAL_ERROR "Invalid/unknown version of OptiX selected")
 endif()
 
+if(VISRTX_ENABLE_NEURAL AND NOT ${OPTIX_FETCH_VERSION} STREQUAL "9.0")
+  message(FATAL_ERROR "OptiX 9.0+ must be used to enable Neural Graphics Primitives support in VisRTX")
+endif()
+
 anari_sdk_fetch_project(NAME optix_headers URL ${OPTIX_URL})
 appendSearchPaths(${optix_headers_LOCATION})
 
@@ -114,23 +157,31 @@ find_package(OptiX REQUIRED)
 
 #### Validate Neural Graphics Primitives support ####
 
-if(VISRTX_ENABLE_NEURAL AND NOT ${OPTIX_FETCH_VERSION} STREQUAL "9.0")
-  message(FATAL_ERROR "OptiX 9.0+ must be used to enable Neural Graphics Primitives support in VisRTX")
-endif()
-
 #### Setup CMAKE_CUDA_ARCHITECTURES for device compilation ####
 
+# Host-side kernels ship as PTX only, at the floor architecture. The CUDA
+# driver JIT-compiles compute_<VISRTX_MIN_ARCH> PTX to whatever GPU is present
+# at launch (any GPU at or above the floor), so one build runs everywhere
+# without baking a cubin per architecture. This mirrors the OptiX module PTX
+# target and keeps the two in agreement: both are compute_<floor>, so a GPU at
+# the floor JITs the host kernels and the OptiX modules alike instead of
+# loading one and failing on the other. Build time and binary size stay flat
+# regardless of how many architectures the toolkit knows about.
+#
+# Override with -DCMAKE_CUDA_ARCHITECTURES=<...> to emit cubins instead (e.g.
+# "75-real;80-real" for offline, JIT-free launches, or "all-major" to restore
+# the per-arch cubin list). This is a host-kernel-only knob: the OptiX module
+# PTX targets are pinned to compute_<VISRTX_MIN_ARCH>-virtual in
+# device/CMakeLists.txt and do NOT follow this override — a -real or multi-arch
+# value here would emit cubins/multi-blobs optixModuleCreate cannot load. The MDL
+# backend's sm_version likewise tracks VISRTX_MIN_ARCH (see libmdl/CMakeLists.txt),
+# not this variable, so all three consumers stay in agreement regardless of the
+# host-side override.
 if (NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
   if (CMAKE_VERSION VERSION_LESS "3.23")
     set(CMAKE_CUDA_ARCHITECTURES OFF)
   else()
-    if(VISRTX_ENABLE_NEURAL)
-      set(CMAKE_CUDA_ARCHITECTURES 89-virtual)
-    elseif(${CUDAToolkit_VERSION_MAJOR} GREATER 12)
-      set(CMAKE_CUDA_ARCHITECTURES 75-virtual)
-    else()
-      set(CMAKE_CUDA_ARCHITECTURES 52-virtual)
-    endif()
+    set(CMAKE_CUDA_ARCHITECTURES ${VISRTX_MIN_ARCH}-virtual)
   endif()
 endif()
 

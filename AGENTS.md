@@ -21,7 +21,7 @@ repository build.
 
 ### Requirements
 
-- CMake 3.17+, C++17 compiler, NVIDIA Driver 530+
+- CMake 3.17+, C++17 compiler, NVIDIA Driver 530+, GPU of compute capability 5.0+
 - CUDA 12+ (for RTX device), ANARI-SDK 0.15.0+
 
 ### Basic Build

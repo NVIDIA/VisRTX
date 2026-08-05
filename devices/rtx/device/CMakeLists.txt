@@ -370,7 +370,14 @@ function(GenerateEmbeddedPTX DIR BASE_NAME)
     ${CMAKE_CURRENT_LIST_DIR}
   )
 
-  set_target_properties(${INPUT_TARGET} PROPERTIES CUDA_PTX_COMPILATION ON)
+  # OptiX rewrites module PTX for the actual GPU, so a virtual target at the
+  # floor runs on everything above it. Pinned rather than inherited from
+  # CMAKE_CUDA_ARCHITECTURES: a -real override there is valid for the host
+  # kernels but would emit cubins OptiX cannot load.
+  set_target_properties(${INPUT_TARGET} PROPERTIES
+    CUDA_PTX_COMPILATION ON
+    CUDA_ARCHITECTURES ${VISRTX_MIN_ARCH}-virtual
+  )
 
   EmbedPTX(
     OUTPUT_HEADER_FILE ${OUTPUT_HEADER}

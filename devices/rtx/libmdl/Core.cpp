@@ -500,7 +500,7 @@ const mi::neuraylib::ITarget_code *Core::getPtxTargetCode(
   ptxBackend->set_option_binary("llvm_renderer_module", nullptr, 0);
   ptxBackend->set_option("visible_functions", "");
 
-  ptxBackend->set_option("sm_version", "52");
+  ptxBackend->set_option("sm_version", VISRTX_MDL_SM_VERSION);
   ptxBackend->set_option("tex_lookup_call_mode", "direct_call");
   ptxBackend->set_option("lambda_return_mode", "value");
   ptxBackend->set_option("texture_runtime_with_derivs", "off");

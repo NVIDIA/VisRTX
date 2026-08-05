@@ -23,6 +23,19 @@ Key device-specific CMake options:
 - `VISRTX_ENABLE_NEURAL`: Neural Graphics Primitives (requires OptiX 9.0+)
 - `VISRTX_ENABLE_NVTX`: NVTX profiling markers
 - `OPTIX_FETCH_VERSION`: Pin OptiX version: `7.7`, `8.0`, `8.1`, or `9.0`
+- `VISRTX_MIN_ARCH`: Minimum compute capability (default `50`, or `75` under
+  CUDA 13, which dropped pre-Turing codegen — an explicit floor below `75` there
+  is a configure error). Single source for the host kernel PTX target, the OptiX
+  module PTX target, and the MDL backend's `sm_version`. The host kernels and
+  the OptiX module both target `compute_<MIN_ARCH>` (PTX, JIT-compiled by the
+  driver/OptiX to the actual GPU at launch); the MDL backend instead picks the
+  highest entry its fixed `sm_version` set offers at or below the floor, so a
+  floor with no exact match (e.g. `89` → `86`) rounds down — safe, since lower
+  SM PTX runs on newer GPUs. `VISRTX_ENABLE_NEURAL` raises the floor to at least
+  `89` (cooperative vectors need Ada). Override the host side with
+  `-DCMAKE_CUDA_ARCHITECTURES=<...>` (e.g. `all-major`) to bake per-arch cubins
+  instead of shipping PTX; the OptiX module target ignores that override and
+  stays at `compute_<MIN_ARCH>`.
 
 ## Tests
 

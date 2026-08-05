@@ -24,6 +24,8 @@ Building VisRTX requires the following:
 - C++17 compiler
 - NVIDIA Driver 530+
 - CUDA 12+
+- A GPU of compute capability 5.0 (Maxwell) or newer, or 7.5 (Turing) when
+  building with CUDA 13. Set `VISRTX_MIN_ARCH` to raise that floor.
 - [ANARI-SDK](https://github.com/KhronosGroup/ANARI-SDK)
 
 Building VisRTX is done through invoking CMake on the source directory from a
