@@ -45,6 +45,11 @@ struct ProjectContext
   Dataset *addStaticDataset(const std::string &name,
       const std::filesystem::path &sourcePath,
       tsd::io::ImporterType importerType);
+  // Load a TSD Layer Subtree Archive (as saved from tsdViewer's LayerTree) as
+  // a Static Dataset. The subtree becomes embedded dataset content; the next
+  // save writes it into the project as a Dataset Archive.
+  Dataset *addStaticDatasetFromSubtree(
+      const std::string &name, const std::filesystem::path &sourcePath);
   Dataset *addFileAnimationDataset(const std::string &name,
       const std::vector<std::filesystem::path> &sourcePaths,
       tsd::io::ImporterType importerType,

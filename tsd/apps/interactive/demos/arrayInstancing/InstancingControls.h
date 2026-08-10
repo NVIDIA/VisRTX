@@ -5,7 +5,8 @@
 
 // tsd_ui_imgui
 #include <tsd/ui/imgui/windows/Window.h>
-// tsd_core
+// tsd_scene
+#include <tsd/scene/Layer.hpp>
 #include <tsd/scene/Object.hpp>
 
 namespace tsd::demo {
@@ -18,6 +19,7 @@ struct InstancingControls : public tsd::ui::imgui::Window
   void buildUI() override;
 
  private:
+  void clearWorld();
   void createScene();
   void generateSpheres();
   void generateInstances();
@@ -29,6 +31,7 @@ struct InstancingControls : public tsd::ui::imgui::Window
   float m_particleRadius{0.5f};
   bool m_addSpheres{true};
   bool m_addInstances{true};
+  tsd::scene::LayerNodeRef m_worldRoot;
   tsd::scene::Object *m_light{nullptr};
 };
 

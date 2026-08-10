@@ -737,22 +737,12 @@ DeviceInitStatus VisRTXDevice::initOptix()
     // as those will be out of scope as soon as we exit the function, thereby
     // creating dandling references to those parameters if we do not capture by
     // value.
-    auto f = std::async([&, module, ptx, name]() {
+    auto f = std::async([&, module, ptx, name]() -> void {
       reportMessage(ANARI_SEVERITY_INFO, "Compiling OptiX module: %s", name);
 
       std::string log(2048, '\n');
       size_t sizeof_log = log.size();
 
-#if OPTIX_VERSION < 70700
-      OPTIX_CHECK(optixModuleCreateFromPTX(state.optixContext,
-          &moduleCompileOptions,
-          &pipelineCompileOptions,
-          (const char *)ptx.ptr,
-          ptx.size,
-          log.data(),
-          &sizeof_log,
-          &module));
-#else
       OPTIX_CHECK(optixModuleCreate(state.optixContext,
           &moduleCompileOptions,
           &pipelineCompileOptions,
@@ -761,14 +751,15 @@ DeviceInitStatus VisRTXDevice::initOptix()
           log.data(),
           &sizeof_log,
           module));
-#endif
 
       if (sizeof_log > 1)
         reportMessage(ANARI_SEVERITY_DEBUG, "PTX Compile Log:\n%s", log.data());
     });
+
 #ifndef VISRTX_PARALLEL_MODULE_BUILD
     f.wait();
 #endif
+
     return f;
   };
 

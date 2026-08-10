@@ -99,25 +99,37 @@ void PhysicallyBasedMDL::commitParameters()
   translateAndRemoveParameter("iridescence"sv);
   translateAndRemoveParameter("iridescenceThickness"sv);
 
-  // Capture the emissive binding AFTER translation, from the persistent
-  // post-translate keys: the translation consumes the pre-translate `emissive`
-  // key at its first commit, so reading that key here would zero the capture —
-  // and silently drop the Geometry Light — on any later commit that doesn't
-  // re-set `emissive`. The keys are mutually exclusive post-translate; the
-  // sampler gate mirrors the material's own texture-over-value precedence.
+  // Capture the emissive binding by mirroring the translation above. Under
+  // helium snapshot-commit, getters read the snapshot taken at
+  // anariCommitParameters() while setParam*() writes staging — so the
+  // post-translate keys the translation just wrote are INVISIBLE to getters
+  // until the next flush. A freshly set pre-translate `emissive` (visible in
+  // this flush's snapshot) therefore fully determines the binding; only when
+  // absent do the post-translate keys persisted by earlier flushes apply —
+  // which also keeps the capture alive on later commits that don't re-set
+  // `emissive` (the translation consumed the pre-translate key).
   // Constant iff a nonzero inline color is bound; a bound sampler goes through
   // the EDF path with a live sampler-mean Pick Power (see emissionAverage).
   // Note: unsetting `emissive` leaves the last translated key in place — a
   // pre-existing translation-lifecycle trait shared by the MDL argument block,
   // so the light stays consistent with the still-glowing surface.
   {
-    m_emissiveSampler = getParamObject<Sampler>("emissive.texture");
     vec3 radiance(0.f);
-    if (!m_emissiveSampler) {
-      vec4 v(0.f);
-      getParam("emissive.value", ANARI_FLOAT32_VEC4, &v);
-      getParam("emissive.value", ANARI_FLOAT32_VEC3, &v);
-      radiance = vec3(v);
+    if (auto any = getParamDirect("emissive"); any.type() != ANARI_UNKNOWN) {
+      m_emissiveSampler =
+          any.type() == ANARI_SAMPLER ? any.getObject<Sampler>() : nullptr;
+      if (any.type() == ANARI_FLOAT32_VEC3)
+        radiance = any.get<vec3>();
+      else if (any.type() == ANARI_FLOAT32_VEC4)
+        radiance = vec3(any.get<vec4>());
+    } else {
+      m_emissiveSampler = getParamObject<Sampler>("emissive.texture");
+      if (!m_emissiveSampler) {
+        vec4 v(0.f);
+        getParam("emissive.value", ANARI_FLOAT32_VEC4, &v);
+        getParam("emissive.value", ANARI_FLOAT32_VEC3, &v);
+        radiance = vec3(v);
+      }
     }
     m_emissionRadiance = radiance;
     m_emissionIsConstant = glm::any(glm::greaterThan(radiance, vec3(0.f)));

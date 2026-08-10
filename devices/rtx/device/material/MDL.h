@@ -71,6 +71,25 @@ struct MDL : public Material
   // Handle argument block update
   void syncParameters();
 
+ protected:
+  // Source handoff for subclasses that GENERATE their MDL source during
+  // commitParameters (MaterialX). This is the ONLY channel for the generated
+  // code — subclasses must NOT write it into source/sourceType/materialName:
+  // under helium snapshot-commit staged writes are invisible to the getters
+  // syncSource uses until the NEXT flush (the raw document path would compile
+  // as MDL code), and overwriting `source` destroys the app's document for
+  // later retranscodes. The app's params stay authoritative; subclasses
+  // re-populate this override every commit and syncSource prefers it when
+  // set. materialName nullopt = no selection (mirrors an absent
+  // "materialName" param).
+  struct SourceHandoff
+  {
+    std::string sourceType;
+    std::string source;
+    std::optional<std::string> materialName;
+  };
+  std::optional<SourceHandoff> m_sourceHandoff;
+
  private:
   MaterialGPUData gpuData() const override;
   std::map<std::string, helium::AnariAny> m_parameterMap;

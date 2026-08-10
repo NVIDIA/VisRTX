@@ -42,8 +42,9 @@ struct Viewport : public BaseViewport
   ~Viewport();
 
   void buildUI() override;
-  void setLibrary(
-      const std::string &libName, size_t rendererIndex = TSD_INVALID_INDEX);
+  void setLibrary(const std::string &libName,
+      size_t rendererIndex = TSD_INVALID_INDEX,
+      bool resetInitialView = true);
   void setLibraryToDefault();
   const std::string &libraryName() const;
   size_t currentRendererObjectIndex() const;

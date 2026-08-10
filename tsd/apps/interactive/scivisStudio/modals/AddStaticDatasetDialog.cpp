@@ -20,10 +20,14 @@ namespace {
 struct DatasetSourceChoice
 {
   const char *name;
+  // No importer: the source is a TSD archive rather than a foreign format.
   std::optional<tsd::io::ImporterType> importer;
+  // A TSD Layer Subtree Archive (as saved from tsdViewer's LayerTree) rather
+  // than a Dataset Archive. Only meaningful when 'importer' is unset.
+  bool subtree = false;
 };
 
-constexpr std::array<DatasetSourceChoice, 26> SOURCES = {{
+constexpr std::array<DatasetSourceChoice, 27> SOURCES = {{
     {"AGX", tsd::io::ImporterType::AGX},
     {"ASSIMP", tsd::io::ImporterType::ASSIMP},
     {"ASSIMP_FLAT", tsd::io::ImporterType::ASSIMP_FLAT},
@@ -50,6 +54,7 @@ constexpr std::array<DatasetSourceChoice, 26> SOURCES = {{
     {"XYZDP", tsd::io::ImporterType::XYZDP},
     {"VOLUME", tsd::io::ImporterType::VOLUME},
     {"TSD Dataset Archive", std::nullopt},
+    {"TSD Layer Subtree Archive", std::nullopt, true},
 }};
 
 template <size_t N>
@@ -105,8 +110,14 @@ void AddStaticDatasetDialog::buildUI()
 
   ImGui::SameLine();
   const auto sourceChoice = SOURCES[m_selectedSource];
-  const bool loadArchive = !sourceChoice.importer.has_value();
-  if (ImGui::Button(loadArchive ? "Load Archive" : "Import")) {
+  const bool importSource = sourceChoice.importer.has_value();
+  const char *actionLabel =
+      importSource ? "Import" : (sourceChoice.subtree ? "Load Subtree" : "Load Archive");
+  const char *progressLabel = importSource
+      ? "Importing Dataset..."
+      : (sourceChoice.subtree ? "Loading Layer Subtree Archive..."
+                              : "Loading Dataset Archive...");
+  if (ImGui::Button(actionLabel)) {
     const std::string name = m_name.data();
     const std::filesystem::path sourcePath = m_sourcePath.data();
     if (sourcePath.empty()) {
@@ -121,6 +132,12 @@ void AddStaticDatasetDialog::buildUI()
             return;
           if (sourceChoice.importer) {
             ctx->addStaticDataset(name, sourcePath, *sourceChoice.importer);
+          } else if (sourceChoice.subtree) {
+            auto *dataset = ctx->addStaticDatasetFromSubtree(name, sourcePath);
+            if (!dataset || dataset->status != DatasetStatus::Available) {
+              tsd::core::logWarning(
+                  "[SciVisStudio] Failed to load Layer Subtree Archive as a dataset");
+            }
           } else {
             std::string error;
             auto *dataset = ctx->loadDatasetArchive(sourcePath, &error);
@@ -136,7 +153,7 @@ void AddStaticDatasetDialog::buildUI()
             }
           }
         },
-        loadArchive ? "Loading Dataset Archive..." : "Importing Dataset...");
+        progressLabel);
   }
 }
 

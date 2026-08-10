@@ -21,7 +21,7 @@ InstancingControls::InstancingControls(
 void InstancingControls::buildUI()
 {
   if (ImGui::Button("clear scene"))
-    appContext()->tsd.scene.removeAllObjects();
+    clearWorld();
 
   ImGui::SetNextItemOpen(true, ImGuiCond_FirstUseEver);
   if (ImGui::CollapsingHeader("Instancing")) {
@@ -42,21 +42,30 @@ void InstancingControls::buildUI()
   }
 }
 
-void InstancingControls::createScene()
+void InstancingControls::clearWorld()
 {
-  // Clear out previous scene //
+  if (!m_worldRoot)
+    return;
 
   auto &scene = appContext()->tsd.scene;
-  scene.removeAllObjects();
+  scene.removeNode(m_worldRoot);
+  m_worldRoot = {};
+  scene.removeUnusedObjects();
+}
 
-  // Then only get the default layer //
+void InstancingControls::createScene()
+{
+  auto &scene = appContext()->tsd.scene;
+  clearWorld();
+
+  // Keep generated world objects separate from the persistent app objects.
 
   auto *layer = scene.defaultLayer();
+  m_worldRoot = scene.insertChildNode(layer->root(), "array_instancing_world");
 
   // Default (global) material //
 
-  auto mat = scene.createObject<tsd::scene::Material>(
-      tsd::scene::tokens::material::matte);
+  auto mat = scene.defaultMaterial();
   mat->setName("default_material");
   mat->setParameter("color", "color");
 
@@ -67,15 +76,16 @@ void InstancingControls::createScene()
   if (m_addInstances)
     generateInstances();
 
-  // Add light //
+  // Add the persistent light once.
 
-  auto light = scene.createObject<tsd::scene::Light>(
-      tsd::scene::tokens::light::directional);
-  light->setName("mainLight");
-  light->setParameter("direction", tsd::math::float2(0.f, 240.f));
-  m_light = light.data();
-
-  layer->root()->insert_first_child({layer, light});
+  if (!m_light) {
+    auto light = scene.createObject<tsd::scene::Light>(
+        tsd::scene::tokens::light::directional);
+    light->setName("mainLight");
+    light->setParameter("direction", tsd::math::float2(0.f, 240.f));
+    m_light = light.data();
+    layer->root()->insert_first_child({layer, light});
+  }
 
   // Finally update instancing in RenderIndexes //
 
@@ -120,21 +130,21 @@ void InstancingControls::generateSpheres()
   auto surface =
       scene.createSurface("random_spheres", spheres, scene.defaultMaterial());
 
-  auto *layer = scene.defaultLayer();
-  layer->root()->insert_last_child({layer, surface});
+  auto *layer = (*m_worldRoot)->layer();
+  m_worldRoot->insert_last_child({layer, surface});
 }
 
 void InstancingControls::generateInstances()
 {
   auto &scene = appContext()->tsd.scene;
-  auto *layer = scene.defaultLayer();
+  auto *layer = (*m_worldRoot)->layer();
 
   // Setup transforms //
 
   size_t numXfms = size_t(m_numInstances);
   auto xfmArray = scene.createArray(ANARI_FLOAT32_MAT4, numXfms);
 
-  auto xfmArrayNode = layer->root()->insert_last_child({layer, xfmArray});
+  auto xfmArrayNode = m_worldRoot->insert_last_child({layer, xfmArray});
 
   std::mt19937 rng;
   rng.seed(0);

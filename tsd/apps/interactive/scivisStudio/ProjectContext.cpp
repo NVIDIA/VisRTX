@@ -11,6 +11,7 @@
 
 #include "tsd/core/DataTree.hpp"
 #include "tsd/core/Logging.hpp"
+#include "tsd/io/archives/LayerSubtreeArchive.hpp"
 #include "tsd/rendering/view/ManipulatorToTSD.hpp"
 #include "tsd/scene/objects/Array.hpp"
 #include "tsd/scene/objects/Camera.hpp"
@@ -23,6 +24,11 @@
 #include <vector>
 
 namespace tsd::scivis_studio {
+
+// Marker importerType for a Static Dataset whose runtime came from a TSD Layer
+// Subtree Archive rather than a foreign-format importer. It is recorded as the
+// dataset's provenance and routes reimport back through the subtree loader.
+static constexpr const char *SUBTREE_IMPORTER_TYPE = "TSD_SUBTREE";
 
 static tsd::scene::LayerNodeRef findDirectChild(
     tsd::scene::LayerNodeRef parent, const std::string &name)
@@ -899,6 +905,61 @@ Dataset *ProjectContext::addStaticDataset(const std::string &name,
   return &record;
 }
 
+Dataset *ProjectContext::addStaticDatasetFromSubtree(
+    const std::string &name, const std::filesystem::path &sourcePath)
+{
+  if (!m_ctx)
+    return nullptr;
+
+  Dataset dataset;
+  dataset.id = project::nextDatasetId(m_project);
+  dataset.name = makeValidUniqueAssetName(
+      m_project.datasets, name.empty() ? dataset.id : name);
+  dataset.sourceKind = DatasetSourceKind::Static;
+  dataset.importerType = SUBTREE_IMPORTER_TYPE;
+  dataset.source = collectSourceMetadata(sourcePath);
+  dataset.status = DatasetStatus::Importing;
+
+  auto datasetRoot = ensureChild(ensureDatasetsRoot(), dataset.id.c_str());
+  dataset.rootNode = refFor("studio", datasetRoot);
+
+  m_project.datasets.push_back(std::move(dataset));
+  auto &record = m_project.datasets.back();
+
+  try {
+    // A Layer Subtree Archive deserializes its subtree as a child of the
+    // dataset root, mirroring how tsdViewer's LayerTree loads one.
+    auto subtreeRoot = tsd::io::load_LayerSubtreeArchive(
+        datasetRoot, sourcePath.string().c_str());
+    if (!subtreeRoot || !hasObjectNodes(datasetRoot)) {
+      record.status = DatasetStatus::ImportFailed;
+      tsd::core::logError(
+          "[SciVisStudio] Subtree dataset load created no scene objects for '%s'",
+          sourcePath.string().c_str());
+    } else {
+      record.status = DatasetStatus::Available;
+      for (auto &shot : m_project.shots)
+        shot::setDatasetBinding(
+            shot, record.id, &shot == project::activeShot(m_project));
+    }
+  } catch (const std::exception &e) {
+    record.status = DatasetStatus::ImportFailed;
+    tsd::core::logError(
+        "[SciVisStudio] Subtree dataset load failed for '%s': %s",
+        sourcePath.string().c_str(),
+        e.what());
+  } catch (...) {
+    record.status = DatasetStatus::ImportFailed;
+    tsd::core::logError("[SciVisStudio] Subtree dataset load failed for '%s'",
+        sourcePath.string().c_str());
+  }
+
+  record.dirty = record.status == DatasetStatus::Available;
+  m_project.markDirty();
+  applyActiveShot();
+  return &record;
+}
+
 Dataset *ProjectContext::addFileAnimationDataset(const std::string &name,
     const std::vector<std::filesystem::path> &sourcePaths,
     tsd::io::ImporterType importerType,
@@ -1439,11 +1500,16 @@ bool ProjectContext::reimportStaticDataset(
   auto stagedRoot = stagedScene.insertChildNode(
       stagedScene.defaultLayer()->root(), "dataset");
   try {
-    tsd::io::import_file(stagedScene,
-        stagedAnimations,
-        {importerTypeFromString(dataset->importerType),
-            dataset->source.sourcePath},
-        stagedRoot);
+    if (dataset->importerType == SUBTREE_IMPORTER_TYPE) {
+      tsd::io::load_LayerSubtreeArchive(
+          stagedRoot, dataset->source.sourcePath.c_str());
+    } else {
+      tsd::io::import_file(stagedScene,
+          stagedAnimations,
+          {importerTypeFromString(dataset->importerType),
+              dataset->source.sourcePath},
+          stagedRoot);
+    }
   } catch (const std::exception &e) {
     return fail(std::string("dataset reimport failed: ") + e.what(), error);
   } catch (...) {

@@ -285,6 +285,12 @@ Sampler *SamplerRegistry::loadFromDDS(
     image2d->setParam("size", U64Vec2(dds->header.width, dds->header.height));
     array1d->refDec(helium::PUBLIC);
 
+    // Registry-internal objects never pass through anariCommitParameters(),
+    // so nothing ever captures their committed snapshot — a later buffered
+    // re-commit (change-observer notification) would run under a
+    // ReadCommittedScope against an EMPTY snapshot and lose every parameter.
+    // Mirror staging into the snapshot explicitly.
+    image2d->snapshotParameters();
     image2d->commitParameters();
     image2d->finalize();
     tex = image2d;
@@ -317,6 +323,7 @@ Sampler *SamplerRegistry::loadFromDDS(
     image2d->setParam("image", array2d);
     array2d->refDec(helium::PUBLIC);
 
+    image2d->snapshotParameters(); // see the compressed-path comment above
     image2d->commitParameters();
     image2d->finalize();
     tex = image2d;
@@ -397,6 +404,7 @@ Sampler *SamplerRegistry::loadFromImage(
   // copy just doubles this texture's VRAM footprint.
   auto image2d = new Image2D(m_deviceState);
   image2d->setParam("image", array2d);
+  image2d->snapshotParameters(); // see the compressed-path comment above
   image2d->commitParameters();
   image2d->finalize();
   array2d->refDec(helium::PUBLIC);
@@ -477,6 +485,7 @@ Sampler *SamplerRegistry::loadFromTextureDesc(
     array3d->uploadArrayData();
     auto image3d = new Image3D(m_deviceState);
     image3d->setParam("image", array3d);
+    image3d->snapshotParameters(); // see the compressed-path comment above
     image3d->commitParameters();
     image3d->finalize();
     array3d->refDec(helium::PUBLIC);

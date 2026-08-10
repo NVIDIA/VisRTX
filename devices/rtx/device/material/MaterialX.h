@@ -53,9 +53,11 @@ struct MaterialX : public MDL
  private:
   // True if the user's source, sourceType, selection, or (for documentFile) the
   // file's mtime changed since the last successful transcode. Updates the cached
-  // user inputs as a side effect. Must distinguish the user's
-  // `source`/`sourceType`/`materialName` from the generated MDL + "code" we write
-  // back into those same params (see commitParameters).
+  // user inputs as a side effect. The app's `source`/`sourceType`/`materialName`
+  // params are never overwritten (the generated MDL travels via the
+  // MDL::SourceHandoff — see commitParameters), so the live params read here are
+  // authoritative user input; the "recognize our own write" branches remain only
+  // as tolerance for apps staging 'code'/generated values directly.
   bool needsRetranscode();
 
   // Invoke the transcoder and update all generated state.
@@ -81,8 +83,8 @@ struct MaterialX : public MDL
   // first commit always mismatch.
   uint64_t m_distributionGeneration{~uint64_t(0)};
 
-  std::string m_generatedSource; // MDL written into the `source` param
-  std::string m_generatedName;   // name written into the `materialName` param
+  std::string m_generatedSource; // MDL handed to the base via SourceHandoff
+  std::string m_generatedName; // material name handed via SourceHandoff
   std::vector<std::string> m_materialNames;
   std::vector<const char *> m_materialNamePtrs;
   std::vector<std::string> m_textureInputNames;

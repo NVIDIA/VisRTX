@@ -75,13 +75,16 @@ void Denoiser::setup(uvec2 size,
   m_tileH = std::min<uint32_t>(kMaxTile, size.y);
 
   OptixDenoiserSizes sizes;
-  OPTIX_CHECK(
-      optixDenoiserComputeMemoryResources(m_denoiser, m_tileW, m_tileH, &sizes));
+  OPTIX_CHECK(optixDenoiserComputeMemoryResources(
+      m_denoiser, m_tileW, m_tileH, &sizes));
 
   m_overlap = sizes.overlapWindowSizeInPixels;
   m_state.reserve(sizes.stateSizeInBytes);
-  m_scratch.reserve(sizes.withOverlapScratchSizeInBytes);
+  m_scratch.reserve(std::max(sizes.withOverlapScratchSizeInBytes,
+      std::max(sizes.computeIntensitySizeInBytes,
+          sizes.computeAverageColorSizeInBytes)));
   m_intensity.reserve(sizeof(float));
+  m_averageColor.reserve(3 * sizeof(float));
 
   if (format != ANARI_FLOAT32_VEC4)
     m_uintPixels.resize(size_t(size.x) * size_t(size.y));
@@ -133,9 +136,9 @@ void Denoiser::launch()
 {
   auto &state = *deviceState();
 
-  // Tiled invoke normalizes each tile independently unless handed a
-  // whole-frame HDR intensity; without it adjacent tiles self-expose and seam.
-  // Compute one average log intensity over the full input and share it.
+  // Tiled invoke normalizes each tile independently unless handed whole-frame
+  // HDR exposure values. Compute them over the full input and share them so
+  // adjacent tiles do not self-expose and seam.
   OPTIX_CHECK(optixDenoiserComputeIntensity(m_denoiser,
       state.stream,
       &m_layer.input,
@@ -143,6 +146,14 @@ void Denoiser::launch()
       (CUdeviceptr)m_scratch.ptr(),
       m_scratch.bytes()));
   m_params.hdrIntensity = (CUdeviceptr)m_intensity.ptr();
+
+  OPTIX_CHECK(optixDenoiserComputeAverageColor(m_denoiser,
+      state.stream,
+      &m_layer.input,
+      (CUdeviceptr)m_averageColor.ptr(),
+      (CUdeviceptr)m_scratch.ptr(),
+      m_scratch.bytes()));
+  m_params.hdrAverageColor = (CUdeviceptr)m_averageColor.ptr();
 
   instrument::rangePush("optixDenoiserInvoke()");
   OPTIX_CHECK(optixUtilDenoiserInvokeTiled(m_denoiser,
