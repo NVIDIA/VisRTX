@@ -37,14 +37,6 @@ project(anari_library_visrtx VERSION ${PROJECT_VERSION} LANGUAGES CXX CUDA)
 
 #### Compilation setup ####
 
-if (NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
-  if (CMAKE_VERSION VERSION_LESS "3.23")
-    set(CMAKE_CUDA_ARCHITECTURES OFF)
-  else()
-    set(CMAKE_CUDA_ARCHITECTURES all-major)
-  endif()
-endif()
-
 set(VISRTX_CUDA_COMPILE_OPTIONS
   "--expt-relaxed-constexpr" "--extended-lambda" # Lambdas from device code
   # Routes sinf/cosf/expf etc. through the SFU instead of libm argument
@@ -378,18 +370,7 @@ function(GenerateEmbeddedPTX DIR BASE_NAME)
     ${CMAKE_CURRENT_LIST_DIR}
   )
 
-  if(VISRTX_ENABLE_NEURAL)
-    set(CUDA_ARCHS 89-virtual)
-  elseif(${CUDAToolkit_VERSION_MAJOR} GREATER 12)
-    set(CUDA_ARCHS 75-virtual)
-  else()
-    set(CUDA_ARCHS 52-virtual)
-  endif()
-
-  set_target_properties(${INPUT_TARGET} PROPERTIES
-    CUDA_PTX_COMPILATION ON
-    CUDA_ARCHITECTURES ${CUDA_ARCHS}
-  )
+  set_target_properties(${INPUT_TARGET} PROPERTIES CUDA_PTX_COMPILATION ON)
 
   EmbedPTX(
     OUTPUT_HEADER_FILE ${OUTPUT_HEADER}

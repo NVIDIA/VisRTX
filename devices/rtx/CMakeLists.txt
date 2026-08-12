@@ -118,6 +118,24 @@ if(VISRTX_ENABLE_NEURAL AND NOT ${OPTIX_FETCH_VERSION} STREQUAL "9.0")
   message(FATAL_ERROR "OptiX 9.0+ must be used to enable Neural Graphics Primitives support in VisRTX")
 endif()
 
+#### Setup CMAKE_CUDA_ARCHITECTURES for device compilation ####
+
+if (NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+  if (CMAKE_VERSION VERSION_LESS "3.23")
+    set(CMAKE_CUDA_ARCHITECTURES OFF)
+  else()
+    if(VISRTX_ENABLE_NEURAL)
+      set(CMAKE_CUDA_ARCHITECTURES 89-virtual)
+    elseif(${CUDAToolkit_VERSION_MAJOR} GREATER 12)
+      set(CMAKE_CUDA_ARCHITECTURES 75-virtual)
+    else()
+      set(CMAKE_CUDA_ARCHITECTURES 52-virtual)
+    endif()
+  endif()
+endif()
+
+message(STATUS "Compiling CUDA with architectures '${CMAKE_CUDA_ARCHITECTURES}'")
+
 #### Subdirectories ####
 
 add_subdirectory(external)
