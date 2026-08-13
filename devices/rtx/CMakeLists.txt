@@ -138,7 +138,7 @@ find_package(glm MODULE REQUIRED)
 
 set(OPTIX_FETCH_VERSION "7.7" CACHE STRING "Version of OptiX to get")
 set_property(CACHE OPTIX_FETCH_VERSION
-  PROPERTY STRINGS "7.7" "8.0" "8.1" "9.0")
+  PROPERTY STRINGS "7.7" "8.0" "8.1" "9.0" "9.1")
 
 if(${OPTIX_FETCH_VERSION} STREQUAL "7.7")
   set(OPTIX_URL https://github.com/NVIDIA/optix-dev/archive/refs/tags/v7.7.0.zip)
@@ -148,11 +148,14 @@ elseif(${OPTIX_FETCH_VERSION} STREQUAL "8.1")
   set(OPTIX_URL https://github.com/NVIDIA/optix-dev/archive/refs/tags/v8.1.0.zip)
 elseif(${OPTIX_FETCH_VERSION} STREQUAL "9.0")
   set(OPTIX_URL https://github.com/NVIDIA/optix-dev/archive/refs/tags/v9.0.0.zip)
+elseif(${OPTIX_FETCH_VERSION} STREQUAL "9.1")
+  set(OPTIX_URL https://github.com/NVIDIA/optix-dev/archive/refs/tags/v9.1.0.zip)
 else()
   message(FATAL_ERROR "Invalid/unknown version of OptiX selected")
 endif()
 
-if(VISRTX_ENABLE_NEURAL AND NOT ${OPTIX_FETCH_VERSION} STREQUAL "9.0")
+# Version-ordered, not an equality test: every later OptiX also qualifies.
+if(VISRTX_ENABLE_NEURAL AND ${OPTIX_FETCH_VERSION} VERSION_LESS "9.0")
   message(FATAL_ERROR "OptiX 9.0+ must be used to enable Neural Graphics Primitives support in VisRTX")
 endif()
 
