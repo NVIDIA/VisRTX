@@ -80,6 +80,7 @@ SCENARIO("Import report counts skipped prims by reason", "[UsdImport]")
 #include "tsd/io/importers.hpp"
 #include "tsd/scene/Scene.hpp"
 // std
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <vector>
@@ -2451,6 +2452,87 @@ def Mesh "Real"
         // the resolved scene entirely.
         REQUIRE(scene.numberOfObjects(ANARI_SURFACE) == 1);
         REQUIRE_FALSE(findNode(scene.defaultLayer(), "part_one"));
+      }
+    }
+  }
+}
+
+SCENARIO("Width-less curves and points get a bounds-scaled radius",
+    "[UsdImport]")
+{
+  // Blender hair exports commonly omit widths; without an explicit radius the
+  // ANARI default of 1 world unit dwarfs most scenes.
+  GIVEN("A Stage with a widthless curve, a widthed curve, and widthless points")
+  {
+    StageFixture stage("tsd_test_usd_widthless_curves.usda", R"(#usda 1.0
+
+def Xform "World"
+{
+    def BasisCurves "Hair"
+    {
+        uniform token type = "linear"
+        int[] curveVertexCounts = [4]
+        point3f[] points = [(0, 0, 0), (1, 0, 0), (1, 1, 0), (1, 1, 1)]
+    }
+
+    def BasisCurves "Rope"
+    {
+        uniform token type = "linear"
+        int[] curveVertexCounts = [2]
+        point3f[] points = [(0, 0, 0), (1, 0, 0)]
+        float[] widths = [0.2, 0.2] (interpolation = "vertex")
+    }
+
+    def Points "Sprinkles"
+    {
+        point3f[] points = [(0, 0, 0), (2, 0, 0)]
+    }
+}
+)");
+
+    tsd::scene::Scene scene;
+    tsd::animation::AnimationManager animMgr(&scene);
+
+    WHEN("The Stage is imported")
+    {
+      tsd::io::import_USD(scene, animMgr, stage.path().c_str());
+
+      THEN("The widthless curve's radius scales with its bounds")
+      {
+        auto geometry = findGeometry(scene, "/World/Hair");
+        REQUIRE(geometry);
+        REQUIRE(geometry->subtype() == tsd::scene::tokens::geometry::curve);
+        REQUIRE(geometry->parameterValueAsObject<tsd::scene::Array>(
+                    "vertex.radius")
+            == nullptr);
+
+        const auto radius = geometry->parameterValueAs<float>("radius");
+        REQUIRE(radius.has_value());
+        REQUIRE(*radius == Approx(1e-3f * std::sqrt(3.f)));
+      }
+
+      THEN("Authored widths still become per-vertex radii")
+      {
+        auto geometry = findGeometry(scene, "/World/Rope");
+        REQUIRE(geometry);
+
+        auto *radii = geometry->parameterValueAsObject<tsd::scene::Array>(
+            "vertex.radius");
+        REQUIRE(radii != nullptr);
+        REQUIRE(radii->size() == 2);
+        REQUIRE(radii->dataAs<float>()[0] == Approx(0.1f));
+        REQUIRE_FALSE(geometry->parameterValueAs<float>("radius").has_value());
+      }
+
+      THEN("Widthless points scale the same way")
+      {
+        auto geometry = findGeometry(scene, "/World/Sprinkles");
+        REQUIRE(geometry);
+        REQUIRE(geometry->subtype() == tsd::scene::tokens::geometry::sphere);
+
+        const auto radius = geometry->parameterValueAs<float>("radius");
+        REQUIRE(radius.has_value());
+        REQUIRE(*radius == Approx(2e-3f));
       }
     }
   }

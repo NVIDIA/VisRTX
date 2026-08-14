@@ -22,6 +22,7 @@
 #include <pxr/imaging/hd/tokens.h>
 // std
 #include <algorithm>
+#include <limits>
 #include <map>
 #include <numeric>
 #include <string>
@@ -121,21 +122,38 @@ std::vector<float3> bakedPositions(
   return retval;
 }
 
-// USD authors widths; TSD geometry takes radii.
+// USD authors widths; TSD geometry takes radii. Prims with no authored
+// widths (common for Blender hair exports) would otherwise inherit ANARI's
+// default radius of 1 world unit, which dwarfs most scenes — instead fall
+// back to a small radius scaled to the prim's own bounds so strands stay
+// hair-like at any scene scale.
 void bindRadiiFromWidths(ImportContext &ctx,
     GeometryRef &geometry,
     const Primvar &widths,
-    size_t vertexCount)
+    const std::vector<float3> &positions)
 {
-  if (!widths.valid() || !widths.value.IsHolding<pxr::VtFloatArray>())
-    return;
-  const auto &w = widths.value.UncheckedGet<pxr::VtFloatArray>();
-  if (w.empty())
-    return;
+  const bool haveWidths = widths.valid()
+      && widths.value.IsHolding<pxr::VtFloatArray>()
+      && !widths.value.UncheckedGet<pxr::VtFloatArray>().empty();
 
+  if (!haveWidths) {
+    float3 lo(std::numeric_limits<float>::max());
+    float3 hi(std::numeric_limits<float>::lowest());
+    for (const auto &p : positions) {
+      lo = tsd::math::min(lo, p);
+      hi = tsd::math::max(hi, p);
+    }
+    const float diagonal =
+        positions.empty() ? 0.f : tsd::math::length(hi - lo);
+    geometry->setParameter(
+        "radius", diagonal > 0.f ? 1e-3f * diagonal : 1e-3f);
+    return;
+  }
+
+  const auto &w = widths.value.UncheckedGet<pxr::VtFloatArray>();
   std::vector<float> radii;
-  radii.reserve(vertexCount);
-  for (size_t i = 0; i < vertexCount; ++i)
+  radii.reserve(positions.size());
+  for (size_t i = 0; i < positions.size(); ++i)
     radii.push_back(0.5f * w[std::min(i, w.size() - 1)]);
 
   auto array = ctx.scene.createArray(ANARI_FLOAT32, radii.size());
@@ -711,7 +729,7 @@ std::vector<SurfaceRef> convertPoints(ImportContext &ctx,
   bindRadiiFromWidths(ctx,
       geometry,
       readPrimvar(primvars, pxr::HdPrimvarsSchemaTokens->widths),
-      positions.size());
+      positions);
 
   return {ctx.scene.createSurface(primPath.GetText(),
       geometry,
@@ -764,7 +782,7 @@ std::vector<SurfaceRef> convertCurves(ImportContext &ctx,
   bindRadiiFromWidths(ctx,
       geometry,
       readPrimvar(primvars, pxr::HdPrimvarsSchemaTokens->widths),
-      positions.size());
+      positions);
 
   return {ctx.scene.createSurface(primPath.GetText(),
       geometry,
