@@ -162,7 +162,7 @@ enum class ImporterType
   SWC_SDF,
   TRK,
   USD,
-  USD_MATX, // native MaterialX materials instead of a portable mapping
+  USD_MTLX, // native MaterialX materials instead of a portable mapping
   VTP,
   VTU,
   XYZDP,

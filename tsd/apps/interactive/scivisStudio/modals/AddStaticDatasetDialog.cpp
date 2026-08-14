@@ -49,7 +49,7 @@ constexpr std::array<DatasetSourceChoice, 28> SOURCES = {{
     {"SWC", tsd::io::ImporterType::SWC},
     {"TRK", tsd::io::ImporterType::TRK},
     {"USD", tsd::io::ImporterType::USD},
-    {"USD_MATX", tsd::io::ImporterType::USD_MATX},
+    {"USD_MTLX", tsd::io::ImporterType::USD_MTLX},
     {"VTP", tsd::io::ImporterType::VTP},
     {"VTU", tsd::io::ImporterType::VTU},
     {"XYZDP", tsd::io::ImporterType::XYZDP},

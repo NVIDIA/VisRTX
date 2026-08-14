@@ -105,16 +105,16 @@ the above. Unrelated to USD import, and in `devices/`, not TSD.
 Reproducing any of this needs three things that are not in the repo: the
 reference asset, a TSD build with `TSD_USE_USD=ON` and `TSD_USE_OIIO=ON` (the
 asset's textures are TIFF), and a VisRTX build with both MDL and MaterialX
-enabled, installed where `anari::loadLibrary` finds `visrtx_matx`. A standalone
+enabled, installed where `anari::loadLibrary` finds `visrtx_mtlx`. A standalone
 TSD build is enough for TSD's own side; the device comes from the parent repo.
 
 `tsdOffline` defaults to the `visrtx` library, which has no MaterialX shader
 generation and so reports none of the failures above -- pass `--lib
-visrtx_matx` explicitly. It also prompts for a camera:
+visrtx_mtlx` explicitly. It also prompts for a camera:
 
 ```bash
 F=.../ShdrPlygrnd/ShdrPlygrnd_OpenPBR.usda
-echo 8 | ./tsdOffline --lib visrtx_matx -usd_matx $F -o /tmp/out.png -s 1 -w 128 -h 96 > /tmp/run.log 2>&1
+echo 8 | ./tsdOffline --lib visrtx_mtlx -usd_mtlx $F -o /tmp/out.png -s 1 -w 128 -h 96 > /tmp/run.log 2>&1
 ```
 
 Redirect with `> log 2>&1`, not `2>&1 > log`, or the ANARI errors miss the file.

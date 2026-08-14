@@ -1817,8 +1817,8 @@ const char *toString(tsd::io::ImporterType importerType)
     return "TRK";
   case tsd::io::ImporterType::USD:
     return "USD";
-  case tsd::io::ImporterType::USD_MATX:
-    return "USD_MATX";
+  case tsd::io::ImporterType::USD_MTLX:
+    return "USD_MTLX";
   case tsd::io::ImporterType::VTP:
     return "VTP";
   case tsd::io::ImporterType::VTU:

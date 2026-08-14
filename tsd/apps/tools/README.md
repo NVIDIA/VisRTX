@@ -88,7 +88,7 @@ override flags (`--campos`, `--lookpos`, `--upvec`, `--fovy`).
 
 Use `-tsd <file>` to load a Scene Archive. Foreign-format importer flags
 include `-gltf`, `-obj`, `-ply`, `-volume`, `-hdri`, `-silo`, `-usd`,
-`-usd_matx`,
+`-usd_mtlx`,
 `-assimp`, `-axyz`, `-e57xyz`, `-pdb`, `-swc`, `-trk`, `-nbody`, and
 `-l`/`--layer`.
 

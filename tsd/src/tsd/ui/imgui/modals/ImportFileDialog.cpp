@@ -50,7 +50,7 @@ constexpr ImporterChoice IMPORTERS[] = {
     {"SWC_SDF", tsd::io::ImporterType::SWC_SDF},
     {"TRK", tsd::io::ImporterType::TRK},
     {"USD", tsd::io::ImporterType::USD},
-    {"USD_MATX", tsd::io::ImporterType::USD_MATX},
+    {"USD_MTLX", tsd::io::ImporterType::USD_MTLX},
     {"VTP", tsd::io::ImporterType::VTP},
     {"VTU", tsd::io::ImporterType::VTU},
     {"XYZDP", tsd::io::ImporterType::XYZDP},

@@ -1404,13 +1404,13 @@ def Xform "World"
     // The importer's MaterialX mode is only reachable from an application
     // through an Importer Type, so the dispatch is worth pinning separately
     // from the option it sets.
-    WHEN("The file is imported through the USD_MATX Importer Type")
+    WHEN("The file is imported through the USD_MTLX Importer Type")
     {
       tsd::scene::Scene scene;
       tsd::animation::AnimationManager animMgr(&scene);
       tsd::io::import_file(scene,
           animMgr,
-          {tsd::io::ImporterType::USD_MATX, stage.path()});
+          {tsd::io::ImporterType::USD_MTLX, stage.path()});
 
       THEN("MaterialX materials arrive without asking for options")
       {
