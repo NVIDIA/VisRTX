@@ -700,8 +700,12 @@ VISRTX_GLOBAL void __raygen__()
           // into the lit/unlit boundary at grazing light angles.
           const float lightDotNs = dot(lightSample.dir, surfaceHit.Ns);
           if (lightDotNs > 0.0f) {
-            const vec3 directLight = materialShadeSurface(
-                shadingState, surfaceHit, lightSample, -ray.dir);
+            // The material returns f*cos; this integrator owns the light, its
+            // pdf and the MIS weight.
+            const vec3 fCos =
+                materialEvalBsdf(shadingState, -ray.dir, lightSample.dir);
+            const vec3 directLight =
+                fCos * lightSample.radiance / lightSample.pdf;
             // Env MIS: only the HDRI environment can also be reached by the
             // BSDF escape, so only it gets a balance-heuristic weight. The
             // light density uses envPdf on BOTH sides (here and at the miss),
@@ -709,7 +713,7 @@ VISRTX_GLOBAL void __raygen__()
             // functions and partition to 1 exactly — unbiased regardless of how
             // closely envPdf tracks the NEE importance pdf (the NEE estimator
             // still divides by its true lightSample.pdf, which carries the same
-            // envPickProb, inside materialShadeSurface).
+            // envPickProb, just above).
             // Other light types: p_bsdf = 0 => w_nee = 1 (behaviour unchanged).
             float wNee = 1.0f;
             if (lightPick.isEnv) {

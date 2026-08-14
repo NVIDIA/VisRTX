@@ -155,16 +155,15 @@ VISRTX_CALLABLE void __direct_callable__init(MDLShadingState *shadingState,
   mdlInit(&shadingState->state, &shadingState->resData, shadingState->argBlock);
 }
 
-// Signature must match the call inside shaderMDLSurface in MDLShader.cuh.
+// f(wo, wi) * cos, world space. MDL's bsdf_diffuse/bsdf_glossy already carry
+// the cosine factor, so they are returned as-is.
 VISRTX_CALLABLE
-vec3 __direct_callable__shadeSurface(const MDLShadingState *shadingState,
-    const SurfaceHit *hit,
-    const LightSample *lightSample,
-    const vec3 *outgoingDir)
+vec3 __direct_callable__evalBsdf(
+    const MDLShadingState *shadingState, const vec3 *wo, const vec3 *wi)
 {
   // Eval
   const float cos_theta =
-      dot(*outgoingDir, normalize(make_vec3(shadingState->state.normal)));
+      dot(*wo, normalize(make_vec3(shadingState->state.normal)));
   if (cos_theta > 0.0f) {
     BsdfEvaluateData eval_data = {};
     if (shadingState->isFrontFace) {
@@ -174,20 +173,15 @@ vec3 __direct_callable__shadeSurface(const MDLShadingState *shadingState,
       eval_data.ior1.x = MI_NEURAYLIB_BSDF_USE_MATERIAL_IOR;
       eval_data.ior2 = make_float3(1.0f, 1.0f, 1.0f);
     }
-    eval_data.k1 = make_float3(normalize(*outgoingDir));
-    eval_data.k2 = make_float3(normalize(lightSample->dir));
+    eval_data.k1 = make_float3(normalize(*wo));
+    eval_data.k2 = make_float3(normalize(*wi));
 
     mdlBsdf_evaluate(&eval_data,
         &shadingState->state,
         &shadingState->resData,
         shadingState->argBlock);
 
-    auto radiance_over_pdf = lightSample->radiance / lightSample->pdf;
-    auto contrib = radiance_over_pdf
-        * (make_vec3(eval_data.bsdf_diffuse)
-            + make_vec3(eval_data.bsdf_glossy));
-
-    return contrib;
+    return make_vec3(eval_data.bsdf_diffuse) + make_vec3(eval_data.bsdf_glossy);
   }
 
   return vec3(0.0f, 0.0f, 0.0f);
@@ -314,7 +308,7 @@ vec3 __direct_callable__evaluateNormal(const MDLShadingState *shadingState)
 // with the solid-angle sampling pdf, matching NextRay.pdf in nextRay (MDL's
 // evaluate-pdf and sample-pdf are the same density). A pure specular lobe
 // evaluates to pdf 0 (NEE can't reach a delta) — consistent with the escape
-// owning it via +inf. Mirrors shadeSurface's ior/k1/k2 setup exactly.
+// owning it via +inf. Mirrors evalBsdf's ior/k1/k2 setup exactly.
 VISRTX_CALLABLE float __direct_callable__evaluatePdf(
     const MDLShadingState *shadingState, const vec3 *wo, const vec3 *wi)
 {

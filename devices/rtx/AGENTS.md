@@ -79,7 +79,7 @@ Each renderer has its own OptiX pipeline. Material and spatial-field shaders are
 
 SBT callable slots per material type (one per `SurfaceShaderEntryPoints` value; `device/gpu/sbt.h` is authoritative):
 
-- `Initialize`, `EvaluateNextRay`, `EvaluateTint`, `EvaluateOpacity`, `EvaluateEmission`, `EvaluateTransmission`, `EvaluateNormal`, `Shade`, `EvaluatePdf`
+- `Initialize`, `EvaluateNextRay`, `EvaluateTint`, `EvaluateOpacity`, `EvaluateEmission`, `EvaluateTransmission`, `EvaluateNormal`, `EvalBsdf`, `EvaluatePdf`
 
 `MaterialGPUData::callableBaseIndex` holds the offset into the callable table. Kernels dispatch shading via `optixDirectCall(callableBaseIndex + SHADE_FN, ...)`.
 

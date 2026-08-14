@@ -140,8 +140,9 @@ struct InteractiveShadingPolicy
               glm::lessThanEqual(attenuation, vec3(MIN_CONTRIBUTION_EPSILON))))
         return;
 
-      vec3 thisLightContrib =
-          materialShadeSurface(shadingState, hit, lightSample, -ray.dir);
+      const vec3 fCos =
+          materialEvalBsdf(shadingState, -ray.dir, lightSample.dir);
+      vec3 thisLightContrib = fCos * lightSample.radiance / lightSample.pdf;
 
       // Environment MIS (balance heuristic): the HDRI is the only light the
       // indirect bounce's escape can also reach, so combine the NEE and escape
