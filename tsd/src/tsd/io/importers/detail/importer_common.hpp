@@ -72,10 +72,9 @@ bool calcTangentsForTriangleMesh(const tsd::math::uint3 *indices,
     tsd::math::float4 *tangents,
     size_t numIndices,
     size_t numVertices,
-    // Importers hand ANARI v-up coordinates, which is what mikktspace wants,
-    // so this only exists for a caller reading a source format's raw v-down
-    // coordinates directly.
-    bool flipTexCoordY = false,
+    // mikktspace wants v-up coordinates, while the coordinates importers hand
+    // ANARI run down the image, so the default reverses them back.
+    bool flipTexCoordY = true,
     bool faceVaryingTangents = false);
 
 #if TSD_USE_VTK

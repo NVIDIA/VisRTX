@@ -25,7 +25,8 @@ enum class ColorSpace
   LINEAR
 };
 
-// The row order a decoder produced. Declared by decoders, never by importers.
+// Whether row 0 is the picture's top row or its bottom one. Decoders declare
+// the order they produced; an ImageSource asks for the order it needs.
 enum class RowOrder
 {
   TOP_DOWN,
@@ -41,15 +42,24 @@ struct ImageSource
   // "assimp://embedded/<N>", "pbrt:<file>::normal").
   std::string id;
   ColorSpace colorSpace{ColorSpace::SRGB};
+  // The row order to store the image in, which is part of what identifies it:
+  // the two orders are different bytes. Sampled images take the default,
+  // because ANARI addresses texture coordinate (0, 0) at the image's top-left.
+  // See docs/adr/0014-store-images-in-anari-orientation.md.
+  RowOrder rowOrder{RowOrder::TOP_DOWN};
 };
 
 // A decoded image resident in a Scene.
 struct Image
 {
   tsd::scene::ArrayRef texels;
-  // Block-compressed texels are the authored block stream rather than a
-  // texel grid, so they cannot be reordered; makeImageSampler compensates.
+  // Block-compressed texels are the authored block stream rather than a texel
+  // grid, so they cannot be reordered.
   bool blockCompressed{false};
+  // Set when the texels could not be brought into the order the source asked
+  // for -- only block-compressed ones -- so makeImageSampler compensates in
+  // the sampler's uv transform instead.
+  bool vFlipInSampler{false};
 
   explicit operator bool() const;
 };
@@ -109,8 +119,8 @@ struct UvTransform
 
 // How a sampler reads the image it is bound to. Everything a binding can vary
 // lives here, including the importer's own uv transform: `makeImageSampler`
-// owns the sampler's `inTransform`/`inOffset` outright, because a
-// block-compressed image needs a v-flip composed into them and a caller that
+// owns the sampler's `inTransform`/`inOffset` outright, because an image that
+// could not be reordered needs a v-flip composed into them and a caller that
 // set them afterwards would silently drop it.
 struct SamplerSettings
 {

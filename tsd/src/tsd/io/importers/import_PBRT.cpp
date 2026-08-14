@@ -216,6 +216,9 @@ static GeometryRef buildTriangleMesh(Scene &scene, const pbrt::Shape &shape)
     auto uvArr = scene.createArray(ANARI_FLOAT32_VEC2, numUV);
     auto *outUV = uvArr->mapAs<float2>();
     std::memcpy(outUV, uv.data(), numUV * sizeof(float2));
+    // PBRT's `v` runs up the image; ANARI's runs down it.
+    for (size_t i = 0; i < numUV; i++)
+      outUV[i].y = 1.f - outUV[i].y;
     uvArr->unmap();
     geom->setParameterObject("vertex.attribute0", *uvArr);
   }
@@ -422,6 +425,9 @@ static GeometryRef buildPlyMesh(
     auto *outUV = uvArr->mapAs<float2>();
     std::memcpy(
         outUV, texcoords->buffer.get(), texcoords->count * sizeof(float2));
+    // PBRT's `v` runs up the image; ANARI's runs down it.
+    for (size_t i = 0; i < texcoords->count; i++)
+      outUV[i].y = 1.f - outUV[i].y;
     uvArr->unmap();
     geom->setParameterObject("vertex.attribute0", *uvArr);
   }
@@ -902,8 +908,9 @@ static BakedTexture combineMix(
 
 // PBRT v4's UV-coordinate transform (`uscale`, `vscale`, `udelta`, `vdelta`),
 // as sampler settings. PBRT samples the image at `(us*u + ud, vs*v + vd)` in
-// its v-up convention, which is now also ANARI's, so this is the transform
-// verbatim.
+// its v-up convention, and each vertex's `v` has already been reversed into
+// ANARI's, so the transform's `v` is conjugated by that reversal:
+// 1 - (vs*(1 - v) + vd) == vs*v + (1 - vs - vd).
 static SamplerSettings pbrtSamplerSettings(const pbrt::ParamList &params)
 {
   SamplerSettings settings;
@@ -919,7 +926,7 @@ static SamplerSettings pbrtSamplerSettings(const pbrt::ParamList &params)
                                          float4(0.f, vs, 0.f, 0.f),
                                          float4(0.f, 0.f, 1.f, 0.f),
                                          float4(0.f, 0.f, 0.f, 1.f)},
-      float4(ud, vd, 0.f, 0.f)};
+      float4(ud, 1.f - vs - vd, 0.f, 0.f)};
   return settings;
 }
 
@@ -1243,10 +1250,7 @@ static SamplerRef importHeightAsNormalMap(Scene &scene,
       const float hx = raw[y * w + xp] - raw[y * w + xm];
       const float hy = raw[yp * w + x] - raw[ym * w + x];
       const float nx = -hx * k;
-      // `hy` runs down the decoded image, but the array this lands in is
-      // stored bottom-up, so the row axis the gradient was taken over is
-      // reversed relative to the `v` that will fetch it.
-      const float ny = hy * k;
+      const float ny = -hy * k;
       const float nz = 1.f;
       const float invLen = 1.f / std::sqrt(nx * nx + ny * ny + nz * nz);
       // Pack [-1,1] -> [0,1] (glTF normal-map convention).

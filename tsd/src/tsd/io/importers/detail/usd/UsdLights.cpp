@@ -181,7 +181,11 @@ ArrayRef readDomeRadiance(ImportContext &ctx,
       + std::to_string(radiometry.color.x) + ","
       + std::to_string(radiometry.color.y) + ","
       + std::to_string(radiometry.color.z);
-  auto acquired = ctx.textureCache.acquireDecoded({id, ColorSpace::LINEAR},
+  // Stored bottom-up: an hdri light's radiance is mapped over the sphere by
+  // the light rather than addressed by an image sampler, so the top-left
+  // origin samplers are stored for does not apply to it.
+  auto acquired = ctx.textureCache.acquireDecoded(
+      {id, ColorSpace::LINEAR, RowOrder::BOTTOM_UP},
       ANARI_FLOAT32_VEC3,
       image.width,
       image.height,

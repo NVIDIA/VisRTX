@@ -129,9 +129,13 @@ void import_OBJ(Scene &scene,
         const auto *t0 = texcoords + (ti0 * 2);
         const auto *t1 = texcoords + (ti1 * 2);
         const auto *t2 = texcoords + (ti2 * 2);
-        outTexcoords[i + 0] = ti0 >= 0 ? float2(t0[0], t0[1]) : float2(0.f);
-        outTexcoords[i + 1] = ti1 >= 0 ? float2(t1[0], t1[1]) : float2(0.f);
-        outTexcoords[i + 2] = ti2 >= 0 ? float2(t2[0], t2[1]) : float2(0.f);
+        // OBJ's `vt` runs up the image; ANARI's `v` runs down it.
+        outTexcoords[i + 0] =
+            ti0 >= 0 ? float2(t0[0], 1.f - t0[1]) : float2(0.f);
+        outTexcoords[i + 1] =
+            ti1 >= 0 ? float2(t1[0], 1.f - t1[1]) : float2(0.f);
+        outTexcoords[i + 2] =
+            ti2 >= 0 ? float2(t2[0], 1.f - t2[1]) : float2(0.f);
       }
 
       if (normals) {

@@ -80,7 +80,7 @@ struct TempFile
 //
 // A TGA with descriptor bit 5 clear stores its rows bottom-up, so the first
 // texel in the file is the *bottom* row. That is deliberate: it means this
-// fixture only reports "row 0 is the bottom row" if the import layer actually
+// fixture only reports "row 0 is the top row" if the import layer actually
 // establishes the contract, rather than passing a decoder's byte order
 // through and happening to agree with it.
 std::string tgaFixtureContents()
@@ -212,8 +212,8 @@ const tsd::scene::Array *fixtureImage(tsd::scene::Scene &scene)
   return nullptr;
 }
 
-// Resolve a texture coordinate the way ANARI resolves it: `v` runs up the
-// array, so `v = 0` addresses row 0.
+// Resolve a texture coordinate the way ANARI resolves it: `v` runs down the
+// picture, and row 0 is the picture's top row, so `v = 0` addresses row 0.
 float3 sampleAsAnari(const tsd::scene::Array *image, const float2 &uv)
 {
   const auto height = image->dim(1);
@@ -419,7 +419,7 @@ SCENARIO("Decoded images are stored in ANARI orientation", "[ImageImport]")
       auto sampler = tsd::io::importTexture(
           scene, texture.path(), cache, /*isLinear=*/true);
 
-      THEN("Row 0 of the array is the bottom row of the picture")
+      THEN("Row 0 of the array is the top row of the picture")
       {
         REQUIRE(sampler);
         auto *image =
@@ -427,14 +427,17 @@ SCENARIO("Decoded images are stored in ANARI orientation", "[ImageImport]")
         REQUIRE(image != nullptr);
         REQUIRE(image->dim(0) == 1);
         REQUIRE(image->dim(1) == 2);
-        REQUIRE(isBottomRowColor(texelAsFloat3(image, 0)));
-        REQUIRE(isTopRowColor(texelAsFloat3(image, 1)));
+        REQUIRE(isTopRowColor(texelAsFloat3(image, 0)));
+        REQUIRE(isBottomRowColor(texelAsFloat3(image, 1)));
       }
     }
   }
 }
 
-SCENARIO("An imported HDRI's radiance is in ANARI orientation", "[ImageImport]")
+// An hdri light's radiance is mapped over the sphere by the light rather than
+// addressed by an image sampler, so the top-left origin the sampler path is
+// stored for does not reach it. It asks the cache for bottom-up rows instead.
+SCENARIO("An imported HDRI's radiance runs bottom-up", "[ImageImport]")
 {
   GIVEN("A 1x2 Radiance HDR, red on top and blue on the bottom")
   {
@@ -464,12 +467,14 @@ SCENARIO("An imported HDRI's radiance is in ANARI orientation", "[ImageImport]")
   }
 }
 
-SCENARIO(
-    "Block-compressed images get their flip from the sampler", "[ImageImport]")
+SCENARIO("Block-compressed images are bound as the file authored them",
+    "[ImageImport]")
 {
-  // BC blocks are 4x4, so the texels stay as the file authored them -- top-down
-  // -- and makeImageSampler compensates in the sampler's uv transform. The
-  // assertion is on where a coordinate lands, not on the matrix.
+  // BC blocks are 4x4, so the texels can never be reordered. A DDS decodes
+  // top-down, which is the order a sampled image is stored in, so nothing has
+  // to be compensated for -- but a consumer asking for the other order gets
+  // the compensation in the sampler's uv transform instead. The assertion is
+  // on where a coordinate lands, not on the matrix.
   auto fetchedV = [](tsd::scene::SamplerRef sampler, float v) {
     auto *transform = sampler->parameter("inTransform");
     auto *offset = sampler->parameter("inOffset");
@@ -493,13 +498,13 @@ SCENARIO(
     {
       auto sampler = tsd::io::importTexture(scene, texture.path(), cache);
 
-      THEN("The sampler reverses v, so v = 1 reaches the block stream's top")
+      THEN("The sampler leaves the coordinates alone")
       {
         REQUIRE(sampler);
         REQUIRE(sampler->subtype()
             == tsd::scene::tokens::sampler::compressedImage2D);
-        REQUIRE(fetchedV(sampler, 1.f) == Approx(0.f).margin(1e-5));
-        REQUIRE(fetchedV(sampler, 0.f) == Approx(1.f).margin(1e-5));
+        REQUIRE(fetchedV(sampler, 1.f) == Approx(1.f).margin(1e-5));
+        REQUIRE(fetchedV(sampler, 0.f) == Approx(0.f).margin(1e-5));
       }
     }
 
@@ -516,12 +521,25 @@ SCENARIO(
       auto sampler = tsd::io::importTexture(
           scene, texture.path(), cache, /*isLinear=*/false, settings);
 
-      THEN("The flip composes onto that transform rather than replacing it")
+      THEN("That transform reaches the sampler unchanged")
       {
         REQUIRE(sampler);
-        // The caller's transform sends v = 1 to 0.5; the flip then sends 0.5
-        // to 0.5, and v = 0 to 1.
         REQUIRE(fetchedV(sampler, 1.f) == Approx(0.5f).margin(1e-5));
+        REQUIRE(fetchedV(sampler, 0.f) == Approx(0.f).margin(1e-5));
+      }
+    }
+
+    WHEN("It is acquired for a consumer that wants the opposite row order")
+    {
+      auto image = cache.acquire({texture.path(),
+          tsd::io::ColorSpace::SRGB,
+          tsd::io::RowOrder::BOTTOM_UP});
+      auto sampler = tsd::io::makeImageSampler(scene, image, texture.path());
+
+      THEN("The sampler reverses v, since the texels could not be")
+      {
+        REQUIRE(sampler);
+        REQUIRE(fetchedV(sampler, 1.f) == Approx(0.f).margin(1e-5));
         REQUIRE(fetchedV(sampler, 0.f) == Approx(1.f).margin(1e-5));
       }
     }
@@ -532,7 +550,6 @@ SCENARIO(
 
 // The property that has to hold whatever the storage convention is: the corner
 // of the mesh at the top of the picture must address the picture's top row.
-// It holds today for glTF and PBRT and fails for OBJ and USD.
 
 SCENARIO("An imported quad's top corner addresses the image's top row",
     "[ImageImport]")

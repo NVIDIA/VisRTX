@@ -143,10 +143,8 @@ void bindRadiiFromWidths(ImportContext &ctx,
       lo = tsd::math::min(lo, p);
       hi = tsd::math::max(hi, p);
     }
-    const float diagonal =
-        positions.empty() ? 0.f : tsd::math::length(hi - lo);
-    geometry->setParameter(
-        "radius", diagonal > 0.f ? 1e-3f * diagonal : 1e-3f);
+    const float diagonal = positions.empty() ? 0.f : tsd::math::length(hi - lo);
+    geometry->setParameter("radius", diagonal > 0.f ? 1e-3f * diagonal : 1e-3f);
     return;
   }
 
@@ -286,6 +284,9 @@ struct TriangulatedPrimvar
   const char *prefix{nullptr};
   size_t valuesPerTriangle{0};
   ArrayRef sharedArray;
+  // The same vertex data with `v` reversed, for the Surfaces that read this
+  // primvar as their texture coordinates.
+  ArrayRef sharedUvArray;
 
   // Vertex data is the only kind every Surface can point at unchanged.
   bool isShared() const;
@@ -368,21 +369,42 @@ TriangulatedPrimvars triangulatePrimvars(const pxr::HdMeshUtil &meshUtil,
   return retval;
 }
 
-// Bind one expanded primvar onto a geometry drawing `triangles`.
+// Reverse an array of texture coordinates in place. USD authors `st` v-up,
+// while the coordinates TSD hands ANARI run down the image. See
+// docs/adr/0014-store-images-in-anari-orientation.md.
+void reverseTexCoordV(ArrayRef &array)
+{
+  if (array->elementType() != ANARI_FLOAT32_VEC2)
+    return;
+  auto *uv = array->mapAs<tsd::math::float2>();
+  for (size_t i = 0; i < array->size(); ++i)
+    uv[i].y = 1.f - uv[i].y;
+  array->unmap();
+}
+
+// Bind one expanded primvar onto a geometry drawing `triangles`. `isUv` marks
+// the one primvar this Surface's material reads as texture coordinates, which
+// is the only binding whose `v` is reversed -- the same primvar bound to a
+// spare attribute slot elsewhere is data TSD knows nothing about, and is bound
+// as authored.
 void bindTrianglePrimvar(ImportContext &ctx,
     GeometryRef &geometry,
     TriangulatedPrimvar &primvar,
     const std::vector<uint32_t> &triangles,
-    const std::string &tsdName)
+    const std::string &tsdName,
+    bool isUv = false)
 {
   ArrayRef array;
   if (primvar.isShared()) {
-    if (!primvar.sharedArray) {
-      primvar.sharedArray = ctx.scene.createArray(
+    auto &shared = isUv ? primvar.sharedUvArray : primvar.sharedArray;
+    if (!shared) {
+      shared = ctx.scene.createArray(
           anariTypeOfPrimvar(primvar.value), primvar.value.GetArraySize());
-      primvar.sharedArray->setData(pxr::HdGetValueData(primvar.value));
+      shared->setData(pxr::HdGetValueData(primvar.value));
+      if (isUv)
+        reverseTexCoordV(shared);
     }
-    array = primvar.sharedArray;
+    array = shared;
   } else {
     const auto selected = gatherTrianglesValue(
         primvar.value, triangles, primvar.valuesPerTriangle);
@@ -391,6 +413,8 @@ void bindTrianglePrimvar(ImportContext &ctx,
     array = ctx.scene.createArray(
         anariTypeOfPrimvar(selected), selected.GetArraySize());
     array->setData(pxr::HdGetValueData(selected));
+    if (isUv)
+      reverseTexCoordV(array);
   }
 
   geometry->setParameterObject(
@@ -431,10 +455,14 @@ GeometryRef buildTriangleGeometry(ImportContext &ctx,
   indexArray->setData(indices.data(), indices.size());
   geometry->setParameterObject("primitive.index", *indexArray);
 
-  auto bind = [&](const std::string &primvarName, const std::string &tsdName) {
+  auto bind = [&](const std::string &primvarName,
+                  const std::string &tsdName,
+                  bool isUv = false) {
     auto found = attributes.find(primvarName);
-    if (found != attributes.end())
-      bindTrianglePrimvar(ctx, geometry, found->second, triangles, tsdName);
+    if (found != attributes.end()) {
+      bindTrianglePrimvar(
+          ctx, geometry, found->second, triangles, tsdName, isUv);
+    }
   };
 
   // Normals, UVs, display colour, then any remaining primvars in name order so
@@ -442,7 +470,7 @@ GeometryRef buildTriangleGeometry(ImportContext &ctx,
   const auto normalsName = pxr::HdPrimvarsSchemaTokens->normals.GetString();
   const auto colorName = pxr::HdTokens->displayColor.GetString();
   bind(normalsName, "normal");
-  bind(uvName, "attribute0");
+  bind(uvName, "attribute0", /*isUv=*/true);
   bind(colorName, "color");
 
   int nextAttribute = 1;

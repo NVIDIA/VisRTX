@@ -1,7 +1,12 @@
 # Central image import for tsd_io
 
-> **Status: steps 0-3 landed** (`98e4a1e8`..`21d4d741` on `usd-import-rework`).
-> The contract itself is recorded in
+> **Status: steps 0-3 landed** (`98e4a1e8`..`21d4d741` on `usd-import-rework`),
+> **then corrected**: the first version of this work read ANARI as addressing
+> texture coordinate `(0, 0)` at an image's *lower*-left corner. ANARI
+> specifies the upper-left. The contract now stored is top-down, and the
+> direction of every `v` conversion below reverses with it; the parts of this
+> document that still name the old direction are marked. The contract itself
+> is recorded in
 > [ADR 0014](adr/0014-store-images-in-anari-orientation.md); this document
 > keeps the survey that motivated it and tracks what is left. The Survey below
 > describes the tree *before* the change and is retained as the record of why.
@@ -17,10 +22,10 @@ came out vertically mirrored. Nothing downstream corrected it: no render index
 or sampler code in TSD flipped anything.
 
 This proposed one image-import component with a single stated orientation
-contract — decoded texels are stored in ANARI orientation, row 0 is the bottom
-row — plus a scene-scoped cache so a texture referenced from many places is
-decoded once. The contract and the component landed; the cache is still scoped
-to one importer call rather than one import.
+contract — decoded texels are stored in ANARI orientation, which is row 0 is
+the *top* row — plus a scene-scoped cache so a texture referenced from many
+places is decoded once. The contract and the component landed; the cache is
+still scoped to one importer call rather than one import.
 
 ## Survey
 
@@ -69,20 +74,21 @@ three importers and disagree in two:
 | OBJ | v-up (`vt` spec) | passed through (`import_OBJ.cpp:132`) | top | **mirrored** |
 | USD | v-up (UsdPreviewSurface / MaterialX `st`) | passed through | top | **mirrored** |
 
-So the working importers are all on the GL contract — top-down image, v-down
-coordinates — and the two that hand ANARI genuinely v-up coordinates are
-broken. `import_PBRT.cpp:909` states this explicitly and calls the v-down
-convention "ANARI's", which is backwards; the same comment then documents the
-`(1 - vs - vd)` term in `applyPbrtUvTransform` as compensation for the double
-flip.
+So the working importers are all on the top-down image, v-down coordinates
+contract — which is ANARI's — and the two that hand ANARI v-up coordinates
+against a top-down array are broken. `import_PBRT.cpp:909` states this
+explicitly and calls the v-down convention "ANARI's", which is right; the same
+comment then documents the `(1 - vs - vd)` term in `applyPbrtUvTransform` as
+compensation for the flip it applies per vertex.
 
-Two further consequences of storing every array upside down relative to
-ANARI's definition:
+The fix is therefore to make the two broken importers convert like the three
+working ones, and to state the contract the three already follow so the next
+decoder cannot pick a different one. Two things depend on it:
 
-- Anything that reads a scene's texture array back *as an image* sees it
-  flipped. `SceneToUSD.cpp:167`/`:195` writes arrays straight to EXR and PNG,
-  both of which are top-down formats — correct today only because the arrays
-  are top-down too.
+- Anything that reads a scene's texture array back *as an image* must agree
+  with it. `SceneToUSD.cpp:167`/`:195` writes arrays straight to EXR and PNG,
+  both of which are top-down formats, and its `UsdTransform2d` reverses `v`
+  for USD's v-up `st` — both correct under a top-down contract.
 - `calcTangentsForTriangleMesh`'s `flipTexCoordY` parameter
   (`importer_common.cpp:641`, defaulting to `true`) exists solely to undo the
   v-down convention before handing coordinates to mikktspace.
@@ -116,8 +122,8 @@ height map uses `path + "::normal"` (`import_PBRT.cpp:1219`).
 ### The contract
 
 > A decoded image resident in a TSD scene is stored in ANARI orientation: the
-> array's row 0 is the bottom row of the picture, so texture coordinate
-> `(0, 0)` addresses the image's lower-left corner. Importers hand ANARI
+> array's row 0 is the top row of the picture, so texture coordinate
+> `(0, 0)` addresses the image's upper-left corner. Importers hand ANARI
 > texture coordinates in ANARI's convention, converting from the source
 > format's convention where they differ.
 
@@ -146,7 +152,7 @@ struct ImageSource
   ColorSpace colorSpace = ColorSpace::SRGB;
 };
 
-// A decoded image resident in a Scene, in ANARI orientation.
+// A decoded image resident in a Scene, in the row order its source asked for.
 struct Image
 {
   tsd::scene::ArrayRef texels;
@@ -217,15 +223,16 @@ behavior change.
 ### Where the flip happens
 
 One place: `ImageCache`'s store step, between decode and `Array::setData`. Each
-decoder reports `RowOrder`; stb, tinyexr, OIIO, and tinygltf report
-`TOP_DOWN`, and the cache reverses rows before the texels reach the scene.
+decoder reports `RowOrder` and each `ImageSource` asks for one, and the cache
+reverses rows between them before the texels reach the scene.
 
-> **As landed:** `HDRImage` did *not* stop flipping. It keeps its own decode,
-> because it handles multipart EXR and forces three channels and the shared
-> path does neither, and it declares `BOTTOM_UP` rather than flipping twice.
-> That satisfies the contract — a decoder declares, the cache normalizes —
-> but it does mean two places in the tree reverse rows. See
-> [Remaining work](#remaining-work).
+> **As corrected:** stb, tinyexr, OIIO, and tinygltf all report `TOP_DOWN`,
+> which is what a sampled image is stored as, so nothing is reversed on the
+> texture path today. `HDRImage` reports `BOTTOM_UP` and feeds `hdri` lights,
+> whose `radiance` is mapped over the sphere by the light rather than
+> addressed by a sampler; those `ImageSource`s ask for `BOTTOM_UP` and are
+> likewise not reversed. The mechanism is what holds the contract for the next
+> decoder, not something any path exercises now.
 
 **Block-compressed DDS is the one exception.** BC blocks are 4×4, so a
 vertical flip requires decode and re-encode, which defeats the point of
@@ -253,24 +260,20 @@ commit:
 
 | Importer | Change |
 |---|---|
-| glTF | flip `v` when building `vertex.attributeN` (`import_GLTF.cpp:1053`), since glTF is v-down |
-| ASSIMP | drop `aiProcess_FlipUVs` (`import_ASSIMP.cpp:695`); assimp's default output is already v-up |
-| PBRT | drop `v = 1 - v` at `:221` and `:429`; simplify `applyPbrtUvTransform` (`:913`) to plain `(us*u + ud, vs*v + vd)` and delete the compensating comment at `:906` |
-| OBJ | none — becomes correct |
-| USD | none — becomes correct |
-| `SceneToUSD` | flip rows when writing PNG (`:195`) and EXR (`:167`), which are top-down formats |
-| `calcTangentsForTriangleMesh` | default `flipTexCoordY` to `false`; both callers (`import_ASSIMP.cpp:217`, `import_GLTF.cpp:1213`) pass `false` |
+| glTF | none — already v-down, like ANARI |
+| ASSIMP | keep `aiProcess_FlipUVs`, and conjugate `aiUVTransform`'s `v` by it, which it was not doing |
+| PBRT | keep `v = 1 - v` at `:221` and `:429`, and the `(1 - vs - vd)` term in the uv transform |
+| OBJ | flip `v` when building `vertex.attribute0` (`import_OBJ.cpp:132`) |
+| USD | flip `v` on the primvar a material reads as texture coordinates (`UsdGeometry.cpp`), and conjugate `UsdTransform2d`'s `v` by that flip |
+| `SceneToUSD` | none — writing a top-down array to PNG/EXR is already right |
+| `calcTangentsForTriangleMesh` | keep `flipTexCoordY` defaulting to `true`; glTF's caller passes `true` |
 
-One wrinkle this table missed: glTF's tangent path does not read the texture
-coordinates it just stored, it re-reads the raw accessor data, which is still
-glTF's v-down. So it flips that local copy too before handing it to
-mikktspace. ASSIMP's caller reads the stored coordinates and simply takes the
-new default.
+> **As corrected:** this table is the reverse of what the first version of
+> this work did. It is what actually landed.
 
-Normal maps are unaffected. mikktspace is fed v-up coordinates in both the old
-and new schemes — today via `flipTexCoordY = true` undoing the v-down
-convention, afterward because the coordinates are already v-up — so the tangent
-basis is invariant, and the fetch coordinates and row order change together.
+Normal maps are unaffected. mikktspace is fed v-up coordinates throughout, via
+`flipTexCoordY = true` undoing the v-down convention, so the tangent basis is
+invariant.
 
 ### Cache lifetime
 

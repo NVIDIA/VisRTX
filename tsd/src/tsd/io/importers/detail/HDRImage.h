@@ -22,8 +22,9 @@ struct HDRImage
   unsigned width;
   unsigned height;
   unsigned numComponents;
-  // Both branches below emit the picture's bottom row first, which is already
-  // ANARI orientation. See docs/adr/0014-store-images-in-anari-orientation.md.
+  // Both branches below emit the picture's bottom row first, which is the
+  // order the hdri lights this decoder feeds want. See
+  // docs/adr/0014-store-images-in-anari-orientation.md.
   RowOrder rowOrder{RowOrder::BOTTOM_UP};
   std::vector<float> pixel;
 };

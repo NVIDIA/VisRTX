@@ -122,27 +122,34 @@ std::string uvPrimvarOfTexture(
   return {};
 }
 
-math::mat4 uvTransformOfTexture(
+// The UsdTransform2d feeding a texture's `st`, in the form ANARI takes it.
+// USD applies it to the authored v-up coordinates, and the geometry converter
+// has already reversed each vertex's `v` into ANARI's convention, so `v` is
+// conjugated by that reversal: 1 - (s*(1 - v) + t) == s*v + (1 - s - t).
+std::optional<UvTransform> uvTransformOfTexture(
     const NetworkWalker &walker, const pxr::TfToken &texturePath)
 {
   auto transformNode = walker.connectedNode(texturePath, "st");
   if (walker.nodeId(transformNode) != TRANSFORM_2D_ID)
-    return math::IDENTITY_MAT4;
+    return {};
 
-  auto retval = math::IDENTITY_MAT4;
+  math::float2 s(1.f, 1.f);
   const auto scale = walker.parameter(transformNode, "scale");
   if (scale.IsHolding<pxr::GfVec2f>()) {
-    const auto s = scale.UncheckedGet<pxr::GfVec2f>();
-    retval[0][0] = s[0];
-    retval[1][1] = s[1];
+    const auto value = scale.UncheckedGet<pxr::GfVec2f>();
+    s = math::float2(value[0], value[1]);
   }
+  math::float2 t(0.f, 0.f);
   const auto translation = walker.parameter(transformNode, "translation");
   if (translation.IsHolding<pxr::GfVec2f>()) {
-    const auto t = translation.UncheckedGet<pxr::GfVec2f>();
-    retval[3][0] = t[0];
-    retval[3][1] = t[1];
+    const auto value = translation.UncheckedGet<pxr::GfVec2f>();
+    t = math::float2(value[0], value[1]);
   }
-  return retval;
+
+  auto retval = math::IDENTITY_MAT4;
+  retval[0][0] = s.x;
+  retval[1][1] = s.y;
+  return UvTransform{retval, math::float4(t.x, 1.f - s.y - t.y, 0.f, 0.f)};
 }
 
 std::string wrapModeOf(const NetworkWalker &walker,
@@ -769,18 +776,15 @@ ResolvedMaterial resolveMaterial(ImportContext &ctx,
       file = ctx.basePath + file;
 
     // Everything the binding varies goes in before the sampler is built:
-    // makeImageSampler owns inTransform/inOffset, because a block-compressed
-    // image needs a v-flip composed into them that a later setParameter here
-    // would drop.
+    // makeImageSampler owns inTransform/inOffset, because an image that could
+    // not be reordered needs a v-flip composed into them that a later
+    // setParameter here would drop.
     const auto wrapS = wrapModeOf(walker, texturePath, "wrapS");
     const auto wrapT = wrapModeOf(walker, texturePath, "wrapT");
     SamplerSettings settings;
     settings.wrapMode1 = wrapS.c_str();
     settings.wrapMode2 = wrapT.c_str();
-    if (const auto uvTransform = uvTransformOfTexture(walker, texturePath);
-        uvTransform != math::IDENTITY_MAT4) {
-      settings.uvTransform = UvTransform{uvTransform};
-    }
+    settings.uvTransform = uvTransformOfTexture(walker, texturePath);
 
     const bool isLinear = textureIsLinear(walker, texturePath, colorRole);
     auto sampler =

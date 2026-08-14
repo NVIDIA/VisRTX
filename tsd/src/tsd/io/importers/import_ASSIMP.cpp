@@ -281,9 +281,9 @@ static std::vector<MaterialRef> importASSIMPMaterials(
     };
 
     // The uv transform goes to loadTexture rather than onto the returned
-    // sampler, because makeImageSampler owns inTransform/inOffset: a
-    // block-compressed image needs a v-flip composed into them, and setting
-    // them here afterwards would drop it.
+    // sampler, because makeImageSampler owns inTransform/inOffset: an image
+    // that could not be reordered needs a v-flip composed into them, and
+    // setting them here afterwards would drop it.
     auto getTextureUVSettings = [&](const char *pKey,
                                     unsigned int type,
                                     unsigned int index = 0) -> SamplerSettings {
@@ -291,11 +291,21 @@ static std::vector<MaterialRef> importASSIMPMaterials(
       aiUVTransform uvTransform;
       if (aiGetMaterialUVTransform(assimpMat, pKey, type, index, &uvTransform)
           == AI_SUCCESS) {
-        settings.uvTransform = UvTransform{
-            mat4({uvTransform.mScaling.x, 0.f, 0.f, uvTransform.mTranslation.x},
-                {0.f, uvTransform.mScaling.y, 0.f, uvTransform.mTranslation.y},
-                {0.f, 0.f, 1.f, 0.f},
-                {0.0f, 0.0f, 0.f, 1.f})};
+        // aiProcess_FlipUVs reverses the coordinates but not the transform
+        // authored against them, so `v` is conjugated by that flip:
+        // 1 - (sv*(1 - v) + tv) == sv*v + (1 - sv - tv). Translation belongs
+        // in the offset rather than the matrix, which ANARI applies to
+        // (u, v, 0, 1) and reads back only the first two components of.
+        const float sv = uvTransform.mScaling.y;
+        settings.uvTransform =
+            UvTransform{mat4(float4(uvTransform.mScaling.x, 0.f, 0.f, 0.f),
+                            float4(0.f, sv, 0.f, 0.f),
+                            float4(0.f, 0.f, 1.f, 0.f),
+                            float4(0.f, 0.f, 0.f, 1.f)),
+                float4(uvTransform.mTranslation.x,
+                    1.f - sv - uvTransform.mTranslation.y,
+                    0.f,
+                    0.f)};
       }
       return settings;
     };
@@ -701,9 +711,10 @@ void import_ASSIMP(Scene &scene,
 
   Assimp::Importer importer;
 
-  // No aiProcess_FlipUVs: assimp's own output is already v-up, which is what
-  // ANARI wants. See docs/adr/0014-store-images-in-anari-orientation.md.
-  auto importFlags = aiProcess_Triangulate | aiProcess_JoinIdenticalVertices;
+  // aiProcess_FlipUVs: assimp's own output is v-up, and ANARI's `v` runs down
+  // the image. See docs/adr/0014-store-images-in-anari-orientation.md.
+  auto importFlags = aiProcess_Triangulate | aiProcess_JoinIdenticalVertices
+      | aiProcess_FlipUVs;
   if (flatten)
     importFlags |= aiProcess_PreTransformVertices;
 

@@ -1000,7 +1000,10 @@ def Xform "World"
         REQUIRE(uv[3].x == Approx(0.0f)); // second triangle's first corner
         REQUIRE(uv[4].x == Approx(1.0f));
         REQUIRE(uv[5].x == Approx(0.0f));
-        REQUIRE(uv[5].y == Approx(1.0f));
+        // `v` arrives reversed out of USD's v-up `st` into ANARI's, which runs
+        // down the image: the authored (0, 0) and (0, 1) become 1 and 0.
+        REQUIRE(uv[3].y == Approx(1.0f));
+        REQUIRE(uv[5].y == Approx(0.0f));
       }
 
       THEN("The normals arrive too")

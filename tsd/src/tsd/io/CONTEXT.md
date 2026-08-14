@@ -146,7 +146,8 @@ same file at the same Color Space share one Image.
 What identifies an Image's content — a resolved absolute path for a
 file-backed image, or an importer-scoped stable id otherwise
 (`gltf:<file>:<image>`, `assimp://embedded/<n>`, `pbrt:<file>::normal`) —
-together with the Color Space it was decoded for.
+together with the Color Space it was decoded for and the Row Order it is
+stored in.
 _Avoid_: texture key, cache key
 
 **Image Cache**:
@@ -157,9 +158,12 @@ _Avoid_: texture cache
 
 **Row Order**:
 Which row of a picture a texel array stores first. Decoders declare the Row
-Order their library produced; the Image Cache normalizes to ANARI
-orientation — row 0 is the bottom row — and no importer flips texels itself.
-See [ADR 0014](../../../docs/adr/0014-store-images-in-anari-orientation.md).
+Order their library produced and an Image Source asks for the one its consumer
+wants; the Image Cache normalizes between them, and no importer flips texels
+itself. A sampled image is stored top-down — row 0 is the top row, so texture
+coordinate (0, 0) addresses the upper-left corner, which is where ANARI
+addresses it. See
+[ADR 0014](../../../docs/adr/0014-store-images-in-anari-orientation.md).
 _Avoid_: flipped, vertical orientation, y-up
 
 **Color Space**:

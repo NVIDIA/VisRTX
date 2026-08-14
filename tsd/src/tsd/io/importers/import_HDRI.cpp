@@ -31,7 +31,11 @@ void import_HDRI(Scene &scene,
     }
 
     ImageCache cache(&scene);
-    auto image = cache.acquireDecoded({hdriFilename, ColorSpace::LINEAR},
+    // Stored bottom-up: an hdri light's radiance is mapped over the sphere by
+    // the light rather than addressed by an image sampler, so the top-left
+    // origin samplers are stored for does not apply to it.
+    auto image = cache.acquireDecoded(
+        {hdriFilename, ColorSpace::LINEAR, RowOrder::BOTTOM_UP},
         ANARI_FLOAT32_VEC3,
         img.width,
         img.height,
