@@ -47,6 +47,7 @@
 
 // std
 #include <optix_types.h>
+#include <cassert>
 #include <stdlib.h>
 #include <string_view>
 // this include may only appear in a single source file:
@@ -561,10 +562,10 @@ void Renderer::initOptixPipeline()
         + int(SurfaceShaderEntryPoints::EvaluateNormal)] = callableDesc;
 
     callableDesc.callables.entryFunctionNameDC =
-        "__direct_callable__shadeSurface";
+        "__direct_callable__evalBsdf";
 
     callableDescs[SBT_CALLABLE_MATTE_OFFSET
-        + int(SurfaceShaderEntryPoints::Shade)] = callableDesc;
+        + int(SurfaceShaderEntryPoints::EvalBsdf)] = callableDesc;
 
     callableDesc.callables.entryFunctionNameDC =
         "__direct_callable__evaluatePdf";
@@ -609,9 +610,9 @@ void Renderer::initOptixPipeline()
         + int(SurfaceShaderEntryPoints::EvaluateNormal)] = callableDesc;
 
     callableDesc.callables.entryFunctionNameDC =
-        "__direct_callable__shadeSurface";
+        "__direct_callable__evalBsdf";
     callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET
-        + int(SurfaceShaderEntryPoints::Shade)] = callableDesc;
+        + int(SurfaceShaderEntryPoints::EvalBsdf)] = callableDesc;
 
     callableDesc.callables.entryFunctionNameDC =
         "__direct_callable__evaluatePdf";
@@ -955,12 +956,19 @@ void Renderer::initOptixPipeline()
         callableDescs.push_back(callableDesc);
 
         callableDesc.callables.entryFunctionNameDC =
-            "__direct_callable__shadeSurface";
+            "__direct_callable__evalBsdf";
         callableDescs.push_back(callableDesc);
 
         callableDesc.callables.entryFunctionNameDC =
             "__direct_callable__evaluatePdf";
         callableDescs.push_back(callableDesc);
+
+        // The pushes above are positional: slot N of this block must be the
+        // callable SurfaceShaderEntryPoints(N) names. Renaming an entry point
+        // without moving its push is otherwise silent -- the wrong callable
+        // sits at the right index and the material simply misbehaves.
+        assert(callableDescs.size() - mdlBaseOffset
+            == size_t(SurfaceShaderEntryPoints::Count));
       }
 
       m_lastMDLMaterialLibraryUpdateCheck =

@@ -94,16 +94,16 @@ vec3 __direct_callable__evaluateNormal(const MatteShadingState *shadingState)
   return shadingState->normal;
 }
 
-// Signature must match the call inside shaderMatteSurface in MatteShader.cuh.
-VISRTX_CALLABLE vec3 __direct_callable__shadeSurface(
-    const MatteShadingState *shadingState,
-    const SurfaceHit *hit,
-    const LightSample *lightSample,
-    const vec3 *outgoingDir)
+// Lambertian f*cos. `wo` is unused -- the lobe is isotropic -- but kept for
+// signature parity across materials. Gates on the state's normal, which is
+// hit->Ns except where init() substituted Ng for a degenerate one; using
+// hit->Ns here instead would shade those hits with the NaN normal that
+// fallback exists to replace.
+VISRTX_CALLABLE vec3 __direct_callable__evalBsdf(
+    const MatteShadingState *shadingState, const vec3 *wo, const vec3 *wi)
 {
-  float NdotL = fmaxf(0.0f, dot(hit->Ns, lightSample->dir));
-  return shadingState->baseColor * kInvPi * NdotL * lightSample->radiance
-      / lightSample->pdf;
+  const float NdotL = fmaxf(0.0f, dot(shadingState->normal, *wi));
+  return shadingState->baseColor * kInvPi * NdotL;
 }
 
 // Matte has no continuation ray (nextRay returns a dead ray), so its BSDF can

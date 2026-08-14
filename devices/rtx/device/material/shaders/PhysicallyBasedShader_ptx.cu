@@ -397,15 +397,12 @@ VISRTX_DEVICE vec3 evalFresnelWithIridescence(
   return F;
 }
 
-VISRTX_CALLABLE vec3 __direct_callable__shadeSurface(
-    const PhysicallyBasedShadingState *state,
-    const SurfaceHit *hit,
-    const LightSample *lightSample,
-    const vec3 *outgoingDir)
+VISRTX_CALLABLE vec3 __direct_callable__evalBsdf(
+    const PhysicallyBasedShadingState *state, const vec3 *wo, const vec3 *wi)
 {
   const vec3 N = state->normal;
-  const vec3 V = *outgoingDir;
-  const vec3 L = lightSample->dir;
+  const vec3 V = *wo;
+  const vec3 L = *wi;
 
   const float NdotL = dot(N, L);
   // Negated form so a NaN NdotL takes this early-out — NaN compares false
@@ -420,7 +417,7 @@ VISRTX_CALLABLE vec3 __direct_callable__shadeSurface(
 
   // Base F0 / F90. Specular uses Fresnel at the microfacet (VdotH); the
   // diffuse weight uses Fresnel at NdotV (Frostbite/Disney convention) so
-  // shadeSurface and nextRay's diffuse split agree regardless of light dir.
+  // evalBsdf and nextRay's diffuse split agree regardless of light dir.
   const vec3 F0 = computeF0(state);
   const vec3 F90 = computeF90(state);
   const vec3 F = evalFresnelWithIridescence(state, F0, F90, VdotH);
@@ -477,7 +474,7 @@ VISRTX_CALLABLE vec3 __direct_callable__shadeSurface(
     base += state->sheenColor * Ds * Vs;
   }
 
-  return base * NdotL * lightSample->radiance / lightSample->pdf;
+  return base * NdotL;
 }
 
 //-----------------------------------------------------------------------------
@@ -488,7 +485,7 @@ VISRTX_CALLABLE vec3 __direct_callable__shadeSurface(
 // escape-side weight (NextRay.pdf) are identical functions and the balance-
 // heuristic weights partition to 1 exactly (unbiased).
 //
-// Transmission (through-surface) directions return 0: NEE's shadeSurface
+// Transmission (through-surface) directions return 0: NEE's evalBsdf
 // early-outs at NdotL<=0, so they are never combined — the escape estimator
 // owns them outright (NextRay.pdf = +inf at sample time).
 //-----------------------------------------------------------------------------
@@ -653,7 +650,7 @@ VISRTX_CALLABLE NextRay __direct_callable__nextRay(
       + fmaxf(luminance(glm::max(vec3(1.0f) - Fv, vec3(0.0f)) * transmissionFilter),
           0.0f);
   // Lambertian throughput collapses to this energy when sampled cosine-weighted
-  // (cos / pdf cancels with 1/pi); mirrors shadeSurface's diffuseBRDF factors.
+  // (cos / pdf cancels with 1/pi); mirrors evalBsdf's diffuseBRDF factors.
   const vec3 diffuseEnergy = glm::max(vec3(1.0f) - Fv, vec3(0.0f))
       * state->baseColor * (1.0f - state->metallic)
       * (1.0f - state->transmission) * state->occlusion;
@@ -665,7 +662,7 @@ VISRTX_CALLABLE NextRay __direct_callable__nextRay(
   const float pDiff = diffSelW / baseSel;
 
   // Diffuse lobe: sample around the shading normal so pdf=cos/pi matches the
-  // BRDF's NdotL (same axis as shadeSurface's diffuse term).
+  // BRDF's NdotL (same axis as evalBsdf's diffuse term).
   if (pcg_uniform(rs) >= pSpec) {
     const vec3 wi = sampleHemisphere(*rs, N);
     const vec3 weight =
@@ -717,7 +714,7 @@ VISRTX_CALLABLE NextRay __direct_callable__nextRay(
   const vec3 Ltworld = normalize(toWorld * Ltrans);
   const vec3 weightT = transmitEnergy * (G2t / fmaxf(G1t, 1e-8f))
       * clearcoatExitAttn(Ltworld) / fmaxf(pSpec * (1.0f - reflectGivenSpec), 1e-8f);
-  // Through-surface escape: NEE's shadeSurface early-outs at NdotL<=0, so the
+  // Through-surface escape: NEE's evalBsdf early-outs at NdotL<=0, so the
   // env behind glass can only be reached by this continuation. Report +inf so
   // env MIS gives it w_bsdf=1 (the escape owns it), matching the pre-MIS flag.
   return NextRay{

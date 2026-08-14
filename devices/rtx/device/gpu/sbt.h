@@ -46,7 +46,7 @@ enum class SurfaceShaderEntryPoints
   EvaluateEmission,
   EvaluateTransmission,
   EvaluateNormal,
-  Shade,
+  EvalBsdf,
   EvaluatePdf,
   Count
 };

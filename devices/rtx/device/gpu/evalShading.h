@@ -116,21 +116,24 @@ VISRTX_DEVICE float materialEvalPdf(const MaterialShadingState &shadingState,
       &wi);
 }
 
-VISRTX_DEVICE vec3 materialShadeSurface(
-    const MaterialShadingState &shadingState,
-    const SurfaceHit &hit,
-    const LightSample &lightSample,
-    const vec3 &outgoingDir)
+// f(wo, wi) * |cos(wi, shading normal)| -- the BSDF value alone, with no light
+// radiance and no light pdf folded in: the caller owns the estimator it builds
+// from this. Both directions are world space, `wo` points away from the surface
+// toward the viewer. Pairs with materialEvalPdf: same lobe mixture, same
+// conventions, reflection side only (transmission returns 0, as NEE cannot
+// reach it).
+VISRTX_DEVICE vec3 materialEvalBsdf(const MaterialShadingState &shadingState,
+    const vec3 &wo,
+    const vec3 &wi)
 {
   if (shadingState.callableBaseIndex == ~DeviceObjectIndex(0))
-    return vec3(0.0f, 0.0f, 0.0f); // No shading by default
+    return vec3(0.0f); // No material: no reflected energy
 
   return optixDirectCall<vec3>(
-      shadingState.callableBaseIndex + int(SurfaceShaderEntryPoints::Shade),
+      shadingState.callableBaseIndex + int(SurfaceShaderEntryPoints::EvalBsdf),
       &shadingState.data,
-      &hit,
-      &lightSample,
-      &outgoingDir);
+      &wo,
+      &wi);
 }
 
 } // namespace visrtx
