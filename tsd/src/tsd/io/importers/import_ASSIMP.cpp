@@ -385,8 +385,6 @@ static std::vector<MaterialRef> importASSIMPMaterials(
               mat4({2, 0, 0, 0}, {0, 2, 0, 0}, {0, 0, 0, 0}, {-1, -1, 0, 1}));
           m->setParameterObject("anisotropyDirection", *sampler);
         }
-        auto settings = getTextureUVSettings(
-            AI_MATKEY_UVTRANSFORM(aiTextureType_ANISOTROPY, 0));
         if (auto sampler = loadTexture(anisotropyTexture, true, settings);
             sampler) {
           // Map red to red/green/blue as expected by our gltf pbr
