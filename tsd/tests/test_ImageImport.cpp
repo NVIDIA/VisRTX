@@ -3,6 +3,8 @@
 
 // catch
 #include "catch.hpp"
+// helium
+#include <helium/helium_math.h>
 // tsd
 #include "tsd/animation/AnimationManager.hpp"
 #include "tsd/core/TSDMath.hpp"
@@ -170,31 +172,14 @@ std::string hdrFixtureContents()
 
 // Importers do not agree on an element type -- the shared path expands to
 // ANARI_FLOAT32_*, glTF keeps the file's 8-bit type and asks for an sRGB
-// format -- so orientation assertions have to read either.
+// format -- so orientation assertions have to read either. helium reads any
+// of them, applying the element stride and the sRGB decode itself; a type it
+// does not know reads back as (0, 0, 0), which no row predicate accepts.
 float3 texelAsFloat3(const tsd::scene::Array *image, size_t index)
 {
-  const auto type = image->elementType();
-  switch (type) {
-  case ANARI_FLOAT32_VEC3:
-    return image->dataAs<float3>()[index];
-  case ANARI_FLOAT32_VEC4: {
-    const auto t = image->dataAs<float4>()[index];
-    return float3(t.x, t.y, t.z);
-  }
-  case ANARI_UFIXED8_VEC3:
-  case ANARI_UFIXED8_RGB_SRGB: {
-    const auto *t = image->dataAs<uint8_t>() + index * 3;
-    return float3(t[0] / 255.f, t[1] / 255.f, t[2] / 255.f);
-  }
-  case ANARI_UFIXED8_VEC4:
-  case ANARI_UFIXED8_RGBA_SRGB: {
-    const auto *t = image->dataAs<uint8_t>() + index * 4;
-    return float3(t[0] / 255.f, t[1] / 255.f, t[2] / 255.f);
-  }
-  default:
-    FAIL("unhandled texel element type " << type);
-    return float3(0.f);
-  }
+  const auto texel = helium::readAsAttributeValueFlat(
+      image->data(), image->elementType(), index);
+  return float3(texel.x, texel.y, texel.z);
 }
 
 // The fixture image a scene imported, found by its shape rather than by the
