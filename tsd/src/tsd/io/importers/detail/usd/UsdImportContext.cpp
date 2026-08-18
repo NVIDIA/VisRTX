@@ -14,9 +14,11 @@ namespace tsd::io::usd {
 
 tsd::animation::Animation &ImportContext::animation()
 {
-  if (!importAnimation)
-    importAnimation = &animMgr.addAnimation(filePath);
-  return *importAnimation;
+  if (importAnimationIndex == NO_ANIMATION) {
+    animMgr.addAnimation(filePath);
+    importAnimationIndex = animMgr.animations().size() - 1;
+  }
+  return animMgr.animations()[importAnimationIndex];
 }
 
 void ImportContext::reportAnimatedPrim(size_t sampleCount)

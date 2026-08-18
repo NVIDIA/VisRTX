@@ -59,11 +59,14 @@ tsd::math::mat4 TransformSampler::at(double time) const
 // interpolation: the endpoints coincide and the motion collapses. Recursively
 // insert the midpoint wherever the path from a key to the interval's midpoint
 // turns further than a quarter turn.
+// m0 and m1 are taken by value: the caller's m0 is an element of `outFrames`,
+// which this recursion appends to, so a reference into it dies on the first
+// reallocation.
 void densifyInterval(const TransformSampler &sampler,
     double t0,
-    const tsd::math::mat4 &m0,
+    tsd::math::mat4 m0,
     double t1,
-    const tsd::math::mat4 &m1,
+    tsd::math::mat4 m1,
     int depth,
     std::vector<double> &outTimes,
     std::vector<tsd::math::mat4> &outFrames)

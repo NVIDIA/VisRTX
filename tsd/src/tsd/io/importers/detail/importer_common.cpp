@@ -809,7 +809,9 @@ void addTransformStepBinding(tsd::animation::Animation &anim,
     const std::vector<math::mat4> &frames,
     const std::vector<float> &timeBase)
 {
-  size_t n = frames.size();
+  // Every array handed to the binding is sized by the decomposition below, so
+  // the shorter of the two inputs is what can actually be read.
+  size_t n = std::min(frames.size(), timeBase.size());
   std::vector<tsd::core::math::float4> rotation(n);
   std::vector<tsd::core::math::float3> translation(n);
   std::vector<tsd::core::math::float3> scale(n);
@@ -837,7 +839,7 @@ void addTransformStepBinding(tsd::animation::Animation &anim,
       rotation.data(),
       translation.data(),
       scale.data(),
-      timeBase.size());
+      n);
 }
 
 } // namespace tsd::io

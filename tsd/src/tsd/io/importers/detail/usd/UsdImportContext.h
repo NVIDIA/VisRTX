@@ -91,8 +91,12 @@ struct ImportContext
   const ClaimedPrims *claimedPrims{nullptr};
   bool isClaimed(const pxr::SdfPath &path) const;
 
-  // Set by animation(); this stays an aggregate, so it cannot be private.
-  tsd::animation::Animation *importAnimation{nullptr};
+  // Set by animation(); this stays an aggregate, so it cannot be private. An
+  // index rather than a pointer or reference: the AnimationManager holds its
+  // Animations by value in a vector, so any other addAnimation() during this
+  // import -- a camera's, the dialect's -- moves the one this import made.
+  static constexpr size_t NO_ANIMATION = ~size_t(0);
+  size_t importAnimationIndex{NO_ANIMATION};
 
   // Caches keyed by resolved prim path, so shared content converts once.
   ImageCache textureCache{&scene};
