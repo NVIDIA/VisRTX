@@ -199,6 +199,18 @@ tsd::scene::GeometryRef findGeometry(tsd::scene::Scene &scene, const char *name)
   return findObject<tsd::scene::Geometry>(scene, ANARI_GEOMETRY, name);
 }
 
+// The material a Surface actually uses, rather than whatever happens to sit at
+// index 0 of the pool (which is the Scene's own default material).
+tsd::scene::Material *boundMaterial(tsd::scene::Scene &scene)
+{
+  auto surface = scene.getObject<tsd::scene::Surface>(0);
+  REQUIRE(surface);
+  auto *material = surface->parameterValueAsObject<tsd::scene::Material>(
+      tsd::scene::tokens::surface::material);
+  REQUIRE(material != nullptr);
+  return material;
+}
+
 constexpr const char *QUAD_MESH_BODY = R"(
         int[] faceVertexCounts = [4]
         int[] faceVertexIndices = [0, 1, 2, 3]
@@ -1228,17 +1240,6 @@ def Xform "World"
 
 SCENARIO("Native material passthrough is opt-in", "[UsdImport]")
 {
-  // The material a Surface actually uses, rather than whatever happens to sit
-  // at index 0 of the pool (which is the Scene's own default material).
-  auto boundMaterial = [](tsd::scene::Scene &scene) {
-    auto surface = scene.getObject<tsd::scene::Surface>(0);
-    REQUIRE(surface);
-    auto *material = surface->parameterValueAsObject<tsd::scene::Material>(
-        tsd::scene::tokens::surface::material);
-    REQUIRE(material != nullptr);
-    return material;
-  };
-
   auto stringParameter = [](tsd::scene::Material *material, const char *name) {
     auto *p = material->parameter(name);
     return p ? p->value().getString() : std::string();
@@ -1676,6 +1677,224 @@ def Xform "World"
     }
   }
 #endif
+}
+
+SCENARIO("An OmniPBR material maps onto the portable material", "[UsdImport]")
+{
+  GIVEN("A Stage whose material is an OmniPBR MDL shader")
+  {
+    StageFixture stage("tsd_test_usd_omnipbr.usda", R"(#usda 1.0
+
+def Xform "World"
+{
+    def Material "OmniPBR"
+    {
+        token outputs:mdl:surface.connect = </World/OmniPBR/Shader.outputs:out>
+        def Shader "Shader"
+        {
+            uniform token info:implementationSource = "sourceAsset"
+            uniform asset info:mdl:sourceAsset = @OmniPBR.mdl@
+            uniform token info:mdl:sourceAsset:subIdentifier = "OmniPBR"
+            color3f inputs:diffuse_color_constant = (0.9, 0.1, 0.2)
+            float inputs:metallic_constant = 0.75
+            float inputs:reflection_roughness_constant = 0.25
+            float inputs:ior_constant = 1.4
+            bool inputs:enable_emission = 1
+            color3f inputs:emissive_color = (0, 0.5, 0)
+            float inputs:emissive_intensity = 2
+            token outputs:out
+        }
+    }
+
+    def Mesh "Quad" (
+        prepend apiSchemas = ["MaterialBindingAPI"]
+    )
+    {
+        int[] faceVertexCounts = [4]
+        int[] faceVertexIndices = [0, 1, 2, 3]
+        point3f[] points = [(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)]
+        rel material:binding = </World/OmniPBR>
+    }
+}
+)");
+
+    WHEN("The default material mode is used")
+    {
+      tsd::scene::Scene scene;
+      tsd::animation::AnimationManager animMgr(&scene);
+      auto report = tsd::io::import_USD(scene, animMgr, stage.path().c_str());
+      auto *material = boundMaterial(scene);
+
+      THEN("Its authored inputs arrive, not the preview-surface defaults")
+      {
+        REQUIRE(material->subtype()
+            == tsd::scene::tokens::material::physicallyBased);
+
+        auto color = material->parameterValueAs<tsd::math::float3>("baseColor");
+        REQUIRE(color.has_value());
+        REQUIRE(color->x == Approx(0.9f));
+        REQUIRE(color->y == Approx(0.1f));
+        REQUIRE(color->z == Approx(0.2f));
+
+        REQUIRE(
+            *material->parameterValueAs<float>("metallic") == Approx(0.75f));
+        REQUIRE(
+            *material->parameterValueAs<float>("roughness") == Approx(0.25f));
+        REQUIRE(*material->parameterValueAs<float>("ior") == Approx(1.4f));
+
+        auto emissive =
+            material->parameterValueAs<tsd::math::float3>("emissive");
+        REQUIRE(emissive.has_value());
+        REQUIRE(emissive->y == Approx(1.0f));
+      }
+
+      THEN("Nothing claims a richer material was left on the table")
+      {
+        REQUIRE(!report.contains(
+            tsd::io::UsdSkipReason::RICHER_MATERIAL_AVAILABLE));
+      }
+    }
+
+    WHEN("MDL passthrough is asked for instead")
+    {
+      tsd::scene::Scene scene;
+      tsd::animation::AnimationManager animMgr(&scene);
+      tsd::io::UsdImportOptions options;
+      options.materialMode = tsd::io::UsdMaterialMode::MDL;
+      auto report = tsd::io::import_USD(
+          scene, animMgr, stage.path().c_str(), {}, options);
+
+      THEN("The native shader still wins over the portable mapping")
+      {
+        REQUIRE(boundMaterial(scene)->subtype()
+            == tsd::scene::tokens::material::mdl);
+      }
+    }
+  }
+
+  GIVEN("An OmniPBR material reading textures and cutting out on opacity")
+  {
+    TextureFixture diffuse("tsd_test_usd_omnipbr_diffuse.tga");
+
+    StageFixture stage("tsd_test_usd_omnipbr_textured.usda", R"(#usda 1.0
+
+def Xform "World"
+{
+    def Material "OmniPBR"
+    {
+        token outputs:mdl:surface.connect = </World/OmniPBR/Shader.outputs:out>
+        def Shader "Shader"
+        {
+            uniform token info:implementationSource = "sourceAsset"
+            uniform asset info:mdl:sourceAsset = @OmniPBR.mdl@
+            uniform token info:mdl:sourceAsset:subIdentifier = "OmniPBR"
+            asset inputs:diffuse_texture = @tsd_test_usd_omnipbr_diffuse.tga@
+            bool inputs:enable_opacity = 1
+            float inputs:opacity_threshold = 0.3
+            token outputs:out
+        }
+    }
+
+    def Mesh "Quad" (
+        prepend apiSchemas = ["MaterialBindingAPI"]
+    )
+    {
+        int[] faceVertexCounts = [4]
+        int[] faceVertexIndices = [0, 1, 2, 3]
+        point3f[] points = [(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)]
+        rel material:binding = </World/OmniPBR>
+    }
+}
+)");
+
+    WHEN("The default material mode is used")
+    {
+      tsd::scene::Scene scene;
+      tsd::animation::AnimationManager animMgr(&scene);
+      auto report = tsd::io::import_USD(scene, animMgr, stage.path().c_str());
+      auto *material = boundMaterial(scene);
+
+      THEN("The texture named on the shader input is bound")
+      {
+        REQUIRE(
+            material->parameterValueAsObject<tsd::scene::Sampler>("baseColor")
+            != nullptr);
+        REQUIRE(!report.contains(tsd::io::UsdSkipReason::TEXTURE_LOAD_FAILED));
+      }
+
+      THEN("An authored threshold becomes a cutout rather than a blend")
+      {
+        REQUIRE(material->parameterValueAs<std::string>("alphaMode")
+            == std::string("mask"));
+        REQUIRE(
+            *material->parameterValueAs<float>("alphaCutoff") == Approx(0.3f));
+
+        // The mode is a string selection, so the index has to agree with the
+        // value wherever the selection is what gets read.
+        auto *alphaMode = material->parameter("alphaMode");
+        REQUIRE(alphaMode->stringValues()[alphaMode->stringSelection()]
+            == std::string("mask"));
+      }
+    }
+  }
+
+  GIVEN("A material whose MDL module only looks like OmniPBR")
+  {
+    StageFixture stage("tsd_test_usd_omnipbr_lookalike.usda", R"(#usda 1.0
+
+def Xform "World"
+{
+    def Material "Lookalike"
+    {
+        token outputs:mdl:surface.connect = </World/Lookalike/Mdl.outputs:out>
+        token outputs:surface.connect = </World/Lookalike/PBR.outputs:surface>
+
+        def Shader "Mdl"
+        {
+            uniform token info:implementationSource = "sourceAsset"
+            uniform asset info:mdl:sourceAsset = @OmniPBRBase.mdl@
+            uniform token info:mdl:sourceAsset:subIdentifier = "OmniPBRBase"
+            color3f inputs:diffuse_color_constant = (0.9, 0.1, 0.2)
+            token outputs:out
+        }
+
+        def Shader "PBR"
+        {
+            uniform token info:id = "UsdPreviewSurface"
+            color3f inputs:diffuseColor = (0.1, 0.2, 0.9)
+            token outputs:surface
+        }
+    }
+
+    def Mesh "Quad" (
+        prepend apiSchemas = ["MaterialBindingAPI"]
+    )
+    {
+        int[] faceVertexCounts = [4]
+        int[] faceVertexIndices = [0, 1, 2, 3]
+        point3f[] points = [(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)]
+        rel material:binding = </World/Lookalike>
+    }
+}
+)");
+
+    WHEN("The default material mode is used")
+    {
+      tsd::scene::Scene scene;
+      tsd::animation::AnimationManager animMgr(&scene);
+      tsd::io::import_USD(scene, animMgr, stage.path().c_str());
+
+      THEN("A module that merely starts with the name is not mapped as one")
+      {
+        // The authored preview surface is what this material actually says;
+        // OmniPBRBase is a different shader with input semantics of its own.
+        auto color = boundMaterial(scene)->parameterValueAs<tsd::math::float3>(
+            "baseColor");
+        REQUIRE(color.has_value());
+        REQUIRE(color->z == Approx(0.9f));
+      }
+    }
+  }
 }
 
 SCENARIO(

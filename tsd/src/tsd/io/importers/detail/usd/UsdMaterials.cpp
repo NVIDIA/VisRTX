@@ -24,6 +24,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -205,6 +206,23 @@ float3 asFloat3(const pxr::VtValue &v, const float3 &alt)
   return alt;
 }
 
+// The absolute path an asset-valued input names, empty when it names nothing.
+// The Stage's resolver produces a path for anything it could find; what it
+// could not -- a UDIM tile set names no file -- is anchored to the Stage's own
+// directory instead.
+std::string anchoredAssetPath(
+    ImportContext &ctx, const pxr::SdfAssetPath &assetPath)
+{
+  auto file = assetPath.GetResolvedPath();
+  if (file.empty())
+    file = assetPath.GetAssetPath();
+  if (file.empty())
+    return {};
+  if (!isAbsolute(file))
+    file = ctx.basePath + file;
+  return file;
+}
+
 // Native MDL passthrough, read from the retained Stage because the MDL source
 // asset and its sub-identifier are UsdShade concepts rather than something the
 // resolved network models portably. Returns a null ref when the material has
@@ -265,6 +283,224 @@ MaterialRef tryMdlPassthrough(
   }
 
   return {};
+}
+
+// OmniPBR mapping ////////////////////////////////////////////////////////////
+
+// The value an input actually produces, which for an Omniverse asset is often
+// published on the Material's own interface input rather than authored on the
+// shader. GetValueProducingAttributes() walks that connection for us.
+template <typename T>
+std::optional<T> shaderInputValue(
+    const pxr::UsdShadeShader &shader, const char *name, pxr::UsdTimeCode time)
+{
+  auto input = shader.GetInput(pxr::TfToken(name));
+  if (!input)
+    return {};
+  const auto sources = input.GetValueProducingAttributes();
+  const auto attribute = sources.empty() ? input.GetAttr() : sources.front();
+  T value;
+  if (attribute && attribute.Get(&value, time))
+    return value;
+  return {};
+}
+
+// The file an OmniPBR texture input names. OmniPBR usually names it on the
+// input directly, but an asset authored through a Material Graph reaches it
+// through a texture-reader node instead, whose own `file` input is where the
+// path actually is.
+std::optional<pxr::SdfAssetPath> omniPbrTextureAsset(
+    const pxr::UsdShadeShader &shader, const char *name, pxr::UsdTimeCode time)
+{
+  if (auto asset = shaderInputValue<pxr::SdfAssetPath>(shader, name, time))
+    return asset;
+
+  auto input = shader.GetInput(pxr::TfToken(name));
+  if (!input || !input.HasConnectedSource())
+    return {};
+
+  pxr::UsdShadeConnectableAPI source;
+  pxr::TfToken sourceName;
+  pxr::UsdShadeAttributeType sourceType;
+  if (!input.GetConnectedSource(&source, &sourceName, &sourceType))
+    return {};
+
+  pxr::UsdShadeShader reader(source.GetPrim());
+  if (!reader)
+    return {};
+  return shaderInputValue<pxr::SdfAssetPath>(reader, "file", time);
+}
+
+// The OmniPBR shader driving a material's MDL surface, or an invalid shader
+// when the material is something else. OmniPBR is the shader Omniverse authors
+// by default, and it is named exactly rather than by prefix: a module whose
+// name merely starts with it is a different shader with input semantics of its
+// own, and mapping it as OmniPBR would be a guess.
+//
+// Only the MDL Render Context's surface output is asked. The universal one is
+// where a UsdPreviewSurface network would be, and that network is the reader
+// below's to handle.
+pxr::UsdShadeShader omniPbrShaderOf(const pxr::UsdShadeMaterial &usdMaterial)
+{
+  const pxr::TfToken mdl("mdl");
+
+  auto isOmniPbr = [&](const pxr::UsdShadeShader &shader) {
+    pxr::TfToken subIdentifier;
+    if (shader.GetSourceAssetSubIdentifier(&subIdentifier, mdl)
+        && subIdentifier == pxr::TfToken("OmniPBR"))
+      return true;
+
+    // An asset that named no sub-identifier is identified by its module.
+    pxr::SdfAssetPath sourceAsset;
+    if (!shader.GetSourceAsset(&sourceAsset, mdl))
+      return false;
+    // The authored path is what names the module; a resolved one would name
+    // wherever this Stage's MDL search paths happened to find it.
+    auto module = sourceAsset.GetAssetPath();
+    if (module.empty())
+      module = sourceAsset.GetResolvedPath();
+    return std::filesystem::path(module).stem().string() == "OmniPBR";
+  };
+
+  auto output = usdMaterial.GetSurfaceOutput(mdl);
+  if (output) {
+    for (const auto &connection : output.GetConnectedSources()) {
+      pxr::UsdShadeShader shader(connection.source.GetPrim());
+      if (shader && isOmniPbr(shader))
+        return shader;
+    }
+  }
+
+  return pxr::UsdShadeShader();
+}
+
+// Map an OmniPBR shader onto a portable physically-based material, read from
+// the retained Stage because OmniPBR's inputs are UsdShade concepts that the
+// resolved network does not model portably -- the same reason
+// tryMdlPassthrough() reads from there. Returns a null ref when the material
+// is not OmniPBR, so the caller can fall through to the preview-surface
+// reader.
+//
+// Only the inputs that carry over are read: the preview-surface reader would
+// look for `diffuseColor`/`metallic`/`roughness` and find none of OmniPBR's
+// own names, leaving the asset flat grey.
+MaterialRef tryOmniPbrMapping(ImportContext &ctx,
+    const pxr::SdfPath &materialPath,
+    const pxr::TfToken &primType)
+{
+  auto usdPrim = ctx.stage->GetPrimAtPath(materialPath);
+  if (!usdPrim)
+    return {};
+
+  pxr::UsdShadeMaterial usdMaterial(usdPrim);
+  if (!usdMaterial)
+    return {};
+
+  auto shader = omniPbrShaderOf(usdMaterial);
+  if (!shader)
+    return {};
+
+  auto material =
+      ctx.scene.createObject<Material>(tokens::material::physicallyBased);
+  material->setName(materialPath.GetString().c_str());
+
+  // Every textured input takes precedence over its constant, which is what
+  // OmniPBR itself does with them.
+  auto bindTexture =
+      [&](const char *usdName, const char *tsdName, bool colorRole) -> bool {
+    const auto asset = omniPbrTextureAsset(shader, usdName, ctx.importTime);
+    if (!asset)
+      return false;
+    const auto file = anchoredAssetPath(ctx, *asset);
+    if (file.empty())
+      return false;
+    // OmniPBR names no colour space of its own, so the role of the input is
+    // what says whether its texels must be de-gamma'd on load.
+    auto sampler = importTexture(ctx.scene, file, ctx.textureCache, !colorRole);
+    if (!sampler) {
+      ctx.reportSkip(materialPath,
+          primType.GetString(),
+          UsdSkipReason::TEXTURE_LOAD_FAILED,
+          file);
+      return false;
+    }
+    material->setParameterObject(Token(tsdName), *sampler);
+    return true;
+  };
+
+  // alphaMode is a string selection, so the index has to move with the value
+  // or the two disagree wherever the selection is what gets read.
+  auto setAlphaMode = [&](const char *mode) {
+    material->setParameter("alphaMode", mode);
+    auto *parameter = material->parameter("alphaMode");
+    const auto &modes = parameter->stringValues();
+    for (size_t i = 0; i < modes.size(); ++i) {
+      if (modes[i] == mode) {
+        parameter->setStringSelection(int(i));
+        break;
+      }
+    }
+  };
+
+  auto scalar = [&](const char *name) {
+    return shaderInputValue<float>(shader, name, ctx.importTime);
+  };
+  auto color = [&](const char *name) -> std::optional<float3> {
+    const auto value =
+        shaderInputValue<pxr::GfVec3f>(shader, name, ctx.importTime);
+    if (!value)
+      return {};
+    return float3((*value)[0], (*value)[1], (*value)[2]);
+  };
+
+  if (!bindTexture("diffuse_texture", "baseColor", true)) {
+    if (const auto diffuse = color("diffuse_color_constant"))
+      material->setParameter("baseColor", *diffuse);
+  }
+
+  // The colour is what OmniPBR emits at unit intensity; the two multiply.
+  if (shaderInputValue<bool>(shader, "enable_emission", ctx.importTime)
+          .value_or(false)) {
+    const auto emissive = color("emissive_color").value_or(float3(0.f));
+    const auto intensity = scalar("emissive_intensity").value_or(1.f);
+    material->setParameter("emissive", emissive * intensity);
+  }
+
+  // OmniPBR's own defaults, which differ from the portable material's, so an
+  // asset that leaves these unauthored still looks like it did in Omniverse.
+  if (!bindTexture("metallic_texture", "metallic", false))
+    material->setParameter(
+        "metallic", scalar("metallic_constant").value_or(0.f));
+  if (!bindTexture("reflectionroughness_texture", "roughness", false)) {
+    material->setParameter(
+        "roughness", scalar("reflection_roughness_constant").value_or(0.5f));
+  }
+
+  bindTexture("normalmap_texture", "normal", false);
+  bindTexture("ao_texture", "occlusion", false);
+
+  if (shaderInputValue<bool>(shader, "enable_opacity", ctx.importTime)
+          .value_or(false)) {
+    if (!bindTexture("opacity_texture", "opacity", false)) {
+      if (const auto opacity = scalar("opacity_constant"))
+        material->setParameter("opacity", *opacity);
+    }
+    // A threshold of zero means OmniPBR blends rather than cuts out.
+    const auto threshold = scalar("opacity_threshold").value_or(0.f);
+    if (threshold > 0.f) {
+      setAlphaMode("mask");
+      material->setParameter("alphaCutoff", threshold);
+    } else
+      setAlphaMode("blend");
+  } else
+    setAlphaMode("opaque");
+
+  if (const auto ior = scalar("ior_constant"))
+    material->setParameter("ior", *ior);
+  if (const auto specular = scalar("specular_level"))
+    material->setParameter("specular", *specular);
+
+  return material;
 }
 
 #if TSD_USD_HAS_MATERIALX
@@ -345,14 +581,10 @@ std::vector<DocumentTexture> resolveTexturePaths(ImportContext &ctx,
       if (!value.IsHolding<pxr::SdfAssetPath>())
         continue;
 
-      const auto assetPath = value.UncheckedGet<pxr::SdfAssetPath>();
-      auto file = assetPath.GetResolvedPath();
-      if (file.empty())
-        file = assetPath.GetAssetPath();
+      const auto file =
+          anchoredAssetPath(ctx, value.UncheckedGet<pxr::SdfAssetPath>());
       if (file.empty())
         continue;
-      if (!isAbsolute(file))
-        file = ctx.basePath + file;
 
       input->setValueString(file);
 
@@ -694,6 +926,13 @@ ResolvedMaterial resolveMaterial(ImportContext &ctx,
     }
   }
 
+  // OmniPBR is part of the portable mapping rather than a passthrough mode: it
+  // maps onto the same physicallyBased material the preview-surface reader
+  // emits, and it has to be tried first because that reader would find none of
+  // OmniPBR's input names and emit its defaults instead.
+  if (auto material = tryOmniPbrMapping(ctx, materialPath, prim.primType))
+    return cacheAndReturn(material);
+
   if (!materialSchema) {
     ctx.reportSkip(materialPath,
         prim.primType.GetString(),
@@ -768,14 +1007,10 @@ ResolvedMaterial resolveMaterial(ImportContext &ctx,
     if (!fileValue.IsHolding<pxr::SdfAssetPath>())
       return false;
 
-    const auto assetPath = fileValue.UncheckedGet<pxr::SdfAssetPath>();
-    auto file = assetPath.GetResolvedPath();
-    if (file.empty())
-      file = assetPath.GetAssetPath();
+    const auto file =
+        anchoredAssetPath(ctx, fileValue.UncheckedGet<pxr::SdfAssetPath>());
     if (file.empty())
       return false;
-    if (!isAbsolute(file))
-      file = ctx.basePath + file;
 
     // Everything the binding varies goes in before the sampler is built:
     // makeImageSampler owns inTransform/inOffset, because an image that could
