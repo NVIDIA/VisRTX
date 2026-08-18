@@ -83,6 +83,12 @@ struct RenderIndex : public BaseUpdateDelegate
   // otherwise pay a full world rebuild.
   void requestWorldUpdate();
 
+  bool inUpdateBatch() const;
+
+  // Called once when the outermost update batch ends, just before the deferred
+  // world rebuild, so subclasses can flush work they deferred the same way.
+  virtual void flushDeferredUpdates();
+
   Scene *m_ctx{nullptr};
   AnariHandleCache m_cache;
 

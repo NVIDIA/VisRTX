@@ -50,6 +50,14 @@ struct RenderIndexAllLayers : public RenderIndex
   void syncLayerInstances(
       const Layer *layer, bool appendExisting, uint8_t mask);
   void syncLayerTransforms(const Layer *layer);
+
+  // Re-copy a layer's node transforms into its ANARI instances, or -- inside
+  // an update batch -- remember that the copy is owed and make it once when
+  // the batch ends. A null layer means every cached layer, which is all a
+  // rewritten transform Array can say about where its matrices are used.
+  void requestLayerTransformSync(const Layer *layer);
+  void flushDeferredUpdates() override;
+
   void releaseAllInstances();
 
   RenderIndexFilterFcn m_filter;
@@ -60,6 +68,9 @@ struct RenderIndexAllLayers : public RenderIndex
 
   using InstanceCache = FlatMap<const Layer *, std::vector<anari::Instance>>;
   InstanceCache m_instanceCache;
+
+  std::vector<const Layer *> m_deferredTransformSyncs;
+  bool m_allTransformSyncsDeferred{false};
 };
 
 } // namespace tsd::rendering

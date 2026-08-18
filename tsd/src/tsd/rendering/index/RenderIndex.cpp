@@ -233,7 +233,10 @@ void RenderIndex::signalUpdateBatchEnd()
 {
   if (m_updateBatchDepth > 0)
     m_updateBatchDepth--;
-  if (m_updateBatchDepth > 0 || !m_worldUpdateDeferred)
+  if (m_updateBatchDepth > 0)
+    return;
+  flushDeferredUpdates();
+  if (!m_worldUpdateDeferred)
     return;
   m_worldUpdateDeferred = false;
   updateWorld();
@@ -245,6 +248,16 @@ void RenderIndex::requestWorldUpdate()
     m_worldUpdateDeferred = true;
   else
     updateWorld();
+}
+
+bool RenderIndex::inUpdateBatch() const
+{
+  return m_updateBatchDepth > 0;
+}
+
+void RenderIndex::flushDeferredUpdates()
+{
+  // Nothing beyond the world rebuild is deferred by default.
 }
 
 } // namespace tsd::rendering

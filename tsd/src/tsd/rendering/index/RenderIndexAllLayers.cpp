@@ -61,8 +61,14 @@ void RenderIndexAllLayers::setIncludedLayers(
 void RenderIndexAllLayers::signalArrayUnmapped(const Array *a)
 {
   RenderIndex::signalArrayUnmapped(a);
-  if (a->elementType() == ANARI_FLOAT32_MAT4)
-    requestWorldUpdate();
+  if (a->elementType() != ANARI_FLOAT32_MAT4)
+    return;
+  // A transform-array node's matrices are copied into each instance's own
+  // parameter array when its layer is synced, so rewriting the Array is only
+  // visible once that copy is made again; updating the world is not enough.
+  // Which layer holds the node is not knowable from the Array alone.
+  requestLayerTransformSync(nullptr);
+  requestWorldUpdate();
 }
 
 void RenderIndexAllLayers::signalObjectParameterUseCountZero(const Object *o)
@@ -112,7 +118,7 @@ void RenderIndexAllLayers::signalLayerStructureUpdated(const Layer *l)
 void RenderIndexAllLayers::signalLayerTransformUpdated(const Layer *l)
 {
   if (m_instanceCache.contains(l)) {
-    syncLayerTransforms(l);
+    requestLayerTransformSync(l);
     requestWorldUpdate();
   }
 }
@@ -232,6 +238,55 @@ void RenderIndexAllLayers::syncLayerInstances(
   }
 
   syncLayerTransforms(layer);
+}
+
+void RenderIndexAllLayers::requestLayerTransformSync(const Layer *layer)
+{
+  if (!inUpdateBatch()) {
+    if (layer)
+      syncLayerTransforms(layer);
+    else {
+      for (auto &entry : m_instanceCache)
+        syncLayerTransforms(entry.first);
+    }
+    return;
+  }
+
+  if (m_allTransformSyncsDeferred)
+    return;
+
+  if (!layer) {
+    m_allTransformSyncsDeferred = true;
+    m_deferredTransformSyncs.clear();
+    return;
+  }
+
+  // One animated Stage rewrites one node per animated prim, so the same layer
+  // arrives here as many times as it has animated prims.
+  if (std::find(m_deferredTransformSyncs.begin(),
+          m_deferredTransformSyncs.end(),
+          layer)
+      == m_deferredTransformSyncs.end()) {
+    m_deferredTransformSyncs.push_back(layer);
+  }
+}
+
+void RenderIndexAllLayers::flushDeferredUpdates()
+{
+  // A layer removed during the batch took its instances out of the cache with
+  // it, which is what keeps a stale pointer from being traversed here.
+  if (m_allTransformSyncsDeferred) {
+    for (auto &entry : m_instanceCache)
+      syncLayerTransforms(entry.first);
+  } else {
+    for (auto *layer : m_deferredTransformSyncs) {
+      if (m_instanceCache.contains(layer))
+        syncLayerTransforms(layer);
+    }
+  }
+
+  m_allTransformSyncsDeferred = false;
+  m_deferredTransformSyncs.clear();
 }
 
 void RenderIndexAllLayers::syncLayerTransforms(const Layer *layer)
