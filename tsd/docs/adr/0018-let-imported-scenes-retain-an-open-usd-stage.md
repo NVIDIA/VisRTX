@@ -12,3 +12,9 @@ index, serialization records file and prim paths and reconstructs by re-opening
 rather than by copying data, scrubbing performs real work per frame, and stage
 access must be accounted for when a scene is used across threads. Static content
 carries no such dependency.
+
+Amended by
+[ADR 0021](0021-share-one-usd-stage-session-across-import-and-animation.md): the
+retained stage is now a Stage Session shared with the import rather than one the
+binding opens for itself, and the scene index it holds really is retained, which
+the code this ADR described did not do.

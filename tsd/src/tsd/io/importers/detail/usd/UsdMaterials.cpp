@@ -679,9 +679,11 @@ ResolvedMaterial resolveMaterial(ImportContext &ctx,
       pxr::UsdShadeShader shader(descendant);
       if (!shader)
         continue;
+      // Re-authoring an unchanged input at every frame is not a loss, so the
+      // samples are compared rather than merely counted.
       bool animated = false;
       for (const auto &input : shader.GetInputs())
-        animated = animated || input.GetAttr().GetNumTimeSamples() > 0;
+        animated = animated || attributeValueVaries(input.GetAttr());
       if (animated) {
         ctx.reportSkip(materialPath,
             prim.primType.GetString(),

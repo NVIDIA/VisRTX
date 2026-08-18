@@ -99,6 +99,19 @@ bool classifyFileBinding(const animation::FileBinding &binding,
   core::DataTree scratch;
   binding.toDataNode(scratch.root());
 
+  // A binding that drives layer state is classified by its layer nodes, the
+  // same way a transform binding's target is.
+  const auto layerTargets = binding.layerTargets();
+  if (!layerTargets.empty()) {
+    for (const auto &target : layerTargets) {
+      if (containsNode(result.plan.nodes, target))
+        inside = true;
+      else
+        outside = true;
+    }
+    return true;
+  }
+
   if (binding.kind() == "spatialField") {
     return classifyObjectTarget(entries,
         ANARI_VOLUME,

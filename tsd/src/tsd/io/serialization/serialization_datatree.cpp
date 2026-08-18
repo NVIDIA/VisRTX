@@ -9,6 +9,7 @@
 #include "tsd/io/animation/EnSightFileBinding.hpp"
 #include "tsd/io/animation/SpatialFieldFileBinding.hpp"
 #include "tsd/io/animation/UsdGeometryFileBinding.hpp"
+#include "tsd/io/animation/UsdInstancerFileBinding.hpp"
 #include "tsd/io/archives/AnimationManagerArchive.hpp"
 #include "tsd/io/archives/CameraArchive.hpp"
 #include "tsd/io/archives/RendererArchive.hpp"
@@ -211,6 +212,8 @@ void nodeToAnimation(
             std::move(data->fieldMappings));
       } else if (kind == "usdGeometry") {
         UsdGeometryFileBinding::addToAnimation(anim, scene, fbNode);
+      } else if (kind == "usdInstancer") {
+        UsdInstancerFileBinding::addToAnimation(anim, scene, fbNode);
       } else {
         logWarning("[nodeToAnimation] unknown file binding kind '%s'; skipping",
             kind.c_str());

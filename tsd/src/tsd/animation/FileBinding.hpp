@@ -6,8 +6,11 @@
 #include "tsd/animation/Binding.hpp"
 // tsd_core
 #include "tsd/core/DataTree.hpp"
+// tsd_scene
+#include "tsd/scene/LayerNodeData.hpp"
 // std
 #include <string>
+#include <vector>
 
 namespace tsd::animation {
 
@@ -42,6 +45,11 @@ struct FileBinding : public Binding
   // Write binding-specific data to node (called by animationToNode in tsd_io).
   virtual void toDataNode(core::DataNode &node) const = 0;
 
+  // Layer nodes this binding writes to, if any.  Archive planning classifies
+  // these exactly as it classifies a transform binding's target, so a binding
+  // that drives layer state rather than an object needs no per-kind case.
+  virtual std::vector<scene::LayerNodeRef> layerTargets() const;
+
  protected:
   // Register the runtime callback on anim.  Called both on first import and
   // after reconstruction from a legacy application-state DataNode.
@@ -54,5 +62,10 @@ struct FileBinding : public Binding
 // Inlined definitions ////////////////////////////////////////////////////////
 
 inline FileBinding::FileBinding(scene::Scene *scene) : Binding(scene) {}
+
+inline std::vector<scene::LayerNodeRef> FileBinding::layerTargets() const
+{
+  return {};
+}
 
 } // namespace tsd::animation

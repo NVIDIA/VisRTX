@@ -12,21 +12,15 @@
 #include "tsd/io/importers/detail/usd/UsdImportContext.h"
 #include "tsd/io/importers/detail/usd/UsdInstancing.h"
 #include "tsd/io/importers/detail/usd/UsdLights.h"
+#include "tsd/io/usd/UsdStageSession.h"
 // usd
 #include <pxr/imaging/hd/instancedBySchema.h>
 #include <pxr/imaging/hd/purposeSchema.h>
-#include <pxr/imaging/hd/retainedDataSource.h>
 #include <pxr/imaging/hd/tokens.h>
 #include <pxr/imaging/hd/visibilitySchema.h>
-#include <pxr/imaging/hdsi/implicitSurfaceSceneIndex.h>
-#include <pxr/imaging/hdsi/nurbsApproximatingSceneIndex.h>
-#include <pxr/imaging/hdsi/pinnedCurveExpandingSceneIndex.h>
-#include <pxr/imaging/hdsi/tetMeshConversionSceneIndex.h>
 #include <pxr/usd/usdGeom/imageable.h>
 #include <pxr/usd/usdGeom/metrics.h>
 #include <pxr/usd/usdGeom/xformable.h>
-#include <pxr/usdImaging/usdImaging/sceneIndices.h>
-#include <pxr/usdImaging/usdImaging/stageSceneIndex.h>
 #endif
 // std
 #include <string>
@@ -41,39 +35,6 @@ using namespace tsd::core;
 namespace {
 
 using namespace tsd::io::usd;
-
-///////////////////////////////////////////////////////////////////////////////
-// Scene index chain //////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-
-// Everything OpenUSD can resolve for us, resolved before TSD sees it: sphere,
-// cone and cylinder stay analytic for TSD's native quadrics while capsule,
-// cube and plane become meshes; NURBS are approximated; pinned curves are
-// expanded; tetrahedral meshes are converted.
-pxr::HdSceneIndexBaseRefPtr buildFilterChain(pxr::HdSceneIndexBaseRefPtr input)
-{
-  using pxr::HdsiImplicitSurfaceSceneIndexTokens;
-
-  auto implicitArgs =
-      pxr::HdRetainedContainerDataSource::New(pxr::HdPrimTypeTokens->capsule,
-          pxr::HdRetainedTypedSampledDataSource<pxr::TfToken>::New(
-              HdsiImplicitSurfaceSceneIndexTokens->toMesh),
-          pxr::HdPrimTypeTokens->cube,
-          pxr::HdRetainedTypedSampledDataSource<pxr::TfToken>::New(
-              HdsiImplicitSurfaceSceneIndexTokens->toMesh),
-          pxr::HdPrimTypeTokens->plane,
-          pxr::HdRetainedTypedSampledDataSource<pxr::TfToken>::New(
-              HdsiImplicitSurfaceSceneIndexTokens->toMesh));
-  // Cone and cylinder are deliberately left alone: axisToTransform would move
-  // the shape's spine into a transform this importer does not read (local
-  // transforms come from the Stage, not the resolved scene), so the converter
-  // folds the axis into the emitted endpoints instead.
-
-  auto retval = pxr::HdsiImplicitSurfaceSceneIndex::New(input, implicitArgs);
-  auto nurbs = pxr::HdsiNurbsApproximatingSceneIndex::New(retval);
-  auto curves = pxr::HdsiPinnedCurveExpandingSceneIndex::New(nurbs);
-  return pxr::HdsiTetMeshConversionSceneIndex::New(curves);
-}
 
 ///////////////////////////////////////////////////////////////////////////////
 // Traversal //////////////////////////////////////////////////////////////////
@@ -112,6 +73,7 @@ struct Traversal
   ImportContext &ctx;
   pxr::HdSceneIndexBaseRefPtr sceneIndex;
   InstancerRegistry &instancers;
+  const ClaimedPrims *claimed{nullptr};
 
   void visit(const pxr::SdfPath &primPath,
       LayerNodeRef parent,
@@ -154,6 +116,11 @@ void Traversal::visit(const pxr::SdfPath &primPath,
     bool hidden,
     const tsd::math::mat4 &parentXform)
 {
+  // Claimed Prims reach the Scene through the dialect's own importers; the
+  // generic path must not also convert a carrier prim into geometry.
+  if (claimed && claimed->claims(primPath))
+    return;
+
   auto prim = sceneIndex->GetPrim(primPath);
 
   // Prototype content reaches the Scene through its instancer, not here.
@@ -195,10 +162,11 @@ void Traversal::visit(const pxr::SdfPath &primPath,
 
   // Visibility is imported as one static enabled/disabled state, so say when
   // the Stage animates it rather than leaving the difference to be noticed.
+  // Exporters routinely re-author every attribute at every frame, so the
+  // samples are compared: a value that never changes is not a loss.
   if (auto imageable =
           pxr::UsdGeomImageable(ctx.stage->GetPrimAtPath(primPath))) {
-    if (auto attribute = imageable.GetVisibilityAttr();
-        attribute && attribute.GetNumTimeSamples() > 0) {
+    if (attributeValueVaries(imageable.GetVisibilityAttr())) {
       ctx.reportSkip(primPath,
           prim.primType.GetString(),
           UsdSkipReason::TIME_VARYING_VALUE_DROPPED,
@@ -310,34 +278,38 @@ UsdImportReport import_USD(Scene &scene,
 {
   UsdImportReport report;
 
-  auto stage = pxr::UsdStage::Open(filepath, pxr::UsdStage::LoadAll);
-  if (!stage) {
+  // The Session owns the Stage and the chain that resolves it; every animation
+  // binding this import creates joins the same one, so a scrub resolves
+  // through exactly what was converted here. A fully static import lets go of
+  // it on return.
+  auto session = usd::acquireUsdSession(filepath);
+  if (!session) {
     logError("[import_USD] failed to open stage '%s'", filepath);
     return report;
   }
   report.stageOpened = true;
 
-  ImportContext ctx{
-      scene, animMgr, options, report, stage, filepath, pathOf(filepath)};
+  auto stage = session->stage();
+  ImportContext ctx{scene,
+      animMgr,
+      options,
+      report,
+      session,
+      stage,
+      filepath,
+      pathOf(filepath)};
 
   // Values authored only as time samples do not resolve at UsdTimeCode's
   // default, so the import reads at the Stage's own start of time instead.
-  if (stage->HasAuthoredTimeCodeRange())
-    ctx.importTime = pxr::UsdTimeCode(stage->GetStartTimeCode());
+  ctx.importTime = pxr::UsdTimeCode(session->startTimeCode());
+  session->setTime(ctx.importTime);
 
-  // Dialect pre-pass: markers on the raw Stage claim whole subtrees, which are
-  // pruned from the resolved scene so the generic path never converts a
-  // carrier prim into meaningless geometry.
+  // Dialect pre-pass: markers on the raw Stage claim whole subtrees, which the
+  // traversal skips so the generic path never converts a carrier prim into
+  // meaningless geometry.
   auto claimed = claimDialectPrims(ctx);
 
-  pxr::UsdImagingCreateSceneIndicesInfo createInfo;
-  createInfo.stage = stage;
-  createInfo.addDrawModeSceneIndex = false;
-  auto sceneIndices = pxr::UsdImagingCreateSceneIndices(createInfo);
-  sceneIndices.stageSceneIndex->SetTime(ctx.importTime);
-
-  auto sceneIndex = buildFilterChain(
-      pruneClaimedPrims(sceneIndices.finalSceneIndex, claimed));
+  auto sceneIndex = session->sceneIndex();
 
   auto root = scene.insertChildNode(
       location ? location : scene.defaultLayer()->root(), filepath);
@@ -355,7 +327,7 @@ UsdImportReport import_USD(Scene &scene,
       : pxr::SdfPath(options.primPath);
 
   InstancerRegistry instancers;
-  Traversal traversal{ctx, sceneIndex, instancers};
+  Traversal traversal{ctx, sceneIndex, instancers, claimed.get()};
 
   scene.beginLayerEditBatch();
   if (scopeRoot == pxr::SdfPath::AbsoluteRootPath()) {

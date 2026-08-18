@@ -76,15 +76,21 @@ void AnimationManager::setAnimationTimeInternal(
   if (resetPlaybackAccumulator)
     m_playbackAccumulator = 0.f;
 
+  // One time change is one update: a Stage with several animated instancers
+  // rewrites one transform Array per instancer, and without this each rewrite
+  // would cost a full world rebuild.
+  m_scene->beginUpdateBatch();
   m_applyingAnimations = true;
   try {
     for (auto &anim : m_animations)
       anim.setAnimationTime(time);
   } catch (...) {
     m_applyingAnimations = false;
+    m_scene->endUpdateBatch();
     throw;
   }
   m_applyingAnimations = false;
+  m_scene->endUpdateBatch();
 
   if (m_timeChangedCallback)
     m_timeChangedCallback(time);

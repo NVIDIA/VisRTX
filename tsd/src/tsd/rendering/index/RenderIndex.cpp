@@ -108,7 +108,7 @@ void RenderIndex::populate()
   createANARICacheObjects(db.camera, m_cache.camera);
   createANARICacheObjects(db.renderer, m_cache.renderer);
 
-  updateWorld();
+  requestWorldUpdate();
 }
 
 void RenderIndex::setFilterFunction(RenderIndexFilterFcn f)
@@ -121,7 +121,7 @@ void RenderIndex::setExternalInstances(
 {
   m_externalInstances.resize(count);
   std::copy(instances, instances + count, m_externalInstances.data());
-  updateWorld();
+  requestWorldUpdate();
 }
 
 void RenderIndex::signalObjectAdded(const Object *obj)
@@ -205,7 +205,7 @@ void RenderIndex::signalObjectFilteringChanged()
 void RenderIndex::signalObjectRemoved(const Object *o)
 {
   m_cache.removeHandle(o);
-  updateWorld();
+  requestWorldUpdate();
 }
 
 void RenderIndex::signalRemoveAllObjects()
@@ -221,7 +221,30 @@ void RenderIndex::signalInvalidateCachedObjects()
 {
   signalRemoveAllObjects();
   populate();
+  requestWorldUpdate();
+}
+
+void RenderIndex::signalUpdateBatchBegin()
+{
+  m_updateBatchDepth++;
+}
+
+void RenderIndex::signalUpdateBatchEnd()
+{
+  if (m_updateBatchDepth > 0)
+    m_updateBatchDepth--;
+  if (m_updateBatchDepth > 0 || !m_worldUpdateDeferred)
+    return;
+  m_worldUpdateDeferred = false;
   updateWorld();
+}
+
+void RenderIndex::requestWorldUpdate()
+{
+  if (m_updateBatchDepth > 0)
+    m_worldUpdateDeferred = true;
+  else
+    updateWorld();
 }
 
 } // namespace tsd::rendering

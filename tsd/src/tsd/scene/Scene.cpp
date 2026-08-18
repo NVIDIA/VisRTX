@@ -946,6 +946,16 @@ void Scene::endLayerEditBatch()
   bl.clear();
 }
 
+void Scene::beginUpdateBatch()
+{
+  m_updateDelegate.signalUpdateBatchBegin();
+}
+
+void Scene::endUpdateBatch()
+{
+  m_updateDelegate.signalUpdateBatchEnd();
+}
+
 void Scene::signalLayerStructureChanged(const Layer *l)
 {
   if (m_inLayerBatch)

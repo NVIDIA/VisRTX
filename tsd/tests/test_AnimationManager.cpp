@@ -8,9 +8,84 @@
 #include "tsd/core/DataTree.hpp"
 #include "tsd/io/serialization/serialization_internal.hpp"
 #include "tsd/scene/Scene.hpp"
+#include "tsd/scene/UpdateDelegate.hpp"
+#include "tsd/scene/objects/Array.hpp"
+// std
+#include <vector>
 
 using tsd::animation::AnimationManager;
 using tsd::scene::Scene;
+
+namespace {
+
+// Records the batch bracket and the array unmaps inside it, which is the
+// signal a render index coalesces its world rebuilds on.
+struct BatchRecordingDelegate : public tsd::scene::EmptyUpdateDelegate
+{
+  void signalUpdateBatchBegin() override
+  {
+    depth++;
+    begins++;
+  }
+
+  void signalUpdateBatchEnd() override
+  {
+    depth--;
+    ends++;
+  }
+
+  void signalArrayUnmapped(const tsd::scene::Array *) override
+  {
+    unmapsInsideBatch += depth > 0 ? 1 : 0;
+    unmapsOutsideBatch += depth > 0 ? 0 : 1;
+  }
+
+  int depth{0};
+  int begins{0};
+  int ends{0};
+  int unmapsInsideBatch{0};
+  int unmapsOutsideBatch{0};
+};
+
+} // namespace
+
+SCENARIO("A time change is one update batch", "[AnimationManager]")
+{
+  GIVEN("Several bindings that each rewrite an Array")
+  {
+    Scene scene;
+    AnimationManager mgr(&scene);
+
+    auto *recorder =
+        scene.updateDelegate().emplace<BatchRecordingDelegate>();
+
+    std::vector<tsd::scene::ArrayRef> arrays;
+    for (int i = 0; i < 3; ++i) {
+      auto &anim = mgr.addAnimation("rewriter" + std::to_string(i));
+      auto array = scene.createArray(ANARI_FLOAT32_MAT4, 1);
+      arrays.push_back(array);
+      anim.addCallbackBinding([array](float t) mutable {
+        const auto m = tsd::math::IDENTITY_MAT4;
+        array->setData(&m, 1);
+      });
+    }
+
+    WHEN("The animation time changes once")
+    {
+      const int unmapsBefore = recorder->unmapsOutsideBatch;
+      mgr.setAnimationTime(0.5f);
+
+      THEN("Every rewrite lands inside exactly one balanced batch")
+      {
+        REQUIRE(recorder->begins == 1);
+        REQUIRE(recorder->ends == 1);
+        REQUIRE(recorder->depth == 0);
+        REQUIRE(recorder->unmapsInsideBatch == 3);
+        REQUIRE(recorder->unmapsOutsideBatch == unmapsBefore);
+      }
+    }
+  }
+}
 
 SCENARIO("tsd::animation::AnimationManager playback", "[AnimationManager]")
 {

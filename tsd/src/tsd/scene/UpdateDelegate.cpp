@@ -150,4 +150,16 @@ void MultiUpdateDelegate::signalInvalidateCachedObjects()
     d->signalInvalidateCachedObjects();
 }
 
+void MultiUpdateDelegate::signalUpdateBatchBegin()
+{
+  for (auto &d : m_delegates)
+    d->signalUpdateBatchBegin();
+}
+
+void MultiUpdateDelegate::signalUpdateBatchEnd()
+{
+  for (auto &d : m_delegates)
+    d->signalUpdateBatchEnd();
+}
+
 } // namespace tsd::scene

@@ -139,6 +139,19 @@ struct UsdImportReport
   size_t convertedPrims{0};
   std::vector<UsdSkippedPrim> skipped;
 
+  // How many prims got an animation binding, in place of the per-prim list an
+  // Import used to leave behind when every animated prim got its own
+  // Animation.
+  size_t animatedPrims{0};
+
+  // What the Stage's own clock says, for the application to fold into the one
+  // playback clock every animation shares. Reported, never applied: an Import
+  // does not reach into global playback state. `sampleCount` is the largest
+  // number of authored time samples any bound attribute carries -- zero when
+  // the Import found no animation.
+  size_t sampleCount{0};
+  float timeCodesPerSecond{0.f};
+
   size_t countOf(UsdSkipReason reason) const;
   bool contains(UsdSkipReason reason) const;
   std::string summary() const;

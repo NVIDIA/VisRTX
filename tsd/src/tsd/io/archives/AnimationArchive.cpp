@@ -161,6 +161,19 @@ bool validateFileBinding(
     }
     return true;
   }
+  if (kind == "usdInstancer") {
+    if (binding.child("layerName") == nullptr
+        || binding.child("nodeIndex") == nullptr) {
+      return fail(message,
+          "USD instancer binding requires a transform-array layer node");
+    }
+    if (binding.child("stageFile") == nullptr
+        || binding.child("primPath") == nullptr) {
+      return fail(
+          message, "USD instancer binding requires a stage file and prim path");
+    }
+    return true;
+  }
   if (kind == "ensight") {
     auto *parts = binding.child("parts");
     if (!parts || parts->numChildren() == 0)

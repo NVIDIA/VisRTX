@@ -14,7 +14,6 @@
 #include <pxr/base/vt/dictionary.h>
 #include <pxr/imaging/hd/retainedDataSource.h>
 #include <pxr/imaging/hd/tokens.h>
-#include <pxr/imaging/hdsi/prefixPathPruningSceneIndex.h>
 #include <pxr/usd/sdf/assetPath.h>
 #include <pxr/usd/usd/collectionAPI.h>
 #include <pxr/usd/usd/primRange.h>
@@ -337,22 +336,13 @@ std::shared_ptr<ClaimedPrims> claimDialectPrims(ImportContext &ctx)
   return retval;
 }
 
-pxr::HdSceneIndexBaseRefPtr pruneClaimedPrims(
-    const pxr::HdSceneIndexBaseRefPtr &sceneIndex,
-    const std::shared_ptr<ClaimedPrims> &claimed)
+bool ClaimedPrims::claims(const pxr::SdfPath &path) const
 {
-  if (!claimed || claimed->entries.empty())
-    return sceneIndex;
-
-  pxr::SdfPathVector prefixes;
-  for (const auto &entry : claimed->entries)
-    prefixes.push_back(entry.path);
-
-  auto inputArgs = pxr::HdRetainedContainerDataSource::New(
-      pxr::HdsiPrefixPathPruningSceneIndexTokens->excludePathPrefixes,
-      pxr::HdRetainedTypedSampledDataSource<pxr::SdfPathVector>::New(prefixes));
-
-  return pxr::HdsiPrefixPathPruningSceneIndex::New(sceneIndex, inputArgs);
+  for (const auto &entry : entries) {
+    if (path == entry.path || path.HasPrefix(entry.path))
+      return true;
+  }
+  return false;
 }
 
 void importDialectPrims(ImportContext &ctx,

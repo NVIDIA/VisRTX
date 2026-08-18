@@ -4,8 +4,10 @@
 #include "tsd/io/importers/detail/usd/UsdAnimation.h"
 #include "tsd/animation/AnimationManager.hpp"
 #include "tsd/io/animation/UsdGeometryFileBinding.hpp"
+#include "tsd/io/animation/UsdInstancerFileBinding.hpp"
 // usd
 #include <pxr/usd/usdGeom/pointBased.h>
+#include <pxr/usd/usdGeom/pointInstancer.h>
 #include <pxr/usd/usdGeom/xformable.h>
 // std
 #include <algorithm>
@@ -141,9 +143,53 @@ void addTransformAnimation(
     frames.push_back(next);
   }
 
-  auto &animation = ctx.animMgr.addAnimation(primPath.GetName());
-  addTransformStepBinding(
-      animation, node, frames, normalizeSampleTimes(ctx.stage, times));
+  addTransformStepBinding(ctx.animation(),
+      node,
+      frames,
+      normalizeSampleTimes(ctx.stage, times));
+  ctx.reportSampleCount(authoredTimes.size());
+}
+
+size_t pointInstancerSampleCount(
+    ImportContext &ctx, const pxr::SdfPath &primPath)
+{
+  pxr::UsdGeomPointInstancer instancer(ctx.stage->GetPrimAtPath(primPath));
+  if (!instancer)
+    return 0;
+
+  // Every attribute that can move a placement, including the two velocity
+  // attributes Hydra folds into the instance transforms it computes.
+  const pxr::UsdAttribute attributes[] = {instancer.GetPositionsAttr(),
+      instancer.GetOrientationsAttr(),
+      instancer.GetScalesAttr(),
+      instancer.GetVelocitiesAttr(),
+      instancer.GetAngularVelocitiesAttr(),
+      instancer.GetProtoIndicesAttr(),
+      instancer.GetInvisibleIdsAttr()};
+
+  size_t retval = 0;
+  for (const auto &attribute : attributes) {
+    if (attribute)
+      retval = std::max(retval, size_t(attribute.GetNumTimeSamples()));
+  }
+  return retval;
+}
+
+void addInstancerAnimation(ImportContext &ctx,
+    const pxr::SdfPath &primPath,
+    size_t prototypeIndex,
+    LayerNodeRef arrayNode,
+    ArrayRef transforms,
+    size_t sampleCount)
+{
+  ctx.animation().emplaceFileBinding<UsdInstancerFileBinding>(&ctx.scene,
+      ctx.session,
+      arrayNode,
+      transforms,
+      ctx.filePath,
+      primPath.GetString(),
+      prototypeIndex);
+  ctx.reportSampleCount(sampleCount);
 }
 
 void addDeformingGeometryAnimation(
@@ -163,15 +209,13 @@ void addDeformingGeometryAnimation(
     return;
 
   // One eager frame is already in the Scene; the rest is pulled from the
-  // retained Stage on demand (ADR 0018).
-  auto timeBase = normalizeSampleTimes(ctx.stage, sampleTimes);
-  auto &animation = ctx.animMgr.addAnimation(primPath.GetName());
-  animation.emplaceFileBinding<UsdGeometryFileBinding>(&ctx.scene,
+  // shared Stage Session on demand (ADR 0018).
+  ctx.animation().emplaceFileBinding<UsdGeometryFileBinding>(&ctx.scene,
       geometry.data(),
+      ctx.session,
       ctx.filePath,
-      primPath.GetString(),
-      std::move(sampleTimes),
-      std::move(timeBase));
+      primPath.GetString());
+  ctx.reportSampleCount(sampleTimes.size());
 }
 
 } // namespace tsd::io::usd

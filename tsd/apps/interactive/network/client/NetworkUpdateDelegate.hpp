@@ -42,6 +42,8 @@ struct NetworkUpdateDelegate : public tsd::scene::BaseUpdateDelegate
   void signalActiveLayersChanged() override;
   void signalObjectFilteringChanged() override;
   void signalInvalidateCachedObjects() override;
+  void signalUpdateBatchBegin() override;
+  void signalUpdateBatchEnd() override;
 
  private:
   bool isReady(const char *fcn) const;

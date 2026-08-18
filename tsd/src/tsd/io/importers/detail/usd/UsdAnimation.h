@@ -4,6 +4,7 @@
 #pragma once
 
 #include "tsd/io/importers/detail/usd/UsdImportContext.h"
+#include "tsd/scene/objects/Array.hpp"
 // std
 #include <vector>
 
@@ -20,6 +21,24 @@ std::vector<float> normalizeSampleTimes(
 // intervals whose rotation a two-key spherical interpolation would collapse.
 void addTransformAnimation(
     ImportContext &ctx, const pxr::SdfPath &primPath, LayerNodeRef node);
+
+// How many time samples the placements of a point instancer are authored
+// with, taken across every attribute that moves them. Zero or one means the
+// instancer does not animate.
+size_t pointInstancerSampleCount(
+    ImportContext &ctx, const pxr::SdfPath &primPath);
+
+// Bind one Prototype's transform Array to the Stage Session, so that scrubbing
+// re-fills the matrices the Import just wrote rather than re-running
+// conversion. `arrayNode` is the transform-array node holding `transforms`,
+// which the binding needs in order to re-point the node if the placement count
+// changes mid-sequence.
+void addInstancerAnimation(ImportContext &ctx,
+    const pxr::SdfPath &primPath,
+    size_t prototypeIndex,
+    LayerNodeRef arrayNode,
+    ArrayRef transforms,
+    size_t sampleCount);
 
 // Bind a geometry's vertex arrays to the retained Stage so that a long
 // animation of a dense mesh is pulled on demand instead of held in memory

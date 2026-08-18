@@ -211,6 +211,12 @@ struct Scene
   void beginLayerEditBatch(); // structural layer changes are batched
   void endLayerEditBatch(); // stop batching + flush all layer update signals
 
+  // Bracket a run of mutations that should cost delegates at most one rebuild.
+  // Unlike the layer-edit batch, every signal is still delivered as it
+  // happens; what is coalesced is the work a delegate does in response. Nests.
+  void beginUpdateBatch();
+  void endUpdateBatch();
+
   void signalLayerStructureChanged(const Layer *l);
   void signalLayerTransformChanged(const Layer *l);
   void signalActiveLayersChanged();

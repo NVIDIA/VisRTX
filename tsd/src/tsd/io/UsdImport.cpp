@@ -124,6 +124,12 @@ std::string UsdImportReport::summary() const
   std::string retval = std::to_string(convertedPrims) + " prims converted, "
       + std::to_string(skipped.size()) + " skipped";
 
+  if (animatedPrims > 0) {
+    retval += ", " + std::to_string(animatedPrims) + " animated prims bound ("
+        + std::to_string(sampleCount) + " samples @ "
+        + std::to_string(int(timeCodesPerSecond)) + " fps)";
+  }
+
   // Counts by reason, in enum order, omitting reasons that did not occur.
   bool first = true;
   for (int i = 0; i < int(UsdSkipReason::COUNT); ++i) {

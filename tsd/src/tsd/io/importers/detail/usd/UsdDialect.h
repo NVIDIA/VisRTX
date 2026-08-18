@@ -36,15 +36,16 @@ struct ClaimedPrims
 
   std::vector<Entry> entries;
   core::DataTree renderSettings;
+
+  // Whether `path` is a Claimed Prim or lives beneath one. Traversal asks this
+  // rather than the resolved scene being pruned, so that the Stage Session --
+  // which is shared with every other Import of this file -- stays free of any
+  // one Import's dialect handling.
+  bool claims(const pxr::SdfPath &path) const;
 };
 
 // Scan the raw Stage for dialect markers.
 std::shared_ptr<ClaimedPrims> claimDialectPrims(ImportContext &ctx);
-
-// Remove every Claimed Prim subtree from the resolved scene.
-pxr::HdSceneIndexBaseRefPtr pruneClaimedPrims(
-    const pxr::HdSceneIndexBaseRefPtr &sceneIndex,
-    const std::shared_ptr<ClaimedPrims> &claimed);
 
 // Route Claimed Prims to the dialect's own importers.
 void importDialectPrims(ImportContext &ctx,

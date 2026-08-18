@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/io/importers/detail/usd/UsdInstancing.h"
+#include "tsd/io/importers/detail/usd/UsdAnimation.h"
 #include "tsd/io/importers/detail/usd/UsdGeometry.h"
 // usd
 #include <pxr/base/gf/quatf.h>
@@ -209,17 +210,34 @@ std::vector<tsd::math::mat4> readInstanceTransforms(
   return retval;
 }
 
-struct InstancerTopology
-{
-  pxr::VtArray<pxr::SdfPath> prototypes;
-  pxr::VtArray<pxr::SdfPath> instanceLocations;
-  std::vector<pxr::VtIntArray> instanceIndices;
-  pxr::VtBoolArray mask;
-};
+} // namespace
 
-InstancerTopology readTopology(const pxr::HdSceneIndexPrim &prim)
+bool InstancerPlacements::isVisible(int instanceId) const
 {
-  InstancerTopology retval;
+  if (mask.empty())
+    return true;
+  return size_t(instanceId) >= mask.size() || mask[size_t(instanceId)];
+}
+
+std::vector<tsd::math::mat4> InstancerPlacements::forPrototype(
+    size_t prototypeIndex) const
+{
+  std::vector<tsd::math::mat4> retval;
+  if (prototypeIndex >= instanceIndices.size())
+    return retval;
+
+  for (int index : instanceIndices[prototypeIndex]) {
+    if (!isVisible(index))
+      continue;
+    if (size_t(index) < transforms.size())
+      retval.push_back(transforms[size_t(index)]);
+  }
+  return retval;
+}
+
+InstancerPlacements readInstancerPlacements(const pxr::HdSceneIndexPrim &prim)
+{
+  InstancerPlacements retval;
   auto schema = pxr::HdInstancerTopologySchema::GetFromParent(prim.dataSource);
   if (!schema)
     return retval;
@@ -237,17 +255,16 @@ InstancerTopology readTopology(const pxr::HdSceneIndexPrim &prim)
     retval.instanceIndices.push_back(
         element ? element->GetTypedValue(0) : pxr::VtIntArray());
   }
+
+  size_t instanceCount = 0;
+  for (const auto &element : retval.instanceIndices) {
+    for (int i : element)
+      instanceCount = std::max(instanceCount, size_t(i) + 1);
+  }
+  retval.transforms = readInstanceTransforms(prim, instanceCount);
+
   return retval;
 }
-
-bool instanceIsVisible(const InstancerTopology &topology, int index)
-{
-  if (topology.mask.empty())
-    return true;
-  return size_t(index) >= topology.mask.size() || topology.mask[size_t(index)];
-}
-
-} // namespace
 
 void convertInstancer(ImportContext &ctx,
     const pxr::HdSceneIndexBaseRefPtr &sceneIndex,
@@ -256,41 +273,23 @@ void convertInstancer(ImportContext &ctx,
     LayerNodeRef node,
     InstancerRegistry &registry)
 {
-  const auto topology = readTopology(prim);
-  if (topology.prototypes.empty())
+  const auto placementsOfPrim = readInstancerPlacements(prim);
+  if (placementsOfPrim.prototypes.empty())
     return;
 
   // Native instancing is resolved against each USD Instance's own node after
   // the hierarchy has been mirrored.
-  if (!topology.instanceLocations.empty())
+  if (!placementsOfPrim.instanceLocations.empty())
     return;
 
-  const auto transforms = readInstanceTransforms(prim, [&] {
-    size_t count = 0;
-    for (const auto &indices : topology.instanceIndices) {
-      for (int i : indices)
-        count = std::max(count, size_t(i) + 1);
-    }
-    return count;
-  }());
+  const auto animatedSamples = pointInstancerSampleCount(ctx, primPath);
 
-  for (size_t protoIndex = 0; protoIndex < topology.prototypes.size();
+  for (size_t protoIndex = 0; protoIndex < placementsOfPrim.prototypes.size();
        ++protoIndex) {
     auto content = convertPrototype(
-        ctx, sceneIndex, topology.prototypes[protoIndex], registry);
+        ctx, sceneIndex, placementsOfPrim.prototypes[protoIndex], registry);
 
-    const auto &indices = protoIndex < topology.instanceIndices.size()
-        ? topology.instanceIndices[protoIndex]
-        : pxr::VtIntArray();
-
-    // Placements USD marks invisible are omitted rather than emitted hidden.
-    std::vector<tsd::math::mat4> placements;
-    for (int index : indices) {
-      if (!instanceIsVisible(topology, index))
-        continue;
-      if (size_t(index) < transforms.size())
-        placements.push_back(transforms[size_t(index)]);
-    }
+    const auto placements = placementsOfPrim.forPrototype(protoIndex);
     if (placements.empty())
       continue;
 
@@ -301,7 +300,7 @@ void convertInstancer(ImportContext &ctx,
             (primPath.GetName() + "_" + std::to_string(i)).c_str());
         expandPrototype(ctx,
             sceneIndex,
-            topology.prototypes[protoIndex],
+            placementsOfPrim.prototypes[protoIndex],
             *content,
             placementNode);
       }
@@ -322,6 +321,14 @@ void convertInstancer(ImportContext &ctx,
     for (auto &surface : content->surfaces)
       ctx.scene.insertChildObjectNode(
           arrayNode, surface, surface->name().c_str());
+
+    // The Array this Prototype's placements just went into is the Array the
+    // binding re-fills; handing it over here is what keeps a scrub from having
+    // to find it again by name.
+    if (animatedSamples > 1) {
+      addInstancerAnimation(
+          ctx, primPath, protoIndex, arrayNode, transformArray, animatedSamples);
+    }
   }
 }
 
@@ -340,33 +347,33 @@ void attachNativeInstances(ImportContext &ctx,
     if (prim.primType != pxr::HdPrimTypeTokens->instancer)
       continue;
 
-    const auto topology = readTopology(prim);
-    if (topology.prototypes.empty() || topology.instanceLocations.empty())
+    const auto placements = readInstancerPlacements(prim);
+    if (placements.prototypes.empty() || placements.instanceLocations.empty())
       continue;
 
     auto content =
-        convertPrototype(ctx, sceneIndex, topology.prototypes[0], registry);
+        convertPrototype(ctx, sceneIndex, placements.prototypes[0], registry);
 
-    const auto &indices = topology.instanceIndices.empty()
+    const auto &indices = placements.instanceIndices.empty()
         ? pxr::VtIntArray()
-        : topology.instanceIndices[0];
+        : placements.instanceIndices[0];
 
-    for (size_t i = 0; i < topology.instanceLocations.size(); ++i) {
+    for (size_t i = 0; i < placements.instanceLocations.size(); ++i) {
       const int index = size_t(i) < indices.size() ? indices[i] : int(i);
-      if (!instanceIsVisible(topology, index))
+      if (!placements.isVisible(index))
         continue;
 
       // Each USD Instance becomes one node referencing the same shared
       // objects, so editing the Prototype's material affects every placement
       // as it does in USD.
-      const auto locationKey = topology.instanceLocations[i].GetString();
+      const auto locationKey = placements.instanceLocations[i].GetString();
       auto found = registry.nodeForPrimPath.find(locationKey);
       auto placementNode =
           found != registry.nodeForPrimPath.end() ? found->second : importRoot;
 
       if (content->internalTransformsAnimated) {
         expandPrototype(
-            ctx, sceneIndex, topology.prototypes[0], *content, placementNode);
+            ctx, sceneIndex, placements.prototypes[0], *content, placementNode);
       } else {
         for (auto &surface : content->surfaces) {
           ctx.scene.insertChildObjectNode(

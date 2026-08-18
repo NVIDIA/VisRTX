@@ -76,6 +76,7 @@ SCENARIO("Import report counts skipped prims by reason", "[UsdImport]")
 #if TSD_USE_USD
 
 #include "tsd/animation/AnimationManager.hpp"
+#include "tsd/io/animation/UsdGeometryFileBinding.hpp"
 #include "tsd/io/archives/AnimationManagerArchive.hpp"
 #include "tsd/io/importers.hpp"
 #include "tsd/scene/Scene.hpp"
@@ -2541,5 +2542,391 @@ def Xform "World"
   }
 }
 
-#endif // TSD_USE_USD
+// Animated USD ///////////////////////////////////////////////////////////////
 
+namespace {
+
+// The transform Array of the first transform-array node beneath `name`.
+tsd::scene::Array *findTransformArray(
+    tsd::scene::Layer *layer, const char *name)
+{
+  auto parent = findNode(layer, name);
+  if (!parent)
+    return nullptr;
+  tsd::scene::Array *found = nullptr;
+  layer->traverse(parent, [&](auto &node, int) {
+    if (!found && node->type() == ANARI_ARRAY1D)
+      found = node->getTransformArray();
+    return true;
+  });
+  return found;
+}
+
+} // namespace
+
+SCENARIO("A point instancer's placements follow the Stage clock", "[UsdImport]")
+{
+  GIVEN("A PointInstancer whose positions and scales are time-sampled")
+  {
+    StageFixture stage("tsd_test_usd_animated_instancer.usda", R"(#usda 1.0
+(
+    startTimeCode = 0
+    endTimeCode = 2
+)
+
+def PointInstancer "Swarm"
+{
+    point3f[] positions.timeSamples = {
+        0: [(0, 0, 0), (1, 0, 0), (2, 0, 0)],
+        2: [(0, 0, 0), (10, 0, 0), (20, 0, 0)],
+    }
+    float3[] scales.timeSamples = {
+        0: [(1, 1, 1), (1, 1, 1), (1, 1, 1)],
+        2: [(2, 2, 2), (2, 2, 2), (2, 2, 2)],
+    }
+    int[] protoIndices = [0, 0, 0]
+    rel prototypes = [</Swarm/Proto>]
+
+    def Mesh "Proto"
+    {
+        int[] faceVertexCounts = [3]
+        int[] faceVertexIndices = [0, 1, 2]
+        point3f[] points = [(0, 0, 0), (1, 0, 0), (0, 1, 0)]
+    }
+}
+)");
+
+    tsd::scene::Scene scene;
+    tsd::animation::AnimationManager animMgr(&scene);
+
+    WHEN("The Stage is imported")
+    {
+      auto report = tsd::io::import_USD(scene, animMgr, stage.path().c_str());
+
+      THEN("One Animation holds the instancer's binding")
+      {
+        REQUIRE(animMgr.animations().size() == 1);
+        REQUIRE(animMgr.animations()[0].fileBindings().size() == 1);
+        REQUIRE(animMgr.animations()[0].fileBindings()[0]->kind()
+            == "usdInstancer");
+      }
+
+      THEN("The Stage's frame range and rate are reported, not applied")
+      {
+        REQUIRE(report.animatedPrims == 1);
+        REQUIRE(report.sampleCount == 2);
+        REQUIRE(report.timeCodesPerSecond == Approx(24.f));
+        REQUIRE(animMgr.getAnimationTotalFrames() == 100); // untouched
+      }
+
+      THEN("The imported placements are the Stage's first frame")
+      {
+        auto *transforms = findTransformArray(scene.defaultLayer(), "Swarm");
+        REQUIRE(transforms != nullptr);
+        REQUIRE(transforms->size() == 3);
+        const auto *m = transforms->dataAs<tsd::math::mat4>();
+        REQUIRE(m[2][3].x == Approx(2.f));
+        REQUIRE(m[2][0].x == Approx(1.f));
+      }
+
+      THEN("Scrubbing re-fills the same Array in place")
+      {
+        auto *before = findTransformArray(scene.defaultLayer(), "Swarm");
+        REQUIRE(before != nullptr);
+
+        animMgr.setAnimationTime(1.0f);
+
+        auto *after = findTransformArray(scene.defaultLayer(), "Swarm");
+        REQUIRE(after == before); // no reallocation on a constant count
+        const auto *m = after->dataAs<tsd::math::mat4>();
+        REQUIRE(m[2][3].x == Approx(20.f));
+        REQUIRE(m[2][0].x == Approx(2.f));
+      }
+
+      THEN("A time between authored samples is interpolated, not snapped")
+      {
+        animMgr.setAnimationTime(0.5f);
+
+        auto *transforms = findTransformArray(scene.defaultLayer(), "Swarm");
+        REQUIRE(transforms != nullptr);
+        const auto *m = transforms->dataAs<tsd::math::mat4>();
+        REQUIRE(m[2][3].x == Approx(11.f));
+      }
+    }
+  }
+}
+
+SCENARIO("An instancer whose placement count changes reallocates",
+    "[UsdImport]")
+{
+  GIVEN("A PointInstancer that gains a placement mid-sequence")
+  {
+    StageFixture stage("tsd_test_usd_growing_instancer.usda", R"(#usda 1.0
+(
+    startTimeCode = 0
+    endTimeCode = 2
+)
+
+def PointInstancer "Growing"
+{
+    point3f[] positions.timeSamples = {
+        0: [(0, 0, 0), (1, 0, 0)],
+        2: [(0, 0, 0), (1, 0, 0), (2, 0, 0)],
+    }
+    int[] protoIndices.timeSamples = {
+        0: [0, 0],
+        2: [0, 0, 0],
+    }
+    rel prototypes = [</Growing/Proto>]
+
+    def Mesh "Proto"
+    {
+        int[] faceVertexCounts = [3]
+        int[] faceVertexIndices = [0, 1, 2]
+        point3f[] points = [(0, 0, 0), (1, 0, 0), (0, 1, 0)]
+    }
+}
+)");
+
+    tsd::scene::Scene scene;
+    tsd::animation::AnimationManager animMgr(&scene);
+
+    WHEN("The Stage is imported and scrubbed past the change")
+    {
+      tsd::io::import_USD(scene, animMgr, stage.path().c_str());
+
+      auto *before = findTransformArray(scene.defaultLayer(), "Growing");
+      REQUIRE(before != nullptr);
+      REQUIRE(before->size() == 2);
+
+      animMgr.setAnimationTime(1.0f);
+
+      THEN("The node is re-pointed at a right-sized Array")
+      {
+        auto *after = findTransformArray(scene.defaultLayer(), "Growing");
+        REQUIRE(after != nullptr);
+        REQUIRE(after->size() == 3);
+        REQUIRE(after->dataAs<tsd::math::mat4>()[2][3].x == Approx(2.f));
+      }
+    }
+  }
+}
+
+SCENARIO("Constant-valued time samples are not reported as a loss",
+    "[UsdImport]")
+{
+  GIVEN("A mesh whose visibility is authored at every frame but never changes")
+  {
+    // What a simulation exporter writes: every attribute re-authored at every
+    // frame regardless of whether it moved.
+    StageFixture stage("tsd_test_usd_constant_visibility.usda", R"(#usda 1.0
+(
+    startTimeCode = 0
+    endTimeCode = 2
+)
+
+def Mesh "Steady"
+{
+    token visibility.timeSamples = {
+        0: "inherited",
+        1: "inherited",
+        2: "inherited",
+    }
+    int[] faceVertexCounts = [3]
+    int[] faceVertexIndices = [0, 1, 2]
+    point3f[] points = [(0, 0, 0), (1, 0, 0), (0, 1, 0)]
+}
+)");
+
+    tsd::scene::Scene scene;
+    tsd::animation::AnimationManager animMgr(&scene);
+
+    WHEN("The Stage is imported")
+    {
+      auto report = tsd::io::import_USD(scene, animMgr, stage.path().c_str());
+
+      THEN("Nothing is reported as dropped")
+      {
+        REQUIRE(
+            report.countOf(tsd::io::UsdSkipReason::TIME_VARYING_VALUE_DROPPED)
+            == 0);
+      }
+    }
+  }
+}
+
+SCENARIO("One import is one Animation", "[UsdImport]")
+{
+  GIVEN("A Stage animating two prims that share a leaf name")
+  {
+    StageFixture stage("tsd_test_usd_one_animation.usda", R"(#usda 1.0
+(
+    startTimeCode = 0
+    endTimeCode = 2
+)
+
+def Xform "A"
+{
+    def Xform "Mover"
+    {
+        double3 xformOp:translate.timeSamples = {
+            0: (0, 0, 0),
+            2: (2, 0, 0),
+        }
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+    }
+}
+
+def Xform "B"
+{
+    def Xform "Mover"
+    {
+        double3 xformOp:translate.timeSamples = {
+            0: (0, 0, 0),
+            2: (0, 5, 0),
+        }
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+    }
+}
+)");
+
+    tsd::scene::Scene scene;
+    tsd::animation::AnimationManager animMgr(&scene);
+
+    WHEN("The Stage is imported")
+    {
+      auto report = tsd::io::import_USD(scene, animMgr, stage.path().c_str());
+
+      THEN("Both prims land in one Animation named for the file")
+      {
+        REQUIRE(animMgr.animations().size() == 1);
+        REQUIRE(animMgr.animations()[0].name() == stage.path());
+        REQUIRE(animMgr.animations()[0].transformBindings().size() == 2);
+      }
+
+      THEN("The Report counts them in place of the lost per-prim entries")
+      {
+        REQUIRE(report.animatedPrims == 2);
+      }
+    }
+  }
+}
+
+SCENARIO("Instancer bindings survive save and reload", "[UsdImport]")
+{
+  GIVEN("An imported Stage with an animated PointInstancer")
+  {
+    StageFixture stage("tsd_test_usd_instancer_archive.usda", R"(#usda 1.0
+(
+    startTimeCode = 0
+    endTimeCode = 2
+)
+
+def PointInstancer "Swarm"
+{
+    point3f[] positions.timeSamples = {
+        0: [(0, 0, 0), (1, 0, 0)],
+        2: [(0, 0, 0), (9, 0, 0)],
+    }
+    int[] protoIndices = [0, 0]
+    rel prototypes = [</Swarm/Proto>]
+
+    def Mesh "Proto"
+    {
+        int[] faceVertexCounts = [3]
+        int[] faceVertexIndices = [0, 1, 2]
+        point3f[] points = [(0, 0, 0), (1, 0, 0), (0, 1, 0)]
+    }
+}
+)");
+
+    tsd::scene::Scene scene;
+    tsd::animation::AnimationManager animMgr(&scene);
+    tsd::io::import_USD(scene, animMgr, stage.path().c_str());
+
+    WHEN("The animation manager round-trips through an Archive")
+    {
+      tsd::core::DataTree tree;
+      REQUIRE(tsd::io::serialize_AnimationManagerArchive(animMgr, tree.root()));
+
+      tsd::animation::AnimationManager restored(&scene);
+      REQUIRE(
+          tsd::io::deserialize_AnimationManagerArchive(restored, tree.root()));
+
+      THEN("The reconstructed binding scrubs the same Array")
+      {
+        REQUIRE(restored.animations().size() == 1);
+        REQUIRE(restored.animations()[0].fileBindings().size() == 1);
+        REQUIRE(restored.animations()[0].fileBindings()[0]->kind()
+            == "usdInstancer");
+
+        restored.setAnimationTime(1.0f);
+
+        auto *transforms = findTransformArray(scene.defaultLayer(), "Swarm");
+        REQUIRE(transforms != nullptr);
+        REQUIRE(transforms->dataAs<tsd::math::mat4>()[1][3].x == Approx(9.f));
+      }
+    }
+  }
+}
+
+SCENARIO("An old-format geometry binding still reconstructs", "[UsdImport]")
+{
+  GIVEN("An Archive node carrying the dropped sampleTimes and timeBase fields")
+  {
+    StageFixture stage("tsd_test_usd_legacy_binding.usda", R"(#usda 1.0
+(
+    startTimeCode = 0
+    endTimeCode = 2
+)
+
+def Mesh "Blob"
+{
+    int[] faceVertexCounts = [3]
+    int[] faceVertexIndices = [0, 1, 2]
+    point3f[] points.timeSamples = {
+        0: [(0, 0, 0), (1, 0, 0), (0, 1, 0)],
+        2: [(0, 0, 0), (3, 0, 0), (0, 3, 0)],
+    }
+}
+)");
+
+    tsd::scene::Scene scene;
+    tsd::animation::AnimationManager animMgr(&scene);
+    tsd::io::import_USD(scene, animMgr, stage.path().c_str());
+    animMgr.removeAllAnimations();
+
+    // Written the way an Archive from before continuous Time Code evaluation
+    // was: the derived sample cache is present and must simply be ignored.
+    tsd::core::DataTree tree;
+    auto &node = tree.root();
+    node["targetIndex"] = size_t(0);
+    node["stageFile"] = stage.path();
+    node["primPath"] = std::string("/Blob");
+    node["sampleTimes"].append() = 0.f;
+    node["sampleTimes"].append() = 2.f;
+    node["timeBase"].append() = 0.f;
+    node["timeBase"].append() = 1.f;
+
+    WHEN("It is read back")
+    {
+      auto &anim = animMgr.addAnimation("legacy");
+      REQUIRE(tsd::io::UsdGeometryFileBinding::addToAnimation(
+                  anim, scene, node)
+          != nullptr);
+
+      THEN("It scrubs from the Stage's own clock")
+      {
+        animMgr.setAnimationTime(1.0f);
+
+        auto geometry = scene.getObject<tsd::scene::Geometry>(0);
+        auto *positions = geometry->parameterValueAsObject<tsd::scene::Array>(
+            "vertex.position");
+        REQUIRE(positions != nullptr);
+        REQUIRE(positions->dataAs<tsd::math::float3>()[1].x == Approx(3.f));
+      }
+    }
+  }
+}
+
+#endif // TSD_USE_USD

@@ -9,33 +9,38 @@
 #include "tsd/scene/Scene.hpp"
 #include "tsd/scene/objects/Geometry.hpp"
 // std
+#include <memory>
 #include <string>
-#include <vector>
 
 namespace tsd::io {
 
+namespace usd {
+struct UsdStageSession;
+} // namespace usd
+
 /*
- * Binding that re-pulls a deforming mesh's vertex arrays from a USD Stage at
- * the current animation time, so that a long animation of a dense mesh does
- * not have to fit in memory. The Stage stays open for the binding's lifetime
+ * Binding that re-pulls a deforming mesh's vertex arrays from a Stage Session
+ * at the current animation time, so that a long animation of a dense mesh does
+ * not have to fit in memory. The Session stays open for the binding's lifetime
  * (ADR 0018); serialization records the file and prim paths and reconstructs
- * by re-opening.
+ * by rejoining the Session for that file.
+ *
+ * The animation time maps onto the Stage's own Time Code range and USD
+ * evaluates there, so a value between authored samples is interpolated rather
+ * than snapped -- the same thing usdview shows.
  *
  * Example:
  *   auto &b = anim.emplaceFileBinding<UsdGeometryFileBinding>(
- *       &scene, geometry.data(), stageFile, "/World/Character", sampleTimes);
+ *       &scene, geometry.data(), session, stageFile, "/World/Character");
  */
 struct UsdGeometryFileBinding : public tsd::animation::FileBinding
 {
-  // `sampleTimes` are the prim's authored time codes; `timeBase` is those
-  // same samples on the animation clock, so the frame chosen for a given time
-  // follows the authored spacing rather than an even grid.
   UsdGeometryFileBinding(scene::Scene *scene,
       scene::Geometry *geometry,
+      std::shared_ptr<usd::UsdStageSession> session,
       std::string stageFile,
-      std::string primPath,
-      std::vector<double> sampleTimes,
-      std::vector<float> timeBase);
+      std::string primPath);
+  ~UsdGeometryFileBinding() override;
 
   // FileBinding interface //
 
@@ -43,12 +48,8 @@ struct UsdGeometryFileBinding : public tsd::animation::FileBinding
   void toDataNode(tsd::core::DataNode &node) const override;
   void onDefragment(const scene::IndexRemapper &cb) override;
 
-  // Pull the vertex arrays for the authored sample `t` falls in. No-ops if
-  // the frame has not changed.
+  // Pull the vertex arrays for the Time Code `t` maps to.
   void update(float t) override;
-
-  size_t frameCount() const;
-  int currentFrame() const;
 
   // Reconstruct from a serialized node; returns null if the target geometry is
   // missing from the scene.
@@ -59,17 +60,16 @@ struct UsdGeometryFileBinding : public tsd::animation::FileBinding
  private:
   void addCallbackToAnimation(tsd::animation::Animation &anim) override;
 
+  // Joined on first use rather than at construction, so a binding read back
+  // from an Archive does not open the Stage until something scrubs.
+  bool ensureSession();
+
   scene::ObjectUsePtr<scene::Geometry, scene::Object::UseKind::ANIM> m_geometry;
+  std::shared_ptr<usd::UsdStageSession> m_session;
   std::string m_stageFile;
   std::string m_primPath;
-  std::vector<double> m_sampleTimes;
-  std::vector<float> m_timeBase;
-  int m_currentFrame{0};
-
-  // Opened lazily on the first update and retained thereafter, so scrubbing
-  // does not pay stage-open cost per frame.
-  struct StageHolder;
-  std::shared_ptr<StageHolder> m_stage;
+  bool m_sessionFailed{false};
+  bool m_countChangeReported{false};
 };
 
 } // namespace tsd::io

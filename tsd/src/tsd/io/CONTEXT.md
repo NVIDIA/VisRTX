@@ -92,6 +92,20 @@ The composed scene an import reads a foreign representation from, identified by
 the file that was opened.
 _Avoid_: USD scene, USD file
 
+**Stage Session**:
+The retained open Stage and resolution chain shared by every animation binding
+from one Import, identified by the Stage's file. Its lifetime is the bindings',
+not the Import's: an Import with no animation lets go of its Session on return.
+See
+[ADR 0021](../../../docs/adr/0021-share-one-usd-stage-session-across-import-and-animation.md).
+_Avoid_: stage cache, open stage
+
+**Time Code**:
+The Stage's own clock, distinct from TSD's normalized animation time. An Import
+records the mapping between them; bindings re-resolve at a Time Code rather
+than at a stored sample index.
+_Avoid_: frame, timestep, sample index
+
 **USD Layer**:
 A single composition-arc source contributing opinions to a Stage. Always
 qualified: unqualified **Layer** means a TSD Layer and never this.

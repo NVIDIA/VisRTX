@@ -6,6 +6,7 @@
 #include "tsd/io/importers/detail/usd/UsdImportContext.h"
 // usd
 #include <pxr/imaging/hd/sceneIndex.h>
+#include <pxr/usd/sdf/path.h>
 // std
 #include <memory>
 #include <string>
@@ -31,6 +32,39 @@ struct PrototypeContent
   std::vector<pxr::SdfPath> gprimPaths;
   bool internalTransformsAnimated{false};
 };
+
+/*
+ * What one resolved point-instancer prim says about its placements: which
+ * Prototypes it scatters, the transform of every instance id, which ids each
+ * Prototype claims, and which of them USD marks invisible.
+ *
+ * This is read once per instancer -- reading the per-instance transforms is
+ * the expensive part at half a million instances -- and then queried once per
+ * Prototype.
+ */
+struct InstancerPlacements
+{
+  pxr::VtArray<pxr::SdfPath> prototypes;
+  // Non-empty only for native instancing, whose placements are attached to
+  // each USD Instance's own node rather than to a transform array.
+  pxr::VtArray<pxr::SdfPath> instanceLocations;
+  std::vector<pxr::VtIntArray> instanceIndices;
+  pxr::VtBoolArray mask;
+  std::vector<tsd::math::mat4> transforms;
+
+  bool isVisible(int instanceId) const;
+
+  // The visible placements of one Prototype, in instance-index order.
+  // Placements USD marks invisible are omitted rather than emitted hidden, so
+  // this is also what an animation binding must reproduce to keep a scrub
+  // selecting the same instances the Import did.
+  std::vector<tsd::math::mat4> forPrototype(size_t prototypeIndex) const;
+};
+
+// Read one resolved instancer prim. Callers that only need the placements of a
+// single Prototype still pay one read of the whole instancer, which is why
+// this is separate from forPrototype().
+InstancerPlacements readInstancerPlacements(const pxr::HdSceneIndexPrim &prim);
 
 /*
  * State shared between the mirrored-hierarchy traversal and the instancing

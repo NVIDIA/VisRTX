@@ -22,7 +22,7 @@ void RenderIndexFlatRegistry::signalObjectAdded(const Object *obj)
   if (!obj)
     return;
   RenderIndex::signalObjectAdded(obj);
-  updateWorld();
+  requestWorldUpdate();
 }
 
 void RenderIndexFlatRegistry::signalObjectParameterUseCountZero(const Object *)

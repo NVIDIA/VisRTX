@@ -35,6 +35,7 @@ PRIVATE
   importers/detail/pbrt/PbrtParser.cpp
   importers/detail/pbrt/PbrtScene.cpp
   animation/UsdGeometryFileBinding.cpp
+  animation/UsdInstancerFileBinding.cpp
   importers/import_AGX.cpp
   importers/import_ASSIMP.cpp
   importers/import_AXYZ.cpp
@@ -215,10 +216,12 @@ if (TSD_USE_USD)
     importers/detail/usd/UsdAnimation.cpp
     importers/detail/usd/UsdDialect.cpp
     importers/detail/usd/UsdGeometry.cpp
+    importers/detail/usd/UsdImportContext.cpp
     importers/detail/usd/UsdInstancing.cpp
     importers/detail/usd/UsdLights.cpp
     importers/detail/usd/UsdMaterials.cpp
     importers/detail/usd/UsdSubdivision.cpp
+    usd/UsdStageSession.cpp
   )
 
   # CaseFileFormat -- SdfFileFormat plugin for EnSight .case files

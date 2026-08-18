@@ -3,52 +3,34 @@
 
 #include "tsd/io/animation/UsdGeometryFileBinding.hpp"
 // tsd_core
-#include "tsd/animation/Interpolation.hpp"
 #include "tsd/core/DataTree.hpp"
 #include "tsd/core/Logging.hpp"
 #include "tsd/scene/objects/Array.hpp"
 #if TSD_USE_USD
+// tsd_io
+#include "tsd/io/usd/UsdStageSession.h"
 // usd
-#include <pxr/usd/usd/stage.h>
 #include <pxr/usd/usdGeom/mesh.h>
 #include <pxr/usd/usdGeom/pointBased.h>
 #endif
-// std
-#include <algorithm>
-#include <cmath>
 
 namespace tsd::io {
 
 using namespace tsd::core;
 
-#if TSD_USE_USD
-
-struct UsdGeometryFileBinding::StageHolder
-{
-  pxr::UsdStageRefPtr stage;
-};
-
-#else
-
-struct UsdGeometryFileBinding::StageHolder
-{
-};
-
-#endif
-
 UsdGeometryFileBinding::UsdGeometryFileBinding(scene::Scene *scene,
     scene::Geometry *geometry,
+    std::shared_ptr<usd::UsdStageSession> session,
     std::string stageFile,
-    std::string primPath,
-    std::vector<double> sampleTimes,
-    std::vector<float> timeBase)
+    std::string primPath)
     : FileBinding(scene),
       m_geometry(geometry),
+      m_session(std::move(session)),
       m_stageFile(std::move(stageFile)),
-      m_primPath(std::move(primPath)),
-      m_sampleTimes(std::move(sampleTimes)),
-      m_timeBase(std::move(timeBase))
+      m_primPath(std::move(primPath))
 {}
+
+UsdGeometryFileBinding::~UsdGeometryFileBinding() = default;
 
 std::string UsdGeometryFileBinding::kind() const
 {
@@ -57,18 +39,13 @@ std::string UsdGeometryFileBinding::kind() const
 
 void UsdGeometryFileBinding::toDataNode(core::DataNode &node) const
 {
+  // The Stage's own clock is enough to re-derive everything a scrub needs, so
+  // no cache of authored sample times is written; an older Archive that still
+  // carries one is simply not read.
   auto *geometry = m_geometry.get();
   node["targetIndex"] = geometry ? geometry->index() : tsd::core::INVALID_INDEX;
   node["stageFile"] = m_stageFile;
   node["primPath"] = m_primPath;
-
-  auto &timesNode = node["sampleTimes"];
-  for (double t : m_sampleTimes)
-    timesNode.append() = float(t);
-
-  auto &timeBaseNode = node["timeBase"];
-  for (float t : m_timeBase)
-    timeBaseNode.append() = t;
 }
 
 void UsdGeometryFileBinding::onDefragment(const scene::IndexRemapper &cb)
@@ -77,16 +54,6 @@ void UsdGeometryFileBinding::onDefragment(const scene::IndexRemapper &cb)
     const size_t newIndex = cb(m_geometry->type(), m_geometry->index());
     m_geometry.updateDefragmentedIndex(newIndex);
   }
-}
-
-size_t UsdGeometryFileBinding::frameCount() const
-{
-  return m_sampleTimes.size();
-}
-
-int UsdGeometryFileBinding::currentFrame() const
-{
-  return m_currentFrame;
 }
 
 void UsdGeometryFileBinding::addCallbackToAnimation(
@@ -109,85 +76,119 @@ UsdGeometryFileBinding *UsdGeometryFileBinding::addToAnimation(
     return nullptr;
   }
 
-  std::vector<double> sampleTimes;
-  if (auto *timesNode = node.child("sampleTimes")) {
-    timesNode->foreach_child([&](core::DataNode &n) {
-      sampleTimes.push_back(n.getValueOr<float>(0.f));
-    });
-  }
-
-  std::vector<float> timeBase;
-  if (auto *timeBaseNode = node.child("timeBase")) {
-    timeBaseNode->foreach_child([&](core::DataNode &n) {
-      timeBase.push_back(n.getValueOr<float>(0.f));
-    });
-  }
-
   return &anim.emplaceFileBinding<UsdGeometryFileBinding>(&scene,
       geometry,
+      std::shared_ptr<usd::UsdStageSession>{},
       node["stageFile"].getValueOr<std::string>(""),
-      node["primPath"].getValueOr<std::string>(""),
-      std::move(sampleTimes),
-      std::move(timeBase));
+      node["primPath"].getValueOr<std::string>(""));
 }
 
 #if TSD_USE_USD
 
-void UsdGeometryFileBinding::update(float t)
+namespace {
+
+// Whether the prim's topology moves with its points. When it does, points,
+// indices and primvars are one consistent set that has to be re-pulled
+// together, which is re-running conversion -- exactly what this binding exists
+// to avoid.
+bool topologyIsTimeSampled(const pxr::UsdPrim &prim)
 {
-  if (m_sampleTimes.empty() || !scene())
+  pxr::UsdGeomMesh mesh(prim);
+  if (!mesh)
+    return false;
+  const auto counts = mesh.GetFaceVertexCountsAttr();
+  const auto indices = mesh.GetFaceVertexIndicesAttr();
+  return (counts && counts.GetNumTimeSamples() > 1)
+      || (indices && indices.GetNumTimeSamples() > 1);
+}
+
+// Write `values` into `array`, or -- if the count moved -- allocate a
+// right-sized Array and rebind the parameter to it, since a TSD Array's size
+// is fixed at construction.
+void writeVertexArray(scene::Scene &scene,
+    scene::Geometry &geometry,
+    core::Token parameter,
+    const pxr::VtVec3fArray &values)
+{
+  auto *array = geometry.parameterValueAsObject<scene::Array>(parameter);
+  if (!array)
     return;
 
-  // Pick the authored sample `t` falls in, so playback follows the authored
-  // spacing rather than an even grid.
-  const auto sample = tsd::animation::findTimeSample(m_timeBase, t);
-  const int frame = int(sample.alpha >= 0.5f ? sample.hi : sample.lo);
-  if (frame == m_currentFrame && m_stage)
+  if (array->size() == values.size()) {
+    array->setData(values.cdata());
     return;
-
-  if (!m_stage) {
-    m_stage = std::make_shared<StageHolder>();
-    m_stage->stage = pxr::UsdStage::Open(m_stageFile);
-    if (!m_stage->stage) {
-      logWarning("[UsdGeometryFileBinding] failed to open stage '%s'",
-          m_stageFile.c_str());
-      return;
-    }
   }
 
-  auto prim = m_stage->stage->GetPrimAtPath(pxr::SdfPath(m_primPath));
-  pxr::UsdGeomPointBased pointBased(prim);
-  if (!pointBased)
+  auto replacement = scene.createArray(ANARI_FLOAT32_VEC3, values.size());
+  replacement->setData(values.cdata());
+  replacement->setName(array->name().c_str());
+  geometry.setParameterObject(parameter, *replacement);
+}
+
+} // namespace
+
+bool UsdGeometryFileBinding::ensureSession()
+{
+  if (m_session)
+    return true;
+  if (m_sessionFailed)
+    return false;
+
+  m_session = usd::acquireUsdSession(m_stageFile);
+  if (!m_session) {
+    m_sessionFailed = true;
+    logWarning("[UsdGeometryFileBinding] failed to open stage '%s'",
+        m_stageFile.c_str());
+  }
+  return bool(m_session);
+}
+
+void UsdGeometryFileBinding::update(float t)
+{
+  if (!scene() || !ensureSession())
     return;
 
   auto *geometry = m_geometry.get();
   if (!geometry)
     return;
 
-  const pxr::UsdTimeCode time(m_sampleTimes[size_t(frame)]);
+  m_session->setTime(m_session->timeCodeAt(t));
+
+  auto prim = m_session->stage()->GetPrimAtPath(pxr::SdfPath(m_primPath));
+  pxr::UsdGeomPointBased pointBased(prim);
+  if (!pointBased)
+    return;
+
+  const auto time = m_session->currentTime();
 
   pxr::VtVec3fArray points;
   if (pointBased.GetPointsAttr().Get(&points, time) && !points.empty()) {
-    if (auto *positions =
-            geometry->parameterValueAsObject<scene::Array>("vertex.position")) {
-      if (positions->size() == points.size())
-        positions->setData(points.cdata());
+    auto *positions =
+        geometry->parameterValueAsObject<scene::Array>("vertex.position");
+    const bool countMoved = positions && positions->size() != points.size();
+    if (countMoved && topologyIsTimeSampled(prim)) {
+      if (!m_countChangeReported) {
+        m_countChangeReported = true;
+        logWarning("[UsdGeometryFileBinding] '%s': vertex count and topology"
+                   " both change over time; the frame is left as imported",
+            m_primPath.c_str());
+      }
+      return;
     }
+    writeVertexArray(*scene(), *geometry, "vertex.position", points);
   }
 
   pxr::VtVec3fArray normals;
-  if (pointBased.GetNormalsAttr().Get(&normals, time) && !normals.empty()) {
-    if (auto *normalArray =
-            geometry->parameterValueAsObject<scene::Array>("vertex.normal")) {
-      if (normalArray->size() == normals.size())
-        normalArray->setData(normals.cdata());
-    }
-  }
-
-  m_currentFrame = frame;
+  if (pointBased.GetNormalsAttr().Get(&normals, time) && !normals.empty())
+    writeVertexArray(*scene(), *geometry, "vertex.normal", normals);
 }
 
 #else
+
+bool UsdGeometryFileBinding::ensureSession()
+{
+  return false;
+}
 
 void UsdGeometryFileBinding::update(float)
 {

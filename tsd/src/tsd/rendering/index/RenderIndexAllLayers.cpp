@@ -62,7 +62,7 @@ void RenderIndexAllLayers::signalArrayUnmapped(const Array *a)
 {
   RenderIndex::signalArrayUnmapped(a);
   if (a->elementType() == ANARI_FLOAT32_MAT4)
-    updateWorld();
+    requestWorldUpdate();
 }
 
 void RenderIndexAllLayers::signalObjectParameterUseCountZero(const Object *o)
@@ -98,14 +98,14 @@ void RenderIndexAllLayers::signalObjectLayerUseCountZero(const Object *o)
 void RenderIndexAllLayers::signalLayerAdded(const Layer *l)
 {
   syncLayerInstances(l, false, objectMask_all());
-  updateWorld();
+  requestWorldUpdate();
 }
 
 void RenderIndexAllLayers::signalLayerStructureUpdated(const Layer *l)
 {
   if (m_instanceCache.contains(l)) {
     syncLayerInstances(l, false, objectMask_all());
-    updateWorld();
+    requestWorldUpdate();
   }
 }
 
@@ -113,7 +113,7 @@ void RenderIndexAllLayers::signalLayerTransformUpdated(const Layer *l)
 {
   if (m_instanceCache.contains(l)) {
     syncLayerTransforms(l);
-    updateWorld();
+    requestWorldUpdate();
   }
 }
 
@@ -122,7 +122,7 @@ void RenderIndexAllLayers::signalLayerRemoved(const Layer *l)
   if (m_instanceCache.contains(l)) {
     releaseInstances(device(), m_instanceCache[l]);
     m_instanceCache.erase(l);
-    updateWorld();
+    requestWorldUpdate();
   }
 }
 
@@ -141,7 +141,7 @@ void RenderIndexAllLayers::signalObjectFilteringChanged()
 {
   if (m_filter || m_filterForceUpdate) {
     releaseAllInstances();
-    updateWorld();
+    requestWorldUpdate();
     m_filterForceUpdate = false;
   }
 }

@@ -71,9 +71,17 @@ struct RenderIndex : public BaseUpdateDelegate
   void signalObjectRemoved(const Object *o) override;
   void signalRemoveAllObjects() override;
   void signalInvalidateCachedObjects() override;
+  void signalUpdateBatchBegin() override;
+  void signalUpdateBatchEnd() override;
 
  protected:
   virtual void updateWorld() = 0;
+
+  // Rebuild the ANARI world, or -- inside an update batch -- remember that one
+  // rebuild is owed and do it when the batch ends. Scrubbing an animated Stage
+  // unmaps one transform Array per instancer per frame, and each unmap would
+  // otherwise pay a full world rebuild.
+  void requestWorldUpdate();
 
   Scene *m_ctx{nullptr};
   AnariHandleCache m_cache;
@@ -82,6 +90,9 @@ struct RenderIndex : public BaseUpdateDelegate
   std::vector<anari::Instance> m_externalInstances;
 
  private:
+  int m_updateBatchDepth{0};
+  bool m_worldUpdateDeferred{false};
+
   friend struct RenderToAnariObjectsVisitor;
 };
 
