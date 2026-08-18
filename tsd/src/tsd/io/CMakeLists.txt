@@ -34,6 +34,7 @@ PRIVATE
   importers/detail/pbrt/PbrtLexer.cpp
   importers/detail/pbrt/PbrtParser.cpp
   importers/detail/pbrt/PbrtScene.cpp
+  animation/UsdFileBinding.cpp
   animation/UsdGeometryFileBinding.cpp
   animation/UsdInstancerFileBinding.cpp
   importers/import_AGX.cpp

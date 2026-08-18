@@ -61,6 +61,14 @@ struct AnimationManager
   void setAnimationFrame(int frame);
   void incrementAnimationFrame();
 
+  // Widen the clock to hold content that needs `frames` at `fps`, keeping
+  // whatever is already longer or faster. Every Animation shares this one
+  // clock, so an import must not clobber it: content needing more frames than
+  // the clock has would be under-sampled, while content needing fewer still
+  // plays correctly on a longer clock. Returns false when the request lost,
+  // so the caller can say so.
+  bool widenClock(int frames, float fps);
+
   // Playing state — call tick(elapsedSeconds) once per UI frame
   void tick(float elapsedSeconds);
   void play();

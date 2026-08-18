@@ -172,14 +172,4 @@ bool NetworkUpdateDelegate::isReady(const char *fcn) const
   return true;
 }
 
-void NetworkUpdateDelegate::signalUpdateBatchBegin()
-{
-  // Every mutation is already sent as it happens; nothing is coalesced here.
-}
-
-void NetworkUpdateDelegate::signalUpdateBatchEnd()
-{
-  // See signalUpdateBatchBegin().
-}
-
 } // namespace tsd::network

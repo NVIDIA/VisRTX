@@ -30,43 +30,6 @@ void ensureDefaultTransferFunction(tsd::core::TransferFunction &tf)
   tf.range = {};
 }
 
-// A USD Import reports the Stage's frame range and rate rather than applying
-// them, because every Animation shares one playback clock and an Import must
-// not clobber what is already on it. Widening is the one safe move: content
-// that needs more frames than the clock has would otherwise be under-sampled,
-// while content that needs fewer still plays correctly on a longer clock. When
-// two Stages disagree, the conflict is logged and the larger value wins.
-void widenAnimationClock(
-    tsd::animation::AnimationManager &animMgr, const UsdImportReport &report)
-{
-  if (report.sampleCount < 2)
-    return;
-
-  const int frames = animMgr.getAnimationTotalFrames();
-  if (int(report.sampleCount) > frames)
-    animMgr.setAnimationTotalFrames(int(report.sampleCount));
-  else if (int(report.sampleCount) < frames) {
-    tsd::core::logStatus(
-        "...stage has %zu samples but the animation clock is already %i frames"
-        " long; keeping %i",
-        report.sampleCount,
-        frames,
-        frames);
-  }
-
-  const float fps = animMgr.getAnimationFPS();
-  if (report.timeCodesPerSecond > fps)
-    animMgr.setAnimationFPS(report.timeCodesPerSecond);
-  else if (report.timeCodesPerSecond > 0.f && report.timeCodesPerSecond < fps) {
-    tsd::core::logStatus(
-        "...stage runs at %g fps but the animation clock is already at %g fps;"
-        " keeping %g",
-        double(report.timeCodesPerSecond),
-        double(fps),
-        double(fps));
-  }
-}
-
 } // namespace
 
 void import_file(Scene &scene,

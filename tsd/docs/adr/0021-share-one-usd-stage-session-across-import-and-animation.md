@@ -10,22 +10,32 @@ weakly, so the last holder to let go closes the Stage. A fully static import
 therefore retains nothing — the last reference drops when `import_USD` returns
 — while an animated import pins the file for as long as its bindings live.
 
-This extends ADR 0015's "Hydra owns resolution" from import time to every time.
-It also amends ADR 0018, which described per-scene stage retention and claimed
-a retained scene index the code did not in fact keep: `UsdGeometryFileBinding`
-used to re-open its own raw `UsdStage` and read `UsdGeomPointBased` schemas
-directly, so a scrub resolved through a different path than the import had
-converted from, and a 1.6 GB stage was opened twice. Keying by path rather than
-by Scene or by AnimationManager keeps USD knowledge out of `tsd_scene` and
-`tsd_animation`, which sit below `tsd_io`, and makes deserialization trivially
-correct: a binding stores only the file path and rejoins by path, with no
-ordering dependency on anything else in the archive.
+This extends ADR 0015's "Hydra owns resolution" from import time to every time,
+for the bindings that resolve through Hydra. It also amends ADR 0018, which
+described per-scene stage retention and claimed a retained scene index the code
+did not in fact keep: `UsdGeometryFileBinding` used to re-open its own raw
+`UsdStage`, so a 1.6 GB stage was opened twice.
+
+Be precise about what changed for which binding. The instancer binding reads the
+resolved scene, so it re-runs the import's own `readInstancerPlacements()`
+against the Session's chain and cannot drift from what the import converted. The
+geometry binding still reads `UsdGeomPointBased` off the Stage directly, as ADR
+0018 described — the Session did not change where it reads from, only that it no
+longer opens the file to do it, and it leaves the Session's Time Code alone
+because it never touches the resolved scene.
+
+Keying by path rather than by Scene or by AnimationManager keeps USD knowledge
+out of `tsd_scene` and `tsd_animation`, which sit below `tsd_io`, and makes
+deserialization trivially correct: a binding stores only the file path and
+rejoins by path, with no ordering dependency on anything else in the archive.
 
 Two things follow from the Session owning the chain. Building the filter chain
-moved into the Session, so import and scrub provably resolve identically; and
-dialect pruning moved *out* of the chain into traversal, so the Session carries
-no trace of any one import's options and two imports of one file with different
-options can still share it.
+moved into the Session, so an import and a scrub that both read the resolved
+scene provably resolve identically; and dialect pruning moved *out* of the chain
+into the import, so the Session carries no trace of any one import's options and
+two imports of one file with different options can still share it. Pruning was a
+filtering scene index; it is now a question the Import Context answers
+(`ImportContext::isClaimed`), which every walk over the resolved scene asks.
 
 The Session also owns the mapping from TSD's normalized animation time onto the
 Stage's own Time Code, and USD evaluates continuously there rather than snapping
@@ -35,11 +45,19 @@ aliasing bug: `example_granular_collision_sdf.usd` authors samples at time codes
 grid mapped to `400*i/399` and never landed on an authored code. Because the
 mapping is a Stage-level fact living once in the Session, the `sampleTimes` and
 `timeBase` caches every binding used to carry are deleted rather than
-maintained; they were derived data, and re-deriving them from the Stage is
+maintained: they were derived data, and re-deriving them from the Stage is
 strictly more correct than trusting a possibly-stale copy. Archives written
 before this omit them on write and ignore them on read, and silently gain the
 continuous-time behavior. Versioning with a legacy snapping path was rejected:
 it would keep behavior we decided was wrong alive forever.
+
+One case has no Stage-level answer to re-derive. Nothing obliges a Stage to
+author a `startTimeCode`/`endTimeCode` range, and USD reports zero for both ends
+when it has not — which would map every animation time onto one Time Code and
+freeze the scene. Animated prims therefore tell the Session what range their own
+samples cover as they are bound, and the Session widens a fallback range with
+them; a Stage that authored a range of its own remains the authority and is
+never widened.
 
 The costs are accepted knowingly. An animated import holds its file open —
 1.6 GB for `example_apic_fluid.usd` — for the bindings' lifetime. Interpolating

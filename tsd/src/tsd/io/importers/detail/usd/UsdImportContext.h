@@ -28,6 +28,8 @@ namespace tsd::io::usd {
 
 using namespace tsd::scene;
 
+struct ClaimedPrims;
+
 /*
  * Everything one USD Stage import needs to carry between converters: the
  * target Scene, the settings driving the import, the report being accumulated,
@@ -62,8 +64,16 @@ struct ImportContext
   // Animation is driven by the same AnimationManager clock.
   tsd::animation::Animation &animation();
 
-  // Fold a bound attribute's authored sample count into the Import Report.
-  void reportSampleCount(size_t count);
+  // Record one prim as animated, with the number of time samples the binding
+  // was built from, so the Import Report can name the Stage's frame range.
+  void reportAnimatedPrim(size_t sampleCount);
+
+  // Prims the TSD dialect claimed, which every path that walks the resolved
+  // scene must skip: they reach the Scene through the dialect's own importers.
+  // Set by the dialect pre-pass; null until then. Kept here rather than in the
+  // resolution chain so the Stage Session stays free of one Import's handling.
+  const ClaimedPrims *claimedPrims{nullptr};
+  bool isClaimed(const pxr::SdfPath &path) const;
 
   // Set by animation(); this stays an aggregate, so it cannot be private.
   tsd::animation::Animation *importAnimation{nullptr};

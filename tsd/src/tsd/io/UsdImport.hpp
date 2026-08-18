@@ -8,6 +8,10 @@
 #include <string>
 #include <vector>
 
+namespace tsd::animation {
+struct AnimationManager;
+} // namespace tsd::animation
+
 namespace tsd::io {
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -156,5 +160,14 @@ struct UsdImportReport
   bool contains(UsdSkipReason reason) const;
   std::string summary() const;
 };
+
+// Fold what a USD Import reported about its Stage's clock into the one
+// playback clock every Animation shares, widening it and never shrinking it.
+// This is deliberately not done by the Import itself: an Import reports the
+// Stage's frame range and rate, and the application decides what to do with
+// them -- SciVis Studio, for one, keeps its shot authoritative. A conflict
+// between two Stages is logged and the larger value wins.
+void widenAnimationClock(
+    tsd::animation::AnimationManager &animMgr, const UsdImportReport &report);
 
 } // namespace tsd::io

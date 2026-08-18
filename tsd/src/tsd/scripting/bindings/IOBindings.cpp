@@ -139,28 +139,41 @@ void registerIOBindings(sol::state &lua)
         TSD_LUA_IMPORT_WRAP(tsd::io::import_HDRI(s, anim, f.c_str(), loc), f);
       });
 
+  // Every USD entry point folds the Stage's reported clock into the shared
+  // playback clock, the same way import_file does, so a scripted import
+  // scrubs at the Stage's own rate rather than the manager's default.
+  auto importUSD = [](scene::Scene &s,
+                       animation::AnimationManager &anim,
+                       const std::string &f,
+                       scene::LayerNodeRef loc,
+                       const tsd::io::UsdImportOptions &options) {
+    auto report = tsd::io::import_USD(s, anim, f.c_str(), loc, options);
+    tsd::io::widenAnimationClock(anim, report);
+    return report;
+  };
+
   io["importUSD"] = sol::overload(
-      [](scene::Scene &s,
+      [importUSD](scene::Scene &s,
           animation::AnimationManager &anim,
           const std::string &f) {
-        TSD_LUA_IMPORT_WRAP(tsd::io::import_USD(s, anim, f.c_str()), f);
+        TSD_LUA_IMPORT_WRAP(importUSD(s, anim, f, {}, {}), f);
       },
-      [](scene::Scene &s,
+      [importUSD](scene::Scene &s,
           animation::AnimationManager &anim,
           const std::string &f,
           scene::LayerNodeRef loc) {
-        TSD_LUA_IMPORT_WRAP(tsd::io::import_USD(s, anim, f.c_str(), loc), f);
+        TSD_LUA_IMPORT_WRAP(importUSD(s, anim, f, loc, {}), f);
       },
       // Settings arrive as a plain table mirroring the option names, so
       // scripted imports can be configured without a binding per field.
-      [](scene::Scene &s,
+      [importUSD](scene::Scene &s,
           animation::AnimationManager &anim,
           const std::string &f,
           scene::LayerNodeRef loc,
           sol::table settings) {
-        auto options = usdImportOptionsFromLuaTable(settings);
         TSD_LUA_IMPORT_WRAP(
-            tsd::io::import_USD(s, anim, f.c_str(), loc, options), f);
+            importUSD(s, anim, f, loc, usdImportOptionsFromLuaTable(settings)),
+            f);
       });
 
   io["importPDB"] = sol::overload(

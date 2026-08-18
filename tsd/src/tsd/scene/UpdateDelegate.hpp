@@ -57,9 +57,10 @@ struct BaseUpdateDelegate
   // Bracket a run of mutations that should produce at most one downstream
   // rebuild. Nesting is counted, so an outer batch is not ended by an inner
   // one. Every signal above still arrives; only the work they trigger is
-  // coalesced.
-  virtual void signalUpdateBatchBegin() = 0;
-  virtual void signalUpdateBatchEnd() = 0;
+  // coalesced. Optional hooks (STYLEGUIDE section 13): a delegate that has
+  // nothing to coalesce need not say so.
+  virtual void signalUpdateBatchBegin() {}
+  virtual void signalUpdateBatchEnd() {}
 
   TSD_NOT_COPYABLE(BaseUpdateDelegate)
   TSD_DEFAULT_MOVEABLE(BaseUpdateDelegate)
@@ -97,8 +98,6 @@ struct EmptyUpdateDelegate : public BaseUpdateDelegate
   void signalActiveLayersChanged() override {}
   void signalObjectFilteringChanged() override {}
   void signalInvalidateCachedObjects() override {}
-  void signalUpdateBatchBegin() override {}
-  void signalUpdateBatchEnd() override {}
 };
 
 /*

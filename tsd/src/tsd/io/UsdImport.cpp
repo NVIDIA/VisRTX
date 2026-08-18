@@ -2,6 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/io/UsdImport.hpp"
+// tsd_animation
+#include "tsd/animation/AnimationManager.hpp"
+// tsd_core
+#include "tsd/core/Logging.hpp"
 // std
 #include <algorithm>
 #include <string>
@@ -145,6 +149,26 @@ std::string UsdImportReport::summary() const
     retval += ")";
 
   return retval;
+}
+
+void widenAnimationClock(
+    tsd::animation::AnimationManager &animMgr, const UsdImportReport &report)
+{
+  if (report.sampleCount < 2)
+    return;
+
+  const int frames = int(report.sampleCount);
+  const float fps = report.timeCodesPerSecond;
+  if (animMgr.widenClock(frames, fps))
+    return;
+
+  core::logStatus(
+      "[import_USD] stage wants %i frames at %g fps but the animation clock is"
+      " already %i frames at %g fps; keeping the longer and faster of the two",
+      frames,
+      double(fps),
+      animMgr.getAnimationTotalFrames(),
+      double(animMgr.getAnimationFPS()));
 }
 
 } // namespace tsd::io

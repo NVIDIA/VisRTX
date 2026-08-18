@@ -37,8 +37,7 @@ void addInstancerAnimation(ImportContext &ctx,
     const pxr::SdfPath &primPath,
     size_t prototypeIndex,
     LayerNodeRef arrayNode,
-    ArrayRef transforms,
-    size_t sampleCount);
+    ArrayRef transforms);
 
 // Bind a geometry's vertex arrays to the retained Stage so that a long
 // animation of a dense mesh is pulled on demand instead of held in memory

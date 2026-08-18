@@ -13,6 +13,7 @@
 #include <pxr/imaging/hd/sceneIndexPrimView.h>
 #include <pxr/imaging/hd/tokens.h>
 #include <pxr/imaging/hd/xformSchema.h>
+#include <pxr/usd/usdGeom/pointInstancer.h>
 #include <pxr/usd/usdGeom/xformable.h>
 // std
 #include <algorithm>
@@ -90,6 +91,8 @@ std::shared_ptr<PrototypeContent> convertPrototype(ImportContext &ctx,
   const auto inverseRoot = tsd::math::inverse(rootXform);
   for (const pxr::SdfPath &path :
       pxr::HdSceneIndexPrimView(sceneIndex, prototypeRoot)) {
+    if (ctx.isClaimed(path))
+      continue;
     auto prim = sceneIndex->GetPrim(path);
     if (!isGeometryPrimType(prim.primType))
       continue;
@@ -256,6 +259,12 @@ InstancerPlacements readInstancerPlacements(const pxr::HdSceneIndexPrim &prim)
         element ? element->GetTypedValue(0) : pxr::VtIntArray());
   }
 
+  // Native instancing attaches its Prototypes at each USD Instance's own node,
+  // so it never asks forPrototype() for transforms; reading them would be the
+  // most expensive part of this call and all of it wasted.
+  if (!retval.instanceLocations.empty())
+    return retval;
+
   size_t instanceCount = 0;
   for (const auto &element : retval.instanceIndices) {
     for (int i : element)
@@ -263,6 +272,36 @@ InstancerPlacements readInstancerPlacements(const pxr::HdSceneIndexPrim &prim)
   }
   retval.transforms = readInstanceTransforms(prim, instanceCount);
 
+  return retval;
+}
+
+std::vector<double> pointInstancerSampleTimes(const pxr::UsdPrim &prim)
+{
+  pxr::UsdGeomPointInstancer instancer(prim);
+  if (!instancer)
+    return {};
+
+  // Every attribute that can move a placement, including the two velocity
+  // attributes Hydra folds into the instance transforms it computes.
+  const pxr::UsdAttribute attributes[] = {instancer.GetPositionsAttr(),
+      instancer.GetOrientationsAttr(),
+      instancer.GetScalesAttr(),
+      instancer.GetVelocitiesAttr(),
+      instancer.GetAngularVelocitiesAttr(),
+      instancer.GetProtoIndicesAttr(),
+      instancer.GetInvisibleIdsAttr()};
+
+  std::vector<double> retval;
+  for (const auto &attribute : attributes) {
+    if (!attribute)
+      continue;
+    std::vector<double> times;
+    attribute.GetTimeSamples(&times);
+    retval.insert(retval.end(), times.begin(), times.end());
+  }
+
+  std::sort(retval.begin(), retval.end());
+  retval.erase(std::unique(retval.begin(), retval.end()), retval.end());
   return retval;
 }
 
@@ -283,6 +322,7 @@ void convertInstancer(ImportContext &ctx,
     return;
 
   const auto animatedSamples = pointInstancerSampleCount(ctx, primPath);
+  bool boundAnyPrototype = false;
 
   for (size_t protoIndex = 0; protoIndex < placementsOfPrim.prototypes.size();
        ++protoIndex) {
@@ -326,10 +366,14 @@ void convertInstancer(ImportContext &ctx,
     // binding re-fills; handing it over here is what keeps a scrub from having
     // to find it again by name.
     if (animatedSamples > 1) {
-      addInstancerAnimation(
-          ctx, primPath, protoIndex, arrayNode, transformArray, animatedSamples);
+      addInstancerAnimation(ctx, primPath, protoIndex, arrayNode, transformArray);
+      boundAnyPrototype = true;
     }
   }
+
+  // One animated prim, however many Prototypes it scatters.
+  if (boundAnyPrototype)
+    ctx.reportAnimatedPrim(animatedSamples);
 }
 
 void attachNativeInstances(ImportContext &ctx,
@@ -343,6 +387,8 @@ void attachNativeInstances(ImportContext &ctx,
     return;
 
   for (const pxr::SdfPath &path : pxr::HdSceneIndexPrimView(sceneIndex, root)) {
+    if (ctx.isClaimed(path))
+      continue;
     auto prim = sceneIndex->GetPrim(path);
     if (prim.primType != pxr::HdPrimTypeTokens->instancer)
       continue;

@@ -6,6 +6,8 @@
 #include "tsd/core/DataTree.hpp"
 #include "tsd/core/Logging.hpp"
 #include "tsd/scene/objects/Array.hpp"
+// std
+#include <vector>
 #if TSD_USE_USD
 // tsd_io
 #include "tsd/io/usd/UsdStageSession.h"
@@ -23,11 +25,9 @@ UsdGeometryFileBinding::UsdGeometryFileBinding(scene::Scene *scene,
     std::shared_ptr<usd::UsdStageSession> session,
     std::string stageFile,
     std::string primPath)
-    : FileBinding(scene),
-      m_geometry(geometry),
-      m_session(std::move(session)),
-      m_stageFile(std::move(stageFile)),
-      m_primPath(std::move(primPath))
+    : UsdFileBinding(
+          scene, std::move(session), std::move(stageFile), std::move(primPath)),
+      m_geometry(geometry)
 {}
 
 UsdGeometryFileBinding::~UsdGeometryFileBinding() = default;
@@ -37,6 +37,11 @@ std::string UsdGeometryFileBinding::kind() const
   return "usdGeometry";
 }
 
+const char *UsdGeometryFileBinding::logTag() const
+{
+  return "UsdGeometryFileBinding";
+}
+
 void UsdGeometryFileBinding::toDataNode(core::DataNode &node) const
 {
   // The Stage's own clock is enough to re-derive everything a scrub needs, so
@@ -44,8 +49,7 @@ void UsdGeometryFileBinding::toDataNode(core::DataNode &node) const
   // carries one is simply not read.
   auto *geometry = m_geometry.get();
   node["targetIndex"] = geometry ? geometry->index() : tsd::core::INVALID_INDEX;
-  node["stageFile"] = m_stageFile;
-  node["primPath"] = m_primPath;
+  writePathsToDataNode(node);
 }
 
 void UsdGeometryFileBinding::onDefragment(const scene::IndexRemapper &cb)
@@ -127,22 +131,6 @@ void writeVertexArray(scene::Scene &scene,
 
 } // namespace
 
-bool UsdGeometryFileBinding::ensureSession()
-{
-  if (m_session)
-    return true;
-  if (m_sessionFailed)
-    return false;
-
-  m_session = usd::acquireUsdSession(m_stageFile);
-  if (!m_session) {
-    m_sessionFailed = true;
-    logWarning("[UsdGeometryFileBinding] failed to open stage '%s'",
-        m_stageFile.c_str());
-  }
-  return bool(m_session);
-}
-
 void UsdGeometryFileBinding::update(float t)
 {
   if (!scene() || !ensureSession())
@@ -152,14 +140,25 @@ void UsdGeometryFileBinding::update(float t)
   if (!geometry)
     return;
 
-  m_session->setTime(m_session->timeCodeAt(t));
-
-  auto prim = m_session->stage()->GetPrimAtPath(pxr::SdfPath(m_primPath));
+  auto prim = session()->stage()->GetPrimAtPath(pxr::SdfPath(primPath()));
   pxr::UsdGeomPointBased pointBased(prim);
   if (!pointBased)
     return;
 
-  const auto time = m_session->currentTime();
+  // A Stage that carries samples but authored no time-code range has no range
+  // to map onto until its own prims say what they cover.
+  if (!m_sampleTimesNoted && !session()->hasAuthoredTimeRange()) {
+    m_sampleTimesNoted = true;
+    std::vector<double> times;
+    pointBased.GetPointsAttr().GetTimeSamples(&times);
+    noteAuthoredSampleTimes(times);
+  }
+
+  // Points are read from the Stage's own schema rather than through the
+  // Session's resolved chain, as they always have been (ADR 0018); the Session
+  // is shared so that this does not mean a second open of the file. Its
+  // resolved scene is not read here, so its Time Code is left alone.
+  const auto time = session()->timeCodeAt(t);
 
   pxr::VtVec3fArray points;
   if (pointBased.GetPointsAttr().Get(&points, time) && !points.empty()) {
@@ -171,7 +170,7 @@ void UsdGeometryFileBinding::update(float t)
         m_countChangeReported = true;
         logWarning("[UsdGeometryFileBinding] '%s': vertex count and topology"
                    " both change over time; the frame is left as imported",
-            m_primPath.c_str());
+            primPath().c_str());
       }
       return;
     }
@@ -185,14 +184,9 @@ void UsdGeometryFileBinding::update(float t)
 
 #else
 
-bool UsdGeometryFileBinding::ensureSession()
-{
-  return false;
-}
-
 void UsdGeometryFileBinding::update(float)
 {
-  logError("[UsdGeometryFileBinding] USD not enabled in TSD build.");
+  ensureSession(); // reports that this build has no USD, once
 }
 
 #endif

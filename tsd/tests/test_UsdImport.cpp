@@ -2929,4 +2929,84 @@ def Mesh "Blob"
   }
 }
 
+SCENARIO("A Stage that authored no time-code range still animates",
+    "[UsdImport]")
+{
+  GIVEN("A PointInstancer with time samples but no startTimeCode")
+  {
+    // Nothing forces a Stage to declare its own range, and USD reports 0 for
+    // both ends when it does not. Without a fallback every animation time
+    // would map onto one Time Code and the placements would never move.
+    StageFixture stage("tsd_test_usd_unranged_instancer.usda", R"(#usda 1.0
+
+def PointInstancer "Drifting"
+{
+    point3f[] positions.timeSamples = {
+        5: [(0, 0, 0), (1, 0, 0)],
+        9: [(0, 0, 0), (7, 0, 0)],
+    }
+    int[] protoIndices = [0, 0]
+    rel prototypes = [</Drifting/Proto>]
+
+    def Mesh "Proto"
+    {
+        int[] faceVertexCounts = [3]
+        int[] faceVertexIndices = [0, 1, 2]
+        point3f[] points = [(0, 0, 0), (1, 0, 0), (0, 1, 0)]
+    }
+}
+)");
+
+    tsd::scene::Scene scene;
+    tsd::animation::AnimationManager animMgr(&scene);
+
+    WHEN("The Stage is imported and scrubbed to the end")
+    {
+      tsd::io::import_USD(scene, animMgr, stage.path().c_str());
+      animMgr.setAnimationTime(1.0f);
+
+      THEN("The authored samples define the range that time maps onto")
+      {
+        auto *transforms = findTransformArray(scene.defaultLayer(), "Drifting");
+        REQUIRE(transforms != nullptr);
+        REQUIRE(transforms->dataAs<tsd::math::mat4>()[1][3].x == Approx(7.f));
+      }
+    }
+  }
+
+  GIVEN("A deforming mesh with time samples but no startTimeCode")
+  {
+    StageFixture stage("tsd_test_usd_unranged_mesh.usda", R"(#usda 1.0
+
+def Mesh "Blob"
+{
+    int[] faceVertexCounts = [3]
+    int[] faceVertexIndices = [0, 1, 2]
+    point3f[] points.timeSamples = {
+        5: [(0, 0, 0), (1, 0, 0), (0, 1, 0)],
+        9: [(0, 0, 0), (4, 0, 0), (0, 4, 0)],
+    }
+}
+)");
+
+    tsd::scene::Scene scene;
+    tsd::animation::AnimationManager animMgr(&scene);
+
+    WHEN("The Stage is imported and scrubbed to the end")
+    {
+      tsd::io::import_USD(scene, animMgr, stage.path().c_str());
+      animMgr.setAnimationTime(1.0f);
+
+      THEN("The authored samples define the range that time maps onto")
+      {
+        auto geometry = scene.getObject<tsd::scene::Geometry>(0);
+        auto *positions = geometry->parameterValueAsObject<tsd::scene::Array>(
+            "vertex.position");
+        REQUIRE(positions != nullptr);
+        REQUIRE(positions->dataAs<tsd::math::float3>()[1].x == Approx(4.f));
+      }
+    }
+  }
+}
+
 #endif // TSD_USE_USD

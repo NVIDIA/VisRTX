@@ -7,6 +7,7 @@
 // usd
 #include <pxr/imaging/hd/sceneIndex.h>
 #include <pxr/usd/sdf/path.h>
+#include <pxr/usd/usd/prim.h>
 // std
 #include <memory>
 #include <string>
@@ -63,8 +64,16 @@ struct InstancerPlacements
 
 // Read one resolved instancer prim. Callers that only need the placements of a
 // single Prototype still pay one read of the whole instancer, which is why
-// this is separate from forPrototype().
+// this is separate from forPrototype(). Native instancing places its
+// Prototypes at their own nodes rather than through a transform array, so its
+// per-instance transforms -- the expensive part of this read at half a million
+// instances -- are not read at all.
 InstancerPlacements readInstancerPlacements(const pxr::HdSceneIndexPrim &prim);
+
+// Every time code authored on any attribute that moves a point instancer's
+// placements, in order and without duplicates. Empty when the instancer does
+// not animate. Reads the raw Stage prim, not the resolved one.
+std::vector<double> pointInstancerSampleTimes(const pxr::UsdPrim &prim);
 
 /*
  * State shared between the mirrored-hierarchy traversal and the instancing

@@ -4,7 +4,7 @@
 #pragma once
 
 #include "tsd/animation/Animation.hpp"
-#include "tsd/animation/FileBinding.hpp"
+#include "tsd/io/animation/UsdFileBinding.hpp"
 #include "tsd/scene/ObjectUsePtr.hpp"
 #include "tsd/scene/Scene.hpp"
 #include "tsd/scene/objects/Array.hpp"
@@ -13,10 +13,6 @@
 #include <string>
 
 namespace tsd::io {
-
-namespace usd {
-struct UsdStageSession;
-} // namespace usd
 
 /*
  * Binding that re-fills the transform Array of one point-instancer Prototype
@@ -34,7 +30,7 @@ struct UsdStageSession;
  *   anim.emplaceFileBinding<UsdInstancerFileBinding>(
  *       &scene, session, arrayNode, transforms, file, "/root/points", 0);
  */
-struct UsdInstancerFileBinding : public tsd::animation::FileBinding
+struct UsdInstancerFileBinding : public UsdFileBinding
 {
   UsdInstancerFileBinding(scene::Scene *scene,
       std::shared_ptr<usd::UsdStageSession> session,
@@ -62,18 +58,12 @@ struct UsdInstancerFileBinding : public tsd::animation::FileBinding
 
  private:
   void addCallbackToAnimation(tsd::animation::Animation &anim) override;
+  const char *logTag() const override;
 
-  // Joined on first use rather than at construction, so a binding read back
-  // from an Archive does not open the Stage until something scrubs.
-  bool ensureSession();
-
-  std::shared_ptr<usd::UsdStageSession> m_session;
   scene::LayerNodeRef m_arrayNode;
   scene::ObjectUsePtr<scene::Array, scene::Object::UseKind::ANIM> m_transforms;
-  std::string m_stageFile;
-  std::string m_primPath;
   size_t m_prototypeIndex{0};
-  bool m_sessionFailed{false};
+  bool m_sampleTimesNoted{false};
 };
 
 } // namespace tsd::io

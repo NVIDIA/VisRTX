@@ -3,6 +3,8 @@
 
 #pragma once
 
+// tsd_core
+#include "tsd/core/TypeMacros.hpp"
 // usd
 #include <pxr/imaging/hd/sceneIndex.h>
 #include <pxr/usd/usd/stage.h>
@@ -10,6 +12,7 @@
 // std
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace tsd::io::usd {
 
@@ -32,9 +35,14 @@ namespace tsd::io::usd {
  */
 struct UsdStageSession
 {
-  // Use acquireUsdSession(); the constructor is public only so the registry
-  // can build one with make_shared.
-  UsdStageSession(std::string filePath, pxr::UsdStageRefPtr stage);
+  TSD_NOT_COPYABLE(UsdStageSession)
+  TSD_NOT_MOVEABLE(UsdStageSession)
+
+  // Use acquireUsdSession(); this is public only so the registry can build a
+  // Session with make_shared. `key` is what the registry filed it under, which
+  // the Session needs in order to take itself back out again.
+  UsdStageSession(
+      std::string key, std::string filePath, pxr::UsdStageRefPtr stage);
   ~UsdStageSession();
 
   const std::string &filePath() const;
@@ -46,6 +54,16 @@ struct UsdStageSession
   double endTimeCode() const;
   double timeCodesPerSecond() const;
 
+  // Whether the Stage authored a time-code range of its own. When it did not,
+  // the range is whatever noteAuthoredSampleTimes() has been told about.
+  bool hasAuthoredTimeRange() const;
+
+  // Widen the fallback range with times authored on one attribute. Does
+  // nothing when the Stage authored a range, which is the authority. Without
+  // this a Stage that has time samples but no `startTimeCode`/`endTimeCode`
+  // would map every animation time onto one Time Code and never move.
+  void noteAuthoredSampleTimes(const std::vector<double> &times);
+
   // Normalized animation time onto the Stage's clock. USD evaluates
   // continuously at the result, so no snapping to an authored sample happens.
   pxr::UsdTimeCode timeCodeAt(float t) const;
@@ -54,6 +72,7 @@ struct UsdStageSession
   void setTime(pxr::UsdTimeCode time);
 
  private:
+  std::string m_key;
   std::string m_filePath;
   pxr::UsdStageRefPtr m_stage;
   pxr::UsdImagingStageSceneIndexRefPtr m_stageSceneIndex;
@@ -61,6 +80,8 @@ struct UsdStageSession
   pxr::UsdTimeCode m_currentTime{pxr::UsdTimeCode::EarliestTime()};
   double m_startTimeCode{0.0};
   double m_endTimeCode{0.0};
+  bool m_authoredTimeRange{false};
+  bool m_sawSampleTimes{false};
 };
 
 // Open `filePath`, or join the Session already open on it. Sessions are keyed

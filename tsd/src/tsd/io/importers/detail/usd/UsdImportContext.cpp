@@ -3,6 +3,7 @@
 
 #include "tsd/io/importers/detail/usd/UsdImportContext.h"
 #include "tsd/animation/AnimationManager.hpp"
+#include "tsd/io/importers/detail/usd/UsdDialect.h"
 // usd
 #include <pxr/usd/usd/attribute.h>
 // std
@@ -18,12 +19,17 @@ tsd::animation::Animation &ImportContext::animation()
   return *importAnimation;
 }
 
-void ImportContext::reportSampleCount(size_t count)
+void ImportContext::reportAnimatedPrim(size_t sampleCount)
 {
   report.animatedPrims++;
-  report.sampleCount = std::max(report.sampleCount, count);
+  report.sampleCount = std::max(report.sampleCount, sampleCount);
   if (session)
     report.timeCodesPerSecond = float(session->timeCodesPerSecond());
+}
+
+bool ImportContext::isClaimed(const pxr::SdfPath &path) const
+{
+  return claimedPrims && claimedPrims->claims(path);
 }
 
 bool attributeValueVaries(const pxr::UsdAttribute &attribute)

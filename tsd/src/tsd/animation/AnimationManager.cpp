@@ -63,6 +63,20 @@ void AnimationManager::removeAllAnimations()
   m_animations.clear();
 }
 
+bool AnimationManager::widenClock(int frames, float fps)
+{
+  const bool framesWon = frames > m_totalFrames;
+  const bool fpsWon = fps > m_animationFPS;
+
+  if (framesWon)
+    setAnimationTotalFrames(frames);
+  if (fpsWon)
+    setAnimationFPS(fps);
+
+  return !(frames > 0 && frames < m_totalFrames)
+      && !(fps > 0.f && fps < m_animationFPS);
+}
+
 void AnimationManager::setAnimationTime(float time)
 {
   setAnimationTimeInternal(time, true);

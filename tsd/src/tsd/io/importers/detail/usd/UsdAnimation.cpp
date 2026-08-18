@@ -5,9 +5,9 @@
 #include "tsd/animation/AnimationManager.hpp"
 #include "tsd/io/animation/UsdGeometryFileBinding.hpp"
 #include "tsd/io/animation/UsdInstancerFileBinding.hpp"
+#include "tsd/io/importers/detail/usd/UsdInstancing.h"
 // usd
 #include <pxr/usd/usdGeom/pointBased.h>
-#include <pxr/usd/usdGeom/pointInstancer.h>
 #include <pxr/usd/usdGeom/xformable.h>
 // std
 #include <algorithm>
@@ -123,6 +123,11 @@ void addTransformAnimation(
   if (authoredTimes.size() < 2)
     return;
 
+  // A Stage that authored no time-code range of its own still needs one, and
+  // its animated prims are the only thing that can say what it should be.
+  if (ctx.session)
+    ctx.session->noteAuthoredSampleTimes(authoredTimes);
+
   TransformSampler sampler{xformable};
 
   std::vector<double> times;
@@ -147,40 +152,25 @@ void addTransformAnimation(
       node,
       frames,
       normalizeSampleTimes(ctx.stage, times));
-  ctx.reportSampleCount(authoredTimes.size());
+  ctx.reportAnimatedPrim(authoredTimes.size());
 }
 
 size_t pointInstancerSampleCount(
     ImportContext &ctx, const pxr::SdfPath &primPath)
 {
-  pxr::UsdGeomPointInstancer instancer(ctx.stage->GetPrimAtPath(primPath));
-  if (!instancer)
-    return 0;
-
-  // Every attribute that can move a placement, including the two velocity
-  // attributes Hydra folds into the instance transforms it computes.
-  const pxr::UsdAttribute attributes[] = {instancer.GetPositionsAttr(),
-      instancer.GetOrientationsAttr(),
-      instancer.GetScalesAttr(),
-      instancer.GetVelocitiesAttr(),
-      instancer.GetAngularVelocitiesAttr(),
-      instancer.GetProtoIndicesAttr(),
-      instancer.GetInvisibleIdsAttr()};
-
-  size_t retval = 0;
-  for (const auto &attribute : attributes) {
-    if (attribute)
-      retval = std::max(retval, size_t(attribute.GetNumTimeSamples()));
-  }
-  return retval;
+  auto times = pointInstancerSampleTimes(ctx.stage->GetPrimAtPath(primPath));
+  // A Stage that authored no time-code range of its own still needs one, and
+  // its animated prims are the only thing that can say what it should be.
+  if (ctx.session)
+    ctx.session->noteAuthoredSampleTimes(times);
+  return times.size();
 }
 
 void addInstancerAnimation(ImportContext &ctx,
     const pxr::SdfPath &primPath,
     size_t prototypeIndex,
     LayerNodeRef arrayNode,
-    ArrayRef transforms,
-    size_t sampleCount)
+    ArrayRef transforms)
 {
   ctx.animation().emplaceFileBinding<UsdInstancerFileBinding>(&ctx.scene,
       ctx.session,
@@ -189,7 +179,6 @@ void addInstancerAnimation(ImportContext &ctx,
       ctx.filePath,
       primPath.GetString(),
       prototypeIndex);
-  ctx.reportSampleCount(sampleCount);
 }
 
 void addDeformingGeometryAnimation(
@@ -208,6 +197,9 @@ void addDeformingGeometryAnimation(
   if (sampleTimes.size() < 2)
     return;
 
+  if (ctx.session)
+    ctx.session->noteAuthoredSampleTimes(sampleTimes);
+
   // One eager frame is already in the Scene; the rest is pulled from the
   // shared Stage Session on demand (ADR 0018).
   ctx.animation().emplaceFileBinding<UsdGeometryFileBinding>(&ctx.scene,
@@ -215,7 +207,7 @@ void addDeformingGeometryAnimation(
       ctx.session,
       ctx.filePath,
       primPath.GetString());
-  ctx.reportSampleCount(sampleTimes.size());
+  ctx.reportAnimatedPrim(sampleTimes.size());
 }
 
 } // namespace tsd::io::usd

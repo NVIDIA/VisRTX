@@ -76,7 +76,8 @@ int main(int argc, char *argv[])
   // Populate spheres //
 
   tsd::animation::AnimationManager anim(&scene);
-  tsd::io::import_USD(scene, anim, g_filename.c_str());
+  tsd::io::widenAnimationClock(
+      anim, tsd::io::import_USD(scene, anim, g_filename.c_str()));
 
   // Setup ANARI device //
 

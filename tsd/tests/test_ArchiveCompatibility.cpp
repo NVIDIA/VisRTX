@@ -12,6 +12,7 @@
 #include "tsd/io/archives/detail/ArchivePlan.hpp"
 #include "tsd/io/serialization/serialization_internal.hpp"
 #include "tsd/scene/Scene.hpp"
+#include "tsd/scene/objects/Geometry.hpp"
 // std
 #include <cstdio>
 #include <filesystem>
@@ -1107,6 +1108,82 @@ SCENARIO("tsd::io archive plans reject unsupported file bindings",
 
   REQUIRE_FALSE(result.accepted());
   REQUIRE(result.status == tsd::io::ArchivePlanStatus::UnsupportedFileBinding);
+}
+
+SCENARIO("tsd::io accepts USD file bindings written before continuous time",
+    "[ArchiveCompatibility]")
+{
+  // The `sampleTimes`/`timeBase` pair was a cache of what the Stage already
+  // says, and was dropped when bindings started resolving at a Time Code
+  // (ADR 0021). Archives that still carry it must keep validating: the fields
+  // are ignored, not rejected, and no format version was bumped for them.
+  GIVEN("An Animation Archive whose usdGeometry binding carries the old cache")
+  {
+    tsd::scene::Scene scene;
+    tsd::animation::AnimationManager animations(&scene);
+    auto geometry = scene.createObject<tsd::scene::Geometry>(
+        tsd::scene::tokens::geometry::triangle);
+
+    tsd::core::DataTree tree;
+    auto &archive = tree.root();
+    archive["name"] = std::string("legacy");
+    auto &binding = archive["fileBindings"].append();
+    binding["kind"] = std::string("usdGeometry");
+    binding["targetIndex"] = geometry->index();
+    binding["stageFile"] = std::string("/data/blob.usd");
+    binding["primPath"] = std::string("/Blob");
+    binding["sampleTimes"].append() = 0.f;
+    binding["sampleTimes"].append() = 2.f;
+    binding["timeBase"].append() = 0.f;
+    binding["timeBase"].append() = 1.f;
+
+    THEN("It still validates against the scene")
+    {
+      std::string message;
+      REQUIRE(tsd::io::validate_AnimationArchive(animations, archive, &message));
+    }
+
+    THEN("It deserializes, dropping the fields rather than failing on them")
+    {
+      auto *restored =
+          tsd::io::deserialize_AnimationArchive(animations, archive);
+      REQUIRE(restored != nullptr);
+      REQUIRE(restored->fileBindings().size() == 1);
+      REQUIRE(restored->fileBindings()[0]->kind() == "usdGeometry");
+
+      tsd::core::DataTree rewritten;
+      restored->fileBindings()[0]->toDataNode(rewritten.root());
+      REQUIRE(rewritten.root().child("stageFile") != nullptr);
+      REQUIRE(rewritten.root().child("sampleTimes") == nullptr);
+      REQUIRE(rewritten.root().child("timeBase") == nullptr);
+    }
+  }
+
+  GIVEN("An Animation Archive holding a usdInstancer binding")
+  {
+    tsd::scene::Scene scene;
+    tsd::animation::AnimationManager animations(&scene);
+    auto transforms = scene.createArray(ANARI_FLOAT32_MAT4, 2);
+    auto node = scene.insertChildTransformArrayNode(
+        scene.defaultLayer()->root(), transforms.data(), "swarm");
+
+    tsd::core::DataTree tree;
+    auto &archive = tree.root();
+    archive["name"] = std::string("swarm");
+    auto &binding = archive["fileBindings"].append();
+    binding["kind"] = std::string("usdInstancer");
+    binding["layerName"] = std::string("default");
+    binding["nodeIndex"] = node->index();
+    binding["stageFile"] = std::string("/data/swarm.usd");
+    binding["primPath"] = std::string("/Swarm");
+    binding["prototypeIndex"] = uint64_t(0);
+
+    THEN("The kind is a recognized part of the format")
+    {
+      std::string message;
+      REQUIRE(tsd::io::validate_AnimationArchive(animations, archive, &message));
+    }
+  }
 }
 
 SCENARIO("tsd::io scene exclusion rejects mixed animation ownership",

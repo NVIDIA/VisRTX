@@ -12,6 +12,7 @@
 #include <pxr/imaging/hdsi/tetMeshConversionSceneIndex.h>
 #include <pxr/usdImaging/usdImaging/sceneIndices.h>
 // std
+#include <algorithm>
 #include <filesystem>
 #include <map>
 #include <mutex>
@@ -73,8 +74,10 @@ std::map<std::string, std::weak_ptr<UsdStageSession>> &registry()
 } // namespace
 
 UsdStageSession::UsdStageSession(
-    std::string filePath, pxr::UsdStageRefPtr stage)
-    : m_filePath(std::move(filePath)), m_stage(std::move(stage))
+    std::string key, std::string filePath, pxr::UsdStageRefPtr stage)
+    : m_key(std::move(key)),
+      m_filePath(std::move(filePath)),
+      m_stage(std::move(stage))
 {
   pxr::UsdImagingCreateSceneIndicesInfo createInfo;
   createInfo.stage = m_stage;
@@ -85,15 +88,29 @@ UsdStageSession::UsdStageSession(
 
   // Values authored only as time samples do not resolve at UsdTimeCode's
   // default, so a Stage with no authored range is still read at a real time.
-  m_startTimeCode = m_stage->GetStartTimeCode();
-  m_endTimeCode = m_stage->GetEndTimeCode();
-  if (!(m_endTimeCode > m_startTimeCode))
-    m_endTimeCode = m_startTimeCode;
+  m_authoredTimeRange = m_stage->HasAuthoredTimeCodeRange();
+  if (m_authoredTimeRange) {
+    m_startTimeCode = m_stage->GetStartTimeCode();
+    m_endTimeCode = m_stage->GetEndTimeCode();
+    if (!(m_endTimeCode > m_startTimeCode))
+      m_endTimeCode = m_startTimeCode;
+  }
 
   setTime(pxr::UsdTimeCode(m_startTimeCode));
 }
 
-UsdStageSession::~UsdStageSession() = default;
+UsdStageSession::~UsdStageSession()
+{
+  // Take the registry entry out with the Session, so a later acquire of this
+  // file opens a fresh Stage rather than finding a corpse. The entry may
+  // already have been replaced by a newer Session for the same file, which
+  // `expired()` distinguishes.
+  std::lock_guard<std::mutex> guard(registryMutex());
+  auto &sessions = registry();
+  if (auto found = sessions.find(m_key);
+      found != sessions.end() && found->second.expired())
+    sessions.erase(found);
+}
 
 const std::string &UsdStageSession::filePath() const
 {
@@ -123,6 +140,26 @@ double UsdStageSession::endTimeCode() const
 double UsdStageSession::timeCodesPerSecond() const
 {
   return m_stage->GetTimeCodesPerSecond();
+}
+
+bool UsdStageSession::hasAuthoredTimeRange() const
+{
+  return m_authoredTimeRange;
+}
+
+void UsdStageSession::noteAuthoredSampleTimes(const std::vector<double> &times)
+{
+  if (m_authoredTimeRange || times.empty())
+    return;
+
+  if (!m_sawSampleTimes) {
+    m_sawSampleTimes = true;
+    m_startTimeCode = times.front();
+    m_endTimeCode = times.back();
+    return;
+  }
+  m_startTimeCode = std::min(m_startTimeCode, times.front());
+  m_endTimeCode = std::max(m_endTimeCode, times.back());
 }
 
 pxr::UsdTimeCode UsdStageSession::timeCodeAt(float t) const
@@ -163,20 +200,7 @@ std::shared_ptr<UsdStageSession> acquireUsdSession(const std::string &filePath)
   if (!stage)
     return {};
 
-  // The deleter takes the registry entry out with the Session, so a later
-  // acquire of the same file opens a fresh Stage rather than finding a corpse.
-  std::shared_ptr<UsdStageSession> session(
-      new UsdStageSession(filePath, stage), [key](UsdStageSession *s) {
-        {
-          std::lock_guard<std::mutex> innerGuard(registryMutex());
-          auto &inner = registry();
-          if (auto found = inner.find(key);
-              found != inner.end() && found->second.expired())
-            inner.erase(found);
-        }
-        delete s;
-      });
-
+  auto session = std::make_shared<UsdStageSession>(key, filePath, stage);
   sessions[key] = session;
   return session;
 }

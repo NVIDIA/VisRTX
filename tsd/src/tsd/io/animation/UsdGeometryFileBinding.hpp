@@ -4,7 +4,7 @@
 #pragma once
 
 #include "tsd/animation/Animation.hpp"
-#include "tsd/animation/FileBinding.hpp"
+#include "tsd/io/animation/UsdFileBinding.hpp"
 #include "tsd/scene/ObjectUsePtr.hpp"
 #include "tsd/scene/Scene.hpp"
 #include "tsd/scene/objects/Geometry.hpp"
@@ -13,10 +13,6 @@
 #include <string>
 
 namespace tsd::io {
-
-namespace usd {
-struct UsdStageSession;
-} // namespace usd
 
 /*
  * Binding that re-pulls a deforming mesh's vertex arrays from a Stage Session
@@ -33,7 +29,7 @@ struct UsdStageSession;
  *   auto &b = anim.emplaceFileBinding<UsdGeometryFileBinding>(
  *       &scene, geometry.data(), session, stageFile, "/World/Character");
  */
-struct UsdGeometryFileBinding : public tsd::animation::FileBinding
+struct UsdGeometryFileBinding : public UsdFileBinding
 {
   UsdGeometryFileBinding(scene::Scene *scene,
       scene::Geometry *geometry,
@@ -59,16 +55,10 @@ struct UsdGeometryFileBinding : public tsd::animation::FileBinding
 
  private:
   void addCallbackToAnimation(tsd::animation::Animation &anim) override;
-
-  // Joined on first use rather than at construction, so a binding read back
-  // from an Archive does not open the Stage until something scrubs.
-  bool ensureSession();
+  const char *logTag() const override;
 
   scene::ObjectUsePtr<scene::Geometry, scene::Object::UseKind::ANIM> m_geometry;
-  std::shared_ptr<usd::UsdStageSession> m_session;
-  std::string m_stageFile;
-  std::string m_primPath;
-  bool m_sessionFailed{false};
+  bool m_sampleTimesNoted{false};
   bool m_countChangeReported{false};
 };
 

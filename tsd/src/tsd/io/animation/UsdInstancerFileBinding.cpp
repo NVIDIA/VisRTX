@@ -22,12 +22,10 @@ UsdInstancerFileBinding::UsdInstancerFileBinding(scene::Scene *scene,
     std::string stageFile,
     std::string primPath,
     size_t prototypeIndex)
-    : FileBinding(scene),
-      m_session(std::move(session)),
+    : UsdFileBinding(
+          scene, std::move(session), std::move(stageFile), std::move(primPath)),
       m_arrayNode(arrayNode),
       m_transforms(transforms),
-      m_stageFile(std::move(stageFile)),
-      m_primPath(std::move(primPath)),
       m_prototypeIndex(prototypeIndex)
 {}
 
@@ -38,6 +36,11 @@ std::string UsdInstancerFileBinding::kind() const
   return "usdInstancer";
 }
 
+const char *UsdInstancerFileBinding::logTag() const
+{
+  return "UsdInstancerFileBinding";
+}
+
 void UsdInstancerFileBinding::toDataNode(core::DataNode &node) const
 {
   if (m_arrayNode && scene()) {
@@ -45,8 +48,7 @@ void UsdInstancerFileBinding::toDataNode(core::DataNode &node) const
     node["layerName"] = scene()->getLayerName(layer).str();
     node["nodeIndex"] = m_arrayNode->index();
   }
-  node["stageFile"] = m_stageFile;
-  node["primPath"] = m_primPath;
+  writePathsToDataNode(node);
   node["prototypeIndex"] = uint64_t(m_prototypeIndex);
 }
 
@@ -107,30 +109,24 @@ UsdInstancerFileBinding *UsdInstancerFileBinding::addToAnimation(
 
 #if TSD_USE_USD
 
-bool UsdInstancerFileBinding::ensureSession()
-{
-  if (m_session)
-    return true;
-  if (m_sessionFailed)
-    return false;
-
-  m_session = usd::acquireUsdSession(m_stageFile);
-  if (!m_session) {
-    m_sessionFailed = true;
-    logWarning("[UsdInstancerFileBinding] failed to open stage '%s'",
-        m_stageFile.c_str());
-  }
-  return bool(m_session);
-}
-
 void UsdInstancerFileBinding::update(float t)
 {
   if (!scene() || !m_arrayNode || !ensureSession())
     return;
 
-  m_session->setTime(m_session->timeCodeAt(t));
+  const pxr::SdfPath path(primPath());
 
-  auto prim = m_session->sceneIndex()->GetPrim(pxr::SdfPath(m_primPath));
+  // A Stage that carries samples but authored no time-code range has no range
+  // to map onto until its own prims say what they cover.
+  if (!m_sampleTimesNoted && !session()->hasAuthoredTimeRange()) {
+    m_sampleTimesNoted = true;
+    noteAuthoredSampleTimes(usd::pointInstancerSampleTimes(
+        session()->stage()->GetPrimAtPath(path)));
+  }
+
+  session()->setTime(session()->timeCodeAt(t));
+
+  auto prim = session()->sceneIndex()->GetPrim(path);
   const auto placements =
       usd::readInstancerPlacements(prim).forPrototype(m_prototypeIndex);
   if (placements.empty())
@@ -159,12 +155,7 @@ void UsdInstancerFileBinding::update(float t)
 
 void UsdInstancerFileBinding::update(float)
 {
-  logError("[UsdInstancerFileBinding] USD not enabled in TSD build.");
-}
-
-bool UsdInstancerFileBinding::ensureSession()
-{
-  return false;
+  ensureSession(); // reports that this build has no USD, once
 }
 
 #endif

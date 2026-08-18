@@ -73,7 +73,6 @@ struct Traversal
   ImportContext &ctx;
   pxr::HdSceneIndexBaseRefPtr sceneIndex;
   InstancerRegistry &instancers;
-  const ClaimedPrims *claimed{nullptr};
 
   void visit(const pxr::SdfPath &primPath,
       LayerNodeRef parent,
@@ -118,7 +117,7 @@ void Traversal::visit(const pxr::SdfPath &primPath,
 {
   // Claimed Prims reach the Scene through the dialect's own importers; the
   // generic path must not also convert a carrier prim into geometry.
-  if (claimed && claimed->claims(primPath))
+  if (ctx.isClaimed(primPath))
     return;
 
   auto prim = sceneIndex->GetPrim(primPath);
@@ -308,6 +307,7 @@ UsdImportReport import_USD(Scene &scene,
   // traversal skips so the generic path never converts a carrier prim into
   // meaningless geometry.
   auto claimed = claimDialectPrims(ctx);
+  ctx.claimedPrims = claimed.get();
 
   auto sceneIndex = session->sceneIndex();
 
@@ -327,7 +327,7 @@ UsdImportReport import_USD(Scene &scene,
       : pxr::SdfPath(options.primPath);
 
   InstancerRegistry instancers;
-  Traversal traversal{ctx, sceneIndex, instancers, claimed.get()};
+  Traversal traversal{ctx, sceneIndex, instancers};
 
   scene.beginLayerEditBatch();
   if (scopeRoot == pxr::SdfPath::AbsoluteRootPath()) {
