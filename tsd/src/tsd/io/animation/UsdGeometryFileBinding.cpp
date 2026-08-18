@@ -26,10 +26,9 @@ namespace {
 // stores them, which is what reads it back.
 void writeMat4(core::DataNode &node, const tsd::math::mat4 &m)
 {
-  auto &values = node;
   for (int column = 0; column < 4; ++column) {
     for (int row = 0; row < 4; ++row)
-      values.append() = m[column][row];
+      node.append() = m[column][row];
   }
 }
 
@@ -113,6 +112,15 @@ void UsdGeometryFileBinding::toDataNode(core::DataNode &node) const
     entry["part"] = part;
     entry["uv"] = uvName;
   }
+
+  auto &slotNode = replay["slots"];
+  for (const auto &[part, primvars] : m_resolveOptions.slotPrimvarsByPart) {
+    auto &entry = slotNode.append();
+    entry["part"] = part;
+    auto &names = entry["primvars"];
+    for (const auto &primvar : primvars)
+      names.append() = primvar;
+  }
 }
 
 void UsdGeometryFileBinding::onDefragment(const scene::IndexRemapper &cb)
@@ -176,8 +184,21 @@ UsdGeometryFileBinding *UsdGeometryFileBinding::addToAnimation(
     resolveOptions.bakeXform = readMat4(replay->child("bakeXform"));
     if (auto *uvNode = replay->child("uvNames")) {
       uvNode->foreach_child([&](core::DataNode &entry) {
-        resolveOptions.uvNamesByPart[entry["part"].getValueOr<std::string>("")] =
-            entry["uv"].getValueOr<std::string>("st");
+        resolveOptions.uvNamesByPart.set(
+            entry["part"].getValueOr<std::string>(""),
+            entry["uv"].getValueOr<std::string>("st"));
+      });
+    }
+    if (auto *slotNode = replay->child("slots")) {
+      slotNode->foreach_child([&](core::DataNode &entry) {
+        std::vector<std::string> primvars;
+        if (auto *names = entry.child("primvars")) {
+          names->foreach_child([&](core::DataNode &n) {
+            primvars.push_back(n.getValueOr<std::string>(""));
+          });
+        }
+        resolveOptions.slotPrimvarsByPart.set(
+            entry["part"].getValueOr<std::string>(""), std::move(primvars));
       });
     }
   }
@@ -224,13 +245,17 @@ void UsdGeometryFileBinding::update(float t)
   // rather than half-updated: Parts appear and disappear when the mesh's
   // material subsets change, and that means new Surfaces and Materials, which
   // is conversion rather than animation.
+  // One cache across the whole set, so a mesh's Surfaces keep sharing one
+  // position Array and that Array is written once rather than once per Surface.
+  usd::RefillCache cache;
+
   size_t applied = 0;
   for (auto &part : m_parts) {
     auto *geometry = part.geometry.get();
     const auto *resolvedPart = resolved.part(part.name);
     if (!geometry || !resolvedPart)
       continue;
-    if (usd::refillGeometry(*scene(), *geometry, *resolvedPart))
+    if (usd::refillGeometry(*scene(), *geometry, *resolvedPart, cache))
       applied++;
   }
 

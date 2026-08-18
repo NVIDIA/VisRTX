@@ -23,6 +23,7 @@
 #include <algorithm>
 #include <limits>
 #include <numeric>
+#include <string_view>
 #include <utility>
 
 namespace tsd::io::usd {
@@ -116,17 +117,31 @@ pxr::VtVec3fArray bakedPositions(
   return retval;
 }
 
+// The one way an attribute joins a Part: nothing that would bind as an empty
+// or untyped Array gets in.
+void addTypedAttribute(ResolvedPart &part,
+    Token parameter,
+    anari::DataType type,
+    pxr::VtValue value,
+    std::string sharedKey = {})
+{
+  if (type == ANARI_UNKNOWN || !value.IsArrayValued()
+      || value.GetArraySize() == 0)
+    return;
+  part.attributes.push_back(
+      {parameter, type, std::move(value), std::move(sharedKey)});
+}
+
+// The same, for the float-typed primvar data whose ANARI type is inferable
+// from what the VtValue holds.
 void addAttribute(ResolvedPart &part,
     Token parameter,
     pxr::VtValue value,
     std::string sharedKey = {})
 {
   const auto type = anariTypeOfPrimvar(value);
-  if (type == ANARI_UNKNOWN || !value.IsArrayValued()
-      || value.GetArraySize() == 0)
-    return;
-  part.attributes.push_back(
-      {parameter, type, std::move(value), std::move(sharedKey)});
+  addTypedAttribute(
+      part, parameter, type, std::move(value), std::move(sharedKey));
 }
 
 // USD authors widths; TSD geometry takes radii. Prims with no authored
@@ -269,8 +284,13 @@ struct TriangulatedPrimvar
   size_t valuesPerTriangle{0};
 
   // Vertex data is the only kind every Part can point at unchanged.
-  bool isShared() const { return valuesPerTriangle == 0; }
+  bool isShared() const;
 };
+
+bool TriangulatedPrimvar::isShared() const
+{
+  return valuesPerTriangle == 0;
+}
 
 // Kept sorted by name: the order primvars are visited decides which of them
 // takes each spare attribute slot, and that has to be stable across runs. This
@@ -367,6 +387,7 @@ ResolvedPart resolveTrianglePart(const TriangulatedMesh &mesh,
     const TriangulatedPrimvars &attributes,
     const std::vector<uint32_t> &triangles,
     const std::string &uvName,
+    const std::vector<std::string> *replaySlots,
     const std::string &name)
 {
   ResolvedPart part;
@@ -382,10 +403,10 @@ ResolvedPart resolveTrianglePart(const TriangulatedMesh &mesh,
   indices.reserve(triangles.size());
   for (uint32_t triangle : triangles)
     indices.push_back(mesh.triangleIndices[triangle]);
-  part.attributes.push_back({Token("primitive.index"),
+  addTypedAttribute(part,
+      Token("primitive.index"),
       ANARI_UINT32_VEC3,
-      pxr::VtValue(indices),
-      {}});
+      pxr::VtValue(indices));
 
   auto bind = [&](const std::string &primvarName,
                   const std::string &tsdName,
@@ -405,6 +426,26 @@ ResolvedPart resolveTrianglePart(const TriangulatedMesh &mesh,
   bind(uvName, "attribute0", /*isUv=*/true);
   bind(colorName, "color");
 
+  // Replaying a recorded assignment keeps a primvar that appears or disappears
+  // mid-sequence from re-slotting the others; a Part being resolved for the
+  // first time has nothing to replay and assigns in name order, which is
+  // deterministic because the primvar map is sorted.
+  if (replaySlots) {
+    int slot = 1;
+    for (const auto &primvarName : *replaySlots) {
+      if (slot > 3)
+        break;
+      const auto tsdName = "attribute" + std::to_string(slot++);
+      part.slotPrimvars.push_back(primvarName);
+      auto found = attributes.find(primvarName);
+      if (found == attributes.end())
+        continue; // the slot stays empty rather than shifting the rest along
+      resolvePartPrimvar(
+          part, primvarName, found->second, triangles, tsdName, false);
+    }
+    return part;
+  }
+
   int nextAttribute = 1;
   for (const auto &[primvarName, primvar] : attributes) {
     if (nextAttribute > 3)
@@ -412,6 +453,7 @@ ResolvedPart resolveTrianglePart(const TriangulatedMesh &mesh,
     if (primvarName == normalsName || primvarName == colorName
         || primvarName == uvName)
       continue;
+    part.slotPrimvars.push_back(primvarName);
     resolvePartPrimvar(part,
         primvarName,
         primvar,
@@ -436,8 +478,14 @@ std::string uvNameFor(const GeometryResolveOptions &options,
     const std::string &partName,
     const std::string &fallback)
 {
-  auto found = options.uvNamesByPart.find(partName);
-  return found == options.uvNamesByPart.end() ? fallback : found->second;
+  const auto *found = options.uvNamesByPart.at(partName);
+  return found ? *found : fallback;
+}
+
+const std::vector<std::string> *replaySlotsFor(
+    const GeometryResolveOptions &options, const std::string &partName)
+{
+  return options.slotPrimvarsByPart.at(partName);
 }
 
 ResolvedGeometry resolveMesh(const pxr::HdSceneIndexBaseRefPtr &sceneIndex,
@@ -550,8 +598,12 @@ ResolvedGeometry resolveMesh(const pxr::HdSceneIndexBaseRefPtr &sceneIndex,
   }
 
   if (subsetPaths.empty()) {
-    retval.parts.push_back(resolveTrianglePart(
-        mesh, attributes, allTriangles, meshUvName, meshName));
+    retval.parts.push_back(resolveTrianglePart(mesh,
+        attributes,
+        allTriangles,
+        meshUvName,
+        replaySlotsFor(options, meshName),
+        meshName));
     return retval;
   }
 
@@ -595,6 +647,7 @@ ResolvedGeometry resolveMesh(const pxr::HdSceneIndexBaseRefPtr &sceneIndex,
         attributes,
         subsetTriangles,
         uvNameFor(options, subsetName, meshUvName),
+        replaySlotsFor(options, subsetName),
         subsetName));
   }
 
@@ -612,8 +665,12 @@ ResolvedGeometry resolveMesh(const pxr::HdSceneIndexBaseRefPtr &sceneIndex,
     unclaimedTriangles = allTriangles;
 
   if (!unclaimedTriangles.empty()) {
-    retval.parts.push_back(resolveTrianglePart(
-        mesh, attributes, unclaimedTriangles, meshUvName, meshName));
+    retval.parts.push_back(resolveTrianglePart(mesh,
+        attributes,
+        unclaimedTriangles,
+        meshUvName,
+        replaySlotsFor(options, meshName),
+        meshName));
   }
 
   return retval;
@@ -686,10 +743,8 @@ ResolvedGeometry resolveCurves(const pxr::SdfPath &primPath,
     base += uint32_t(count);
   }
   if (!segments.empty()) {
-    part.attributes.push_back({Token("primitive.index"),
-        ANARI_UINT32,
-        pxr::VtValue(segments),
-        {}});
+    addTypedAttribute(
+        part, Token("primitive.index"), ANARI_UINT32, pxr::VtValue(segments));
   }
 
   resolveRadii(part,
@@ -820,6 +875,17 @@ const ResolvedAttribute *ResolvedPart::attribute(Token parameter) const
   return nullptr;
 }
 
+bool ResolvedPart::provides(Token parameter) const
+{
+  if (attribute(parameter))
+    return true;
+  for (const auto &[name, value] : scalars) {
+    if (name == parameter)
+      return true;
+  }
+  return false;
+}
+
 bool ResolvedGeometry::valid() const
 {
   return !parts.empty();
@@ -837,6 +903,40 @@ const ResolvedPart *ResolvedGeometry::part(const std::string &name) const
 ///////////////////////////////////////////////////////////////////////////////
 // Entry points ///////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
+
+// Cheap enough to ask before anything is built: every check here is a data
+// source read, not a conversion.
+bool geometryWillResolve(const pxr::HdSceneIndexPrim &prim)
+{
+  if (!isGeometryPrimType(prim.primType))
+    return false;
+
+  if (prim.primType == pxr::HdPrimTypeTokens->sphere
+      || prim.primType == pxr::HdPrimTypeTokens->cone
+      || prim.primType == pxr::HdPrimTypeTokens->cylinder)
+    return true;
+
+  auto primvars = pxr::HdPrimvarsSchema::GetFromParent(prim.dataSource);
+  const auto points =
+      readPrimvar(primvars, pxr::HdPrimvarsSchemaTokens->points);
+  if (!points.valid() || !points.value.IsHolding<pxr::VtVec3fArray>())
+    return false;
+
+  if (prim.primType == pxr::HdPrimTypeTokens->mesh) {
+    auto topology =
+        pxr::HdMeshSchema::GetFromParent(prim.dataSource).GetTopology();
+    return !intArrayOf(topology.GetFaceVertexCounts()).empty()
+        && !intArrayOf(topology.GetFaceVertexIndices()).empty();
+  }
+
+  if (prim.primType == pxr::HdPrimTypeTokens->basisCurves) {
+    auto topology =
+        pxr::HdBasisCurvesSchema::GetFromParent(prim.dataSource).GetTopology();
+    return !intArrayOf(topology.GetCurveVertexCounts()).empty();
+  }
+
+  return true;
+}
 
 bool isGeometryPrimType(const pxr::TfToken &primType)
 {
@@ -858,13 +958,10 @@ DisplayColor readDisplayColor(const pxr::HdSceneIndexPrim &prim)
 
   if (color.valid() && color.value.IsHolding<pxr::VtVec3fArray>()) {
     const auto &c = color.value.UncheckedGet<pxr::VtVec3fArray>();
-    retval.hasColor = true;
     retval.color = float3(c[0][0], c[0][1], c[0][2]);
   }
-  if (opacity.valid() && opacity.value.IsHolding<pxr::VtFloatArray>()) {
-    retval.hasOpacity = true;
+  if (opacity.valid() && opacity.value.IsHolding<pxr::VtFloatArray>())
     retval.opacity = opacity.value.UncheckedGet<pxr::VtFloatArray>()[0];
-  }
   return retval;
 }
 
@@ -883,9 +980,40 @@ ResolvedGeometry resolveGeometry(
   return resolveQuadric(primPath, prim, options);
 }
 
+namespace {
+
+// Whether a parameter is one this module owns, and so may clear when a resolve
+// stops providing it. Anything else on the Geometry was put there by something
+// that is not a per-frame resolve, and is left alone.
+bool isResolvedParameterName(const char *name)
+{
+  const std::string_view view(name ? name : "");
+  return view.rfind("vertex.", 0) == 0 || view.rfind("primitive.", 0) == 0
+      || view.rfind("faceVarying.", 0) == 0 || view == "radius";
+}
+
+// Drop what this Part no longer provides, so a primvar that stops resolving
+// leaves nothing of the previous frame behind -- including the case where a
+// prim swaps a `vertex.radius` array for a scalar `radius` or back.
+void clearStaleParameters(
+    scene::Geometry &geometry, const ResolvedPart &part)
+{
+  std::vector<Token> stale;
+  for (size_t i = 0; i < geometry.numParameters(); ++i) {
+    const auto *name = geometry.parameterNameAt(i);
+    if (isResolvedParameterName(name) && !part.provides(Token(name)))
+      stale.push_back(Token(name));
+  }
+  for (auto name : stale)
+    geometry.removeParameter(name);
+}
+
+} // namespace
+
 bool refillGeometry(scene::Scene &scene,
     scene::Geometry &geometry,
-    const ResolvedPart &part)
+    const ResolvedPart &part,
+    RefillCache &cache)
 {
   if (geometry.subtype() != part.subtype)
     return false;
@@ -894,11 +1022,23 @@ bool refillGeometry(scene::Scene &scene,
     if (!attribute.valid())
       continue;
 
+    // A buffer shared with another Part of the same gprim is written once and
+    // then only re-bound, so a mesh's Surfaces keep pointing at one Array and
+    // that Array is not rewritten once per Surface per frame.
+    if (!attribute.sharedKey.empty()) {
+      if (auto *shared = cache.sharedArrays.at(attribute.sharedKey)) {
+        geometry.setParameterObject(attribute.parameter, **shared);
+        continue;
+      }
+    }
+
     auto *array =
         geometry.parameterValueAsObject<scene::Array>(attribute.parameter);
     if (array && array->size() == attribute.count()
         && array->elementType() == attribute.type) {
       array->setData(attribute.data());
+      if (!attribute.sharedKey.empty())
+        cache.sharedArrays.set(attribute.sharedKey, array->self());
       continue;
     }
 
@@ -906,16 +1046,19 @@ bool refillGeometry(scene::Scene &scene,
     // moves costs one allocation and one rebind for that parameter. Every
     // parameter of the Part is written in this one pass, so the Geometry is
     // never left half in one frame and half in another.
-    auto replacement =
-        scene.createArray(attribute.type, attribute.count());
+    auto replacement = scene.createArray(attribute.type, attribute.count());
     replacement->setData(attribute.data());
     if (array)
       replacement->setName(array->name().c_str());
     geometry.setParameterObject(attribute.parameter, *replacement);
+    if (!attribute.sharedKey.empty())
+      cache.sharedArrays.set(attribute.sharedKey, replacement);
   }
 
   for (const auto &[name, value] : part.scalars)
     geometry.setParameter(name, value);
+
+  clearStaleParameters(geometry, part);
 
   return true;
 }

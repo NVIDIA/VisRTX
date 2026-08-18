@@ -6,10 +6,10 @@
 #include "tsd/io/usd/UsdDataSource.h"
 // usd
 #include <pxr/base/vt/array.h>
-#include <pxr/usd/usd/stage.h>
 #include <pxr/base/vt/value.h>
 #include <pxr/imaging/hd/meshSchema.h>
 #include <pxr/imaging/hd/sceneIndex.h>
+#include <pxr/usd/usd/stage.h>
 // std
 #include <string>
 #include <utility>

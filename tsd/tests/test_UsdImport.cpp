@@ -80,6 +80,7 @@ SCENARIO("Import report counts skipped prims by reason", "[UsdImport]")
 #include "tsd/io/archives/AnimationManagerArchive.hpp"
 #include "tsd/io/importers.hpp"
 #include "tsd/scene/Scene.hpp"
+#include "tsd/scene/objects/Material.hpp"
 // std
 #include <cmath>
 #include <filesystem>
@@ -3102,6 +3103,216 @@ def Mesh "Morphing"
         REQUIRE(scene.numberOfObjects(ANARI_SURFACE) == surfacesBefore);
         REQUIRE(scene.numberOfObjects(ANARI_GEOMETRY) == geometriesBefore);
         REQUIRE(scene.numberOfObjects(ANARI_MATERIAL) == materialsBefore);
+      }
+    }
+  }
+}
+
+SCENARIO("Conversion leaves nothing behind for geometry it does not emit",
+    "[UsdImport]")
+{
+  GIVEN("A mesh with no points that nonetheless binds a material")
+  {
+    StageFixture stage("tsd_test_usd_empty_mesh.usda", R"(#usda 1.0
+
+def Material "Orphan"
+{
+    token outputs:surface.connect = </Orphan/Shader.outputs:surface>
+
+    def Shader "Shader"
+    {
+        uniform token info:id = "UsdPreviewSurface"
+        color3f inputs:diffuseColor = (1, 0, 0)
+        token outputs:surface
+    }
+}
+
+def Mesh "Empty" (
+    prepend apiSchemas = ["MaterialBindingAPI"]
+)
+{
+    rel material:binding = </Orphan>
+    int[] faceVertexCounts = []
+    int[] faceVertexIndices = []
+    point3f[] points = []
+}
+)");
+
+    tsd::scene::Scene scene;
+    tsd::animation::AnimationManager animMgr(&scene);
+
+    // A Scene creates one default Material of its own, so what matters is
+    // that the import adds none.
+    const auto materialsBefore = scene.numberOfObjects(ANARI_MATERIAL);
+
+    WHEN("The Stage is imported")
+    {
+      tsd::io::import_USD(scene, animMgr, stage.path().c_str());
+
+      THEN("No Surface, Geometry or Material is created for it")
+      {
+        REQUIRE(scene.numberOfObjects(ANARI_SURFACE) == 0);
+        REQUIRE(scene.numberOfObjects(ANARI_GEOMETRY) == 0);
+        REQUIRE(scene.numberOfObjects(ANARI_MATERIAL) == materialsBefore);
+      }
+    }
+  }
+
+  GIVEN("A mesh whose subset claims no faces but binds its own material")
+  {
+    StageFixture stage("tsd_test_usd_empty_subset.usda", R"(#usda 1.0
+
+def Material "Used"
+{
+    token outputs:surface.connect = </Used/Shader.outputs:surface>
+
+    def Shader "Shader"
+    {
+        uniform token info:id = "UsdPreviewSurface"
+        color3f inputs:diffuseColor = (0, 1, 0)
+        token outputs:surface
+    }
+}
+
+def Material "Unused"
+{
+    token outputs:surface.connect = </Unused/Shader.outputs:surface>
+
+    def Shader "Shader"
+    {
+        uniform token info:id = "UsdPreviewSurface"
+        color3f inputs:diffuseColor = (0, 0, 1)
+        token outputs:surface
+    }
+}
+
+def Mesh "Quad"
+{
+    int[] faceVertexCounts = [3, 3]
+    int[] faceVertexIndices = [0, 1, 2, 0, 2, 3]
+    point3f[] points = [(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)]
+
+    def GeomSubset "Drawn" (
+        prepend apiSchemas = ["MaterialBindingAPI"]
+    )
+    {
+        uniform token elementType = "face"
+        uniform token familyName = "materialBind"
+        int[] indices = [0, 1]
+        rel material:binding = </Used>
+    }
+
+    def GeomSubset "Empty" (
+        prepend apiSchemas = ["MaterialBindingAPI"]
+    )
+    {
+        uniform token elementType = "face"
+        uniform token familyName = "materialBind"
+        int[] indices = []
+        rel material:binding = </Unused>
+    }
+}
+)");
+
+    tsd::scene::Scene scene;
+    tsd::animation::AnimationManager animMgr(&scene);
+
+    WHEN("The Stage is imported")
+    {
+      tsd::io::import_USD(scene, animMgr, stage.path().c_str());
+
+      THEN("Only the material the drawn subset uses is created")
+      {
+        REQUIRE(scene.numberOfObjects(ANARI_SURFACE) == 1);
+
+        bool sawUnused = false;
+        for (size_t i = 0; i < scene.numberOfObjects(ANARI_MATERIAL); ++i) {
+          auto material = scene.getObject<tsd::scene::Material>(i);
+          if (material && material->name().find("Unused") != std::string::npos)
+            sawUnused = true;
+        }
+        REQUIRE_FALSE(sawUnused);
+      }
+    }
+  }
+}
+
+SCENARIO("Parts keep sharing one position Array across a resize", "[UsdImport]")
+{
+  GIVEN("A mesh divided into subsets whose vertex count changes")
+  {
+    StageFixture stage("tsd_test_usd_shared_resize.usda", R"(#usda 1.0
+(
+    startTimeCode = 0
+    endTimeCode = 2
+)
+
+def Mesh "Split"
+{
+    int[] faceVertexCounts.timeSamples = {
+        0: [3, 3],
+        2: [3, 3, 3],
+    }
+    int[] faceVertexIndices.timeSamples = {
+        0: [0, 1, 2, 0, 2, 3],
+        2: [0, 1, 2, 0, 2, 3, 0, 3, 4],
+    }
+    point3f[] points.timeSamples = {
+        0: [(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)],
+        2: [(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0), (-1, 1, 0)],
+    }
+
+    def GeomSubset "A"
+    {
+        uniform token elementType = "face"
+        uniform token familyName = "materialBind"
+        int[] indices = [0]
+    }
+
+    def GeomSubset "B"
+    {
+        uniform token elementType = "face"
+        uniform token familyName = "materialBind"
+        int[] indices = [1]
+    }
+}
+)");
+
+    tsd::scene::Scene scene;
+    tsd::animation::AnimationManager animMgr(&scene);
+
+    WHEN("The Stage is imported")
+    {
+      tsd::io::import_USD(scene, animMgr, stage.path().c_str());
+
+      auto positionArrayOf = [&](size_t i) {
+        auto geometry = scene.getObject<tsd::scene::Geometry>(i);
+        return geometry
+            ? geometry->parameterValueAsObject<tsd::scene::Array>(
+                  "vertex.position")
+            : nullptr;
+      };
+
+      const auto parts = scene.numberOfObjects(ANARI_GEOMETRY);
+      REQUIRE(parts > 1); // the subsets, plus any unclaimed remainder
+
+      THEN("Every Part shares one position Array on import")
+      {
+        auto *first = positionArrayOf(0);
+        REQUIRE(first != nullptr);
+        for (size_t i = 1; i < parts; ++i)
+          REQUIRE(positionArrayOf(i) == first);
+      }
+
+      THEN("They still share one after a resize, not a copy each")
+      {
+        animMgr.setAnimationTime(1.0f);
+
+        auto *first = positionArrayOf(0);
+        REQUIRE(first != nullptr);
+        REQUIRE(first->size() == 5);
+        for (size_t i = 1; i < parts; ++i)
+          REQUIRE(positionArrayOf(i) == first);
       }
     }
   }

@@ -4,6 +4,7 @@
 #pragma once
 
 // tsd_core
+#include "tsd/core/FlatMap.hpp"
 #include "tsd/core/TSDMath.hpp"
 #include "tsd/core/Token.hpp"
 // tsd_io
@@ -16,8 +17,9 @@
 #include <pxr/imaging/hd/sceneIndex.h>
 #include <pxr/usd/sdf/path.h>
 // std
-#include <map>
+#include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace tsd::io::usd {
@@ -32,9 +34,9 @@ namespace tsd::io::usd {
  * re-pull a mesh's points, indices and primvars as one consistent set without
  * re-creating the objects around them (ADR 0022).
  *
- * Nothing here touches a Scene: a ResolvedGeometry is inert data that can be
+ * Resolving touches no Scene: a ResolvedGeometry is inert data that can be
  * produced at any Time Code and then either built into new objects or written
- * over existing ones.
+ * over existing ones. Writing it back (refillGeometry, below) necessarily does.
  */
 
 // One geometry parameter's worth of resolved data, already expanded, gathered
@@ -65,7 +67,12 @@ struct ResolvedPart
   std::vector<ResolvedAttribute> attributes;
   std::vector<std::pair<tsd::core::Token, float>> scalars;
 
+  // Which primvar took each spare attribute slot, in slot order. Reported so
+  // an Import can record it and a later resolve can replay it.
+  std::vector<std::string> slotPrimvars;
+
   const ResolvedAttribute *attribute(tsd::core::Token parameter) const;
+  bool provides(tsd::core::Token parameter) const;
 };
 
 struct ResolvedGeometry
@@ -91,13 +98,27 @@ bool isGeometryPrimType(const pxr::TfToken &primType);
 // viewer rather than taking TSD's default.
 struct DisplayColor
 {
-  bool hasColor{false};
-  tsd::math::float3 color{1.f};
-  bool hasOpacity{false};
-  float opacity{1.f};
+  std::optional<tsd::math::float3> color;
+  std::optional<float> opacity;
 };
 
 DisplayColor readDisplayColor(const pxr::HdSceneIndexPrim &prim);
+
+// True when a gprim carries enough to resolve into anything at all. Asked
+// before the objects around a gprim are built, so that a prim yielding no
+// geometry does not leave a Material behind that nothing references.
+bool geometryWillResolve(const pxr::HdSceneIndexPrim &prim);
+
+/*
+ * Arrays shared between the Parts of one gprim, so that a mesh's Surfaces keep
+ * pointing at one position Array rather than a copy each -- and, on the common
+ * path, so that the one Array is written once per frame rather than once per
+ * Part. One of these covers one resolve; it must not outlive it.
+ */
+struct RefillCache
+{
+  tsd::core::FlatMap<std::string, scene::ArrayRef> sharedArrays;
+};
 
 /*
  * Write a resolved Part over an existing Geometry, reusing every Array whose
@@ -111,6 +132,7 @@ DisplayColor readDisplayColor(const pxr::HdSceneIndexPrim &prim);
  */
 bool refillGeometry(scene::Scene &scene,
     scene::Geometry &geometry,
-    const ResolvedPart &part);
+    const ResolvedPart &part,
+    RefillCache &cache);
 
 } // namespace tsd::io::usd
