@@ -3,9 +3,10 @@
 
 #pragma once
 
-#include "tsd/io/importers/detail/usd/UsdImportContext.h"
+#include "tsd/io/usd/UsdDataSource.h"
 // usd
 #include <pxr/base/vt/array.h>
+#include <pxr/usd/usd/stage.h>
 #include <pxr/base/vt/value.h>
 #include <pxr/imaging/hd/meshSchema.h>
 #include <pxr/imaging/hd/sceneIndex.h>
@@ -48,9 +49,11 @@ struct RefinedMesh
 // True when this mesh should be refined: the Stage explicitly declares a
 // subdivision scheme other than "none" and the caller asked for refinement.
 // USD's schema default is catmullClark for every mesh, so authoring is what
-// distinguishes a subdivision surface from an ordinary polygon mesh.
-bool meshWantsRefinement(
-    const ImportContext &ctx, const pxr::SdfPath &primPath);
+// distinguishes a subdivision surface from an ordinary polygon mesh. Reads the
+// raw Stage prim, which is where the scheme is authored.
+bool meshWantsRefinement(const pxr::UsdStageRefPtr &stage,
+    int refinementLevel,
+    const pxr::SdfPath &primPath);
 
 // Refine with OpenSubdiv, honouring subdivision tags -- creases, corners, and
 // holes -- carried on the resolved prim.

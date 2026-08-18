@@ -197,7 +197,7 @@ void Traversal::visit(const pxr::SdfPath &primPath,
 
   // Content //
 
-  bool converted = false;
+  bool convertedAnything = false;
   if (prim.primType.IsEmpty()) {
     if (!isHierarchyPrim(primPath)) {
       ctx.scene.removeNode(node);
@@ -209,21 +209,19 @@ void Traversal::visit(const pxr::SdfPath &primPath,
       return;
     }
   } else if (isGeometryPrimType(prim.primType)) {
-    for (auto &surface : convertGeometry(
-             ctx, sceneIndex, primPath, prim, tsd::math::IDENTITY_MAT4)) {
+    auto converted = convertGeometry(
+        ctx, sceneIndex, primPath, prim, tsd::math::IDENTITY_MAT4);
+    for (auto &surface : converted.surfaces)
       ctx.scene.insertChildObjectNode(node, surface, surface->name().c_str());
-      if (auto *geometry = surface->parameterValueAsObject<Geometry>(
-              tokens::surface::geometry))
-        addDeformingGeometryAnimation(ctx, primPath, geometry->self());
-    }
-    converted = true;
+    addDeformingGeometryAnimation(ctx, primPath, converted);
+    convertedAnything = true;
   } else if (prim.primType == pxr::HdPrimTypeTokens->instancer) {
     convertInstancer(ctx, sceneIndex, primPath, prim, node, instancers);
-    converted = true;
+    convertedAnything = true;
   } else if (isLightPrimType(prim.primType)) {
     if (auto light = convertLight(ctx, primPath, prim)) {
       ctx.scene.insertChildObjectNode(node, light, primPath.GetName().c_str());
-      converted = true;
+      convertedAnything = true;
     } else {
       ctx.scene.removeNode(node);
       insertPlaceholder(
@@ -232,7 +230,7 @@ void Traversal::visit(const pxr::SdfPath &primPath,
     }
   } else if (prim.primType == pxr::HdPrimTypeTokens->camera) {
     convertCamera(ctx, primPath);
-    converted = true;
+    convertedAnything = true;
   } else if (prim.primType == pxr::HdPrimTypeTokens->material
       || prim.primType == pxr::HdPrimTypeTokens->geomSubset) {
     // Materials convert on demand from the prims that bind them; geom subsets
@@ -240,8 +238,8 @@ void Traversal::visit(const pxr::SdfPath &primPath,
     ctx.scene.removeNode(node);
     return;
   } else if (isVolumePrimType(prim.primType)) {
-    converted = convertVolume(ctx, primPath, node);
-    if (!converted) {
+    convertedAnything = convertVolume(ctx, primPath, node);
+    if (!convertedAnything) {
       ctx.scene.removeNode(node);
       insertPlaceholder(
           ctx, parent, primPath, UsdSkipReason::UNSUPPORTED_PRIM_TYPE);
@@ -257,7 +255,7 @@ void Traversal::visit(const pxr::SdfPath &primPath,
     return;
   }
 
-  if (converted)
+  if (convertedAnything)
     ctx.report.convertedPrims++;
 
   instancers.nodeForPrimPath[primPath.GetString()] = node;

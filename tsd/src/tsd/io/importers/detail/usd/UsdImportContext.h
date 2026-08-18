@@ -7,6 +7,7 @@
 #include "tsd/core/TSDMath.hpp"
 #include "tsd/io/UsdImport.hpp"
 #include "tsd/io/importers/detail/importer_common.hpp"
+#include "tsd/io/usd/UsdDataSource.h"
 #include "tsd/io/usd/UsdStageSession.h"
 #include "tsd/scene/Scene.hpp"
 // usd
@@ -92,7 +93,6 @@ struct ImportContext
 // Small conversions shared by every converter /////////////////////////////////
 
 tsd::math::mat4 toTsdMat4(const pxr::GfMatrix4d &m);
-pxr::VtIntArray intArrayOf(const pxr::HdIntArrayDataSourceHandle &source);
 
 // Whether an attribute's time samples actually differ from one another. USD
 // exporters routinely re-author every attribute at every frame regardless of
@@ -118,11 +118,6 @@ inline void ImportContext::reportSkip(const pxr::SdfPath &primPath,
       toString(reason),
       detail.empty() ? "" : " -- ",
       detail.c_str());
-}
-
-inline pxr::VtIntArray intArrayOf(const pxr::HdIntArrayDataSourceHandle &source)
-{
-  return source ? source->GetTypedValue(0) : pxr::VtIntArray();
 }
 
 inline tsd::math::mat4 toTsdMat4(const pxr::GfMatrix4d &m)

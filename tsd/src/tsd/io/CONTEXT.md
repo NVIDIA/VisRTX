@@ -130,6 +130,21 @@ The flavor of shading network selected from a bound foreign material, such as
 UsdPreviewSurface, MaterialX, or MDL.
 _Avoid_: shader target, material backend
 
+**Resolved Geometry**:
+One foreign gprim read out into plain buffers — topology, points, and every
+primvar already expanded and gathered — with no TSD scene objects involved.
+Resolving is the half of geometry conversion that varies with Time Code;
+building the Surfaces, Materials and Arrays around it is the half that does
+not. An animation binding re-runs the first and never the second. See
+[ADR 0022](../../../docs/adr/0022-refill-captured-arrays-rather-than-re-running-conversion.md).
+_Avoid_: geometry cache, mesh data
+
+**Part**:
+One Surface's worth of a Resolved Geometry, named for the prim or subset it
+came from. A mesh with per-face material subsets resolves to several Parts
+sharing its vertex data; every other gprim resolves to one.
+_Avoid_: submesh, chunk
+
 **Claimed Prim**:
 A prim an importer handles outside its generic conversion path, and which is
 therefore withheld from that path.

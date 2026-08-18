@@ -10,19 +10,19 @@ weakly, so the last holder to let go closes the Stage. A fully static import
 therefore retains nothing — the last reference drops when `import_USD` returns
 — while an animated import pins the file for as long as its bindings live.
 
-This extends ADR 0015's "Hydra owns resolution" from import time to every time,
-for the bindings that resolve through Hydra. It also amends ADR 0018, which
+This extends ADR 0015's "Hydra owns resolution" from import time to every time.
+It also amends ADR 0018, which
 described per-scene stage retention and claimed a retained scene index the code
 did not in fact keep: `UsdGeometryFileBinding` used to re-open its own raw
 `UsdStage`, so a 1.6 GB stage was opened twice.
 
-Be precise about what changed for which binding. The instancer binding reads the
-resolved scene, so it re-runs the import's own `readInstancerPlacements()`
-against the Session's chain and cannot drift from what the import converted. The
-geometry binding still reads `UsdGeomPointBased` off the Stage directly, as ADR
-0018 described — the Session did not change where it reads from, only that it no
-longer opens the file to do it, and it leaves the Session's Time Code alone
-because it never touches the resolved scene.
+Both bindings resolve through the Session's chain rather than off the Stage's
+schemas, so neither can drift from what the import converted: the instancer
+binding re-runs the import's own `readInstancerPlacements()`, and the geometry
+binding re-runs the import's own `resolveGeometry()` (ADR 0022). The Stage
+itself is still read directly for the things Hydra does not model — authored
+time samples, the `anari:` and `tsd:io:` vocabularies — which is what it was
+always retained for (ADR 0015).
 
 Keying by path rather than by Scene or by AnimationManager keeps USD knowledge
 out of `tsd_scene` and `tsd_animation`, which sit below `tsd_io`, and makes

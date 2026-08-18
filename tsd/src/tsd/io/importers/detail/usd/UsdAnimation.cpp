@@ -181,11 +181,12 @@ void addInstancerAnimation(ImportContext &ctx,
       prototypeIndex);
 }
 
-void addDeformingGeometryAnimation(
-    ImportContext &ctx, const pxr::SdfPath &primPath, GeometryRef geometry)
+void addDeformingGeometryAnimation(ImportContext &ctx,
+    const pxr::SdfPath &primPath,
+    ConvertedGeometry &converted)
 {
   auto prim = ctx.stage->GetPrimAtPath(primPath);
-  if (!prim || !geometry)
+  if (!prim || converted.geometryByPart.empty())
     return;
 
   pxr::UsdGeomPointBased pointBased(prim);
@@ -200,13 +201,24 @@ void addDeformingGeometryAnimation(
   if (ctx.session)
     ctx.session->noteAuthoredSampleTimes(sampleTimes);
 
+  std::vector<UsdGeometryFileBinding::Part> parts;
+  parts.reserve(converted.geometryByPart.size());
+  for (auto &[name, geometry] : converted.geometryByPart) {
+    UsdGeometryFileBinding::Part part;
+    part.name = name;
+    part.geometry = geometry.data();
+    parts.push_back(std::move(part));
+  }
+
   // One eager frame is already in the Scene; the rest is pulled from the
-  // shared Stage Session on demand (ADR 0018).
+  // shared Stage Session on demand (ADR 0018), re-resolved rather than
+  // re-converted (ADR 0022).
   ctx.animation().emplaceFileBinding<UsdGeometryFileBinding>(&ctx.scene,
-      geometry.data(),
       ctx.session,
       ctx.filePath,
-      primPath.GetString());
+      primPath.GetString(),
+      std::move(parts),
+      converted.resolveOptions);
   ctx.reportAnimatedPrim(sampleTimes.size());
 }
 

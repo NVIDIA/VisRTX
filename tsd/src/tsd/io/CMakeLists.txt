@@ -222,6 +222,7 @@ if (TSD_USE_USD)
     importers/detail/usd/UsdLights.cpp
     importers/detail/usd/UsdMaterials.cpp
     importers/detail/usd/UsdSubdivision.cpp
+    usd/UsdResolvedGeometry.cpp
     usd/UsdStageSession.cpp
   )
 

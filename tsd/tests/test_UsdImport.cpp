@@ -3009,4 +3009,102 @@ def Mesh "Blob"
   }
 }
 
+SCENARIO("A mesh whose topology changes re-pulls a consistent set",
+    "[UsdImport]")
+{
+  GIVEN("A mesh whose points, indices and primvars all change together")
+  {
+    // The case a binding that only re-pulls points cannot serve: writing new
+    // positions without new indices would describe a mesh that never existed.
+    StageFixture stage("tsd_test_usd_morphing_mesh.usda", R"(#usda 1.0
+(
+    startTimeCode = 0
+    endTimeCode = 2
+)
+
+def Mesh "Morphing"
+{
+    int[] faceVertexCounts.timeSamples = {
+        0: [3],
+        2: [3, 3],
+    }
+    int[] faceVertexIndices.timeSamples = {
+        0: [0, 1, 2],
+        2: [0, 1, 2, 0, 2, 3],
+    }
+    point3f[] points.timeSamples = {
+        0: [(0, 0, 0), (1, 0, 0), (0, 1, 0)],
+        2: [(0, 0, 0), (1, 0, 0), (0, 1, 0), (-1, 1, 0)],
+    }
+    color3f[] primvars:displayColor (
+        interpolation = "vertex"
+    )
+    color3f[] primvars:displayColor.timeSamples = {
+        0: [(1, 0, 0), (0, 1, 0), (0, 0, 1)],
+        2: [(1, 0, 0), (0, 1, 0), (0, 0, 1), (1, 1, 0)],
+    }
+}
+)");
+
+    tsd::scene::Scene scene;
+    tsd::animation::AnimationManager animMgr(&scene);
+
+    WHEN("The Stage is imported")
+    {
+      tsd::io::import_USD(scene, animMgr, stage.path().c_str());
+
+      auto geometry = scene.getObject<tsd::scene::Geometry>(0);
+      REQUIRE(geometry);
+
+      auto arraySize = [&](const char *parameter) -> size_t {
+        auto *array =
+            geometry->parameterValueAsObject<tsd::scene::Array>(parameter);
+        return array ? array->size() : 0;
+      };
+
+      THEN("The first frame is one triangle over three vertices")
+      {
+        REQUIRE(arraySize("vertex.position") == 3);
+        REQUIRE(arraySize("primitive.index") == 1);
+        REQUIRE(arraySize("vertex.color") == 3);
+      }
+
+      THEN("Scrubbing re-pulls points, indices and primvars together")
+      {
+        animMgr.setAnimationTime(1.0f);
+
+        REQUIRE(arraySize("vertex.position") == 4);
+        REQUIRE(arraySize("primitive.index") == 2);
+        REQUIRE(arraySize("vertex.color") == 4);
+
+        // Every index has to address the positions that arrived with it.
+        auto *indices =
+            geometry->parameterValueAsObject<tsd::scene::Array>(
+                "primitive.index");
+        const auto *triangles = indices->dataAs<tsd::math::uint3>();
+        for (size_t i = 0; i < indices->size(); ++i) {
+          REQUIRE(triangles[i].x < 4);
+          REQUIRE(triangles[i].y < 4);
+          REQUIRE(triangles[i].z < 4);
+        }
+      }
+
+      THEN("The Surface and its Geometry keep their identity across the scrub")
+      {
+        const auto surfacesBefore = scene.numberOfObjects(ANARI_SURFACE);
+        const auto geometriesBefore = scene.numberOfObjects(ANARI_GEOMETRY);
+        const auto materialsBefore = scene.numberOfObjects(ANARI_MATERIAL);
+
+        animMgr.setAnimationTime(1.0f);
+
+        // Re-running conversion would have built new ones, forcing the render
+        // index to tear down and recreate ANARI handles (ADR 0022).
+        REQUIRE(scene.numberOfObjects(ANARI_SURFACE) == surfacesBefore);
+        REQUIRE(scene.numberOfObjects(ANARI_GEOMETRY) == geometriesBefore);
+        REQUIRE(scene.numberOfObjects(ANARI_MATERIAL) == materialsBefore);
+      }
+    }
+  }
+}
+
 #endif // TSD_USE_USD

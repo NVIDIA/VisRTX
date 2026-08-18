@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/io/importers/detail/usd/UsdSubdivision.h"
+// tsd_core
+#include "tsd/core/TSDMath.hpp"
 // usd
 #include <pxr/imaging/hd/subdivisionTagsSchema.h>
 #include <pxr/imaging/pxOsd/meshTopology.h>
@@ -263,12 +265,14 @@ pxr::PxOsdSubdivTags readSubdivTags(const pxr::HdMeshSchema &meshSchema)
 
 } // namespace
 
-bool meshWantsRefinement(const ImportContext &ctx, const pxr::SdfPath &primPath)
+bool meshWantsRefinement(const pxr::UsdStageRefPtr &stage,
+    int refinementLevel,
+    const pxr::SdfPath &primPath)
 {
-  if (ctx.options.refinementLevel <= 0)
+  if (refinementLevel <= 0 || !stage)
     return false;
 
-  auto prim = ctx.stage->GetPrimAtPath(primPath);
+  auto prim = stage->GetPrimAtPath(primPath);
   if (!prim)
     return false;
 

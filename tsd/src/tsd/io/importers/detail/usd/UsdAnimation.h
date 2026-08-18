@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "tsd/io/importers/detail/usd/UsdGeometry.h"
 #include "tsd/io/importers/detail/usd/UsdImportContext.h"
 #include "tsd/scene/objects/Array.hpp"
 // std
@@ -39,10 +40,12 @@ void addInstancerAnimation(ImportContext &ctx,
     LayerNodeRef arrayNode,
     ArrayRef transforms);
 
-// Bind a geometry's vertex arrays to the retained Stage so that a long
-// animation of a dense mesh is pulled on demand instead of held in memory
-// (ADR 0018). Does nothing unless the prim's points are time-sampled.
-void addDeformingGeometryAnimation(
-    ImportContext &ctx, const pxr::SdfPath &primPath, GeometryRef geometry);
+// Bind everything one converted gprim produced to the Stage Session, so that a
+// long animation of a dense mesh is pulled on demand instead of held in memory
+// (ADR 0018) and arrives as one consistent set (ADR 0022). Does nothing unless
+// the prim's points are time-sampled.
+void addDeformingGeometryAnimation(ImportContext &ctx,
+    const pxr::SdfPath &primPath,
+    ConvertedGeometry &converted);
 
 } // namespace tsd::io::usd

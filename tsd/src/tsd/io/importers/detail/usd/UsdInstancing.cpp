@@ -99,7 +99,8 @@ std::shared_ptr<PrototypeContent> convertPrototype(ImportContext &ctx,
     const auto bake = content->internalTransformsAnimated
         ? tsd::math::IDENTITY_MAT4
         : tsd::math::mul(inverseRoot, flattenedXformOf(sceneIndex, path));
-    for (auto &surface : convertGeometry(ctx, sceneIndex, path, prim, bake))
+    for (auto &surface :
+        convertGeometry(ctx, sceneIndex, path, prim, bake).surfaces)
       content->surfaces.push_back(surface);
     if (content->internalTransformsAnimated)
       content->gprimPaths.push_back(path);
