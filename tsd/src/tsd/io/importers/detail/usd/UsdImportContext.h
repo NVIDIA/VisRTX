@@ -32,6 +32,21 @@ using namespace tsd::scene;
 struct ClaimedPrims;
 
 /*
+ * A material as TSD sees it, together with the primvar its own texture-reader
+ * node asked for. The UV name travels with the material because the geometry
+ * converter must bind that primvar rather than assume a conventional name.
+ *
+ * A default-constructed value is a material that did not resolve, which is
+ * cached like any other so a Stage binding one broken material a thousand
+ * times resolves and reports it once.
+ */
+struct ResolvedMaterial
+{
+  MaterialRef material;
+  std::string uvPrimvarName;
+};
+
+/*
  * Everything one USD Stage import needs to carry between converters: the
  * target Scene, the settings driving the import, the report being accumulated,
  * and the Stage itself, which is retained so that data OpenUSD does not model
@@ -81,8 +96,7 @@ struct ImportContext
 
   // Caches keyed by resolved prim path, so shared content converts once.
   ImageCache textureCache{&scene};
-  std::unordered_map<std::string, MaterialRef> materialCache;
-  std::unordered_map<std::string, std::string> uvPrimvarCache;
+  std::unordered_map<std::string, ResolvedMaterial> materialCache;
 
   void reportSkip(const pxr::SdfPath &primPath,
       const std::string &primType,

@@ -247,7 +247,7 @@ MaterialRef boundMaterialOf(ImportContext &ctx, const pxr::UsdPrim &prim)
   const auto key = usdMaterial.GetPath().GetString();
   if (auto found = ctx.materialCache.find(key);
       found != ctx.materialCache.end())
-    return found->second;
+    return found->second.material;
   return {};
 }
 

@@ -503,6 +503,26 @@ MaterialRef tryOmniPbrMapping(ImportContext &ctx,
   return material;
 }
 
+// Try each Render Context in the caller's preference order, falling back per
+// material so a Stage mixing network flavours resolves completely either way.
+pxr::HdMaterialNetworkSchema selectNetwork(
+    const pxr::HdMaterialSchema &material,
+    const std::vector<std::string> &preference)
+{
+  for (const auto &context : preference) {
+    auto network = material.GetMaterialNetwork(pxr::TfToken(context));
+    if (network && network.GetNodes())
+      return network;
+  }
+  // Nothing preferred matched: take whatever the material does have.
+  for (const auto &context : material.GetRenderContexts()) {
+    auto network = material.GetMaterialNetwork(context);
+    if (network && network.GetNodes())
+      return network;
+  }
+  return material.GetMaterialNetwork();
+}
+
 #if TSD_USD_HAS_MATERIALX
 
 // The node a generated document holds under `name`, which OpenUSD's conversion
@@ -704,8 +724,16 @@ bool documentResolves(const MaterialX::DocumentPtr &document, std::string &why)
 MaterialRef tryMaterialXPassthrough(ImportContext &ctx,
     const pxr::SdfPath &materialPath,
     const pxr::HdSceneIndexPrim &prim,
-    const pxr::HdMaterialNetworkSchema &network)
+    const pxr::HdMaterialSchema &materialSchema)
 {
+  if (!materialSchema)
+    return {};
+
+  // Prefer an authored MaterialX network, but a preview-surface network also
+  // converts through its own MaterialX node definitions.
+  auto network = materialSchema.GetMaterialNetwork(MATERIALX_CONTEXT);
+  if (!network || !network.GetNodes())
+    network = selectNetwork(materialSchema, ctx.options.renderContexts);
   if (!network || !network.GetNodes())
     return {};
 
@@ -818,94 +846,12 @@ MaterialRef tryMaterialXPassthrough(ImportContext &ctx,
 
 #endif
 
-// Try each Render Context in the caller's preference order, falling back per
-// material so a Stage mixing network flavours resolves completely either way.
-pxr::HdMaterialNetworkSchema selectNetwork(
-    const pxr::HdMaterialSchema &material,
-    const std::vector<std::string> &preference)
+// Material values are imported at one time, so say when the Stage animates
+// them rather than leaving the difference to be noticed.
+void reportAnimatedShaderInputs(ImportContext &ctx,
+    const pxr::SdfPath &materialPath,
+    const std::string &primType)
 {
-  for (const auto &context : preference) {
-    auto network = material.GetMaterialNetwork(pxr::TfToken(context));
-    if (network && network.GetNodes())
-      return network;
-  }
-  // Nothing preferred matched: take whatever the material does have.
-  for (const auto &context : material.GetRenderContexts()) {
-    auto network = material.GetMaterialNetwork(context);
-    if (network && network.GetNodes())
-      return network;
-  }
-  return material.GetMaterialNetwork();
-}
-
-} // namespace
-
-ResolvedMaterial resolveMaterial(ImportContext &ctx,
-    const pxr::HdSceneIndexBaseRefPtr &sceneIndex,
-    const pxr::SdfPath &materialPath)
-{
-  if (materialPath.IsEmpty())
-    return {};
-
-  const auto key = materialPath.GetString();
-  if (auto found = ctx.materialCache.find(key);
-      found != ctx.materialCache.end()) {
-    ResolvedMaterial retval;
-    retval.material = found->second;
-    retval.uvPrimvarName = ctx.uvPrimvarCache[key];
-    return retval;
-  }
-
-  auto prim = sceneIndex->GetPrim(materialPath);
-  auto materialSchema = pxr::HdMaterialSchema::GetFromParent(prim.dataSource);
-
-  auto cacheAndReturn = [&](MaterialRef material) {
-    ctx.materialCache[key] = material;
-    ctx.uvPrimvarCache[key] = std::string();
-    ResolvedMaterial retval;
-    retval.material = material;
-    return retval;
-  };
-
-  // Native passthrough modes are opt-in; each falls back to the portable
-  // mapping, saying so, rather than dropping the material.
-  if (ctx.options.materialMode == UsdMaterialMode::MDL) {
-    if (auto material = tryMdlPassthrough(ctx, materialPath))
-      return cacheAndReturn(material);
-    ctx.reportSkip(materialPath,
-        prim.primType.GetString(),
-        UsdSkipReason::RICHER_MATERIAL_AVAILABLE,
-        "no MDL network authored; reading a portable mapping instead");
-  } else if (ctx.options.materialMode == UsdMaterialMode::MATERIALX) {
-#if TSD_USD_HAS_MATERIALX
-    // Prefer an authored MaterialX network, but a preview-surface network also
-    // converts through its own MaterialX node definitions.
-    if (materialSchema) {
-      auto network = materialSchema.GetMaterialNetwork(MATERIALX_CONTEXT);
-      if (!network || !network.GetNodes())
-        network = selectNetwork(materialSchema, ctx.options.renderContexts);
-      if (auto material =
-              tryMaterialXPassthrough(ctx, materialPath, prim, network))
-        return cacheAndReturn(material);
-    }
-    ctx.reportSkip(materialPath,
-        prim.primType.GetString(),
-        UsdSkipReason::RICHER_MATERIAL_AVAILABLE,
-        "no network could be converted to a MaterialX document; reading a"
-        " portable mapping instead");
-#else
-    // MaterialX passthrough needs OpenUSD's HdMtlx document conversion, which
-    // this build of OpenUSD does not ship.
-    ctx.reportSkip(materialPath,
-        prim.primType.GetString(),
-        UsdSkipReason::RICHER_MATERIAL_AVAILABLE,
-        "MaterialX passthrough is unavailable in this OpenUSD build; "
-        "reading a portable mapping instead");
-#endif
-  }
-
-  // Material values are imported at one time, so say when the Stage animates
-  // them rather than leaving the difference to be noticed.
   if (auto usdPrim = ctx.stage->GetPrimAtPath(materialPath)) {
     for (const auto &descendant : usdPrim.GetDescendants()) {
       pxr::UsdShadeShader shader(descendant);
@@ -918,21 +864,24 @@ ResolvedMaterial resolveMaterial(ImportContext &ctx,
         animated = animated || attributeValueVaries(input.GetAttr());
       if (animated) {
         ctx.reportSkip(materialPath,
-            prim.primType.GetString(),
+            primType,
             UsdSkipReason::TIME_VARYING_VALUE_DROPPED,
             "shader inputs are time-sampled; imported at one time");
         break;
       }
     }
   }
+}
 
-  // OmniPBR is part of the portable mapping rather than a passthrough mode: it
-  // maps onto the same physicallyBased material the preview-surface reader
-  // emits, and it has to be tried first because that reader would find none of
-  // OmniPBR's input names and emit its defaults instead.
-  if (auto material = tryOmniPbrMapping(ctx, materialPath, prim.primType))
-    return cacheAndReturn(material);
-
+// The portable mapping: read the network's surface terminal as a
+// UsdPreviewSurface and emit the physicallyBased material it describes. This
+// is where every material not passed through natively ends up, so a Stage
+// authored for another renderer still arrives with something bound.
+ResolvedMaterial convertPreviewSurface(ImportContext &ctx,
+    const pxr::HdMaterialSchema &materialSchema,
+    const pxr::SdfPath &materialPath,
+    const pxr::HdSceneIndexPrim &prim)
+{
   if (!materialSchema) {
     ctx.reportSkip(materialPath,
         prim.primType.GetString(),
@@ -977,7 +926,7 @@ ResolvedMaterial resolveMaterial(ImportContext &ctx,
 
   auto material =
       ctx.scene.createObject<Material>(tokens::material::physicallyBased);
-  material->setName(key.c_str());
+  material->setName(materialPath.GetString().c_str());
 
   ResolvedMaterial retval;
   retval.material = material;
@@ -1060,9 +1009,79 @@ ResolvedMaterial resolveMaterial(ImportContext &ctx,
   setFloatIfPresent("clearcoatRoughness", "clearcoatRoughness");
   setFloatIfPresent("ior", "ior");
 
-  ctx.materialCache[key] = material;
-  ctx.uvPrimvarCache[key] = retval.uvPrimvarName;
   return retval;
+}
+
+} // namespace
+
+ResolvedMaterial resolveMaterial(ImportContext &ctx,
+    const pxr::HdSceneIndexBaseRefPtr &sceneIndex,
+    const pxr::SdfPath &materialPath)
+{
+  if (materialPath.IsEmpty())
+    return {};
+
+  const auto key = materialPath.GetString();
+  if (auto found = ctx.materialCache.find(key);
+      found != ctx.materialCache.end())
+    return found->second;
+
+  auto prim = sceneIndex->GetPrim(materialPath);
+  const auto primType = prim.primType.GetString();
+  auto materialSchema = pxr::HdMaterialSchema::GetFromParent(prim.dataSource);
+
+  // Every exit path caches, failures included: a material that cannot be
+  // resolved is resolved -- and reported -- once, not once per binding.
+  auto cache = [&](ResolvedMaterial resolved) {
+    ctx.materialCache[key] = resolved;
+    return resolved;
+  };
+
+  // Native passthrough modes are opt-in; each falls back to the portable
+  // mapping, saying so, rather than dropping the material.
+  switch (ctx.options.materialMode) {
+  case UsdMaterialMode::MDL:
+    if (auto material = tryMdlPassthrough(ctx, materialPath))
+      return cache({material});
+    ctx.reportSkip(materialPath,
+        primType,
+        UsdSkipReason::RICHER_MATERIAL_AVAILABLE,
+        "no MDL network authored; reading a portable mapping instead");
+    break;
+  case UsdMaterialMode::MATERIALX:
+#if TSD_USD_HAS_MATERIALX
+    if (auto material =
+            tryMaterialXPassthrough(ctx, materialPath, prim, materialSchema))
+      return cache({material});
+    ctx.reportSkip(materialPath,
+        primType,
+        UsdSkipReason::RICHER_MATERIAL_AVAILABLE,
+        "no network could be converted to a MaterialX document; reading a"
+        " portable mapping instead");
+#else
+    // MaterialX passthrough needs OpenUSD's HdMtlx document conversion, which
+    // this build of OpenUSD does not ship.
+    ctx.reportSkip(materialPath,
+        primType,
+        UsdSkipReason::RICHER_MATERIAL_AVAILABLE,
+        "MaterialX passthrough is unavailable in this OpenUSD build; "
+        "reading a portable mapping instead");
+#endif
+    break;
+  case UsdMaterialMode::PHYSICALLY_BASED:
+    break;
+  }
+
+  reportAnimatedShaderInputs(ctx, materialPath, primType);
+
+  // OmniPBR is part of the portable mapping rather than a passthrough mode: it
+  // maps onto the same physicallyBased material the preview-surface reader
+  // emits, and it has to be tried first because that reader would find none of
+  // OmniPBR's input names and emit its defaults instead.
+  if (auto material = tryOmniPbrMapping(ctx, materialPath, prim.primType))
+    return cache({material});
+
+  return cache(convertPreviewSurface(ctx, materialSchema, materialPath, prim));
 }
 
 } // namespace tsd::io::usd

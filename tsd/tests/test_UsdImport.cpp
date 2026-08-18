@@ -1679,6 +1679,79 @@ def Xform "World"
 #endif
 }
 
+// A material resolves once and is cached, including when it does not resolve
+// at all. Without a negative entry every prim bound to the same broken
+// material re-runs the resolve and files its own Import Report entry, which
+// makes the counts the report prints scale with the binding count.
+SCENARIO(
+    "An unresolvable material is reported once per material rather than"
+    " once per binding",
+    "[UsdImport]")
+{
+  GIVEN("A Stage where three meshes bind one material with no network")
+  {
+    StageFixture stage("tsd_test_usd_unresolvable_material.usda", R"(#usda 1.0
+
+def Xform "World"
+{
+    def Material "Broken"
+    {
+    }
+
+    def Mesh "QuadA" (
+        prepend apiSchemas = ["MaterialBindingAPI"]
+    )
+    {
+        int[] faceVertexCounts = [4]
+        int[] faceVertexIndices = [0, 1, 2, 3]
+        point3f[] points = [(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)]
+        rel material:binding = </World/Broken>
+    }
+
+    def Mesh "QuadB" (
+        prepend apiSchemas = ["MaterialBindingAPI"]
+    )
+    {
+        int[] faceVertexCounts = [4]
+        int[] faceVertexIndices = [0, 1, 2, 3]
+        point3f[] points = [(2, 0, 0), (3, 0, 0), (3, 1, 0), (2, 1, 0)]
+        rel material:binding = </World/Broken>
+    }
+
+    def Mesh "QuadC" (
+        prepend apiSchemas = ["MaterialBindingAPI"]
+    )
+    {
+        int[] faceVertexCounts = [4]
+        int[] faceVertexIndices = [0, 1, 2, 3]
+        point3f[] points = [(4, 0, 0), (5, 0, 0), (5, 1, 0), (4, 1, 0)]
+        rel material:binding = </World/Broken>
+    }
+}
+)");
+
+    WHEN("The Stage is imported")
+    {
+      tsd::scene::Scene scene;
+      tsd::animation::AnimationManager animMgr(&scene);
+      auto report =
+          tsd::io::import_USD(scene, animMgr, stage.path().c_str(), {});
+
+      THEN("The Import Report names the material exactly once")
+      {
+        REQUIRE(
+            report.countOf(tsd::io::UsdSkipReason::MATERIAL_RESOLUTION_FAILED)
+            == 1);
+      }
+
+      THEN("Every mesh still arrives")
+      {
+        REQUIRE(scene.numberOfObjects(ANARI_SURFACE) == 3);
+      }
+    }
+  }
+}
+
 SCENARIO("An OmniPBR material maps onto the portable material", "[UsdImport]")
 {
   GIVEN("A Stage whose material is an OmniPBR MDL shader")
