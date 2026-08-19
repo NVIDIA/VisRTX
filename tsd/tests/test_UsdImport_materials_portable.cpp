@@ -14,7 +14,7 @@ SCENARIO("An unconventionally named UV primvar is still found", "[UsdImport]")
 {
   GIVEN("A material whose reader node asks for a primvar not called 'st'")
   {
-    StageFixture stage("tsd_test_usd_uv_primvar.usda", R"(#usda 1.0
+    ImportedStage stage("tsd_test_usd_uv_primvar.usda", R"(#usda 1.0
 
 def Xform "World"
 {
@@ -60,16 +60,11 @@ def Xform "World"
 }
 )");
 
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
-
     WHEN("The Stage is imported")
     {
-      tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-
       THEN("The named primvar lands on the geometry's first attribute")
       {
-        auto geometry = scene.getObject<tsd::scene::Geometry>(0);
+        auto geometry = stage.scene.getObject<tsd::scene::Geometry>(0);
         REQUIRE(geometry);
         auto *uvs = geometry->parameterValueAsObject<tsd::scene::Array>(
             "vertex.attribute0");
@@ -91,7 +86,7 @@ SCENARIO(
 {
   GIVEN("A Stage where three meshes bind one material with no network")
   {
-    StageFixture stage("tsd_test_usd_unresolvable_material.usda", R"(#usda 1.0
+    ImportedStage stage("tsd_test_usd_unresolvable_material.usda", R"(#usda 1.0
 
 def Xform "World"
 {
@@ -133,21 +128,16 @@ def Xform "World"
 
     WHEN("The Stage is imported")
     {
-      tsd::scene::Scene scene;
-      tsd::animation::AnimationManager animMgr(&scene);
-      auto report =
-          tsd::io::import_USD(scene, animMgr, stage.path().c_str(), {});
-
       THEN("The Import Report names the material exactly once")
       {
-        REQUIRE(
-            report.countOf(tsd::io::UsdSkipReason::MATERIAL_RESOLUTION_FAILED)
+        REQUIRE(stage.report.countOf(
+                    tsd::io::UsdSkipReason::MATERIAL_RESOLUTION_FAILED)
             == 1);
       }
 
       THEN("Every mesh still arrives")
       {
-        REQUIRE(scene.numberOfObjects(ANARI_SURFACE) == 3);
+        REQUIRE(stage.scene.numberOfObjects(ANARI_SURFACE) == 3);
       }
     }
   }
@@ -157,7 +147,7 @@ SCENARIO("An OmniPBR material maps onto the portable material", "[UsdImport]")
 {
   GIVEN("A Stage whose material is an OmniPBR MDL shader")
   {
-    StageFixture stage("tsd_test_usd_omnipbr.usda", R"(#usda 1.0
+    const std::string omniPbrStage = R"(#usda 1.0
 
 def Xform "World"
 {
@@ -190,14 +180,12 @@ def Xform "World"
         rel material:binding = </World/OmniPBR>
     }
 }
-)");
+)";
 
     WHEN("The default material mode is used")
     {
-      tsd::scene::Scene scene;
-      tsd::animation::AnimationManager animMgr(&scene);
-      auto report = tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-      auto *material = boundMaterial(scene);
+      ImportedStage stage("tsd_test_usd_omnipbr.usda", omniPbrStage);
+      auto *material = boundMaterial(stage.scene);
 
       THEN("Its authored inputs arrive, not the preview-surface defaults")
       {
@@ -224,23 +212,20 @@ def Xform "World"
 
       THEN("Nothing claims a richer material was left on the table")
       {
-        REQUIRE(!report.contains(
+        REQUIRE(!stage.report.contains(
             tsd::io::UsdSkipReason::RICHER_MATERIAL_AVAILABLE));
       }
     }
 
     WHEN("MDL passthrough is asked for instead")
     {
-      tsd::scene::Scene scene;
-      tsd::animation::AnimationManager animMgr(&scene);
       tsd::io::UsdImportOptions options;
       options.materialMode = tsd::io::UsdMaterialMode::MDL;
-      auto report = tsd::io::import_USD(
-          scene, animMgr, stage.path().c_str(), {}, options);
+      ImportedStage stage("tsd_test_usd_omnipbr.usda", omniPbrStage, options);
 
       THEN("The native shader still wins over the portable mapping")
       {
-        REQUIRE(boundMaterial(scene)->subtype()
+        REQUIRE(boundMaterial(stage.scene)->subtype()
             == tsd::scene::tokens::material::mdl);
       }
     }
@@ -250,7 +235,7 @@ def Xform "World"
   {
     TextureFixture diffuse("tsd_test_usd_omnipbr_diffuse.tga");
 
-    StageFixture stage("tsd_test_usd_omnipbr_textured.usda", R"(#usda 1.0
+    ImportedStage stage("tsd_test_usd_omnipbr_textured.usda", R"(#usda 1.0
 
 def Xform "World"
 {
@@ -283,17 +268,15 @@ def Xform "World"
 
     WHEN("The default material mode is used")
     {
-      tsd::scene::Scene scene;
-      tsd::animation::AnimationManager animMgr(&scene);
-      auto report = tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-      auto *material = boundMaterial(scene);
+      auto *material = boundMaterial(stage.scene);
 
       THEN("The texture named on the shader input is bound")
       {
         REQUIRE(
             material->parameterValueAsObject<tsd::scene::Sampler>("baseColor")
             != nullptr);
-        REQUIRE(!report.contains(tsd::io::UsdSkipReason::TEXTURE_LOAD_FAILED));
+        REQUIRE(!stage.report.contains(
+            tsd::io::UsdSkipReason::TEXTURE_LOAD_FAILED));
       }
 
       THEN("An authored threshold becomes a cutout rather than a blend")
@@ -314,7 +297,7 @@ def Xform "World"
 
   GIVEN("A material whose MDL module only looks like OmniPBR")
   {
-    StageFixture stage("tsd_test_usd_omnipbr_lookalike.usda", R"(#usda 1.0
+    ImportedStage stage("tsd_test_usd_omnipbr_lookalike.usda", R"(#usda 1.0
 
 def Xform "World"
 {
@@ -354,16 +337,13 @@ def Xform "World"
 
     WHEN("The default material mode is used")
     {
-      tsd::scene::Scene scene;
-      tsd::animation::AnimationManager animMgr(&scene);
-      tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-
       THEN("A module that merely starts with the name is not mapped as one")
       {
         // The authored preview surface is what this material actually says;
         // OmniPBRBase is a different shader with input semantics of its own.
-        auto color = boundMaterial(scene)->parameterValueAs<tsd::math::float3>(
-            "baseColor");
+        auto color =
+            boundMaterial(stage.scene)->parameterValueAs<tsd::math::float3>(
+                "baseColor");
         REQUIRE(color.has_value());
         REQUIRE(color->z == Approx(0.9f));
       }
@@ -376,7 +356,7 @@ SCENARIO(
 {
   GIVEN("A mesh with display colour and opacity but no material")
   {
-    StageFixture stage("tsd_test_usd_display_color.usda", R"(#usda 1.0
+    ImportedStage stage("tsd_test_usd_display_color.usda", R"(#usda 1.0
 
 def Mesh "Quad"
 {
@@ -392,16 +372,11 @@ def Mesh "Quad"
 }
 )");
 
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
-
     WHEN("The Stage is imported")
     {
-      tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-
       THEN("The Surface's material carries the display values")
       {
-        auto surface = scene.getObject<tsd::scene::Surface>(0);
+        auto surface = stage.scene.getObject<tsd::scene::Surface>(0);
         REQUIRE(surface);
         auto *material = surface->parameterValueAsObject<tsd::scene::Material>(
             tsd::scene::tokens::surface::material);
@@ -427,7 +402,7 @@ SCENARIO("Analytic prims without a material take their display colour",
 {
   GIVEN("A point cloud carrying only display colour")
   {
-    StageFixture stage("tsd_test_usd_points_display_color.usda", R"(#usda 1.0
+    ImportedStage stage("tsd_test_usd_points_display_color.usda", R"(#usda 1.0
 
 def Points "Cloud"
 {
@@ -439,21 +414,16 @@ def Points "Cloud"
 }
 )");
 
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
-
     WHEN("The Stage is imported")
     {
-      tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-
       THEN("Its material carries the display colour, not TSD's default")
       {
-        auto surface = scene.getObject<tsd::scene::Surface>(0);
+        auto surface = stage.scene.getObject<tsd::scene::Surface>(0);
         REQUIRE(surface);
         auto *material = surface->parameterValueAsObject<tsd::scene::Material>(
             tsd::scene::tokens::surface::material);
         REQUIRE(material != nullptr);
-        REQUIRE(material != scene.defaultMaterial().data());
+        REQUIRE(material != stage.scene.defaultMaterial().data());
 
         const auto color =
             material->parameterValueAs<tsd::math::float3>("color");
@@ -464,7 +434,7 @@ def Points "Cloud"
 
       THEN("Authored widths become per-point radii")
       {
-        auto geometry = scene.getObject<tsd::scene::Geometry>(0);
+        auto geometry = stage.scene.getObject<tsd::scene::Geometry>(0);
         auto *radii = geometry->parameterValueAsObject<tsd::scene::Array>(
             "vertex.radius");
         REQUIRE(radii != nullptr);

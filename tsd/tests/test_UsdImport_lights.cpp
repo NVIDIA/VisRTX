@@ -17,7 +17,7 @@ SCENARIO(
   {
     // intensity 4, exposure 2 -> 4 * 2^2 = 16; normalize divides by the
     // sphere's area, 4*pi*r^2 with r = 2 -> 16 / (16*pi).
-    StageFixture stage("tsd_test_usd_light_radiometry.usda", R"(#usda 1.0
+    ImportedStage stage("tsd_test_usd_light_radiometry.usda", R"(#usda 1.0
 
 def SphereLight "Lamp"
 {
@@ -29,17 +29,12 @@ def SphereLight "Lamp"
 }
 )");
 
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
-
     WHEN("The Stage is imported")
     {
-      auto report = tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-
       THEN("The light's intensity accounts for both")
       {
-        REQUIRE(scene.numberOfObjects(ANARI_LIGHT) == 1);
-        auto light = scene.getObject<tsd::scene::Light>(0);
+        REQUIRE(stage.scene.numberOfObjects(ANARI_LIGHT) == 1);
+        auto light = stage.scene.getObject<tsd::scene::Light>(0);
         REQUIRE(light);
         REQUIRE(light->subtype() == tsd::scene::tokens::light::point);
 
@@ -47,7 +42,7 @@ def SphereLight "Lamp"
         REQUIRE(intensity.has_value());
         const float expected = 16.f / (4.f * float(M_PI) * 4.f);
         REQUIRE(*intensity == Approx(expected));
-        REQUIRE(report.skipped.empty());
+        REQUIRE(stage.report.skipped.empty());
       }
     }
   }
@@ -57,7 +52,7 @@ SCENARIO("A shaped sphere light becomes a spot light", "[UsdImport]")
 {
   GIVEN("A sphere light carrying shaping attributes")
   {
-    StageFixture stage("tsd_test_usd_spot.usda", R"(#usda 1.0
+    ImportedStage stage("tsd_test_usd_spot.usda", R"(#usda 1.0
 
 def SphereLight "Spot" (
     prepend apiSchemas = ["ShapingAPI"]
@@ -70,16 +65,11 @@ def SphereLight "Spot" (
 }
 )");
 
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
-
     WHEN("The Stage is imported")
     {
-      tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-
       THEN("Spot lighting survives the import")
       {
-        auto light = scene.getObject<tsd::scene::Light>(0);
+        auto light = stage.scene.getObject<tsd::scene::Light>(0);
         REQUIRE(light);
         REQUIRE(light->subtype() == tsd::scene::tokens::light::spot);
 
@@ -99,7 +89,7 @@ SCENARIO("Cameras from a Stage arrive in the camera pool", "[UsdImport]")
 {
   GIVEN("A Stage with an animated camera rig")
   {
-    StageFixture stage("tsd_test_usd_camera.usda", R"(#usda 1.0
+    ImportedStage stage("tsd_test_usd_camera.usda", R"(#usda 1.0
 (
     startTimeCode = 0
     endTimeCode = 2
@@ -122,20 +112,19 @@ def Xform "Rig"
 }
 )");
 
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
-    const auto camerasBefore = scene.numberOfObjects(ANARI_CAMERA);
+    // A Scene starts out with a camera of its own, so the count to compare
+    // against is an empty Scene's rather than this one's after the import.
+    const auto camerasBefore =
+        tsd::scene::Scene().numberOfObjects(ANARI_CAMERA);
 
     WHEN("The Stage is imported")
     {
-      tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-
       THEN("The authored viewpoint is available and animated")
       {
-        REQUIRE(scene.numberOfObjects(ANARI_CAMERA) == camerasBefore + 1);
+        REQUIRE(stage.scene.numberOfObjects(ANARI_CAMERA) == camerasBefore + 1);
 
         bool hasCameraAnimation = false;
-        for (const auto &animation : animMgr.animations()) {
+        for (const auto &animation : stage.animMgr.animations()) {
           if (!animation.objectParameterBindings().empty())
             hasCameraAnimation = true;
         }

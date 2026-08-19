@@ -17,7 +17,7 @@ SCENARIO("A point instancer shares one set of Prototype objects", "[UsdImport]")
 {
   GIVEN("A Stage scattering one Prototype three times, one of them hidden")
   {
-    StageFixture stage("tsd_test_usd_point_instancer.usda", R"(#usda 1.0
+    ImportedStage stage("tsd_test_usd_point_instancer.usda", R"(#usda 1.0
 
 def PointInstancer "Scatter"
 {
@@ -36,22 +36,17 @@ def PointInstancer "Scatter"
 }
 )");
 
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
-
     WHEN("The Stage is imported")
     {
-      auto report = tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-
       THEN("The Prototype is imported once, not once per placement")
       {
-        REQUIRE(scene.numberOfObjects(ANARI_SURFACE) == 1);
-        REQUIRE(scene.numberOfObjects(ANARI_GEOMETRY) == 1);
+        REQUIRE(stage.scene.numberOfObjects(ANARI_SURFACE) == 1);
+        REQUIRE(stage.scene.numberOfObjects(ANARI_GEOMETRY) == 1);
       }
 
       THEN("The placements become a single transform-array node")
       {
-        auto *layer = scene.defaultLayer();
+        auto *layer = stage.scene.defaultLayer();
         auto scatter = findNode(layer, "Scatter");
         REQUIRE(scatter);
 
@@ -69,7 +64,7 @@ def PointInstancer "Scatter"
 
       THEN("Nothing is silently lost")
       {
-        REQUIRE(report.skipped.empty());
+        REQUIRE(stage.report.skipped.empty());
       }
     }
   }
@@ -79,7 +74,7 @@ SCENARIO("USD Instances share objects across placements", "[UsdImport]")
 {
   GIVEN("A Stage referencing one Prototype from two instanceable prims")
   {
-    StageFixture stage("tsd_test_usd_native_instance.usda", R"(#usda 1.0
+    ImportedStage stage("tsd_test_usd_native_instance.usda", R"(#usda 1.0
 
 def Xform "Protos"
 {
@@ -113,23 +108,18 @@ def Xform "InstanceB" (
 }
 )");
 
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
-
     WHEN("The Stage is imported")
     {
-      tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-
       THEN("The Prototype geometry exists once, plus the un-instanced source")
       {
         // /Protos/Asset/Quad imports as ordinary content; the two placements
         // share a single converted Prototype rather than copying it.
-        REQUIRE(scene.numberOfObjects(ANARI_SURFACE) == 2);
+        REQUIRE(stage.scene.numberOfObjects(ANARI_SURFACE) == 2);
       }
 
       THEN("Each placement is a node referencing the shared objects")
       {
-        auto *layer = scene.defaultLayer();
+        auto *layer = stage.scene.defaultLayer();
         auto a = findNode(layer, "InstanceA");
         auto b = findNode(layer, "InstanceB");
         REQUIRE(a);
@@ -178,7 +168,7 @@ SCENARIO("A point instancer's placements follow the Stage clock", "[UsdImport]")
 {
   GIVEN("A PointInstancer whose positions and scales are time-sampled")
   {
-    StageFixture stage("tsd_test_usd_animated_instancer.usda", R"(#usda 1.0
+    ImportedStage stage("tsd_test_usd_animated_instancer.usda", R"(#usda 1.0
 (
     startTimeCode = 0
     endTimeCode = 2
@@ -206,32 +196,28 @@ def PointInstancer "Swarm"
 }
 )");
 
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
-
     WHEN("The Stage is imported")
     {
-      auto report = tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-
       THEN("One Animation holds the instancer's binding")
       {
-        REQUIRE(animMgr.animations().size() == 1);
-        REQUIRE(animMgr.animations()[0].fileBindings().size() == 1);
-        REQUIRE(animMgr.animations()[0].fileBindings()[0]->kind()
+        REQUIRE(stage.animMgr.animations().size() == 1);
+        REQUIRE(stage.animMgr.animations()[0].fileBindings().size() == 1);
+        REQUIRE(stage.animMgr.animations()[0].fileBindings()[0]->kind()
             == "usdInstancer");
       }
 
       THEN("The Stage's frame range and rate are reported, not applied")
       {
-        REQUIRE(report.animatedPrims == 1);
-        REQUIRE(report.sampleCount == 2);
-        REQUIRE(report.timeCodesPerSecond == Approx(24.f));
-        REQUIRE(animMgr.getAnimationTotalFrames() == 100); // untouched
+        REQUIRE(stage.report.animatedPrims == 1);
+        REQUIRE(stage.report.sampleCount == 2);
+        REQUIRE(stage.report.timeCodesPerSecond == Approx(24.f));
+        REQUIRE(stage.animMgr.getAnimationTotalFrames() == 100); // untouched
       }
 
       THEN("The imported placements are the Stage's first frame")
       {
-        auto *transforms = findTransformArray(scene.defaultLayer(), "Swarm");
+        auto *transforms =
+            findTransformArray(stage.scene.defaultLayer(), "Swarm");
         REQUIRE(transforms != nullptr);
         REQUIRE(transforms->size() == 3);
         const auto *m = transforms->dataAs<tsd::math::mat4>();
@@ -241,12 +227,12 @@ def PointInstancer "Swarm"
 
       THEN("Scrubbing re-fills the same Array in place")
       {
-        auto *before = findTransformArray(scene.defaultLayer(), "Swarm");
+        auto *before = findTransformArray(stage.scene.defaultLayer(), "Swarm");
         REQUIRE(before != nullptr);
 
-        animMgr.setAnimationTime(1.0f);
+        stage.animMgr.setAnimationTime(1.0f);
 
-        auto *after = findTransformArray(scene.defaultLayer(), "Swarm");
+        auto *after = findTransformArray(stage.scene.defaultLayer(), "Swarm");
         REQUIRE(after == before); // no reallocation on a constant count
         const auto *m = after->dataAs<tsd::math::mat4>();
         REQUIRE(m[2][3].x == Approx(20.f));
@@ -255,9 +241,10 @@ def PointInstancer "Swarm"
 
       THEN("A time between authored samples is interpolated, not snapped")
       {
-        animMgr.setAnimationTime(0.5f);
+        stage.animMgr.setAnimationTime(0.5f);
 
-        auto *transforms = findTransformArray(scene.defaultLayer(), "Swarm");
+        auto *transforms =
+            findTransformArray(stage.scene.defaultLayer(), "Swarm");
         REQUIRE(transforms != nullptr);
         const auto *m = transforms->dataAs<tsd::math::mat4>();
         REQUIRE(m[2][3].x == Approx(11.f));
@@ -271,7 +258,7 @@ SCENARIO("An instancer whose placement count changes reallocates",
 {
   GIVEN("A PointInstancer that gains a placement mid-sequence")
   {
-    StageFixture stage("tsd_test_usd_growing_instancer.usda", R"(#usda 1.0
+    ImportedStage stage("tsd_test_usd_growing_instancer.usda", R"(#usda 1.0
 (
     startTimeCode = 0
     endTimeCode = 2
@@ -298,22 +285,17 @@ def PointInstancer "Growing"
 }
 )");
 
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
-
     WHEN("The Stage is imported and scrubbed past the change")
     {
-      tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-
-      auto *before = findTransformArray(scene.defaultLayer(), "Growing");
+      auto *before = findTransformArray(stage.scene.defaultLayer(), "Growing");
       REQUIRE(before != nullptr);
       REQUIRE(before->size() == 2);
 
-      animMgr.setAnimationTime(1.0f);
+      stage.animMgr.setAnimationTime(1.0f);
 
       THEN("The node is re-pointed at a right-sized Array")
       {
-        auto *after = findTransformArray(scene.defaultLayer(), "Growing");
+        auto *after = findTransformArray(stage.scene.defaultLayer(), "Growing");
         REQUIRE(after != nullptr);
         REQUIRE(after->size() == 3);
         REQUIRE(after->dataAs<tsd::math::mat4>()[2][3].x == Approx(2.f));
@@ -326,7 +308,7 @@ SCENARIO("Instancer bindings survive save and reload", "[UsdImport]")
 {
   GIVEN("An imported Stage with an animated PointInstancer")
   {
-    StageFixture stage("tsd_test_usd_instancer_archive.usda", R"(#usda 1.0
+    ImportedStage stage("tsd_test_usd_instancer_archive.usda", R"(#usda 1.0
 (
     startTimeCode = 0
     endTimeCode = 2
@@ -350,16 +332,13 @@ def PointInstancer "Swarm"
 }
 )");
 
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
-    tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-
     WHEN("The animation manager round-trips through an Archive")
     {
       tsd::core::DataTree tree;
-      REQUIRE(tsd::io::serialize_AnimationManagerArchive(animMgr, tree.root()));
+      REQUIRE(tsd::io::serialize_AnimationManagerArchive(
+          stage.animMgr, tree.root()));
 
-      tsd::animation::AnimationManager restored(&scene);
+      tsd::animation::AnimationManager restored(&stage.scene);
       REQUIRE(
           tsd::io::deserialize_AnimationManagerArchive(restored, tree.root()));
 
@@ -372,7 +351,8 @@ def PointInstancer "Swarm"
 
         restored.setAnimationTime(1.0f);
 
-        auto *transforms = findTransformArray(scene.defaultLayer(), "Swarm");
+        auto *transforms =
+            findTransformArray(stage.scene.defaultLayer(), "Swarm");
         REQUIRE(transforms != nullptr);
         REQUIRE(transforms->dataAs<tsd::math::mat4>()[1][3].x == Approx(9.f));
       }
@@ -388,7 +368,7 @@ SCENARIO("A Stage that authored no time-code range still animates",
     // Nothing forces a Stage to declare its own range, and USD reports 0 for
     // both ends when it does not. Without a fallback every animation time
     // would map onto one Time Code and the placements would never move.
-    StageFixture stage("tsd_test_usd_unranged_instancer.usda", R"(#usda 1.0
+    ImportedStage stage("tsd_test_usd_unranged_instancer.usda", R"(#usda 1.0
 
 def PointInstancer "Drifting"
 {
@@ -408,17 +388,14 @@ def PointInstancer "Drifting"
 }
 )");
 
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
-
     WHEN("The Stage is imported and scrubbed to the end")
     {
-      tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-      animMgr.setAnimationTime(1.0f);
+      stage.animMgr.setAnimationTime(1.0f);
 
       THEN("The authored samples define the range that time maps onto")
       {
-        auto *transforms = findTransformArray(scene.defaultLayer(), "Drifting");
+        auto *transforms =
+            findTransformArray(stage.scene.defaultLayer(), "Drifting");
         REQUIRE(transforms != nullptr);
         REQUIRE(transforms->dataAs<tsd::math::mat4>()[1][3].x == Approx(7.f));
       }
@@ -427,7 +404,7 @@ def PointInstancer "Drifting"
 
   GIVEN("A deforming mesh with time samples but no startTimeCode")
   {
-    StageFixture stage("tsd_test_usd_unranged_mesh.usda", R"(#usda 1.0
+    ImportedStage stage("tsd_test_usd_unranged_mesh.usda", R"(#usda 1.0
 
 def Mesh "Blob"
 {
@@ -440,17 +417,13 @@ def Mesh "Blob"
 }
 )");
 
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
-
     WHEN("The Stage is imported and scrubbed to the end")
     {
-      tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-      animMgr.setAnimationTime(1.0f);
+      stage.animMgr.setAnimationTime(1.0f);
 
       THEN("The authored samples define the range that time maps onto")
       {
-        auto geometry = scene.getObject<tsd::scene::Geometry>(0);
+        auto geometry = stage.scene.getObject<tsd::scene::Geometry>(0);
         auto *positions = geometry->parameterValueAsObject<tsd::scene::Array>(
             "vertex.position");
         REQUIRE(positions != nullptr);

@@ -82,7 +82,7 @@ SCENARIO("A USD Stage's prim hierarchy is mirrored in the Layer", "[UsdImport]")
 {
   GIVEN("A Stage nesting a mesh two Xforms deep")
   {
-    StageFixture stage("tsd_test_usd_hierarchy.usda",
+    ImportedStage stage("tsd_test_usd_hierarchy.usda",
         std::string(R"(#usda 1.0
 
 def Xform "World"
@@ -104,13 +104,9 @@ def Xform "World"
 }
 )");
 
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
-
     WHEN("The Stage is imported")
     {
-      auto report = tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-      auto *layer = scene.defaultLayer();
+      auto *layer = stage.scene.defaultLayer();
 
       THEN("Each prim's name is findable at its own level")
       {
@@ -136,7 +132,7 @@ def Xform "World"
 
       THEN("Nothing is silently lost")
       {
-        REQUIRE(report.skipped.empty());
+        REQUIRE(stage.report.skipped.empty());
       }
     }
   }
@@ -147,8 +143,7 @@ SCENARIO(
 {
   GIVEN("A Stage with one mesh per Purpose")
   {
-    StageFixture stage("tsd_test_usd_purpose.usda",
-        std::string(R"(#usda 1.0
+    const std::string purposeStage = std::string(R"(#usda 1.0
 
 def Xform "World"
 {
@@ -180,28 +175,26 @@ def Xform "World"
             + R"(
     }
 }
-)");
-
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
+)";
 
     WHEN("The Stage is imported with default options")
     {
-      auto report = tsd::io::import_USD(scene, animMgr, stage.path().c_str());
+      ImportedStage stage("tsd_test_usd_purpose.usda", purposeStage);
 
       THEN("Only default and render Purpose content arrives")
       {
-        REQUIRE(scene.numberOfObjects(ANARI_SURFACE) == 2);
+        REQUIRE(stage.scene.numberOfObjects(ANARI_SURFACE) == 2);
       }
 
       THEN("Each excluded prim is reported")
       {
-        REQUIRE(report.countOf(tsd::io::UsdSkipReason::PURPOSE_EXCLUDED) == 2);
+        REQUIRE(stage.report.countOf(tsd::io::UsdSkipReason::PURPOSE_EXCLUDED)
+            == 2);
       }
 
       THEN("Excluded prims leave a disabled Placeholder Node")
       {
-        auto *layer = scene.defaultLayer();
+        auto *layer = stage.scene.defaultLayer();
         auto helper = findNode(layer, "Helper");
         REQUIRE(helper);
         REQUIRE((*helper)->isEmpty());
@@ -213,13 +206,13 @@ def Xform "World"
     {
       tsd::io::UsdImportOptions options;
       options.purposes.proxy = true;
-      auto report = tsd::io::import_USD(
-          scene, animMgr, stage.path().c_str(), {}, options);
+      ImportedStage stage("tsd_test_usd_purpose.usda", purposeStage, options);
 
       THEN("Proxy content arrives too")
       {
-        REQUIRE(scene.numberOfObjects(ANARI_SURFACE) == 3);
-        REQUIRE(report.countOf(tsd::io::UsdSkipReason::PURPOSE_EXCLUDED) == 1);
+        REQUIRE(stage.scene.numberOfObjects(ANARI_SURFACE) == 3);
+        REQUIRE(stage.report.countOf(tsd::io::UsdSkipReason::PURPOSE_EXCLUDED)
+            == 1);
       }
     }
   }
@@ -229,7 +222,7 @@ SCENARIO("Prims resolving to invisible import as disabled nodes", "[UsdImport]")
 {
   GIVEN("A Stage with an invisible mesh")
   {
-    StageFixture stage("tsd_test_usd_invisible.usda",
+    ImportedStage stage("tsd_test_usd_invisible.usda",
         std::string(R"(#usda 1.0
 
 def Xform "World"
@@ -243,26 +236,22 @@ def Xform "World"
 }
 )");
 
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
-
     WHEN("The Stage is imported")
     {
-      auto report = tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-
       THEN("The content still arrives so it can be toggled on")
       {
-        REQUIRE(scene.numberOfObjects(ANARI_SURFACE) == 1);
+        REQUIRE(stage.scene.numberOfObjects(ANARI_SURFACE) == 1);
       }
 
       THEN("Its node is disabled and the reason is reported")
       {
-        auto *layer = scene.defaultLayer();
+        auto *layer = stage.scene.defaultLayer();
         auto hidden = findNode(layer, "Hidden");
         REQUIRE(hidden);
         REQUIRE_FALSE((*hidden)->isEnabled());
-        REQUIRE(
-            report.countOf(tsd::io::UsdSkipReason::RESOLVED_INVISIBLE) == 1);
+        REQUIRE(stage.report.countOf(
+                    tsd::io::UsdSkipReason::RESOLVED_INVISIBLE)
+            == 1);
       }
     }
   }
@@ -273,7 +262,7 @@ SCENARIO(
 {
   GIVEN("A Stage containing a prim type with no TSD equivalent")
   {
-    StageFixture stage("tsd_test_usd_unsupported.usda",
+    ImportedStage stage("tsd_test_usd_unsupported.usda",
         std::string(R"(#usda 1.0
 
 def Xform "World"
@@ -292,30 +281,25 @@ def Xform "World"
 }
 )");
 
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
-
     WHEN("The Stage is imported")
     {
-      auto report = tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-
       THEN("The supported content still arrives")
       {
-        REQUIRE(scene.numberOfObjects(ANARI_SURFACE) == 1);
-        REQUIRE(scene.numberOfObjects(ANARI_LIGHT) == 0);
+        REQUIRE(stage.scene.numberOfObjects(ANARI_SURFACE) == 1);
+        REQUIRE(stage.scene.numberOfObjects(ANARI_LIGHT) == 0);
       }
 
       THEN("The unsupported prim is named in the report")
       {
-        REQUIRE(report.skipped.size() == 1);
-        REQUIRE(report.skipped[0].primPath == "/World/Tube");
-        REQUIRE(report.skipped[0].reason
+        REQUIRE(stage.report.skipped.size() == 1);
+        REQUIRE(stage.report.skipped[0].primPath == "/World/Tube");
+        REQUIRE(stage.report.skipped[0].reason
             == tsd::io::UsdSkipReason::UNSUPPORTED_LIGHT_TYPE);
       }
 
       THEN("It leaves a disabled Placeholder Node where it belongs")
       {
-        auto *layer = scene.defaultLayer();
+        auto *layer = stage.scene.defaultLayer();
         auto tube = findNode(layer, "Tube");
         REQUIRE(tube);
         REQUIRE((*tube)->isEmpty());
@@ -329,8 +313,7 @@ SCENARIO("An import can be restricted to one prim subtree", "[UsdImport]")
 {
   GIVEN("A Stage with two sibling assets")
   {
-    StageFixture stage("tsd_test_usd_subtree.usda",
-        std::string(R"(#usda 1.0
+    const std::string siblingAssets = std::string(R"(#usda 1.0
 
 def Xform "AssetA"
 {
@@ -349,24 +332,20 @@ def Xform "AssetB"
             + R"(
     }
 }
-)");
-
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
+)";
 
     WHEN("The import is pointed at one subtree")
     {
       tsd::io::UsdImportOptions options;
       options.primPath = "/AssetB";
-      auto report = tsd::io::import_USD(
-          scene, animMgr, stage.path().c_str(), {}, options);
+      ImportedStage stage("tsd_test_usd_subtree.usda", siblingAssets, options);
 
       THEN("Only that subtree arrives")
       {
-        REQUIRE(scene.numberOfObjects(ANARI_SURFACE) == 1);
-        REQUIRE(report.skipped.empty());
-        REQUIRE_FALSE(findNode(scene.defaultLayer(), "AssetA"));
-        REQUIRE(findNode(scene.defaultLayer(), "AssetB"));
+        REQUIRE(stage.scene.numberOfObjects(ANARI_SURFACE) == 1);
+        REQUIRE(stage.report.skipped.empty());
+        REQUIRE_FALSE(findNode(stage.scene.defaultLayer(), "AssetA"));
+        REQUIRE(findNode(stage.scene.defaultLayer(), "AssetB"));
       }
     }
   }
@@ -377,7 +356,7 @@ SCENARIO(
 {
   GIVEN("A Z-up Stage authored in centimetres")
   {
-    StageFixture stage("tsd_test_usd_framing.usda",
+    ImportedStage stage("tsd_test_usd_framing.usda",
         std::string(R"(#usda 1.0
 (
     upAxis = "Z"
@@ -391,16 +370,11 @@ def Mesh "Quad"
 }
 )");
 
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
-
     WHEN("The Stage is imported")
     {
-      auto report = tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-
       THEN("Up-axis and unit scale are recorded on the import root node")
       {
-        auto *layer = scene.defaultLayer();
+        auto *layer = stage.scene.defaultLayer();
         auto root = findNode(layer, stage.path().c_str());
         REQUIRE(root);
         const auto &params = (*root)->getInstanceParameters();
@@ -414,7 +388,7 @@ def Mesh "Quad"
 
       THEN("Geometry coordinates are left exactly as authored")
       {
-        auto geometry = scene.getObject<tsd::scene::Geometry>(0);
+        auto geometry = stage.scene.getObject<tsd::scene::Geometry>(0);
         auto *position = geometry->parameterValueAsObject<tsd::scene::Array>(
             "vertex.position");
         REQUIRE(position != nullptr);
@@ -432,7 +406,7 @@ SCENARIO("A prim that resets the transform stack ignores its ancestors",
 {
   GIVEN("A child that resets the transform stack under a moved parent")
   {
-    StageFixture stage("tsd_test_usd_xform_reset.usda", R"(#usda 1.0
+    ImportedStage stage("tsd_test_usd_xform_reset.usda", R"(#usda 1.0
 
 def Xform "Parent"
 {
@@ -450,16 +424,11 @@ def Xform "Parent"
 }
 )");
 
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
-
     WHEN("The Stage is imported")
     {
-      tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-
       THEN("Composing parent and child lands where USD puts the child")
       {
-        auto *layer = scene.defaultLayer();
+        auto *layer = stage.scene.defaultLayer();
         auto parent = findNode(layer, "Parent");
         auto detached = findNode(layer, "Detached");
         REQUIRE(parent);
@@ -479,7 +448,7 @@ SCENARIO("Time-varying visibility is reported rather than lost", "[UsdImport]")
 {
   GIVEN("A mesh whose visibility is animated")
   {
-    StageFixture stage("tsd_test_usd_animated_visibility.usda", R"(#usda 1.0
+    ImportedStage stage("tsd_test_usd_animated_visibility.usda", R"(#usda 1.0
 (
     startTimeCode = 0
     endTimeCode = 2
@@ -497,17 +466,12 @@ def Mesh "Blinker"
 }
 )");
 
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
-
     WHEN("The Stage is imported")
     {
-      auto report = tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-
       THEN("The caller is told the animation was not represented")
       {
-        REQUIRE(
-            report.countOf(tsd::io::UsdSkipReason::TIME_VARYING_VALUE_DROPPED)
+        REQUIRE(stage.report.countOf(
+                    tsd::io::UsdSkipReason::TIME_VARYING_VALUE_DROPPED)
             == 1);
       }
     }

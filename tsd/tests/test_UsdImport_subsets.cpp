@@ -16,7 +16,7 @@ SCENARIO("Per-face material subsets become several Surfaces", "[UsdImport]")
 {
   GIVEN("A two-face mesh with one face bound to its own material")
   {
-    StageFixture stage("tsd_test_usd_subsets.usda", R"(#usda 1.0
+    ImportedStage stage("tsd_test_usd_subsets.usda", R"(#usda 1.0
 
 def Xform "World"
 {
@@ -68,29 +68,24 @@ def Xform "World"
 }
 )");
 
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
-
     WHEN("The Stage is imported")
     {
-      tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-
       THEN("There is one Surface per subset")
       {
-        REQUIRE(scene.numberOfObjects(ANARI_SURFACE) >= 1);
+        REQUIRE(stage.scene.numberOfObjects(ANARI_SURFACE) >= 1);
       }
 
       THEN("The faces no subset claims are still drawn, by the mesh's material")
       {
         // The first face belongs to no subset, so it stays with the mesh's own
         // binding instead of vanishing with the un-surfaced parent geometry.
-        auto leftover = findGeometry(scene, "/World/Strip");
+        auto leftover = findGeometry(stage.scene, "/World/Strip");
         REQUIRE(leftover);
         auto *index = leftover->parameterValueAsObject<tsd::scene::Array>(
             "primitive.index");
         REQUIRE(index != nullptr);
         REQUIRE(index->size() == 2);
-        REQUIRE(scene.numberOfObjects(ANARI_SURFACE) == 2);
+        REQUIRE(stage.scene.numberOfObjects(ANARI_SURFACE) == 2);
       }
 
       THEN("The subset Surfaces share the mesh's vertex positions")
@@ -98,8 +93,9 @@ def Xform "World"
         // Every geometry produced for this mesh points at the same
         // vertex.position Array; only the index arrays differ.
         std::vector<const tsd::scene::Array *> positions;
-        for (size_t i = 0; i < scene.numberOfObjects(ANARI_GEOMETRY); ++i) {
-          auto geometry = scene.getObject<tsd::scene::Geometry>(i);
+        const auto numGeometries = stage.scene.numberOfObjects(ANARI_GEOMETRY);
+        for (size_t i = 0; i < numGeometries; ++i) {
+          auto geometry = stage.scene.getObject<tsd::scene::Geometry>(i);
           if (!geometry)
             continue;
           if (auto *p = geometry->parameterValueAsObject<tsd::scene::Array>(
@@ -118,7 +114,7 @@ SCENARIO("Face-varying UVs follow each material subset", "[UsdImport]")
 {
   GIVEN("A two-face mesh with per-corner UVs and a subset over each face")
   {
-    StageFixture stage("tsd_test_usd_subset_facevarying.usda", R"(#usda 1.0
+    ImportedStage stage("tsd_test_usd_subset_facevarying.usda", R"(#usda 1.0
 
 def Xform "World"
 {
@@ -155,13 +151,8 @@ def Xform "World"
 }
 )");
 
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
-
     WHEN("The Stage is imported")
     {
-      tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-
       THEN("Each subset carries the corners of the faces it selected")
       {
         // Face-varying data is indexed by triangle corner, so a subset cannot
@@ -169,8 +160,8 @@ def Xform "World"
         // corners of its own triangles. Each quad triangulates to two
         // triangles, hence six corners, and the two faces' UVs are authored
         // into disjoint halves of the unit square so a mis-gather shows up.
-        auto left = findGeometry(scene, "/World/Quad/Left");
-        auto right = findGeometry(scene, "/World/Quad/Right");
+        auto left = findGeometry(stage.scene, "/World/Quad/Left");
+        auto right = findGeometry(stage.scene, "/World/Quad/Right");
         REQUIRE(left);
         REQUIRE(right);
 
@@ -196,8 +187,8 @@ def Xform "World"
         // Only per-corner and per-triangle data has to be gathered; vertex
         // data is indexed by the indices each subset already carries, so one
         // Array serves every Surface.
-        auto left = findGeometry(scene, "/World/Quad/Left");
-        auto right = findGeometry(scene, "/World/Quad/Right");
+        auto left = findGeometry(stage.scene, "/World/Quad/Left");
+        auto right = findGeometry(stage.scene, "/World/Quad/Right");
         REQUIRE(left);
         REQUIRE(right);
 
@@ -221,7 +212,7 @@ SCENARIO(
     // producing a copy of the input, a distinct result from Success that the
     // conversion must not mistake for failure -- pre-triangulated exports
     // carry every face-varying primvar down this path.
-    StageFixture stage("tsd_test_usd_triangulated_facevarying.usda", R"(#usda 1.0
+    ImportedStage stage("tsd_test_usd_triangulated_facevarying.usda", R"(#usda 1.0
 
 def Xform "World"
 {
@@ -242,16 +233,11 @@ def Xform "World"
 }
 )");
 
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
-
     WHEN("The Stage is imported")
     {
-      tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-
       THEN("The UVs arrive flattened, one value per triangle corner")
       {
-        auto geometry = findGeometry(scene, "/World/Triangles");
+        auto geometry = findGeometry(stage.scene, "/World/Triangles");
         REQUIRE(geometry);
 
         auto *uvs = geometry->parameterValueAsObject<tsd::scene::Array>(
@@ -271,7 +257,7 @@ def Xform "World"
 
       THEN("The normals arrive too")
       {
-        auto geometry = findGeometry(scene, "/World/Triangles");
+        auto geometry = findGeometry(stage.scene, "/World/Triangles");
         REQUIRE(geometry);
 
         auto *normals = geometry->parameterValueAsObject<tsd::scene::Array>(
@@ -287,7 +273,7 @@ SCENARIO("A subset binds the UV primvar its own material reads", "[UsdImport]")
 {
   GIVEN("Two subsets whose materials read differently named UV primvars")
   {
-    StageFixture stage("tsd_test_usd_subset_uv_primvar.usda", R"(#usda 1.0
+    ImportedStage stage("tsd_test_usd_subset_uv_primvar.usda", R"(#usda 1.0
 
 def Xform "World"
 {
@@ -388,19 +374,14 @@ def Xform "World"
 }
 )");
 
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
-
     WHEN("The Stage is imported")
     {
-      tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-
       THEN("Each subset's own primvar lands on its first attribute")
       {
         // The mesh itself binds no material, so the UV name cannot be decided
         // once for the whole mesh: each subset's material names its own.
-        auto left = findGeometry(scene, "/World/Quad/Left");
-        auto right = findGeometry(scene, "/World/Quad/Right");
+        auto left = findGeometry(stage.scene, "/World/Quad/Left");
+        auto right = findGeometry(stage.scene, "/World/Quad/Right");
         REQUIRE(left);
         REQUIRE(right);
 

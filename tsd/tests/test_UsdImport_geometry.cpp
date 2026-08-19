@@ -16,7 +16,7 @@ SCENARIO("A USD Stage's meshes arrive as surfaces", "[UsdImport]")
 {
   GIVEN("A Stage with a single quad mesh")
   {
-    StageFixture stage("tsd_test_usd_single_mesh.usda",
+    ImportedStage stage("tsd_test_usd_single_mesh.usda",
         std::string(R"(#usda 1.0
 
 def Xform "World"
@@ -29,20 +29,15 @@ def Xform "World"
 }
 )");
 
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
-
     WHEN("The Stage is imported")
     {
-      auto report = tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-
       THEN("The mesh becomes one triangle-geometry surface")
       {
-        REQUIRE(report.stageOpened);
-        REQUIRE(scene.numberOfObjects(ANARI_SURFACE) == 1);
-        REQUIRE(scene.numberOfObjects(ANARI_GEOMETRY) == 1);
+        REQUIRE(stage.report.stageOpened);
+        REQUIRE(stage.scene.numberOfObjects(ANARI_SURFACE) == 1);
+        REQUIRE(stage.scene.numberOfObjects(ANARI_GEOMETRY) == 1);
 
-        auto geometry = scene.getObject<tsd::scene::Geometry>(0);
+        auto geometry = stage.scene.getObject<tsd::scene::Geometry>(0);
         REQUIRE(geometry);
         REQUIRE(geometry->subtype() == tsd::scene::tokens::geometry::triangle);
 
@@ -59,8 +54,8 @@ def Xform "World"
 
       THEN("Nothing is silently lost")
       {
-        REQUIRE(report.skipped.empty());
-        REQUIRE(report.convertedPrims == 1);
+        REQUIRE(stage.report.skipped.empty());
+        REQUIRE(stage.report.convertedPrims == 1);
       }
     }
   }
@@ -70,7 +65,7 @@ SCENARIO("Analytic quadrics stay analytic", "[UsdImport]")
 {
   GIVEN("A Stage with a sphere and a cylinder")
   {
-    StageFixture stage("tsd_test_usd_quadrics.usda", R"(#usda 1.0
+    ImportedStage stage("tsd_test_usd_quadrics.usda", R"(#usda 1.0
 
 def Sphere "Ball"
 {
@@ -85,22 +80,17 @@ def Cylinder "Tube"
 }
 )");
 
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
-
     WHEN("The Stage is imported")
     {
-      auto report = tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-
       THEN("They map onto TSD's native quadric geometry, not meshes")
       {
-        REQUIRE(scene.numberOfObjects(ANARI_GEOMETRY) == 2);
+        REQUIRE(stage.scene.numberOfObjects(ANARI_GEOMETRY) == 2);
 
-        auto ball = scene.getObject<tsd::scene::Geometry>(0);
+        auto ball = stage.scene.getObject<tsd::scene::Geometry>(0);
         REQUIRE(ball->subtype() == tsd::scene::tokens::geometry::sphere);
         REQUIRE(ball->parameterValueAs<float>("radius").value() == Approx(2.f));
 
-        auto tube = scene.getObject<tsd::scene::Geometry>(1);
+        auto tube = stage.scene.getObject<tsd::scene::Geometry>(1);
         REQUIRE(tube->subtype() == tsd::scene::tokens::geometry::cylinder);
 
         // The spine axis is folded into the endpoints rather than a transform.
@@ -111,7 +101,7 @@ def Cylinder "Tube"
         const auto *p = positions->dataAs<tsd::math::float3>();
         REQUIRE(p[0].y == Approx(-2.f));
         REQUIRE(p[1].y == Approx(2.f));
-        REQUIRE(report.skipped.empty());
+        REQUIRE(stage.report.skipped.empty());
       }
     }
   }
@@ -122,7 +112,7 @@ SCENARIO(
 {
   GIVEN("A mesh with one concave five-sided face")
   {
-    StageFixture stage("tsd_test_usd_nonconvex.usda", R"(#usda 1.0
+    ImportedStage stage("tsd_test_usd_nonconvex.usda", R"(#usda 1.0
 
 def Mesh "Arrow"
 {
@@ -132,16 +122,11 @@ def Mesh "Arrow"
 }
 )");
 
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
-
     WHEN("The Stage is imported")
     {
-      tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-
       THEN("It becomes exactly n-2 triangles")
       {
-        auto geometry = scene.getObject<tsd::scene::Geometry>(0);
+        auto geometry = stage.scene.getObject<tsd::scene::Geometry>(0);
         REQUIRE(geometry);
         auto *index = geometry->parameterValueAsObject<tsd::scene::Array>(
             "primitive.index");
@@ -156,7 +141,7 @@ SCENARIO("Subdivision surfaces are refined by default", "[UsdImport]")
 {
   GIVEN("A cube that explicitly declares a subdivision scheme")
   {
-    StageFixture stage("tsd_test_usd_subdiv.usda", R"(#usda 1.0
+    const std::string subdivCube = R"(#usda 1.0
 
 def Mesh "SubdivCube"
 {
@@ -175,19 +160,16 @@ def Mesh "PolygonCube"
     int[] faceVertexIndices = [0, 1, 2, 3]
     point3f[] points = [(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)]
 }
-)");
-
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
+)";
 
     WHEN("The Stage is imported at the default refinement level")
     {
-      tsd::io::import_USD(scene, animMgr, stage.path().c_str());
+      ImportedStage stage("tsd_test_usd_subdiv.usda", subdivCube);
 
       THEN("The subdivision mesh gains vertices and the polygon mesh does not")
       {
-        auto subdiv = scene.getObject<tsd::scene::Geometry>(0);
-        auto polygon = scene.getObject<tsd::scene::Geometry>(1);
+        auto subdiv = stage.scene.getObject<tsd::scene::Geometry>(0);
+        auto polygon = stage.scene.getObject<tsd::scene::Geometry>(1);
         REQUIRE(subdiv);
         REQUIRE(polygon);
 
@@ -208,11 +190,11 @@ def Mesh "PolygonCube"
     {
       tsd::io::UsdImportOptions options;
       options.refinementLevel = 0;
-      tsd::io::import_USD(scene, animMgr, stage.path().c_str(), {}, options);
+      ImportedStage stage("tsd_test_usd_subdiv.usda", subdivCube, options);
 
       THEN("The subdivision mesh arrives at its authored resolution")
       {
-        auto subdiv = scene.getObject<tsd::scene::Geometry>(0);
+        auto subdiv = stage.scene.getObject<tsd::scene::Geometry>(0);
         auto *p = subdiv->parameterValueAsObject<tsd::scene::Array>(
             "vertex.position");
         REQUIRE(p != nullptr);
@@ -227,7 +209,7 @@ SCENARIO(
 {
   GIVEN("A subdivision mesh whose UVs are authored per face corner")
   {
-    StageFixture stage("tsd_test_usd_subdiv_uvs.usda", R"(#usda 1.0
+    ImportedStage stage("tsd_test_usd_subdiv_uvs.usda", R"(#usda 1.0
 
 def Mesh "SubdivQuad"
 {
@@ -241,16 +223,11 @@ def Mesh "SubdivQuad"
 }
 )");
 
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
-
     WHEN("The Stage is imported")
     {
-      auto report = tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-
       THEN("The UVs survive refinement rather than being dropped")
       {
-        auto geometry = scene.getObject<tsd::scene::Geometry>(0);
+        auto geometry = stage.scene.getObject<tsd::scene::Geometry>(0);
         REQUIRE(geometry);
         auto *uvs = geometry->parameterValueAsObject<tsd::scene::Array>(
             "faceVarying.attribute0");
@@ -260,7 +237,7 @@ def Mesh "SubdivQuad"
 
       THEN("Nothing is reported as lost")
       {
-        REQUIRE(report.skipped.empty());
+        REQUIRE(stage.report.skipped.empty());
       }
     }
   }
@@ -273,7 +250,7 @@ SCENARIO("Width-less curves and points get a bounds-scaled radius",
   // ANARI default of 1 world unit dwarfs most scenes.
   GIVEN("A Stage with a widthless curve, a widthed curve, and widthless points")
   {
-    StageFixture stage("tsd_test_usd_widthless_curves.usda", R"(#usda 1.0
+    ImportedStage stage("tsd_test_usd_widthless_curves.usda", R"(#usda 1.0
 
 def Xform "World"
 {
@@ -299,16 +276,11 @@ def Xform "World"
 }
 )");
 
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
-
     WHEN("The Stage is imported")
     {
-      tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-
       THEN("The widthless curve's radius scales with its bounds")
       {
-        auto geometry = findGeometry(scene, "/World/Hair");
+        auto geometry = findGeometry(stage.scene, "/World/Hair");
         REQUIRE(geometry);
         REQUIRE(geometry->subtype() == tsd::scene::tokens::geometry::curve);
         REQUIRE(geometry->parameterValueAsObject<tsd::scene::Array>(
@@ -322,7 +294,7 @@ def Xform "World"
 
       THEN("Authored widths still become per-vertex radii")
       {
-        auto geometry = findGeometry(scene, "/World/Rope");
+        auto geometry = findGeometry(stage.scene, "/World/Rope");
         REQUIRE(geometry);
 
         auto *radii = geometry->parameterValueAsObject<tsd::scene::Array>(
@@ -335,7 +307,7 @@ def Xform "World"
 
       THEN("Widthless points scale the same way")
       {
-        auto geometry = findGeometry(scene, "/World/Sprinkles");
+        auto geometry = findGeometry(stage.scene, "/World/Sprinkles");
         REQUIRE(geometry);
         REQUIRE(geometry->subtype() == tsd::scene::tokens::geometry::sphere);
 
@@ -374,7 +346,7 @@ SCENARIO("Conversion leaves nothing behind for geometry it does not emit",
 {
   GIVEN("A mesh with no points that nonetheless binds a material")
   {
-    StageFixture stage("tsd_test_usd_empty_mesh.usda", R"(#usda 1.0
+    ImportedStage stage("tsd_test_usd_empty_mesh.usda", R"(#usda 1.0
 
 def Material "Orphan"
 {
@@ -399,29 +371,24 @@ def Mesh "Empty" (
 }
 )");
 
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
-
     // A Scene creates one default Material of its own, so what matters is
     // that the import adds none.
-    const auto materialsBefore = scene.numberOfObjects(ANARI_MATERIAL);
+    const auto materialsBefore = stage.scene.numberOfObjects(ANARI_MATERIAL);
 
     WHEN("The Stage is imported")
     {
-      tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-
       THEN("No Surface, Geometry or Material is created for it")
       {
-        REQUIRE(scene.numberOfObjects(ANARI_SURFACE) == 0);
-        REQUIRE(scene.numberOfObjects(ANARI_GEOMETRY) == 0);
-        REQUIRE(scene.numberOfObjects(ANARI_MATERIAL) == materialsBefore);
+        REQUIRE(stage.scene.numberOfObjects(ANARI_SURFACE) == 0);
+        REQUIRE(stage.scene.numberOfObjects(ANARI_GEOMETRY) == 0);
+        REQUIRE(stage.scene.numberOfObjects(ANARI_MATERIAL) == materialsBefore);
       }
     }
   }
 
   GIVEN("A mesh whose subset claims no faces but binds its own material")
   {
-    StageFixture stage("tsd_test_usd_empty_subset.usda", R"(#usda 1.0
+    ImportedStage stage("tsd_test_usd_empty_subset.usda", R"(#usda 1.0
 
 def Material "Used"
 {
@@ -475,20 +442,16 @@ def Mesh "Quad"
 }
 )");
 
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
-
     WHEN("The Stage is imported")
     {
-      tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-
       THEN("Only the material the drawn subset uses is created")
       {
-        REQUIRE(scene.numberOfObjects(ANARI_SURFACE) == 1);
+        REQUIRE(stage.scene.numberOfObjects(ANARI_SURFACE) == 1);
 
         bool sawUnused = false;
-        for (size_t i = 0; i < scene.numberOfObjects(ANARI_MATERIAL); ++i) {
-          auto material = scene.getObject<tsd::scene::Material>(i);
+        const auto numMaterials = stage.scene.numberOfObjects(ANARI_MATERIAL);
+        for (size_t i = 0; i < numMaterials; ++i) {
+          auto material = stage.scene.getObject<tsd::scene::Material>(i);
           if (material && material->name().find("Unused") != std::string::npos)
             sawUnused = true;
         }

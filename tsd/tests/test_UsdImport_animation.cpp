@@ -18,7 +18,7 @@ SCENARIO("Animation is captured at the times actually authored", "[UsdImport]")
 {
   GIVEN("A Stage with transforms keyed on a non-uniform time base")
   {
-    StageFixture stage("tsd_test_usd_time_base.usda", R"(#usda 1.0
+    ImportedStage stage("tsd_test_usd_time_base.usda", R"(#usda 1.0
 (
     startTimeCode = 0
     endTimeCode = 10
@@ -42,17 +42,13 @@ def Xform "Mover"
 }
 )");
 
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
-
     WHEN("The Stage is imported")
     {
-      tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-
       THEN("The binding's time base mirrors the authored sample spacing")
       {
-        REQUIRE(animMgr.animations().size() == 1);
-        const auto &bindings = animMgr.animations()[0].transformBindings();
+        REQUIRE(stage.animMgr.animations().size() == 1);
+        const auto &bindings =
+            stage.animMgr.animations()[0].transformBindings();
         REQUIRE(bindings.size() == 1);
         const auto &timeBase = bindings[0].timeBase();
         REQUIRE(timeBase.size() == 3);
@@ -68,7 +64,7 @@ SCENARIO("A full turn authored with two keys does not collapse", "[UsdImport]")
 {
   GIVEN("A prim rotating 360 degrees between two keyframes")
   {
-    StageFixture stage("tsd_test_usd_full_turn.usda", R"(#usda 1.0
+    ImportedStage stage("tsd_test_usd_full_turn.usda", R"(#usda 1.0
 (
     startTimeCode = 0
     endTimeCode = 1
@@ -91,17 +87,13 @@ def Xform "Spinner"
 }
 )");
 
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
-
     WHEN("The Stage is imported")
     {
-      tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-
       THEN("Extra samples are inserted so the rotation still animates")
       {
-        REQUIRE(animMgr.animations().size() == 1);
-        const auto &bindings = animMgr.animations()[0].transformBindings();
+        REQUIRE(stage.animMgr.animations().size() == 1);
+        const auto &bindings =
+            stage.animMgr.animations()[0].transformBindings();
         REQUIRE(bindings.size() == 1);
         REQUIRE(bindings[0].sampleCount() > 2);
       }
@@ -110,7 +102,7 @@ def Xform "Spinner"
 
   GIVEN("A prim translating between two keyframes")
   {
-    StageFixture stage("tsd_test_usd_small_move.usda", R"(#usda 1.0
+    ImportedStage stage("tsd_test_usd_small_move.usda", R"(#usda 1.0
 (
     startTimeCode = 0
     endTimeCode = 1
@@ -126,16 +118,12 @@ def Xform "Slider"
 }
 )");
 
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
-
     WHEN("The Stage is imported")
     {
-      tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-
       THEN("No extra samples are invented")
       {
-        const auto &bindings = animMgr.animations()[0].transformBindings();
+        const auto &bindings =
+            stage.animMgr.animations()[0].transformBindings();
         REQUIRE(bindings[0].sampleCount() == 2);
       }
     }
@@ -147,7 +135,7 @@ SCENARIO(
 {
   GIVEN("A Stage whose mesh points are time-sampled")
   {
-    StageFixture stage("tsd_test_usd_deforming.usda", R"(#usda 1.0
+    ImportedStage stage("tsd_test_usd_deforming.usda", R"(#usda 1.0
 (
     startTimeCode = 0
     endTimeCode = 2
@@ -165,21 +153,16 @@ def Mesh "Blob"
 }
 )");
 
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
-
     WHEN("The Stage is imported")
     {
-      tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-
       THEN("Only one frame is eager; the rest is bound to the Stage")
       {
-        REQUIRE(animMgr.animations().size() == 1);
-        REQUIRE(animMgr.animations()[0].fileBindings().size() == 1);
-        REQUIRE(
-            animMgr.animations()[0].fileBindings()[0]->kind() == "usdGeometry");
+        REQUIRE(stage.animMgr.animations().size() == 1);
+        REQUIRE(stage.animMgr.animations()[0].fileBindings().size() == 1);
+        REQUIRE(stage.animMgr.animations()[0].fileBindings()[0]->kind()
+            == "usdGeometry");
 
-        auto geometry = scene.getObject<tsd::scene::Geometry>(0);
+        auto geometry = stage.scene.getObject<tsd::scene::Geometry>(0);
         auto *positions = geometry->parameterValueAsObject<tsd::scene::Array>(
             "vertex.position");
         REQUIRE(positions != nullptr);
@@ -188,9 +171,9 @@ def Mesh "Blob"
 
       THEN("Scrubbing pulls a later frame from the Stage")
       {
-        animMgr.setAnimationTime(1.0f);
+        stage.animMgr.setAnimationTime(1.0f);
 
-        auto geometry = scene.getObject<tsd::scene::Geometry>(0);
+        auto geometry = stage.scene.getObject<tsd::scene::Geometry>(0);
         auto *positions = geometry->parameterValueAsObject<tsd::scene::Array>(
             "vertex.position");
         REQUIRE(positions != nullptr);
@@ -200,10 +183,10 @@ def Mesh "Blob"
       THEN("The binding reconstructs from an Archive")
       {
         tsd::core::DataTree tree;
-        REQUIRE(
-            tsd::io::serialize_AnimationManagerArchive(animMgr, tree.root()));
+        REQUIRE(tsd::io::serialize_AnimationManagerArchive(
+            stage.animMgr, tree.root()));
 
-        tsd::animation::AnimationManager restored(&scene);
+        tsd::animation::AnimationManager restored(&stage.scene);
         REQUIRE(tsd::io::deserialize_AnimationManagerArchive(
             restored, tree.root()));
         REQUIRE(restored.animations().size() == 1);
@@ -212,7 +195,7 @@ def Mesh "Blob"
             == "usdGeometry");
 
         restored.setAnimationTime(1.0f);
-        auto geometry = scene.getObject<tsd::scene::Geometry>(0);
+        auto geometry = stage.scene.getObject<tsd::scene::Geometry>(0);
         auto *positions = geometry->parameterValueAsObject<tsd::scene::Array>(
             "vertex.position");
         REQUIRE(positions->dataAs<tsd::math::float3>()[1].x == Approx(3.f));
@@ -228,7 +211,7 @@ SCENARIO("Claimed dialect prims are handled once and only once", "[UsdImport]")
     // The EnSight carrier marker is customData on the carrier's children; the
     // claim-and-prune pre-pass must keep the generic path from converting
     // them into meaningless geometry.
-    StageFixture stage("tsd_test_usd_dialect.usda", R"(#usda 1.0
+    ImportedStage stage("tsd_test_usd_dialect.usda", R"(#usda 1.0
 
 def Scope "Dataset"
 {
@@ -254,19 +237,14 @@ def Mesh "Real"
 }
 )");
 
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
-
     WHEN("The Stage is imported")
     {
-      tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-
       THEN("The carrier prim does not also arrive as generic geometry")
       {
         // Only the ordinary mesh converts: the claimed subtree is pruned from
         // the resolved scene entirely.
-        REQUIRE(scene.numberOfObjects(ANARI_SURFACE) == 1);
-        REQUIRE_FALSE(findNode(scene.defaultLayer(), "part_one"));
+        REQUIRE(stage.scene.numberOfObjects(ANARI_SURFACE) == 1);
+        REQUIRE_FALSE(findNode(stage.scene.defaultLayer(), "part_one"));
       }
     }
   }
@@ -279,7 +257,7 @@ SCENARIO("Constant-valued time samples are not reported as a loss",
   {
     // What a simulation exporter writes: every attribute re-authored at every
     // frame regardless of whether it moved.
-    StageFixture stage("tsd_test_usd_constant_visibility.usda", R"(#usda 1.0
+    ImportedStage stage("tsd_test_usd_constant_visibility.usda", R"(#usda 1.0
 (
     startTimeCode = 0
     endTimeCode = 2
@@ -298,17 +276,12 @@ def Mesh "Steady"
 }
 )");
 
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
-
     WHEN("The Stage is imported")
     {
-      auto report = tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-
       THEN("Nothing is reported as dropped")
       {
-        REQUIRE(
-            report.countOf(tsd::io::UsdSkipReason::TIME_VARYING_VALUE_DROPPED)
+        REQUIRE(stage.report.countOf(
+                    tsd::io::UsdSkipReason::TIME_VARYING_VALUE_DROPPED)
             == 0);
       }
     }
@@ -319,7 +292,7 @@ SCENARIO("One import is one Animation", "[UsdImport]")
 {
   GIVEN("A Stage animating two prims that share a leaf name")
   {
-    StageFixture stage("tsd_test_usd_one_animation.usda", R"(#usda 1.0
+    ImportedStage stage("tsd_test_usd_one_animation.usda", R"(#usda 1.0
 (
     startTimeCode = 0
     endTimeCode = 2
@@ -350,23 +323,18 @@ def Xform "B"
 }
 )");
 
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
-
     WHEN("The Stage is imported")
     {
-      auto report = tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-
       THEN("Both prims land in one Animation named for the file")
       {
-        REQUIRE(animMgr.animations().size() == 1);
-        REQUIRE(animMgr.animations()[0].name() == stage.path());
-        REQUIRE(animMgr.animations()[0].transformBindings().size() == 2);
+        REQUIRE(stage.animMgr.animations().size() == 1);
+        REQUIRE(stage.animMgr.animations()[0].name() == stage.path());
+        REQUIRE(stage.animMgr.animations()[0].transformBindings().size() == 2);
       }
 
       THEN("The Report counts them in place of the lost per-prim entries")
       {
-        REQUIRE(report.animatedPrims == 2);
+        REQUIRE(stage.report.animatedPrims == 2);
       }
     }
   }
@@ -376,7 +344,7 @@ SCENARIO("An old-format geometry binding still reconstructs", "[UsdImport]")
 {
   GIVEN("An Archive node carrying the dropped sampleTimes and timeBase fields")
   {
-    StageFixture stage("tsd_test_usd_legacy_binding.usda", R"(#usda 1.0
+    ImportedStage stage("tsd_test_usd_legacy_binding.usda", R"(#usda 1.0
 (
     startTimeCode = 0
     endTimeCode = 2
@@ -393,10 +361,7 @@ def Mesh "Blob"
 }
 )");
 
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
-    tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-    animMgr.removeAllAnimations();
+    stage.animMgr.removeAllAnimations();
 
     // Written the way an Archive from before continuous Time Code evaluation
     // was: the derived sample cache is present and must simply be ignored.
@@ -412,16 +377,16 @@ def Mesh "Blob"
 
     WHEN("It is read back")
     {
-      auto &anim = animMgr.addAnimation("legacy");
+      auto &anim = stage.animMgr.addAnimation("legacy");
       REQUIRE(tsd::io::UsdGeometryFileBinding::addToAnimation(
-                  anim, scene, node)
+                  anim, stage.scene, node)
           != nullptr);
 
       THEN("It scrubs from the Stage's own clock")
       {
-        animMgr.setAnimationTime(1.0f);
+        stage.animMgr.setAnimationTime(1.0f);
 
-        auto geometry = scene.getObject<tsd::scene::Geometry>(0);
+        auto geometry = stage.scene.getObject<tsd::scene::Geometry>(0);
         auto *positions = geometry->parameterValueAsObject<tsd::scene::Array>(
             "vertex.position");
         REQUIRE(positions != nullptr);
@@ -438,7 +403,7 @@ SCENARIO("A mesh whose topology changes re-pulls a consistent set",
   {
     // The case a binding that only re-pulls points cannot serve: writing new
     // positions without new indices would describe a mesh that never existed.
-    StageFixture stage("tsd_test_usd_morphing_mesh.usda", R"(#usda 1.0
+    ImportedStage stage("tsd_test_usd_morphing_mesh.usda", R"(#usda 1.0
 (
     startTimeCode = 0
     endTimeCode = 2
@@ -468,14 +433,9 @@ def Mesh "Morphing"
 }
 )");
 
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
-
     WHEN("The Stage is imported")
     {
-      tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-
-      auto geometry = scene.getObject<tsd::scene::Geometry>(0);
+      auto geometry = stage.scene.getObject<tsd::scene::Geometry>(0);
       REQUIRE(geometry);
 
       auto arraySize = [&](const char *parameter) -> size_t {
@@ -493,7 +453,7 @@ def Mesh "Morphing"
 
       THEN("Scrubbing re-pulls points, indices and primvars together")
       {
-        animMgr.setAnimationTime(1.0f);
+        stage.animMgr.setAnimationTime(1.0f);
 
         REQUIRE(arraySize("vertex.position") == 4);
         REQUIRE(arraySize("primitive.index") == 2);
@@ -513,17 +473,20 @@ def Mesh "Morphing"
 
       THEN("The Surface and its Geometry keep their identity across the scrub")
       {
-        const auto surfacesBefore = scene.numberOfObjects(ANARI_SURFACE);
-        const auto geometriesBefore = scene.numberOfObjects(ANARI_GEOMETRY);
-        const auto materialsBefore = scene.numberOfObjects(ANARI_MATERIAL);
+        const auto surfacesBefore = stage.scene.numberOfObjects(ANARI_SURFACE);
+        const auto geometriesBefore =
+            stage.scene.numberOfObjects(ANARI_GEOMETRY);
+        const auto materialsBefore =
+            stage.scene.numberOfObjects(ANARI_MATERIAL);
 
-        animMgr.setAnimationTime(1.0f);
+        stage.animMgr.setAnimationTime(1.0f);
 
         // Re-running conversion would have built new ones, forcing the render
         // index to tear down and recreate ANARI handles (ADR 0022).
-        REQUIRE(scene.numberOfObjects(ANARI_SURFACE) == surfacesBefore);
-        REQUIRE(scene.numberOfObjects(ANARI_GEOMETRY) == geometriesBefore);
-        REQUIRE(scene.numberOfObjects(ANARI_MATERIAL) == materialsBefore);
+        REQUIRE(stage.scene.numberOfObjects(ANARI_SURFACE) == surfacesBefore);
+        REQUIRE(
+            stage.scene.numberOfObjects(ANARI_GEOMETRY) == geometriesBefore);
+        REQUIRE(stage.scene.numberOfObjects(ANARI_MATERIAL) == materialsBefore);
       }
     }
   }
@@ -533,7 +496,7 @@ SCENARIO("Parts keep sharing one position Array across a resize", "[UsdImport]")
 {
   GIVEN("A mesh divided into subsets whose vertex count changes")
   {
-    StageFixture stage("tsd_test_usd_shared_resize.usda", R"(#usda 1.0
+    ImportedStage stage("tsd_test_usd_shared_resize.usda", R"(#usda 1.0
 (
     startTimeCode = 0
     endTimeCode = 2
@@ -570,22 +533,17 @@ def Mesh "Split"
 }
 )");
 
-    tsd::scene::Scene scene;
-    tsd::animation::AnimationManager animMgr(&scene);
-
     WHEN("The Stage is imported")
     {
-      tsd::io::import_USD(scene, animMgr, stage.path().c_str());
-
       auto positionArrayOf = [&](size_t i) {
-        auto geometry = scene.getObject<tsd::scene::Geometry>(i);
+        auto geometry = stage.scene.getObject<tsd::scene::Geometry>(i);
         return geometry
             ? geometry->parameterValueAsObject<tsd::scene::Array>(
                   "vertex.position")
             : nullptr;
       };
 
-      const auto parts = scene.numberOfObjects(ANARI_GEOMETRY);
+      const auto parts = stage.scene.numberOfObjects(ANARI_GEOMETRY);
       REQUIRE(parts > 1); // the subsets, plus any unclaimed remainder
 
       THEN("Every Part shares one position Array on import")
@@ -598,7 +556,7 @@ def Mesh "Split"
 
       THEN("They still share one after a resize, not a copy each")
       {
-        animMgr.setAnimationTime(1.0f);
+        stage.animMgr.setAnimationTime(1.0f);
 
         auto *first = positionArrayOf(0);
         REQUIRE(first != nullptr);

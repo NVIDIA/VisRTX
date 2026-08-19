@@ -19,7 +19,7 @@ SCENARIO("Native material passthrough is opt-in", "[UsdImport]")
 
   GIVEN("A Stage whose material is an ordinary preview surface")
   {
-    StageFixture stage("tsd_test_usd_preview_material.usda", R"(#usda 1.0
+    const std::string previewSurface = R"(#usda 1.0
 
 def Xform "World"
 {
@@ -45,37 +45,33 @@ def Xform "World"
         rel material:binding = </World/Surface>
     }
 }
-)");
+)";
 
     WHEN("The default material mode is used")
     {
-      tsd::scene::Scene scene;
-      tsd::animation::AnimationManager animMgr(&scene);
-      auto report = tsd::io::import_USD(scene, animMgr, stage.path().c_str());
+      ImportedStage stage("tsd_test_usd_preview_material.usda", previewSurface);
 
       THEN("A portable physically-based material is emitted")
       {
-        REQUIRE(boundMaterial(scene)->subtype()
+        REQUIRE(boundMaterial(stage.scene)->subtype()
             == tsd::scene::tokens::material::physicallyBased);
-        REQUIRE(report.skipped.empty());
+        REQUIRE(stage.report.skipped.empty());
       }
     }
 
     WHEN("A native passthrough is asked for that this material cannot give")
     {
-      tsd::scene::Scene scene;
-      tsd::animation::AnimationManager animMgr(&scene);
       tsd::io::UsdImportOptions options;
       options.materialMode = tsd::io::UsdMaterialMode::MDL;
-      auto report = tsd::io::import_USD(
-          scene, animMgr, stage.path().c_str(), {}, options);
+      ImportedStage stage(
+          "tsd_test_usd_preview_material.usda", previewSurface, options);
 
       THEN("The fallback to a portable mapping is reported, not silent")
       {
-        REQUIRE(boundMaterial(scene)->subtype()
+        REQUIRE(boundMaterial(stage.scene)->subtype()
             == tsd::scene::tokens::material::physicallyBased);
-        REQUIRE(
-            report.countOf(tsd::io::UsdSkipReason::RICHER_MATERIAL_AVAILABLE)
+        REQUIRE(stage.report.countOf(
+                    tsd::io::UsdSkipReason::RICHER_MATERIAL_AVAILABLE)
             == 1);
       }
     }
@@ -83,21 +79,19 @@ def Xform "World"
 #if TSD_USD_HAS_MATERIALX
     WHEN("MaterialX emission is asked for")
     {
-      tsd::scene::Scene scene;
-      tsd::animation::AnimationManager animMgr(&scene);
       tsd::io::UsdImportOptions options;
       options.materialMode = tsd::io::UsdMaterialMode::MATERIALX;
-      auto report = tsd::io::import_USD(
-          scene, animMgr, stage.path().c_str(), {}, options);
+      ImportedStage stage(
+          "tsd_test_usd_preview_material.usda", previewSurface, options);
 
       THEN("A preview surface falls back rather than emitting a bad document")
       {
         // MaterialX has no node definition for UsdPreviewSurface, so there is
         // nothing to pass through; the portable mapping is used and said so.
-        REQUIRE(boundMaterial(scene)->subtype()
+        REQUIRE(boundMaterial(stage.scene)->subtype()
             == tsd::scene::tokens::material::physicallyBased);
-        REQUIRE(
-            report.countOf(tsd::io::UsdSkipReason::RICHER_MATERIAL_AVAILABLE)
+        REQUIRE(stage.report.countOf(
+                    tsd::io::UsdSkipReason::RICHER_MATERIAL_AVAILABLE)
             == 1);
       }
     }
@@ -107,7 +101,7 @@ def Xform "World"
 #if TSD_USD_HAS_MATERIALX
   GIVEN("A Stage with an authored MaterialX network")
   {
-    StageFixture stage("tsd_test_usd_materialx.usda", R"(#usda 1.0
+    const std::string materialxNetwork = R"(#usda 1.0
 
 def Xform "World"
 {
@@ -134,20 +128,18 @@ def Xform "World"
         rel material:binding = </World/Surface>
     }
 }
-)");
+)";
 
     WHEN("MaterialX emission is asked for")
     {
-      tsd::scene::Scene scene;
-      tsd::animation::AnimationManager animMgr(&scene);
       tsd::io::UsdImportOptions options;
       options.materialMode = tsd::io::UsdMaterialMode::MATERIALX;
-      auto report = tsd::io::import_USD(
-          scene, animMgr, stage.path().c_str(), {}, options);
+      ImportedStage stage(
+          "tsd_test_usd_materialx.usda", materialxNetwork, options);
 
       THEN("The network passes through as an inline MaterialX document")
       {
-        auto *material = boundMaterial(scene);
+        auto *material = boundMaterial(stage.scene);
         REQUIRE(material->subtype() == tsd::scene::tokens::material::materialx);
         REQUIRE(stringParameter(material, "sourceType") == "documentInline");
 
@@ -162,19 +154,17 @@ def Xform "World"
 
       THEN("Nothing is reported as lost")
       {
-        REQUIRE(report.skipped.empty());
+        REQUIRE(stage.report.skipped.empty());
       }
     }
 
     WHEN("The default material mode is used")
     {
-      tsd::scene::Scene scene;
-      tsd::animation::AnimationManager animMgr(&scene);
-      tsd::io::import_USD(scene, animMgr, stage.path().c_str());
+      ImportedStage stage("tsd_test_usd_materialx.usda", materialxNetwork);
 
       THEN("The portable mapping is still what arrives")
       {
-        REQUIRE(boundMaterial(scene)->subtype()
+        REQUIRE(boundMaterial(stage.scene)->subtype()
             != tsd::scene::tokens::material::materialx);
       }
     }
@@ -184,6 +174,7 @@ def Xform "World"
     // from the option it sets.
     WHEN("The file is imported through the USD_MTLX Importer Type")
     {
+      StageFixture stage("tsd_test_usd_materialx.usda", materialxNetwork);
       tsd::scene::Scene scene;
       tsd::animation::AnimationManager animMgr(&scene);
       tsd::io::import_file(scene,
@@ -199,6 +190,7 @@ def Xform "World"
 
     WHEN("The file is imported through the plain USD Importer Type")
     {
+      StageFixture stage("tsd_test_usd_materialx.usda", materialxNetwork);
       tsd::scene::Scene scene;
       tsd::animation::AnimationManager animMgr(&scene);
       tsd::io::import_file(scene,
@@ -220,7 +212,7 @@ def Xform "World"
   {
     TextureFixture present("tsd_test_usd_mtlx_present.tga");
 
-    StageFixture stage("tsd_test_usd_materialx_textures.usda", R"(#usda 1.0
+    const std::string texturedNetwork = R"(#usda 1.0
 
 def Xform "World"
 {
@@ -261,19 +253,17 @@ def Xform "World"
         rel material:binding = </World/Surface>
     }
 }
-)");
+)";
 
     WHEN("MaterialX emission is asked for")
     {
-      tsd::scene::Scene scene;
-      tsd::animation::AnimationManager animMgr(&scene);
       tsd::io::UsdImportOptions options;
       options.materialMode = tsd::io::UsdMaterialMode::MATERIALX;
-      auto report = tsd::io::import_USD(
-          scene, animMgr, stage.path().c_str(), {}, options);
+      ImportedStage stage(
+          "tsd_test_usd_materialx_textures.usda", texturedNetwork, options);
 
       const auto source =
-          stringParameter(boundMaterial(scene), "source");
+          stringParameter(boundMaterial(stage.scene), "source");
 
       THEN("Texture paths leave as absolute paths")
       {
@@ -291,7 +281,7 @@ def Xform "World"
 
       THEN("The texture that exists is not reported as missing")
       {
-        for (const auto &skip : report.skipped) {
+        for (const auto &skip : stage.report.skipped) {
           const bool missedThisOne =
               skip.reason == tsd::io::UsdSkipReason::TEXTURE_LOAD_FAILED
               && skip.detail == present.path();
@@ -305,34 +295,35 @@ def Xform "World"
       // its paths are.
       THEN("A sampler is bound to the input by its document path")
       {
-        REQUIRE(scene.numberOfObjects(ANARI_SAMPLER) == 1);
+        REQUIRE(stage.scene.numberOfObjects(ANARI_SAMPLER) == 1);
 
         // The name is the contract: the device publishes each textured input
         // under its MaterialX element path.
-        auto *material = boundMaterial(scene);
+        auto *material = boundMaterial(stage.scene);
         std::string boundName;
         for (size_t i = 0; i < material->numParameters(); i++) {
           if (material->parameterAt(i).value().type() == ANARI_SAMPLER)
             boundName = material->parameterNameAt(i);
         }
         REQUIRE_FALSE(boundName.empty());
-        // The document path, node graph included -- the same string the device's
-        // shader generator reports as the port's path.
+        // The document path, node graph included -- the same string the
+        // device's shader generator reports as the port's path.
         REQUIRE(boundName == "_/Present/file");
       }
 
       THEN("A tile set binds nothing, and says so")
       {
-        REQUIRE(report.contains(tsd::io::UsdSkipReason::TEXTURE_LOAD_FAILED));
+        REQUIRE(
+            stage.report.contains(tsd::io::UsdSkipReason::TEXTURE_LOAD_FAILED));
         // Only the one loadable texture became a sampler.
-        REQUIRE(scene.numberOfObjects(ANARI_SAMPLER) == 1);
+        REQUIRE(stage.scene.numberOfObjects(ANARI_SAMPLER) == 1);
       }
     }
   }
 
   GIVEN("A MaterialX network naming a texture that is not there")
   {
-    StageFixture stage("tsd_test_usd_materialx_missing.usda", R"(#usda 1.0
+    const std::string missingTexture = R"(#usda 1.0
 
 def Xform "World"
 {
@@ -365,20 +356,19 @@ def Xform "World"
         rel material:binding = </World/Surface>
     }
 }
-)");
+)";
 
     WHEN("MaterialX emission is asked for")
     {
-      tsd::scene::Scene scene;
-      tsd::animation::AnimationManager animMgr(&scene);
       tsd::io::UsdImportOptions options;
       options.materialMode = tsd::io::UsdMaterialMode::MATERIALX;
-      auto report = tsd::io::import_USD(
-          scene, animMgr, stage.path().c_str(), {}, options);
+      ImportedStage stage(
+          "tsd_test_usd_materialx_missing.usda", missingTexture, options);
 
       THEN("The Import Report names it rather than leaving it to the device")
       {
-        REQUIRE(report.contains(tsd::io::UsdSkipReason::TEXTURE_LOAD_FAILED));
+        REQUIRE(
+            stage.report.contains(tsd::io::UsdSkipReason::TEXTURE_LOAD_FAILED));
       }
     }
   }
@@ -390,7 +380,7 @@ def Xform "World"
   // silently renders with the default material.
   GIVEN("A MaterialX network connecting a color3 output to a float input")
   {
-    StageFixture stage("tsd_test_usd_materialx_mistyped.usda", R"(#usda 1.0
+    const std::string mistypedNetwork = R"(#usda 1.0
 
 def Xform "World"
 {
@@ -423,26 +413,24 @@ def Xform "World"
         rel material:binding = </World/Surface>
     }
 }
-)");
+)";
 
     WHEN("MaterialX emission is asked for")
     {
-      tsd::scene::Scene scene;
-      tsd::animation::AnimationManager animMgr(&scene);
       tsd::io::UsdImportOptions options;
       options.materialMode = tsd::io::UsdMaterialMode::MATERIALX;
-      auto report = tsd::io::import_USD(
-          scene, animMgr, stage.path().c_str(), {}, options);
+      ImportedStage stage(
+          "tsd_test_usd_materialx_mistyped.usda", mistypedNetwork, options);
 
       THEN("The Import Report names it rather than leaving it to the device")
       {
-        REQUIRE(
-            report.contains(tsd::io::UsdSkipReason::MATERIAL_RESOLUTION_FAILED));
+        REQUIRE(stage.report.contains(
+            tsd::io::UsdSkipReason::MATERIAL_RESOLUTION_FAILED));
       }
 
       THEN("The portable mapping is what arrives, not a document")
       {
-        REQUIRE(boundMaterial(scene)->subtype()
+        REQUIRE(boundMaterial(stage.scene)->subtype()
             != tsd::scene::tokens::material::materialx);
       }
     }
