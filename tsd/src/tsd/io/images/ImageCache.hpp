@@ -144,15 +144,10 @@ struct SamplerSettings
   std::optional<UvTransform> uvTransform;
 };
 
-tsd::scene::SamplerRef makeImageSampler(tsd::scene::Scene &scene,
-    const Image &image,
-    const std::string &displayName,
-    const SamplerSettings &settings = {});
-
-// The same, for an image the given cache produced: the Sampler lands in the
-// Scene the cache holds, so a caller that has both cannot name a Scene the
-// image never reached. A cache with no Scene has no valid image to sample
-// either, so this yields nothing rather than reaching for one.
+// Build a Sampler for an image the given cache produced. The cache names the
+// Scene the Sampler lands in, so a caller cannot pair an image with a Scene it
+// never reached. A cache with no Scene has no valid image to sample either, so
+// this yields nothing rather than reaching for one.
 tsd::scene::SamplerRef makeImageSampler(ImageCache &cache,
     const Image &image,
     const std::string &displayName,

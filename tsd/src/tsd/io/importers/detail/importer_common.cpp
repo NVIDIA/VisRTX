@@ -110,9 +110,9 @@ tsd::scene::ArrayRef readArray(
 // These forward to tsd::io::images, which owns decoding, orientation, keying,
 // and lifetime for every image in the tree. They exist so the call sites that
 // want the whole of it -- acquire, then build a Sampler for what came back --
-// keep one signature. Like the makeImageSampler overload they end in, they
-// take the ImageCache alone, so no caller can put the Sampler in a Scene the
-// image never reached.
+// keep one signature. Like the makeImageSampler they end in, they take the
+// ImageCache alone, so no caller can put the Sampler in a Scene the image
+// never reached.
 
 namespace {
 

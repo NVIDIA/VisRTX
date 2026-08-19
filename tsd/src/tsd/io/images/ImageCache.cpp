@@ -171,15 +171,16 @@ Image ImageCache::store(
   return image;
 }
 
-SamplerRef makeImageSampler(Scene &scene,
+SamplerRef makeImageSampler(ImageCache &cache,
     const Image &image,
     const std::string &displayName,
     const SamplerSettings &settings)
 {
-  if (!image)
+  auto *scene = cache.scene();
+  if (!image || !scene)
     return {};
 
-  auto sampler = scene.createObject<Sampler>(image.blockCompressed()
+  auto sampler = scene->createObject<Sampler>(image.blockCompressed()
           ? tokens::sampler::compressedImage2D
           : tokens::sampler::image2D);
 
@@ -210,16 +211,6 @@ SamplerRef makeImageSampler(Scene &scene,
   sampler->setName(fileOf(displayName).c_str());
 
   return sampler;
-}
-
-SamplerRef makeImageSampler(ImageCache &cache,
-    const Image &image,
-    const std::string &displayName,
-    const SamplerSettings &settings)
-{
-  if (auto *scene = cache.scene())
-    return makeImageSampler(*scene, image, displayName, settings);
-  return {};
 }
 
 } // namespace tsd::io
