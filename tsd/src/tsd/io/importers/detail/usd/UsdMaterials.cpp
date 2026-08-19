@@ -53,6 +53,8 @@ struct NetworkWalker
   pxr::TfToken nodeId(const pxr::TfToken &path) const;
   pxr::VtValue parameter(
       const pxr::TfToken &nodePath, const char *paramName) const;
+  std::string stringParameter(
+      const pxr::TfToken &nodePath, const char *paramName) const;
   pxr::TfToken connectedNode(
       const pxr::TfToken &nodePath, const char *inputName) const;
 };
@@ -84,6 +86,20 @@ pxr::VtValue NetworkWalker::parameter(
   return value ? value->GetValue(0) : pxr::VtValue();
 }
 
+// Shader inputs that name something -- a wrap mode, a colour space, a primvar
+// -- are authored as a TfToken by some exporters and a plain string by others,
+// so both spellings have to be accepted wherever one is read.
+std::string NetworkWalker::stringParameter(
+    const pxr::TfToken &nodePath, const char *paramName) const
+{
+  const auto value = parameter(nodePath, paramName);
+  if (value.IsHolding<pxr::TfToken>())
+    return value.UncheckedGet<pxr::TfToken>().GetString();
+  if (value.IsHolding<std::string>())
+    return value.UncheckedGet<std::string>();
+  return {};
+}
+
 pxr::TfToken NetworkWalker::connectedNode(
     const pxr::TfToken &nodePath, const char *inputName) const
 {
@@ -108,14 +124,8 @@ std::string uvPrimvarOfTexture(
   // A UsdTransform2d may sit between the texture and the reader.
   for (int hop = 0; hop < 4 && !current.IsEmpty(); ++hop) {
     const auto id = walker.nodeId(current);
-    if (id == PRIMVAR_READER_ID) {
-      const auto varname = walker.parameter(current, "varname");
-      if (varname.IsHolding<std::string>())
-        return varname.UncheckedGet<std::string>();
-      if (varname.IsHolding<pxr::TfToken>())
-        return varname.UncheckedGet<pxr::TfToken>().GetString();
-      return {};
-    }
+    if (id == PRIMVAR_READER_ID)
+      return walker.stringParameter(current, "varname");
     if (id != TRANSFORM_2D_ID)
       return {};
     current = walker.connectedNode(current, "in");
@@ -157,12 +167,7 @@ std::string wrapModeOf(const NetworkWalker &walker,
     const pxr::TfToken &texturePath,
     const char *input)
 {
-  const auto value = walker.parameter(texturePath, input);
-  std::string mode = "repeat";
-  if (value.IsHolding<pxr::TfToken>())
-    mode = value.UncheckedGet<pxr::TfToken>().GetString();
-  else if (value.IsHolding<std::string>())
-    mode = value.UncheckedGet<std::string>();
+  const auto mode = walker.stringParameter(texturePath, input);
   if (mode == "clamp")
     return "clampToEdge";
   if (mode == "mirror")
@@ -178,13 +183,7 @@ bool textureIsLinear(const NetworkWalker &walker,
     const pxr::TfToken &texturePath,
     bool colorRole)
 {
-  const auto value = walker.parameter(texturePath, "sourceColorSpace");
-  std::string space;
-  if (value.IsHolding<pxr::TfToken>())
-    space = value.UncheckedGet<pxr::TfToken>().GetString();
-  else if (value.IsHolding<std::string>())
-    space = value.UncheckedGet<std::string>();
-
+  const auto space = walker.stringParameter(texturePath, "sourceColorSpace");
   if (space == "raw")
     return true;
   if (space == "sRGB")
