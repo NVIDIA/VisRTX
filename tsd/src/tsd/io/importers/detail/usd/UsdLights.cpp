@@ -111,10 +111,10 @@ LightRadiometry readRadiometry(const pxr::UsdPrim &prim, float area)
   return retval;
 }
 
-// Every light is named after its prim and carries the radiometry read above;
-// all that varies is which parameter the brightness lands on. The dome light
-// is deliberately not built this way -- it has no `color`, because its colour
-// is baked into the radiance it maps over the sphere.
+// Light types differ only in subtype and in which parameter their brightness
+// lands on, so those are what a caller passes. The dome light is the exception
+// and stays hand-built: it has no `color`, its colour being baked into the
+// radiance it maps over the sphere.
 LightRef makeLight(ImportContext &ctx,
     const Token &subtype,
     const pxr::SdfPath &primPath,
