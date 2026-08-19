@@ -36,20 +36,30 @@ constexpr char path_sep = '\\';
 constexpr char path_sep = '/';
 #endif
 
+// Both of these defer the separator scanning to std::filesystem::path, which
+// knows that Windows accepts '/' as well as '\\'. Scanning for one character
+// missed that, and missed the bare filename -- 'volume.raw' has no separator
+// at all, and reporting no file for it turned every importer that guards on
+// the result into a silent no-op for a path typed relative to the cwd.
+
+// The directory `filepath` names, with the trailing separator kept so callers
+// can concatenate a sibling file onto it. Empty when the path names no
+// directory.
 std::string pathOf(const std::string &filepath)
 {
-  size_t pos = filepath.find_last_of(path_sep);
-  if (pos == std::string::npos)
+  auto parent = std::filesystem::path(filepath).parent_path().string();
+  if (parent.empty())
     return "";
-  return filepath.substr(0, pos + 1);
+  if (parent.back() != '/' && parent.back() != '\\')
+    parent += path_sep;
+  return parent;
 }
 
+// The file `filepath` names, without its directory. Empty only when the path
+// names no file -- it is empty itself, or ends in a separator.
 std::string fileOf(const std::string &filepath)
 {
-  size_t pos = filepath.find_last_of(path_sep);
-  if (pos == std::string::npos)
-    return "";
-  return filepath.substr(pos + 1, filepath.size());
+  return std::filesystem::path(filepath).filename().string();
 }
 
 std::string extensionOf(const std::string &filepath)
@@ -398,7 +408,7 @@ static core::TransferFunction importParaViewTransferFunction(
         filepath.c_str());
     return {};
   } else if (const auto arrayStart = jsonContent.find("[", rgbPointsPos);
-             arrayStart == std::string::npos) {
+      arrayStart == std::string::npos) {
     logError(
         "[importParaViewTransferFunction] Invalid RGBPoints format in file: %s",
         filepath.c_str());
@@ -483,7 +493,7 @@ static core::TransferFunction importParaViewTransferFunction(
           std::istringstream opacitySS(opacityContent);
 
           for (std::string opacityToken;
-               std::getline(opacitySS, opacityToken, ',');) {
+              std::getline(opacitySS, opacityToken, ',');) {
             // Trim whitespace
             if (const auto first = opacityToken.find_first_not_of(" \t\n\r");
                 first != std::string::npos) {
@@ -611,7 +621,7 @@ std::vector<UserColorMap> loadUserColorMaps(
 
   std::vector<fs::path> files;
   for (fs::directory_iterator it(directory, ec), end; !ec && it != end;
-       it.increment(ec)) {
+      it.increment(ec)) {
     const auto &entry = *it;
     if (!entry.is_regular_file(ec))
       continue;

@@ -16,6 +16,81 @@
 #include <fstream>
 #include <system_error>
 
+SCENARIO("Splitting a path names its file and its directory", "[Importers]")
+{
+  GIVEN("A path with a directory component")
+  {
+    THEN("The two halves rejoin into the original")
+    {
+      REQUIRE(tsd::io::fileOf("/a/b/volume.raw") == "volume.raw");
+      REQUIRE(tsd::io::pathOf("/a/b/volume.raw") == "/a/b/");
+      REQUIRE(tsd::io::fileOf("b/volume.raw") == "volume.raw");
+      REQUIRE(tsd::io::pathOf("b/volume.raw") == "b/");
+    }
+  }
+
+  GIVEN("A bare filename, as typed relative to the working directory")
+  {
+    THEN("It is the file, and there is no directory")
+    {
+      // Importers guard on fileOf() being non-empty before doing any work, so
+      // answering "no file" here made every one of them a silent no-op.
+      REQUIRE(tsd::io::fileOf("volume.raw") == "volume.raw");
+      REQUIRE(tsd::io::pathOf("volume.raw").empty());
+    }
+  }
+
+  GIVEN("A path that names a directory rather than a file")
+  {
+    THEN("There is no file")
+    {
+      REQUIRE(tsd::io::fileOf("/a/b/").empty());
+      REQUIRE(tsd::io::fileOf("").empty());
+    }
+  }
+
+  GIVEN("A file directly under the root")
+  {
+    THEN("The directory is the root, and is not doubled")
+    {
+      REQUIRE(tsd::io::fileOf("/volume.raw") == "volume.raw");
+      REQUIRE(tsd::io::pathOf("/volume.raw") == "/");
+    }
+  }
+}
+
+SCENARIO("A volume imports under a name relative to the working directory",
+    "[Importers]")
+{
+  // The dimensions and voxel type come out of the filename, so an importer
+  // needs the file half of the path whether or not a directory was given.
+  const auto directory = std::filesystem::temp_directory_path();
+  const char *name = "tsd_test_relative_2x2x2_uint8.raw";
+  {
+    std::ofstream file(directory / name, std::ios::binary);
+    const unsigned char voxels[8] = {0, 32, 64, 96, 128, 160, 192, 255};
+    file.write(reinterpret_cast<const char *>(voxels), sizeof(voxels));
+  }
+
+  tsd::scene::Scene scene;
+
+  WHEN("The file is named without any directory")
+  {
+    const auto previous = std::filesystem::current_path();
+    std::filesystem::current_path(directory);
+    auto field = tsd::io::import_spatial_field(scene, name);
+    std::filesystem::current_path(previous);
+
+    THEN("It reads, and carries the name it was asked for")
+    {
+      REQUIRE(field);
+      REQUIRE(field->name() == name);
+    }
+  }
+
+  std::filesystem::remove(directory / name);
+}
+
 SCENARIO(
     "Volume transfer functions reject missing control points", "[Importers]")
 {
