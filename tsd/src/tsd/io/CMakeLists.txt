@@ -7,6 +7,7 @@ project_add_library(STATIC)
 
 project_sources(
 PRIVATE
+  UsdImport.cpp
   archives/SceneArchive.cpp
   archives/ObjectArchive.cpp
   archives/LayerSubtreeArchive.cpp
@@ -22,21 +23,20 @@ PRIVATE
   archives/detail/SubtreeArchiveDeserialization.cpp
   animation/EnSightFileBinding.cpp
   animation/SpatialFieldFileBinding.cpp
-  UsdImport.cpp
-  images/ImageCache.cpp
-  images/detail/decoders.cpp
+  animation/UsdFileBinding.cpp
+  animation/UsdGeometryFileBinding.cpp
+  animation/UsdInstancerFileBinding.cpp
   exporters/NanoVdbSidecar.cpp
   exporters/SceneToUSD.cpp
   exporters/StructuredVolumeToNanoVDB.cpp
+  images/ImageCache.cpp
+  images/detail/decoders.cpp
   importers/detail/ensight_io.cpp
   importers/detail/HDRImage.cpp
   importers/detail/importer_common.cpp
   importers/detail/pbrt/PbrtLexer.cpp
   importers/detail/pbrt/PbrtParser.cpp
   importers/detail/pbrt/PbrtScene.cpp
-  animation/UsdFileBinding.cpp
-  animation/UsdGeometryFileBinding.cpp
-  animation/UsdInstancerFileBinding.cpp
   importers/import_AGX.cpp
   importers/import_ASSIMP.cpp
   importers/import_AXYZ.cpp
