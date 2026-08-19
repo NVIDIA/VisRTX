@@ -2086,10 +2086,8 @@ static void convertLight(Scene &scene,
     const pbrt::LightDef &lightDef,
     LayerNodeRef parent,
     const std::string &basePath,
-    ImageCache &texCache,
     float exposureScale = 1.f)
 {
-  (void)texCache;
   const auto &type = lightDef.type;
   const auto &params = lightDef.params;
   const auto xfm = pbrtTransformToMat4(lightDef.lightToWorld);
@@ -2383,12 +2381,12 @@ void import_PBRT(Scene &scene,
       scene.insertChildObjectNode(subXfm, surface);
     }
     for (auto &light : it->second.lights)
-      convertLight(scene, light, xfmNode, basePath, texCache, exposureScale);
+      convertLight(scene, light, xfmNode, basePath, exposureScale);
   }
 
   // Lights
   for (auto &light : pbrtScene.lights)
-    convertLight(scene, light, root, basePath, texCache, exposureScale);
+    convertLight(scene, light, root, basePath, exposureScale);
 
   // Camera
   convertCamera(scene, file, pbrtScene);
