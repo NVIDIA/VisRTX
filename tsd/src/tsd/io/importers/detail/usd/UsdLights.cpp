@@ -111,6 +111,23 @@ LightRadiometry readRadiometry(const pxr::UsdPrim &prim, float area)
   return retval;
 }
 
+// Every light is named after its prim and carries the radiometry read above;
+// all that varies is which parameter the brightness lands on. The dome light
+// is deliberately not built this way -- it has no `color`, because its colour
+// is baked into the radiance it maps over the sphere.
+LightRef makeLight(ImportContext &ctx,
+    const Token &subtype,
+    const pxr::SdfPath &primPath,
+    const LightRadiometry &radiometry,
+    const char *brightnessParameter)
+{
+  auto retval = ctx.scene->createObject<Light>(subtype);
+  retval->setName(primPath.GetName().c_str());
+  retval->setParameter("color", radiometry.color);
+  retval->setParameter(brightnessParameter, radiometry.intensity);
+  return retval;
+}
+
 // A sphere or disk light carrying shaping attributes is a spot light; USD
 // expresses the cone as a half-angle plus a softness fraction.
 bool readShaping(
@@ -219,11 +236,8 @@ LightRef convertLight(ImportContext &ctx,
 
   if (type == pxr::HdPrimTypeTokens->distantLight) {
     const auto radiometry = readRadiometry(usdPrim, 0.f);
-    auto light = ctx.scene->createObject<Light>(tokens::light::directional);
-    light->setName(primPath.GetName().c_str());
-    light->setParameter("color", radiometry.color);
-    light->setParameter("irradiance", radiometry.intensity);
-    return light;
+    return makeLight(
+        ctx, tokens::light::directional, primPath, radiometry, "irradiance");
   }
 
   if (type == pxr::HdPrimTypeTokens->rectLight) {
@@ -234,10 +248,8 @@ LightRef convertLight(ImportContext &ctx,
     rectLight.GetHeightAttr().Get(&height);
     const auto radiometry = readRadiometry(usdPrim, width * height);
 
-    auto light = ctx.scene->createObject<Light>(tokens::light::quad);
-    light->setName(primPath.GetName().c_str());
-    light->setParameter("color", radiometry.color);
-    light->setParameter("intensity", radiometry.intensity);
+    auto light =
+        makeLight(ctx, tokens::light::quad, primPath, radiometry, "intensity");
     light->setParameter("position", float3(-0.5f * width, -0.5f * height, 0.f));
     light->setParameter("edge1", float3(width, 0.f, 0.f));
     light->setParameter("edge2", float3(0.f, height, 0.f));
@@ -260,20 +272,18 @@ LightRef convertLight(ImportContext &ctx,
     float openingAngle = 0.f;
     float falloffAngle = 0.f;
     if (readShaping(usdPrim, &openingAngle, &falloffAngle)) {
-      auto light = ctx.scene->createObject<Light>(tokens::light::spot);
-      light->setName(primPath.GetName().c_str());
-      light->setParameter("color", radiometry.color);
-      light->setParameter("intensity", radiometry.intensity);
+      auto light = makeLight(
+          ctx, tokens::light::spot, primPath, radiometry, "intensity");
       light->setParameter("openingAngle", openingAngle);
       light->setParameter("falloffAngle", falloffAngle);
       return light;
     }
 
-    auto light = ctx.scene->createObject<Light>(
-        isDisk ? tokens::light::ring : tokens::light::point);
-    light->setName(primPath.GetName().c_str());
-    light->setParameter("color", radiometry.color);
-    light->setParameter("intensity", radiometry.intensity);
+    auto light = makeLight(ctx,
+        isDisk ? tokens::light::ring : tokens::light::point,
+        primPath,
+        radiometry,
+        "intensity");
     light->setParameter("radius", radius);
     return light;
   }
