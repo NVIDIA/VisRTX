@@ -243,8 +243,8 @@ def Mesh "SubdivQuad"
   }
 }
 
-SCENARIO("Width-less curves and points get a bounds-scaled radius",
-    "[UsdImport]")
+SCENARIO(
+    "Width-less curves and points get a bounds-scaled radius", "[UsdImport]")
 {
   // Blender hair exports commonly omit widths; without an explicit radius the
   // ANARI default of 1 world unit dwarfs most scenes.
@@ -283,8 +283,8 @@ def Xform "World"
         auto geometry = findGeometry(stage.scene, "/World/Hair");
         REQUIRE(geometry);
         REQUIRE(geometry->subtype() == tsd::scene::tokens::geometry::curve);
-        REQUIRE(geometry->parameterValueAsObject<tsd::scene::Array>(
-                    "vertex.radius")
+        REQUIRE(
+            geometry->parameterValueAsObject<tsd::scene::Array>("vertex.radius")
             == nullptr);
 
         const auto radius = geometry->parameterValueAs<float>("radius");
@@ -349,9 +349,11 @@ def Mesh "Empty" (
 }
 )");
 
-    // A Scene creates one default Material of its own, so what matters is
-    // that the import adds none.
-    const auto materialsBefore = stage.scene.numberOfObjects(ANARI_MATERIAL);
+    // A Scene creates one default Material of its own, so the count to
+    // compare against is an empty Scene's rather than this one's after the
+    // import.
+    const auto materialsBefore =
+        tsd::scene::Scene().numberOfObjects(ANARI_MATERIAL);
 
     WHEN("The Stage is imported")
     {
