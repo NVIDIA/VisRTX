@@ -37,6 +37,13 @@ project_add_executable(
   test_SceneArchive.cpp
   test_Token.cpp
   test_UsdImport.cpp
+  test_UsdImport_animation.cpp
+  test_UsdImport_geometry.cpp
+  test_UsdImport_instancing.cpp
+  test_UsdImport_lights.cpp
+  test_UsdImport_materials.cpp
+  test_UsdImport_materials_portable.cpp
+  test_UsdImport_subsets.cpp
 )
 if (TARGET tsd_scivis_studio_model)
   target_sources(${PROJECT_NAME} PRIVATE
