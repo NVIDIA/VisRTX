@@ -6,6 +6,7 @@
 // tsd
 #include "tsd/animation/AnimationManager.hpp"
 #include "tsd/core/TSDMath.hpp"
+#include "tsd/io/exporters.hpp"
 #include "tsd/io/importers.hpp"
 #include "tsd/io/importers/detail/importer_common.hpp"
 #include "tsd/scene/Scene.hpp"
@@ -66,6 +67,50 @@ SCENARIO(
   }
 
   std::filesystem::remove(path);
+}
+
+SCENARIO("The spatial field dispatcher reads NanoVDB under both of its names",
+    "[Importers]")
+{
+  // tsdVolumeToNanoVDB documents its output as '.vdb', so a NanoVDB grid
+  // reaches TSD under that name as often as under '.nvdb', and both have to
+  // find the same reader.
+  const auto rawPath =
+      std::filesystem::temp_directory_path() / "tsd_test_2x2x2_uint8.raw";
+  {
+    std::ofstream file(rawPath, std::ios::binary);
+    const unsigned char voxels[8] = {0, 32, 64, 96, 128, 160, 192, 255};
+    file.write(reinterpret_cast<const char *>(voxels), sizeof(voxels));
+  }
+
+  const auto vdbPath =
+      std::filesystem::temp_directory_path() / "tsd_test_roundtrip.vdb";
+
+  tsd::scene::Scene scene;
+
+  GIVEN("A NanoVDB grid written out under a '.vdb' name")
+  {
+    auto source =
+        tsd::io::import_spatial_field(scene, rawPath.string().c_str());
+    REQUIRE(source);
+    tsd::io::export_StructuredVolumeToNanoVDB(source.data(), vdbPath.string());
+    REQUIRE(std::filesystem::exists(vdbPath));
+
+    WHEN("The '.vdb' file is dispatched")
+    {
+      auto field =
+          tsd::io::import_spatial_field(scene, vdbPath.string().c_str());
+
+      THEN("The NanoVDB reader loads it")
+      {
+        REQUIRE(field);
+        REQUIRE(field->subtype() == tsd::scene::tokens::spatial_field::nanovdb);
+      }
+    }
+  }
+
+  std::filesystem::remove(rawPath);
+  std::filesystem::remove(vdbPath);
 }
 
 namespace {

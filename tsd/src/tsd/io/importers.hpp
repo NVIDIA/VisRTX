@@ -93,7 +93,7 @@ void import_XYZDP(Scene &scene, tsd::animation::AnimationManager &animMgr, const
 // Spatial field importers //
 
 // Dispatch to the appropriate spatial field importer based on file extension.
-// Supports: .raw, .flash/.hdf5, .nvdb, .mhd, .vtu, .silo/.sil
+// Supports: .raw, .flash/.hdf5, .nvdb/.vdb, .mhd, .vtu, .silo/.sil
 // Note: .vti is not supported here; use import_volume() for VTI files.
 SpatialFieldRef import_spatial_field(Scene &scene, const char *filename, std::optional<std::string> propertyName = std::nullopt);
 

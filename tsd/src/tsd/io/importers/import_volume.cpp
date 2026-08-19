@@ -80,7 +80,9 @@ SpatialFieldRef import_spatial_field(
     return import_RAW(scene, file.c_str());
   else if (ext == ".flash" || ext == ".hdf5")
     return import_FLASH(scene, file.c_str());
-  else if (ext == ".nvdb")
+  // '.vdb' is NanoVDB here, not OpenVDB: tsdVolumeToNanoVDB writes NanoVDB
+  // grids under that extension, so both names reach the same reader.
+  else if (ext == ".nvdb" || ext == ".vdb")
     return import_NVDB(scene, file.c_str());
   else if (ext == ".mhd")
     return import_MHD(scene, file.c_str());

@@ -44,6 +44,7 @@ project_add_executable(
   test_UsdImport_materials.cpp
   test_UsdImport_materials_portable.cpp
   test_UsdImport_subsets.cpp
+  test_UsdImport_volumes.cpp
 )
 if (TARGET tsd_scivis_studio_model)
   target_sources(${PROJECT_NAME} PRIVATE
