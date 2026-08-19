@@ -52,6 +52,28 @@ struct RawFieldFixture
   std::filesystem::path m_path;
 };
 
+// A field file next to the Stage that holds nothing any importer can read.
+// Which importer an extension reaches is the question; the file only has to
+// exist, so that `filePath` resolves to a real path the way it does in an
+// asset rather than staying the bare name the Stage authored.
+struct UnreadableFieldFixture
+{
+  explicit UnreadableFieldFixture(const char *name)
+      : m_path(fixtureDirectory() / name)
+  {
+    std::ofstream file(m_path, std::ios::binary);
+  }
+
+  ~UnreadableFieldFixture()
+  {
+    std::error_code ec;
+    std::filesystem::remove(m_path, ec);
+  }
+
+ private:
+  std::filesystem::path m_path;
+};
+
 // Collects log messages for the lifetime of one scenario. Which importer a
 // file extension reaches is otherwise invisible when the file named is a
 // stand-in that no importer can actually read.
@@ -269,6 +291,7 @@ SCENARIO("Volume fields go through the shared spatial-field dispatcher",
 {
   GIVEN("A Volume prim whose field names a Silo file")
   {
+    UnreadableFieldFixture field("tsd_test_usd_field.silo");
     LogCapture log;
     ImportedStage stage("tsd_test_usd_volume_silo.usda", R"(#usda 1.0
 
@@ -288,8 +311,39 @@ def Volume "Vol"
       THEN("The Silo importer is the one asked for the field")
       {
         // The extension chain the USD importer used to hand-roll knew nothing
-        // of Silo, so this file never reached an importer at all.
+        // of Silo, so this file fell off the end of it. Only import_SILO logs
+        // under this prefix, in either build configuration, so seeing it is
+        // proof the dispatcher routed the extension; not seeing the fallback
+        // is proof nothing routed it by accident.
         REQUIRE(log.sawMessageContaining("[import_SILO]"));
+        REQUIRE(!log.sawMessageContaining("no loader for file type"));
+      }
+    }
+  }
+
+  GIVEN("A Volume prim whose field names a FLASH-in-HDF5 file")
+  {
+    UnreadableFieldFixture field("tsd_test_usd_field.hdf5");
+    LogCapture log;
+    ImportedStage stage("tsd_test_usd_volume_hdf5.usda", R"(#usda 1.0
+
+def Volume "Vol"
+{
+    rel field:density = </Vol/Density>
+
+    def "Density"
+    {
+        asset filePath = @tsd_test_usd_field.hdf5@
+    }
+}
+)");
+
+    WHEN("The Stage is imported")
+    {
+      THEN("The FLASH importer is the one asked for the field")
+      {
+        REQUIRE(log.sawMessageContaining("[import_FLASH]"));
+        REQUIRE(!log.sawMessageContaining("no loader for file type"));
       }
     }
   }
