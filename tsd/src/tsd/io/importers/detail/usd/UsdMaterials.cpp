@@ -260,7 +260,7 @@ MaterialRef tryMdlPassthrough(
     pxr::TfToken subIdentifier;
     shader.GetSourceAssetSubIdentifier(&subIdentifier, pxr::TfToken("mdl"));
 
-    auto material = ctx.scene.createObject<Material>(tokens::material::mdl);
+    auto material = ctx.scene->createObject<Material>(tokens::material::mdl);
     material->setName(materialPath.GetString().c_str());
     material->setParameter("sourceType", "module");
     material->setParameter("source", module.c_str());
@@ -401,7 +401,7 @@ MaterialRef tryOmniPbrMapping(ImportContext &ctx,
     return {};
 
   auto material =
-      ctx.scene.createObject<Material>(tokens::material::physicallyBased);
+      ctx.scene->createObject<Material>(tokens::material::physicallyBased);
   material->setName(materialPath.GetString().c_str());
 
   // Every textured input takes precedence over its constant, which is what
@@ -416,7 +416,8 @@ MaterialRef tryOmniPbrMapping(ImportContext &ctx,
       return false;
     // OmniPBR names no colour space of its own, so the role of the input is
     // what says whether its texels must be de-gamma'd on load.
-    auto sampler = importTexture(ctx.scene, file, ctx.textureCache, !colorRole);
+    auto sampler =
+        importTexture(*ctx.scene, file, ctx.textureCache, !colorRole);
     if (!sampler) {
       ctx.reportSkip(materialPath,
           primType.GetString(),
@@ -733,7 +734,7 @@ MaterialRef tryMaterialXPassthrough(ImportContext &ctx,
   // converts through its own MaterialX node definitions.
   auto network = materialSchema.GetMaterialNetwork(MATERIALX_CONTEXT);
   if (!network || !network.GetNodes())
-    network = selectNetwork(materialSchema, ctx.options.renderContexts);
+    network = selectNetwork(materialSchema, ctx.options->renderContexts);
   if (!network || !network.GetNodes())
     return {};
 
@@ -816,7 +817,7 @@ MaterialRef tryMaterialXPassthrough(ImportContext &ctx,
   if (materialName.empty() || xml.empty())
     return {};
 
-  auto retval = ctx.scene.createObject<Material>(tokens::material::materialx);
+  auto retval = ctx.scene->createObject<Material>(tokens::material::materialx);
   retval->setName(materialPath.GetString().c_str());
   retval->setParameter("sourceType", "documentInline");
   retval->setParameter("source", xml.c_str());
@@ -830,7 +831,7 @@ MaterialRef tryMaterialXPassthrough(ImportContext &ctx,
   // is read once.
   for (const auto &texture : documentTextures) {
     auto sampler = importTexture(
-        ctx.scene, texture.file, ctx.textureCache, texture.isLinear);
+        *ctx.scene, texture.file, ctx.textureCache, texture.isLinear);
     if (!sampler) {
       ctx.reportSkip(materialPath,
           prim.primType.GetString(),
@@ -891,7 +892,7 @@ ResolvedMaterial convertPreviewSurface(ImportContext &ctx,
   }
 
   NetworkWalker walker{
-      selectNetwork(materialSchema, ctx.options.renderContexts)};
+      selectNetwork(materialSchema, ctx.options->renderContexts)};
   if (!walker.network) {
     ctx.reportSkip(materialPath,
         prim.primType.GetString(),
@@ -925,7 +926,7 @@ ResolvedMaterial convertPreviewSurface(ImportContext &ctx,
   }
 
   auto material =
-      ctx.scene.createObject<Material>(tokens::material::physicallyBased);
+      ctx.scene->createObject<Material>(tokens::material::physicallyBased);
   material->setName(materialPath.GetString().c_str());
 
   ResolvedMaterial retval;
@@ -974,7 +975,7 @@ ResolvedMaterial convertPreviewSurface(ImportContext &ctx,
 
     const bool isLinear = textureIsLinear(walker, texturePath, colorRole);
     auto sampler =
-        importTexture(ctx.scene, file, ctx.textureCache, isLinear, settings);
+        importTexture(*ctx.scene, file, ctx.textureCache, isLinear, settings);
     if (!sampler) {
       ctx.reportSkip(materialPath,
           prim.primType.GetString(),
@@ -1039,7 +1040,7 @@ ResolvedMaterial resolveMaterial(ImportContext &ctx,
 
   // Native passthrough modes are opt-in; each falls back to the portable
   // mapping, saying so, rather than dropping the material.
-  switch (ctx.options.materialMode) {
+  switch (ctx.options->materialMode) {
   case UsdMaterialMode::MDL:
     if (auto material = tryMdlPassthrough(ctx, materialPath))
       return cache({material});

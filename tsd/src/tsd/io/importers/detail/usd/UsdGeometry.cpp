@@ -35,7 +35,7 @@ MaterialRef displayColorMaterial(ImportContext &ctx,
     const pxr::SdfPath &primPath,
     const pxr::HdSceneIndexPrim &prim)
 {
-  auto retval = ctx.scene.createObject<Material>(tokens::material::matte);
+  auto retval = ctx.scene->createObject<Material>(tokens::material::matte);
   retval->setName((primPath.GetString() + "_displayColor").c_str());
 
   const auto display = readDisplayColor(prim);
@@ -122,7 +122,7 @@ void buildParts(ImportContext &ctx,
   FlatMap<std::string, ArrayRef> sharedArrays;
 
   for (const auto &part : resolved.parts) {
-    auto geometry = ctx.scene.createObject<Geometry>(part.subtype);
+    auto geometry = ctx.scene->createObject<Geometry>(part.subtype);
     geometry->setName(part.name.c_str());
 
     for (const auto &attribute : part.attributes) {
@@ -133,7 +133,7 @@ void buildParts(ImportContext &ctx,
       if (auto *shared = sharedArrays.at(attribute.sharedKey))
         array = *shared;
       if (!array) {
-        array = ctx.scene.createArray(attribute.type, attribute.count());
+        array = ctx.scene->createArray(attribute.type, attribute.count());
         array->setData(attribute.data());
         if (!attribute.sharedKey.empty())
           sharedArrays.set(attribute.sharedKey, array);
@@ -149,7 +149,7 @@ void buildParts(ImportContext &ctx,
 
     out.geometryByPart.emplace_back(part.name, geometry);
     out.surfaces.push_back(
-        ctx.scene.createSurface(part.name.c_str(), geometry, material));
+        ctx.scene->createSurface(part.name.c_str(), geometry, material));
   }
 }
 
@@ -170,9 +170,9 @@ ConvertedGeometry convertGeometry(ImportContext &ctx,
     return retval;
 
   retval.resolveOptions.bakeXform = bakeXform;
-  retval.resolveOptions.refinementLevel = ctx.options.refinementLevel;
+  retval.resolveOptions.refinementLevel = ctx.options->refinementLevel;
   retval.resolveOptions.refine =
-      meshWantsRefinement(ctx.stage, ctx.options.refinementLevel, primPath);
+      meshWantsRefinement(ctx.stage, ctx.options->refinementLevel, primPath);
 
   // Resolve first, so materials are resolved only for the Parts that exist.
   auto resolved =

@@ -175,7 +175,7 @@ void addInstancerAnimation(ImportContext &ctx,
     LayerNodeRef arrayNode,
     ArrayRef transforms)
 {
-  ctx.animation().emplaceFileBinding<UsdInstancerFileBinding>(&ctx.scene,
+  ctx.animation().emplaceFileBinding<UsdInstancerFileBinding>(ctx.scene,
       ctx.session,
       arrayNode,
       transforms,
@@ -216,7 +216,7 @@ void addDeformingGeometryAnimation(ImportContext &ctx,
   // One eager frame is already in the Scene; the rest is pulled from the
   // shared Stage Session on demand (ADR 0018), re-resolved rather than
   // re-converted (ADR 0022).
-  ctx.animation().emplaceFileBinding<UsdGeometryFileBinding>(&ctx.scene,
+  ctx.animation().emplaceFileBinding<UsdGeometryFileBinding>(ctx.scene,
       ctx.session,
       ctx.filePath,
       primPath.GetString(),

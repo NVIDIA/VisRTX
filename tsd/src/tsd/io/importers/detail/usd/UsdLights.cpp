@@ -220,7 +220,7 @@ LightRef convertLight(ImportContext &ctx,
 
   if (type == pxr::HdPrimTypeTokens->distantLight) {
     const auto radiometry = readRadiometry(usdPrim, 0.f);
-    auto light = ctx.scene.createObject<Light>(tokens::light::directional);
+    auto light = ctx.scene->createObject<Light>(tokens::light::directional);
     light->setName(primPath.GetName().c_str());
     light->setParameter("color", radiometry.color);
     light->setParameter("irradiance", radiometry.intensity);
@@ -235,7 +235,7 @@ LightRef convertLight(ImportContext &ctx,
     rectLight.GetHeightAttr().Get(&height);
     const auto radiometry = readRadiometry(usdPrim, width * height);
 
-    auto light = ctx.scene.createObject<Light>(tokens::light::quad);
+    auto light = ctx.scene->createObject<Light>(tokens::light::quad);
     light->setName(primPath.GetName().c_str());
     light->setParameter("color", radiometry.color);
     light->setParameter("intensity", radiometry.intensity);
@@ -261,7 +261,7 @@ LightRef convertLight(ImportContext &ctx,
     float openingAngle = 0.f;
     float falloffAngle = 0.f;
     if (readShaping(usdPrim, &openingAngle, &falloffAngle)) {
-      auto light = ctx.scene.createObject<Light>(tokens::light::spot);
+      auto light = ctx.scene->createObject<Light>(tokens::light::spot);
       light->setName(primPath.GetName().c_str());
       light->setParameter("color", radiometry.color);
       light->setParameter("intensity", radiometry.intensity);
@@ -270,7 +270,7 @@ LightRef convertLight(ImportContext &ctx,
       return light;
     }
 
-    auto light = ctx.scene.createObject<Light>(
+    auto light = ctx.scene->createObject<Light>(
         isDisk ? tokens::light::ring : tokens::light::point);
     light->setName(primPath.GetName().c_str());
     light->setParameter("color", radiometry.color);
@@ -283,7 +283,7 @@ LightRef convertLight(ImportContext &ctx,
     pxr::UsdLuxDomeLight domeLight(usdPrim);
     const auto radiometry = readRadiometry(usdPrim, 0.f);
 
-    auto light = ctx.scene.createObject<Light>(tokens::light::hdri);
+    auto light = ctx.scene->createObject<Light>(tokens::light::hdri);
     light->setName(primPath.GetName().c_str());
     light->setParameter("scale", radiometry.intensity);
 
@@ -312,7 +312,7 @@ LightRef convertLight(ImportContext &ctx,
       // Devices require radiance to be set; synthesize a constant environment
       // from the light's own colour so an untextured dome still lights.
       const float3 solid = radiometry.color * radiometry.intensity;
-      radiance = ctx.scene.createArray(ANARI_FLOAT32_VEC3, 1, 1);
+      radiance = ctx.scene->createArray(ANARI_FLOAT32_VEC3, 1, 1);
       radiance->setData(&solid, 1);
     }
     light->setParameterObject("radiance", *radiance);
@@ -343,7 +343,7 @@ void convertCamera(ImportContext &ctx, const pxr::SdfPath &primPath)
   const bool isPerspective =
       defaultCamera.GetProjection() == pxr::GfCamera::Perspective;
 
-  auto camera = ctx.scene.createObject<Camera>(isPerspective
+  auto camera = ctx.scene->createObject<Camera>(isPerspective
           ? tokens::camera::perspective
           : tokens::camera::orthographic);
   camera->setName(name.c_str());
@@ -420,14 +420,14 @@ void convertCamera(ImportContext &ctx, const pxr::SdfPath &primPath)
     return;
 
   const size_t frameCount = sampleTimes.size();
-  auto positions = ctx.scene.createArray(ANARI_FLOAT32_VEC3, frameCount);
-  auto directions = ctx.scene.createArray(ANARI_FLOAT32_VEC3, frameCount);
-  auto ups = ctx.scene.createArray(ANARI_FLOAT32_VEC3, frameCount);
+  auto positions = ctx.scene->createArray(ANARI_FLOAT32_VEC3, frameCount);
+  auto directions = ctx.scene->createArray(ANARI_FLOAT32_VEC3, frameCount);
+  auto ups = ctx.scene->createArray(ANARI_FLOAT32_VEC3, frameCount);
 
   ArrayRef fovs, aspects;
   if (hasIntrinsicAnimation) {
-    fovs = ctx.scene.createArray(ANARI_FLOAT32, frameCount);
-    aspects = ctx.scene.createArray(ANARI_FLOAT32, frameCount);
+    fovs = ctx.scene->createArray(ANARI_FLOAT32, frameCount);
+    aspects = ctx.scene->createArray(ANARI_FLOAT32, frameCount);
   }
 
   auto *positionData = positions->mapAs<float3>();
@@ -478,7 +478,7 @@ void convertCamera(ImportContext &ctx, const pxr::SdfPath &primPath)
   // Stage's clock so this camera shares one clock with every other binding
   // from the same import. Nothing is resampled.
   const auto timeBase = normalizeSampleTimes(ctx.stage, sampleTimes);
-  auto &animation = ctx.animMgr.addAnimation(name);
+  auto &animation = ctx.animMgr->addAnimation(name);
   addValueTimeStepBindings(animation,
       camera.data(),
       parameterNames,

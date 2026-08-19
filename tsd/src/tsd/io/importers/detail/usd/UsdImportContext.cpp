@@ -15,18 +15,18 @@ namespace tsd::io::usd {
 tsd::animation::Animation &ImportContext::animation()
 {
   if (importAnimationIndex == NO_ANIMATION) {
-    animMgr.addAnimation(filePath);
-    importAnimationIndex = animMgr.animations().size() - 1;
+    animMgr->addAnimation(filePath);
+    importAnimationIndex = animMgr->animations().size() - 1;
   }
-  return animMgr.animations()[importAnimationIndex];
+  return animMgr->animations()[importAnimationIndex];
 }
 
 void ImportContext::reportAnimatedPrim(size_t sampleCount)
 {
-  report.animatedPrims++;
-  report.sampleCount = std::max(report.sampleCount, sampleCount);
+  report->animatedPrims++;
+  report->sampleCount = std::max(report->sampleCount, sampleCount);
   if (session)
-    report.timeCodesPerSecond = float(session->timeCodesPerSecond());
+    report->timeCodesPerSecond = float(session->timeCodesPerSecond());
 }
 
 bool ImportContext::isClaimed(const pxr::SdfPath &path) const

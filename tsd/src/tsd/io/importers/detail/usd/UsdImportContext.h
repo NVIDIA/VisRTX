@@ -54,16 +54,17 @@ struct ResolvedMaterial
  * can be read directly from prims by path.
  *
  * Example:
- *   ImportContext ctx{scene, animMgr, options, report, stage, filename};
+ *   ImportContext ctx{&scene, &animMgr, &options, &report,
+ *       session, stage, filePath, basePath};
  *   ctx.reportSkip(primPath, "cylinderLight",
  *       UsdSkipReason::UNSUPPORTED_LIGHT_TYPE);
  */
 struct ImportContext
 {
-  Scene &scene;
-  tsd::animation::AnimationManager &animMgr;
-  const UsdImportOptions &options;
-  UsdImportReport &report;
+  Scene *scene{nullptr};
+  tsd::animation::AnimationManager *animMgr{nullptr};
+  const UsdImportOptions *options{nullptr};
+  UsdImportReport *report{nullptr};
   std::shared_ptr<UsdStageSession> session;
   pxr::UsdStageRefPtr stage;
   std::string filePath;
@@ -99,7 +100,7 @@ struct ImportContext
   size_t importAnimationIndex{NO_ANIMATION};
 
   // Caches keyed by resolved prim path, so shared content converts once.
-  ImageCache textureCache{&scene};
+  ImageCache textureCache{scene};
   std::unordered_map<std::string, ResolvedMaterial> materialCache;
 
   void reportSkip(const pxr::SdfPath &primPath,
@@ -130,7 +131,7 @@ inline void ImportContext::reportSkip(const pxr::SdfPath &primPath,
     UsdSkipReason reason,
     const std::string &detail)
 {
-  report.skipped.push_back({primPath.GetString(), primType, reason, detail});
+  report->skipped.push_back({primPath.GetString(), primType, reason, detail});
   core::logStatus("[import_USD] %s: %s%s%s",
       primPath.GetText(),
       toString(reason),

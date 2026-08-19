@@ -61,7 +61,7 @@ LayerNodeRef insertPlaceholder(ImportContext &ctx,
 {
   // insertChildNode() already leaves the node empty; setEmpty() would clear
   // the name along with the value.
-  auto node = ctx.scene.insertChildNode(parent, primPath.GetName().c_str());
+  auto node = ctx.scene->insertChildNode(parent, primPath.GetName().c_str());
   (*node)->setEnabled(false);
   (*node)->setInstanceParameter("usd:skipReason", Any(toString(reason)));
   (*node)->setInstanceParameter("usd:primPath", Any(primPath.GetText()));
@@ -137,7 +137,7 @@ void Traversal::visit(const pxr::SdfPath &primPath,
     if (auto value = purposeSchema.GetPurpose())
       purpose = value->GetTypedValue(0);
   }
-  if (!purposeIsIncluded(purpose, ctx.options.purposes)) {
+  if (!purposeIsIncluded(purpose, ctx.options->purposes)) {
     ctx.reportSkip(primPath,
         prim.primType.GetString(),
         UsdSkipReason::PURPOSE_EXCLUDED,
@@ -188,7 +188,7 @@ void Traversal::visit(const pxr::SdfPath &primPath,
       : localXform;
   const auto accumulatedXform = tsd::math::mul(parentXform, nodeXform);
 
-  auto node = ctx.scene.insertChildTransformNode(
+  auto node = ctx.scene->insertChildTransformNode(
       parent, nodeXform, primPath.GetName().c_str());
   if (resetsXformStack)
     (*node)->setInstanceParameter("usd:resetXformStack", Any(true));
@@ -200,7 +200,7 @@ void Traversal::visit(const pxr::SdfPath &primPath,
   bool convertedAnything = false;
   if (prim.primType.IsEmpty()) {
     if (!isHierarchyPrim(primPath)) {
-      ctx.scene.removeNode(node);
+      ctx.scene->removeNode(node);
       ctx.reportSkip(primPath,
           ctx.stage->GetPrimAtPath(primPath).GetTypeName().GetString(),
           UsdSkipReason::UNSUPPORTED_PRIM_TYPE);
@@ -212,7 +212,7 @@ void Traversal::visit(const pxr::SdfPath &primPath,
     auto converted = convertGeometry(
         ctx, sceneIndex, primPath, prim, tsd::math::IDENTITY_MAT4);
     for (auto &surface : converted.surfaces)
-      ctx.scene.insertChildObjectNode(node, surface, surface->name().c_str());
+      ctx.scene->insertChildObjectNode(node, surface, surface->name().c_str());
     addDeformingGeometryAnimation(ctx, primPath, converted);
     convertedAnything = true;
   } else if (prim.primType == pxr::HdPrimTypeTokens->instancer) {
@@ -220,10 +220,10 @@ void Traversal::visit(const pxr::SdfPath &primPath,
     convertedAnything = true;
   } else if (isLightPrimType(prim.primType)) {
     if (auto light = convertLight(ctx, primPath, prim)) {
-      ctx.scene.insertChildObjectNode(node, light, primPath.GetName().c_str());
+      ctx.scene->insertChildObjectNode(node, light, primPath.GetName().c_str());
       convertedAnything = true;
     } else {
-      ctx.scene.removeNode(node);
+      ctx.scene->removeNode(node);
       insertPlaceholder(
           ctx, parent, primPath, UsdSkipReason::UNSUPPORTED_LIGHT_TYPE);
       return;
@@ -235,18 +235,18 @@ void Traversal::visit(const pxr::SdfPath &primPath,
       || prim.primType == pxr::HdPrimTypeTokens->geomSubset) {
     // Materials convert on demand from the prims that bind them; geom subsets
     // are consumed by their parent mesh. Neither is a loss.
-    ctx.scene.removeNode(node);
+    ctx.scene->removeNode(node);
     return;
   } else if (isVolumePrimType(prim.primType)) {
     convertedAnything = convertVolume(ctx, primPath, node);
     if (!convertedAnything) {
-      ctx.scene.removeNode(node);
+      ctx.scene->removeNode(node);
       insertPlaceholder(
           ctx, parent, primPath, UsdSkipReason::UNSUPPORTED_PRIM_TYPE);
       return;
     }
   } else {
-    ctx.scene.removeNode(node);
+    ctx.scene->removeNode(node);
     ctx.reportSkip(primPath,
         prim.primType.GetString(),
         UsdSkipReason::UNSUPPORTED_PRIM_TYPE);
@@ -256,7 +256,7 @@ void Traversal::visit(const pxr::SdfPath &primPath,
   }
 
   if (convertedAnything)
-    ctx.report.convertedPrims++;
+    ctx.report->convertedPrims++;
 
   instancers.nodeForPrimPath[primPath.GetString()] = node;
   addTransformAnimation(ctx, primPath, node);
@@ -287,10 +287,10 @@ UsdImportReport import_USD(Scene &scene,
   report.stageOpened = true;
 
   auto stage = session->stage();
-  ImportContext ctx{scene,
-      animMgr,
-      options,
-      report,
+  ImportContext ctx{&scene,
+      &animMgr,
+      &options,
+      &report,
       session,
       stage,
       filepath,

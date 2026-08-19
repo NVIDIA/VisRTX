@@ -105,7 +105,7 @@ std::shared_ptr<PrototypeContent> convertPrototype(ImportContext &ctx,
     if (content->internalTransformsAnimated)
       content->gprimPaths.push_back(path);
   }
-  ctx.report.convertedPrims += content->surfaces.size();
+  ctx.report->convertedPrims += content->surfaces.size();
 
   registry.prototypes[key] = content;
   return content;
@@ -129,9 +129,9 @@ void expandPrototype(ImportContext &ctx,
     const auto &path = content.gprimPaths[i];
     const auto local =
         tsd::math::mul(inverseRoot, flattenedXformOf(sceneIndex, path));
-    auto node = ctx.scene.insertChildTransformNode(
+    auto node = ctx.scene->insertChildTransformNode(
         parent, local, path.GetName().c_str());
-    ctx.scene.insertChildObjectNode(
+    ctx.scene->insertChildObjectNode(
         node, content.surfaces[i], content.surfaces[i]->name().c_str());
   }
 }
@@ -336,7 +336,7 @@ void convertInstancer(ImportContext &ctx,
 
     if (content->internalTransformsAnimated) {
       for (size_t i = 0; i < placements.size(); ++i) {
-        auto placementNode = ctx.scene.insertChildTransformNode(node,
+        auto placementNode = ctx.scene->insertChildTransformNode(node,
             placements[i],
             (primPath.GetName() + "_" + std::to_string(i)).c_str());
         expandPrototype(ctx,
@@ -353,14 +353,14 @@ void convertInstancer(ImportContext &ctx,
     // render index does not push a transform-array node's matrices onto the
     // transform stack, which is why Prototype geometry is baked (ADR 0016).
     auto transformArray =
-        ctx.scene.createArray(ANARI_FLOAT32_MAT4, placements.size());
+        ctx.scene->createArray(ANARI_FLOAT32_MAT4, placements.size());
     transformArray->setData(placements.data(), placements.size());
     transformArray->setName((primPath.GetString() + "_transforms").c_str());
 
-    auto arrayNode = ctx.scene.insertChildTransformArrayNode(
+    auto arrayNode = ctx.scene->insertChildTransformArrayNode(
         node, transformArray.data(), primPath.GetName().c_str());
     for (auto &surface : content->surfaces)
-      ctx.scene.insertChildObjectNode(
+      ctx.scene->insertChildObjectNode(
           arrayNode, surface, surface->name().c_str());
 
     // The Array this Prototype's placements just went into is the Array the
@@ -423,7 +423,7 @@ void attachNativeInstances(ImportContext &ctx,
             ctx, sceneIndex, placements.prototypes[0], *content, placementNode);
       } else {
         for (auto &surface : content->surfaces) {
-          ctx.scene.insertChildObjectNode(
+          ctx.scene->insertChildObjectNode(
               placementNode, surface, surface->name().c_str());
         }
       }

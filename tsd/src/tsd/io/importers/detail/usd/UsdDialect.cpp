@@ -302,9 +302,9 @@ void importEnsightDataset(ImportContext &ctx,
       perPartMaterials[child.GetName().GetString()] = childMaterial;
   }
 
-  auto scopeNode = ctx.scene.insertChildNode(parent, primName.c_str());
-  import_ENSIGHT(ctx.scene,
-      ctx.animMgr,
+  auto scopeNode = ctx.scene->insertChildNode(parent, primName.c_str());
+  import_ENSIGHT(*ctx.scene,
+      *ctx.animMgr,
       caseFile.c_str(),
       scopeNode,
       fields,
@@ -312,7 +312,7 @@ void importEnsightDataset(ImportContext &ctx,
       fallbackMaterial,
       perPartMaterials,
       0);
-  ctx.report.convertedPrims++;
+  ctx.report->convertedPrims++;
 }
 
 } // namespace
@@ -442,19 +442,19 @@ bool convertVolume(
   SpatialFieldRef field;
   if (isVtuAsset) {
     field = import_spatial_field(
-        ctx.scene, filePath.c_str(), std::move(propertyName));
+        *ctx.scene, filePath.c_str(), std::move(propertyName));
   } else {
     const auto extension = extensionOf(filePath);
     if (extension == ".raw")
-      field = import_RAW(ctx.scene, filePath.c_str());
+      field = import_RAW(*ctx.scene, filePath.c_str());
     else if (extension == ".flash")
-      field = import_FLASH(ctx.scene, filePath.c_str());
+      field = import_FLASH(*ctx.scene, filePath.c_str());
     else if (extension == ".nvdb" || extension == ".vdb")
-      field = import_NVDB(ctx.scene, filePath.c_str());
+      field = import_NVDB(*ctx.scene, filePath.c_str());
     else if (extension == ".mhd")
-      field = import_MHD(ctx.scene, filePath.c_str());
+      field = import_MHD(*ctx.scene, filePath.c_str());
     else if (extension == ".vtu")
-      field = import_VTU(ctx.scene, filePath.c_str(), propertyName);
+      field = import_VTU(*ctx.scene, filePath.c_str(), propertyName);
   }
 
   if (!field)
@@ -463,7 +463,7 @@ bool convertVolume(
   const auto tf = getVolumeTransferFunction(prim);
   auto valueRange = field->computeValueRange();
 
-  auto [volumeNode, volume] = ctx.scene.insertNewChildObjectNode<Volume>(
+  auto [volumeNode, volume] = ctx.scene->insertNewChildObjectNode<Volume>(
       node, tokens::volume::transferFunction1D);
   volume->setName(primName.c_str());
   volume->setParameterObject("value", *field);
@@ -472,7 +472,7 @@ bool convertVolume(
   if (tf.hasTransferFunction && !tf.colors.empty()) {
     auto coreTF = toTransferFunction(tf);
     if (!coreTF.colorPoints.empty() && !coreTF.opacityPoints.empty()) {
-      applyTransferFunction(ctx.scene, volume, coreTF);
+      applyTransferFunction(*ctx.scene, volume, coreTF);
       if (coreTF.range.lower < coreTF.range.upper)
         valueRange = math::float2(coreTF.range.lower, coreTF.range.upper);
       appliedTransferFunction = true;
@@ -481,7 +481,7 @@ bool convertVolume(
 
   if (!appliedTransferFunction) {
     auto colors = makeDefaultColorMap(256);
-    auto colorArray = ctx.scene.createArray(ANARI_FLOAT32_VEC4, colors.size());
+    auto colorArray = ctx.scene->createArray(ANARI_FLOAT32_VEC4, colors.size());
     colorArray->setData(colors);
     volume->setParameterObject("color", *colorArray);
     volume->setParameter("valueRange", ANARI_FLOAT32_BOX1, &valueRange);
@@ -504,9 +504,9 @@ bool convertVolume(
     volume->setParameter("unitDistance", unitDistance);
 
   if (filePaths.size() > 1) {
-    auto &animation = ctx.animMgr.addAnimation(primName);
+    auto &animation = ctx.animMgr->addAnimation(primName);
     animation.emplaceFileBinding<SpatialFieldFileBinding>(
-        &ctx.scene, volume.data(), field, std::move(filePaths));
+        ctx.scene, volume.data(), field, std::move(filePaths));
   }
 
   return true;
