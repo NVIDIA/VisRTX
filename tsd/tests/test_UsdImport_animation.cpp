@@ -287,10 +287,12 @@ std::string writeEnSightDataset(const char *baseName)
     record(description);
     record("coordinates");
     integer(3);
+    // clang-format off
     const float coordinates[9] = {
         0.f, 1.f, 0.f, // x
         0.f, 0.f, 1.f, // y
         0.f, 0.f, 0.f}; // z
+    // clang-format on
     geo.write(reinterpret_cast<const char *>(coordinates), sizeof(coordinates));
     record("tria3");
     integer(1);
@@ -310,8 +312,8 @@ std::string writeEnSightDataset(const char *baseName)
   return casePath.string();
 }
 
-SCENARIO("EnSight parts take the materials their carrier prims bind",
-    "[UsdImport]")
+SCENARIO(
+    "EnSight parts take the materials their carrier prims bind", "[UsdImport]")
 {
   GIVEN("A carrier scope and one of its parts each binding a material")
   {
@@ -372,7 +374,8 @@ def Scope "Dataset" (
     )
     {
         rel material:binding = </Looks/PartOne>
-)" + std::string(QUAD_MESH_BODY) + R"(    }
+)" + std::string(QUAD_MESH_BODY)
+            + R"(    }
 
     def Mesh "part_two" (
         customData = {
@@ -382,15 +385,16 @@ def Scope "Dataset" (
         }
     )
     {
-)" + std::string(QUAD_MESH_BODY) + R"(    }
+)" + std::string(QUAD_MESH_BODY)
+            + R"(    }
 }
 )");
 
     // Materials are named for the prim path they came from, so the name says
     // which Material prim the part ended up bound to.
     auto materialNameOfPart = [&](const char *partName) {
-      auto surface = findObject<tsd::scene::Surface>(
-          stage.scene, ANARI_SURFACE, partName);
+      auto surface =
+          findObject<tsd::scene::Surface>(stage.scene, ANARI_SURFACE, partName);
       REQUIRE(surface);
       auto *material = surface->parameterValueAsObject<tsd::scene::Material>(
           tsd::scene::tokens::surface::material);
@@ -413,8 +417,8 @@ def Scope "Dataset" (
   }
 }
 
-SCENARIO("Constant-valued time samples are not reported as a loss",
-    "[UsdImport]")
+SCENARIO(
+    "Constant-valued time samples are not reported as a loss", "[UsdImport]")
 {
   GIVEN("A mesh whose visibility is authored at every frame but never changes")
   {
@@ -559,8 +563,8 @@ def Mesh "Blob"
   }
 }
 
-SCENARIO("A mesh whose topology changes re-pulls a consistent set",
-    "[UsdImport]")
+SCENARIO(
+    "A mesh whose topology changes re-pulls a consistent set", "[UsdImport]")
 {
   GIVEN("A mesh whose points, indices and primvars all change together")
   {
@@ -623,9 +627,8 @@ def Mesh "Morphing"
         REQUIRE(arraySize("vertex.color") == 4);
 
         // Every index has to address the positions that arrived with it.
-        auto *indices =
-            geometry->parameterValueAsObject<tsd::scene::Array>(
-                "primitive.index");
+        auto *indices = geometry->parameterValueAsObject<tsd::scene::Array>(
+            "primitive.index");
         const auto *triangles = indices->dataAs<tsd::math::uint3>();
         for (size_t i = 0; i < indices->size(); ++i) {
           REQUIRE(triangles[i].x < 4);
@@ -700,10 +703,9 @@ def Mesh "Split"
     {
       auto positionArrayOf = [&](size_t i) {
         auto geometry = stage.scene.getObject<tsd::scene::Geometry>(i);
-        return geometry
-            ? geometry->parameterValueAsObject<tsd::scene::Array>(
-                  "vertex.position")
-            : nullptr;
+        return geometry ? geometry->parameterValueAsObject<tsd::scene::Array>(
+                              "vertex.position")
+                        : nullptr;
       };
 
       const auto parts = stage.scene.numberOfObjects(ANARI_GEOMETRY);

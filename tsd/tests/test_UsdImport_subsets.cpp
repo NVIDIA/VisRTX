@@ -212,7 +212,8 @@ SCENARIO(
     // producing a copy of the input, a distinct result from Success that the
     // conversion must not mistake for failure -- pre-triangulated exports
     // carry every face-varying primvar down this path.
-    ImportedStage stage("tsd_test_usd_triangulated_facevarying.usda", R"(#usda 1.0
+    ImportedStage stage(
+        "tsd_test_usd_triangulated_facevarying.usda", R"(#usda 1.0
 
 def Xform "World"
 {

@@ -253,8 +253,8 @@ def PointInstancer "Swarm"
   }
 }
 
-SCENARIO("An instancer whose placement count changes reallocates",
-    "[UsdImport]")
+SCENARIO(
+    "An instancer whose placement count changes reallocates", "[UsdImport]")
 {
   GIVEN("A PointInstancer that gains a placement mid-sequence")
   {
@@ -360,8 +360,8 @@ def PointInstancer "Swarm"
   }
 }
 
-SCENARIO("A Stage that authored no time-code range still animates",
-    "[UsdImport]")
+SCENARIO(
+    "A Stage that authored no time-code range still animates", "[UsdImport]")
 {
   GIVEN("A PointInstancer with time samples but no startTimeCode")
   {

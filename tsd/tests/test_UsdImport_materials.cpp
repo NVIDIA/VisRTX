@@ -177,9 +177,8 @@ def Xform "World"
       StageFixture stage("tsd_test_usd_materialx.usda", materialxNetwork);
       tsd::scene::Scene scene;
       tsd::animation::AnimationManager animMgr(&scene);
-      tsd::io::import_file(scene,
-          animMgr,
-          {tsd::io::ImporterType::USD_MTLX, stage.path()});
+      tsd::io::import_file(
+          scene, animMgr, {tsd::io::ImporterType::USD_MTLX, stage.path()});
 
       THEN("MaterialX materials arrive without asking for options")
       {
@@ -193,9 +192,8 @@ def Xform "World"
       StageFixture stage("tsd_test_usd_materialx.usda", materialxNetwork);
       tsd::scene::Scene scene;
       tsd::animation::AnimationManager animMgr(&scene);
-      tsd::io::import_file(scene,
-          animMgr,
-          {tsd::io::ImporterType::USD, stage.path()});
+      tsd::io::import_file(
+          scene, animMgr, {tsd::io::ImporterType::USD, stage.path()});
 
       THEN("The portable mapping is what arrives")
       {
@@ -262,8 +260,7 @@ def Xform "World"
       ImportedStage stage(
           "tsd_test_usd_materialx_textures.usda", texturedNetwork, options);
 
-      const auto source =
-          stringParameter(boundMaterial(stage.scene), "source");
+      const auto source = stringParameter(boundMaterial(stage.scene), "source");
 
       THEN("Texture paths leave as absolute paths")
       {

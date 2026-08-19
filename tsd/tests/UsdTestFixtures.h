@@ -192,6 +192,7 @@ inline std::string ImportedStage::path() const
 inline TextureFixture::TextureFixture(const char *name)
     : m_path(fixtureDirectory() / name)
 {
+  // clang-format off
   const unsigned char tga[] = {
       0, // no image ID
       0, // no colour map
@@ -204,6 +205,7 @@ inline TextureFixture::TextureFixture(const char *name)
       0, // descriptor
       0x20, 0x40, 0x60 // one BGR pixel
   };
+  // clang-format on
   std::ofstream file(m_path, std::ios::binary);
   file.write(reinterpret_cast<const char *>(tga), sizeof(tga));
 }

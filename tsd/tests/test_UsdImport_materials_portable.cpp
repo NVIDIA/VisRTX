@@ -341,9 +341,8 @@ def Xform "World"
       {
         // The authored preview surface is what this material actually says;
         // OmniPBRBase is a different shader with input semantics of its own.
-        auto color =
-            boundMaterial(stage.scene)->parameterValueAs<tsd::math::float3>(
-                "baseColor");
+        auto color = boundMaterial(stage.scene)
+                         ->parameterValueAs<tsd::math::float3>("baseColor");
         REQUIRE(color.has_value());
         REQUIRE(color->z == Approx(0.9f));
       }
