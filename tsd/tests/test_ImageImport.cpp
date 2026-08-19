@@ -488,6 +488,19 @@ SCENARIO("Block-compressed images are bound as the file authored them",
         REQUIRE(sampler);
         REQUIRE(sampler->subtype()
             == tsd::scene::tokens::sampler::compressedImage2D);
+        // The block format and the picture's dimensions describe an Array
+        // whose own shape is a flat byte run, so the sampler has to carry
+        // them; nothing else tells the device how to read the blocks.
+        auto *format = sampler->parameter("format");
+        REQUIRE(format != nullptr);
+        REQUIRE(format->value().getString() == "BC1_RGB");
+        auto *size = sampler->parameter("size");
+        REQUIRE(size != nullptr);
+        REQUIRE(size->value().type() == ANARI_UINT64_VEC2);
+        const auto *extent =
+            static_cast<const std::uint64_t *>(size->value().data());
+        REQUIRE(extent[0] == 8);
+        REQUIRE(extent[1] == 8);
         REQUIRE(fetchedV(sampler, 1.f) == Approx(1.f).margin(1e-5));
         REQUIRE(fetchedV(sampler, 0.f) == Approx(0.f).margin(1e-5));
       }
