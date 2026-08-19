@@ -215,6 +215,28 @@ std::vector<tsd::math::mat4> readInstanceTransforms(
   return retval;
 }
 
+// Every resolved instancer prim UsdImaging synthesised for native instancing.
+// Both passes over that subtree -- discovering placement paths before the
+// traversal, attaching Prototypes after it -- have to agree on this set, so
+// they share the walk that finds it rather than each filtering their own.
+std::vector<pxr::SdfPath> nativeInstancerPaths(
+    const pxr::HdSceneIndexBaseRefPtr &sceneIndex)
+{
+  std::vector<pxr::SdfPath> retval;
+
+  const pxr::SdfPath root(NATIVE_INSTANCING_ROOT);
+  if (sceneIndex->GetPrim(root).dataSource == nullptr
+      && sceneIndex->GetChildPrimPaths(root).empty())
+    return retval;
+
+  for (const pxr::SdfPath &path : pxr::HdSceneIndexPrimView(sceneIndex, root)) {
+    if (sceneIndex->GetPrim(path).primType == pxr::HdPrimTypeTokens->instancer)
+      retval.push_back(path);
+  }
+
+  return retval;
+}
+
 } // namespace
 
 bool InstancerPlacements::isVisible(int instanceId) const
@@ -310,24 +332,16 @@ std::vector<double> pointInstancerSampleTimes(const pxr::UsdPrim &prim)
 InstancerRegistry::InstancerRegistry(
     const pxr::HdSceneIndexBaseRefPtr &sceneIndex)
 {
-  // Every prim a native-instance placement will be attached to, read from the
-  // instancers before the traversal runs. Walking the propagated-prototypes
-  // subtree costs a fraction of the Stage, and on a Stage without native
-  // instancing there is nothing here to walk and nothing to record.
-  const pxr::SdfPath root(NATIVE_INSTANCING_ROOT);
-  if (sceneIndex->GetPrim(root).dataSource == nullptr
-      && sceneIndex->GetChildPrimPaths(root).empty())
-    return;
-
-  for (const pxr::SdfPath &path : pxr::HdSceneIndexPrimView(sceneIndex, root)) {
-    auto prim = sceneIndex->GetPrim(path);
-    if (prim.primType != pxr::HdPrimTypeTokens->instancer)
-      continue;
-    auto schema =
-        pxr::HdInstancerTopologySchema::GetFromParent(prim.dataSource);
+  // Reading the placements the instancers name, rather than every path the
+  // traversal will see, is what keeps recordNode() to a handful of nodes on a
+  // large Stage -- and to none at all on the Stages with no native instancing,
+  // where there is nothing here to walk either.
+  for (const pxr::SdfPath &path : nativeInstancerPaths(sceneIndex)) {
+    const auto schema = pxr::HdInstancerTopologySchema::GetFromParent(
+        sceneIndex->GetPrim(path).dataSource);
     if (!schema)
       continue;
-    auto locations = schema.GetInstanceLocations();
+    const auto locations = schema.GetInstanceLocations();
     if (!locations)
       continue;
     for (const auto &location : locations->GetTypedValue(0))
@@ -426,19 +440,11 @@ void attachNativeInstances(ImportContext &ctx,
     InstancerRegistry &registry,
     LayerNodeRef importRoot)
 {
-  const pxr::SdfPath root(NATIVE_INSTANCING_ROOT);
-  if (sceneIndex->GetPrim(root).dataSource == nullptr
-      && sceneIndex->GetChildPrimPaths(root).empty())
-    return;
-
-  for (const pxr::SdfPath &path : pxr::HdSceneIndexPrimView(sceneIndex, root)) {
+  for (const pxr::SdfPath &path : nativeInstancerPaths(sceneIndex)) {
     if (ctx.isClaimed(path))
       continue;
-    auto prim = sceneIndex->GetPrim(path);
-    if (prim.primType != pxr::HdPrimTypeTokens->instancer)
-      continue;
 
-    const auto placements = readInstancerPlacements(prim);
+    const auto placements = readInstancerPlacements(sceneIndex->GetPrim(path));
     if (placements.prototypes.empty() || placements.instanceLocations.empty())
       continue;
 
