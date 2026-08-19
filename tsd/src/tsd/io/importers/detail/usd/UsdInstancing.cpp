@@ -17,6 +17,7 @@
 #include <pxr/usd/usdGeom/xformable.h>
 // std
 #include <algorithm>
+#include <utility>
 #include <vector>
 
 namespace tsd::io::usd {
@@ -306,6 +307,49 @@ std::vector<double> pointInstancerSampleTimes(const pxr::UsdPrim &prim)
   return retval;
 }
 
+InstancerRegistry::InstancerRegistry(
+    const pxr::HdSceneIndexBaseRefPtr &sceneIndex)
+{
+  // Every prim a native-instance placement will be attached to, read from the
+  // instancers before the traversal runs. Walking the propagated-prototypes
+  // subtree costs a fraction of the Stage, and on a Stage without native
+  // instancing there is nothing here to walk and nothing to record.
+  const pxr::SdfPath root(NATIVE_INSTANCING_ROOT);
+  if (sceneIndex->GetPrim(root).dataSource == nullptr
+      && sceneIndex->GetChildPrimPaths(root).empty())
+    return;
+
+  for (const pxr::SdfPath &path : pxr::HdSceneIndexPrimView(sceneIndex, root)) {
+    auto prim = sceneIndex->GetPrim(path);
+    if (prim.primType != pxr::HdPrimTypeTokens->instancer)
+      continue;
+    auto schema =
+        pxr::HdInstancerTopologySchema::GetFromParent(prim.dataSource);
+    if (!schema)
+      continue;
+    auto locations = schema.GetInstanceLocations();
+    if (!locations)
+      continue;
+    for (const auto &location : locations->GetTypedValue(0))
+      m_placementPaths.insert(location.GetString());
+  }
+}
+
+LayerNodeRef InstancerRegistry::nodeFor(
+    const pxr::SdfPath &primPath, LayerNodeRef fallback) const
+{
+  auto found = m_nodeForPrimPath.find(primPath.GetString());
+  return found != m_nodeForPrimPath.end() ? found->second : fallback;
+}
+
+void InstancerRegistry::recordNode(
+    const pxr::SdfPath &primPath, LayerNodeRef node)
+{
+  auto key = primPath.GetString();
+  if (m_placementPaths.count(key))
+    m_nodeForPrimPath[std::move(key)] = node;
+}
+
 void convertInstancer(ImportContext &ctx,
     const pxr::HdSceneIndexBaseRefPtr &sceneIndex,
     const pxr::SdfPath &primPath,
@@ -413,10 +457,8 @@ void attachNativeInstances(ImportContext &ctx,
       // Each USD Instance becomes one node referencing the same shared
       // objects, so editing the Prototype's material affects every placement
       // as it does in USD.
-      const auto locationKey = placements.instanceLocations[i].GetString();
-      auto found = registry.nodeForPrimPath.find(locationKey);
       auto placementNode =
-          found != registry.nodeForPrimPath.end() ? found->second : importRoot;
+          registry.nodeFor(placements.instanceLocations[i], importRoot);
 
       if (content->internalTransformsAnimated) {
         expandPrototype(

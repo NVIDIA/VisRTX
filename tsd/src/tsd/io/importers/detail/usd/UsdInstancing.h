@@ -12,6 +12,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace tsd::io::usd {
@@ -77,14 +78,33 @@ std::vector<double> pointInstancerSampleTimes(const pxr::UsdPrim &prim);
 
 /*
  * State shared between the mirrored-hierarchy traversal and the instancing
- * pass: where each USD prim landed in the Layer, and every Prototype converted
- * so far. Native-instance placements are attached after the traversal, because
- * their instancer lives outside the mirrored hierarchy.
+ * pass: where the prims that native instancing will place on landed in the
+ * Layer, and every Prototype converted so far. Native-instance placements are
+ * attached after the traversal, because their instancer lives outside the
+ * mirrored hierarchy.
+ *
+ * Which prims those are is discovered from the instancers up front, so that
+ * the traversal records a handful of nodes rather than one per prim on the
+ * Stage -- a Stage-sized map to serve a lookup native instancing makes only
+ * for its own placement paths, and not at all on the Stages that have none.
  */
 struct InstancerRegistry
 {
-  std::unordered_map<std::string, LayerNodeRef> nodeForPrimPath;
+  explicit InstancerRegistry(const pxr::HdSceneIndexBaseRefPtr &sceneIndex);
+
+  // Where a placement path landed in the Layer, or `fallback` if the traversal
+  // never reached it.
+  LayerNodeRef nodeFor(
+      const pxr::SdfPath &primPath, LayerNodeRef fallback) const;
+
+  // Remember where a prim landed, if native instancing will place on it.
+  void recordNode(const pxr::SdfPath &primPath, LayerNodeRef node);
+
   std::unordered_map<std::string, std::shared_ptr<PrototypeContent>> prototypes;
+
+ private:
+  std::unordered_set<std::string> m_placementPaths;
+  std::unordered_map<std::string, LayerNodeRef> m_nodeForPrimPath;
 };
 
 // Turn one resolved instancer prim into instancing Layer content beneath

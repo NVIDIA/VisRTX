@@ -283,7 +283,7 @@ void Traversal::visit(const pxr::SdfPath &primPath,
   if (convertedAnything)
     ctx->report->convertedPrims++;
 
-  instancers->nodeForPrimPath[primPath.GetString()] = node;
+  instancers->recordNode(primPath, node);
   addTransformAnimation(*ctx, primPath, node);
 
   for (const auto &childPath : sceneIndex->GetChildPrimPaths(primPath))
@@ -349,7 +349,7 @@ UsdImportReport import_USD(Scene &scene,
       ? pxr::SdfPath::AbsoluteRootPath()
       : pxr::SdfPath(options.primPath);
 
-  InstancerRegistry instancers;
+  InstancerRegistry instancers(sceneIndex);
   Traversal traversal{&ctx, sceneIndex, &instancers};
 
   scene.beginLayerEditBatch();
