@@ -70,9 +70,9 @@ LayerNodeRef insertPlaceholder(ImportContext &ctx,
 
 struct Traversal
 {
-  ImportContext &ctx;
+  ImportContext *ctx{nullptr};
   pxr::HdSceneIndexBaseRefPtr sceneIndex;
-  InstancerRegistry &instancers;
+  InstancerRegistry *instancers{nullptr};
 
   void visit(const pxr::SdfPath &primPath,
       LayerNodeRef parent,
@@ -91,14 +91,14 @@ tsd::math::mat4 Traversal::localTransformOf(
     const pxr::SdfPath &primPath, bool *resetsXformStack) const
 {
   *resetsXformStack = false;
-  auto prim = ctx.stage->GetPrimAtPath(primPath);
+  auto prim = ctx->stage->GetPrimAtPath(primPath);
   if (!prim)
     return tsd::math::IDENTITY_MAT4;
   pxr::UsdGeomXformable xformable(prim);
   if (!xformable)
     return tsd::math::IDENTITY_MAT4;
   pxr::GfMatrix4d local(1.0);
-  xformable.GetLocalTransformation(&local, resetsXformStack, ctx.importTime);
+  xformable.GetLocalTransformation(&local, resetsXformStack, ctx->importTime);
   return toTsdMat4(local);
 }
 
@@ -106,7 +106,7 @@ tsd::math::mat4 Traversal::localTransformOf(
 // something USD cannot image at all; only the latter is a loss worth naming.
 bool Traversal::isHierarchyPrim(const pxr::SdfPath &primPath) const
 {
-  auto prim = ctx.stage->GetPrimAtPath(primPath);
+  auto prim = ctx->stage->GetPrimAtPath(primPath);
   return !prim || bool(pxr::UsdGeomImageable(prim));
 }
 
@@ -117,7 +117,7 @@ void Traversal::visit(const pxr::SdfPath &primPath,
 {
   // Claimed Prims reach the Scene through the dialect's own importers; the
   // generic path must not also convert a carrier prim into geometry.
-  if (ctx.isClaimed(primPath))
+  if (ctx->isClaimed(primPath))
     return;
 
   auto prim = sceneIndex->GetPrim(primPath);
@@ -137,12 +137,12 @@ void Traversal::visit(const pxr::SdfPath &primPath,
     if (auto value = purposeSchema.GetPurpose())
       purpose = value->GetTypedValue(0);
   }
-  if (!purposeIsIncluded(purpose, ctx.options->purposes)) {
-    ctx.reportSkip(primPath,
+  if (!purposeIsIncluded(purpose, ctx->options->purposes)) {
+    ctx->reportSkip(primPath,
         prim.primType.GetString(),
         UsdSkipReason::PURPOSE_EXCLUDED,
         purpose.GetString());
-    insertPlaceholder(ctx, parent, primPath, UsdSkipReason::PURPOSE_EXCLUDED);
+    insertPlaceholder(*ctx, parent, primPath, UsdSkipReason::PURPOSE_EXCLUDED);
     return;
   }
 
@@ -155,7 +155,7 @@ void Traversal::visit(const pxr::SdfPath &primPath,
       visible = value->GetTypedValue(0);
   }
   if (!visible && !hidden) {
-    ctx.reportSkip(
+    ctx->reportSkip(
         primPath, prim.primType.GetString(), UsdSkipReason::RESOLVED_INVISIBLE);
   }
 
@@ -164,9 +164,9 @@ void Traversal::visit(const pxr::SdfPath &primPath,
   // Exporters routinely re-author every attribute at every frame, so the
   // samples are compared: a value that never changes is not a loss.
   if (auto imageable =
-          pxr::UsdGeomImageable(ctx.stage->GetPrimAtPath(primPath))) {
+          pxr::UsdGeomImageable(ctx->stage->GetPrimAtPath(primPath))) {
     if (attributeValueVaries(imageable.GetVisibilityAttr())) {
-      ctx.reportSkip(primPath,
+      ctx->reportSkip(primPath,
           prim.primType.GetString(),
           UsdSkipReason::TIME_VARYING_VALUE_DROPPED,
           "visibility is time-sampled; imported at the Stage's start of time");
@@ -188,7 +188,7 @@ void Traversal::visit(const pxr::SdfPath &primPath,
       : localXform;
   const auto accumulatedXform = tsd::math::mul(parentXform, nodeXform);
 
-  auto node = ctx.scene->insertChildTransformNode(
+  auto node = ctx->scene->insertChildTransformNode(
       parent, nodeXform, primPath.GetName().c_str());
   if (resetsXformStack)
     (*node)->setInstanceParameter("usd:resetXformStack", Any(true));
@@ -200,66 +200,67 @@ void Traversal::visit(const pxr::SdfPath &primPath,
   bool convertedAnything = false;
   if (prim.primType.IsEmpty()) {
     if (!isHierarchyPrim(primPath)) {
-      ctx.scene->removeNode(node);
-      ctx.reportSkip(primPath,
-          ctx.stage->GetPrimAtPath(primPath).GetTypeName().GetString(),
+      ctx->scene->removeNode(node);
+      ctx->reportSkip(primPath,
+          ctx->stage->GetPrimAtPath(primPath).GetTypeName().GetString(),
           UsdSkipReason::UNSUPPORTED_PRIM_TYPE);
       insertPlaceholder(
-          ctx, parent, primPath, UsdSkipReason::UNSUPPORTED_PRIM_TYPE);
+          *ctx, parent, primPath, UsdSkipReason::UNSUPPORTED_PRIM_TYPE);
       return;
     }
   } else if (isGeometryPrimType(prim.primType)) {
     auto converted = convertGeometry(
-        ctx, sceneIndex, primPath, prim, tsd::math::IDENTITY_MAT4);
+        *ctx, sceneIndex, primPath, prim, tsd::math::IDENTITY_MAT4);
     for (auto &surface : converted.surfaces)
-      ctx.scene->insertChildObjectNode(node, surface, surface->name().c_str());
-    addDeformingGeometryAnimation(ctx, primPath, converted);
+      ctx->scene->insertChildObjectNode(node, surface, surface->name().c_str());
+    addDeformingGeometryAnimation(*ctx, primPath, converted);
     convertedAnything = true;
   } else if (prim.primType == pxr::HdPrimTypeTokens->instancer) {
-    convertInstancer(ctx, sceneIndex, primPath, prim, node, instancers);
+    convertInstancer(*ctx, sceneIndex, primPath, prim, node, *instancers);
     convertedAnything = true;
   } else if (isLightPrimType(prim.primType)) {
-    if (auto light = convertLight(ctx, primPath, prim)) {
-      ctx.scene->insertChildObjectNode(node, light, primPath.GetName().c_str());
+    if (auto light = convertLight(*ctx, primPath, prim)) {
+      ctx->scene->insertChildObjectNode(
+          node, light, primPath.GetName().c_str());
       convertedAnything = true;
     } else {
-      ctx.scene->removeNode(node);
+      ctx->scene->removeNode(node);
       insertPlaceholder(
-          ctx, parent, primPath, UsdSkipReason::UNSUPPORTED_LIGHT_TYPE);
+          *ctx, parent, primPath, UsdSkipReason::UNSUPPORTED_LIGHT_TYPE);
       return;
     }
   } else if (prim.primType == pxr::HdPrimTypeTokens->camera) {
-    convertCamera(ctx, primPath);
+    convertCamera(*ctx, primPath);
     convertedAnything = true;
   } else if (prim.primType == pxr::HdPrimTypeTokens->material
       || prim.primType == pxr::HdPrimTypeTokens->geomSubset) {
     // Materials convert on demand from the prims that bind them; geom subsets
     // are consumed by their parent mesh. Neither is a loss.
-    ctx.scene->removeNode(node);
+    ctx->scene->removeNode(node);
     return;
   } else if (isVolumePrimType(prim.primType)) {
-    convertedAnything = convertVolume(ctx, primPath, node);
+    convertedAnything = convertVolume(*ctx, primPath, node);
     if (!convertedAnything) {
-      ctx.scene->removeNode(node);
+      ctx->scene->removeNode(node);
       insertPlaceholder(
-          ctx, parent, primPath, UsdSkipReason::UNSUPPORTED_PRIM_TYPE);
+          *ctx, parent, primPath, UsdSkipReason::UNSUPPORTED_PRIM_TYPE);
       return;
     }
   } else {
-    ctx.scene->removeNode(node);
-    ctx.reportSkip(primPath,
+    ctx->scene->removeNode(node);
+    ctx->reportSkip(primPath,
         prim.primType.GetString(),
         UsdSkipReason::UNSUPPORTED_PRIM_TYPE);
     insertPlaceholder(
-        ctx, parent, primPath, UsdSkipReason::UNSUPPORTED_PRIM_TYPE);
+        *ctx, parent, primPath, UsdSkipReason::UNSUPPORTED_PRIM_TYPE);
     return;
   }
 
   if (convertedAnything)
-    ctx.report->convertedPrims++;
+    ctx->report->convertedPrims++;
 
-  instancers.nodeForPrimPath[primPath.GetString()] = node;
-  addTransformAnimation(ctx, primPath, node);
+  instancers->nodeForPrimPath[primPath.GetString()] = node;
+  addTransformAnimation(*ctx, primPath, node);
 
   for (const auto &childPath : sceneIndex->GetChildPrimPaths(primPath))
     visit(childPath, node, subtreeHidden, accumulatedXform);
@@ -325,7 +326,7 @@ UsdImportReport import_USD(Scene &scene,
       : pxr::SdfPath(options.primPath);
 
   InstancerRegistry instancers;
-  Traversal traversal{ctx, sceneIndex, instancers};
+  Traversal traversal{&ctx, sceneIndex, &instancers};
 
   scene.beginLayerEditBatch();
   if (scopeRoot == pxr::SdfPath::AbsoluteRootPath()) {
