@@ -77,14 +77,12 @@ std::string ensightCaseFileOf(const pxr::UsdPrim &scopePrim)
   return {};
 }
 
-// Resolve a material bound on a raw Stage prim, going through the same
-// converter the resolved path uses so EnSight parts share materials with the
-// rest of the import.
-//
-// The binding is computed on the Stage rather than read from the resolved
+// The binding is computed on the raw Stage rather than read from the resolved
 // scene because a carrier prim is a Claimed Prim: the traversal never visits
 // it, so nothing has asked for its material. The Material prim it names is not
-// itself claimed and resolves out of the resolved scene like any other.
+// itself claimed, so it resolves through the same converter every other
+// binding goes through -- which is what lets EnSight parts share materials
+// with the rest of the import.
 MaterialRef boundMaterialOf(ImportContext &ctx,
     const pxr::HdSceneIndexBaseRefPtr &sceneIndex,
     const pxr::UsdPrim &prim)
