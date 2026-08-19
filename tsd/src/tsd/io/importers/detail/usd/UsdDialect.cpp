@@ -80,7 +80,14 @@ std::string ensightCaseFileOf(const pxr::UsdPrim &scopePrim)
 // Resolve a material bound on a raw Stage prim, going through the same
 // converter the resolved path uses so EnSight parts share materials with the
 // rest of the import.
-MaterialRef boundMaterialOf(ImportContext &ctx, const pxr::UsdPrim &prim)
+//
+// The binding is computed on the Stage rather than read from the resolved
+// scene because a carrier prim is a Claimed Prim: the traversal never visits
+// it, so nothing has asked for its material. The Material prim it names is not
+// itself claimed and resolves out of the resolved scene like any other.
+MaterialRef boundMaterialOf(ImportContext &ctx,
+    const pxr::HdSceneIndexBaseRefPtr &sceneIndex,
+    const pxr::UsdPrim &prim)
 {
   pxr::UsdShadeMaterialBindingAPI binding(prim);
   if (!binding)
@@ -88,15 +95,11 @@ MaterialRef boundMaterialOf(ImportContext &ctx, const pxr::UsdPrim &prim)
   auto usdMaterial = binding.ComputeBoundMaterial();
   if (!usdMaterial)
     return {};
-
-  const auto key = usdMaterial.GetPath().GetString();
-  if (auto found = ctx.materialCache.find(key);
-      found != ctx.materialCache.end())
-    return found->second.material;
-  return {};
+  return resolveMaterial(ctx, sceneIndex, usdMaterial.GetPath()).material;
 }
 
 void importEnsightDataset(ImportContext &ctx,
+    const pxr::HdSceneIndexBaseRefPtr &sceneIndex,
     const pxr::UsdPrim &scopePrim,
     LayerNodeRef parent,
     const core::DataNode &settings)
@@ -139,10 +142,10 @@ void importEnsightDataset(ImportContext &ctx,
     }
   }
 
-  auto fallbackMaterial = boundMaterialOf(ctx, scopePrim);
+  auto fallbackMaterial = boundMaterialOf(ctx, sceneIndex, scopePrim);
   core::FlatMap<std::string, MaterialRef> perPartMaterials;
   for (const auto &child : scopePrim.GetChildren()) {
-    auto childMaterial = boundMaterialOf(ctx, child);
+    auto childMaterial = boundMaterialOf(ctx, sceneIndex, child);
     if (childMaterial && childMaterial != fallbackMaterial)
       perPartMaterials[child.GetName().GetString()] = childMaterial;
   }
@@ -191,6 +194,7 @@ bool ClaimedPrims::claims(const pxr::SdfPath &path) const
 }
 
 void importDialectPrims(ImportContext &ctx,
+    const pxr::HdSceneIndexBaseRefPtr &sceneIndex,
     const std::shared_ptr<ClaimedPrims> &claimed,
     LayerNodeRef importRoot)
 {
@@ -204,7 +208,7 @@ void importDialectPrims(ImportContext &ctx,
     switch (entry.kind) {
     case ClaimedPrims::Kind::ENSIGHT_DATASET:
       importEnsightDataset(
-          ctx, prim, importRoot, claimed->renderSettings.root());
+          ctx, sceneIndex, prim, importRoot, claimed->renderSettings.root());
       break;
     }
   }

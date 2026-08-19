@@ -13,6 +13,10 @@
 #include "tsd/core/DataTree.hpp"
 #include "tsd/io/animation/UsdGeometryFileBinding.hpp"
 #include "tsd/io/archives/AnimationManagerArchive.hpp"
+// std
+#include <cstring>
+#include <fstream>
+#include <string>
 
 SCENARIO("Animation is captured at the times actually authored", "[UsdImport]")
 {
@@ -245,6 +249,165 @@ def Mesh "Real"
         // the resolved scene entirely.
         REQUIRE(stage.scene.numberOfObjects(ANARI_SURFACE) == 1);
         REQUIRE_FALSE(findNode(stage.scene.defaultLayer(), "part_one"));
+      }
+    }
+  }
+}
+
+// A minimal EnSight Gold dataset -- two single-triangle parts -- written into
+// the shared fixture directory in the binary geometry format import_ENSIGHT
+// accepts. The files live for the lifetime of the test binary along with every
+// other fixture in that directory.
+inline std::string writeEnSightDataset(const char *baseName)
+{
+  const auto geoName = std::string(baseName) + ".geo";
+  const auto casePath = fixtureDirectory() / (std::string(baseName) + ".case");
+  const auto geoPath = fixtureDirectory() / geoName;
+
+  {
+    std::ofstream caseFile(casePath);
+    caseFile << "FORMAT\n"
+             << "type: ensight gold\n"
+             << "GEOMETRY\n"
+             << "model: " << geoName << "\n";
+  }
+
+  std::ofstream geo(geoPath, std::ios::binary);
+  auto record = [&](const char *text) {
+    char buffer[80] = {};
+    std::strncpy(buffer, text, sizeof(buffer) - 1);
+    geo.write(buffer, sizeof(buffer));
+  };
+  auto integer = [&](int32_t value) {
+    geo.write(reinterpret_cast<const char *>(&value), sizeof(value));
+  };
+  auto triangle = [&](int32_t id, const char *description) {
+    record("part");
+    integer(id);
+    record(description);
+    record("coordinates");
+    integer(3);
+    const float coordinates[9] = {
+        0.f, 1.f, 0.f, // x
+        0.f, 0.f, 1.f, // y
+        0.f, 0.f, 0.f}; // z
+    geo.write(reinterpret_cast<const char *>(coordinates), sizeof(coordinates));
+    record("tria3");
+    integer(1);
+    integer(1);
+    integer(2);
+    integer(3);
+  };
+
+  record("C Binary");
+  record("TSD test dataset");
+  record("two single-triangle parts");
+  record("node id off");
+  record("element id off");
+  triangle(1, "part_one");
+  triangle(2, "part_two");
+
+  return casePath.string();
+}
+
+SCENARIO("EnSight parts take the materials their carrier prims bind",
+    "[UsdImport]")
+{
+  GIVEN("A carrier scope and one of its parts each binding a material")
+  {
+    // Claimed Prims never reach the resolved traversal, so the materials they
+    // bind only convert if the dialect importer asks for them itself.
+    const auto caseFile = writeEnSightDataset("tsd_test_ensight_materials");
+    ImportedStage stage("tsd_test_usd_ensight_materials.usda",
+        R"(#usda 1.0
+(
+    customLayerData = {
+        dictionary ensight = {
+            string caseFile = ")"
+            + caseFile + R"("
+        }
+    }
+)
+
+def Scope "Looks"
+{
+    def Material "Shared"
+    {
+        token outputs:surface.connect = </Looks/Shared/PBR.outputs:surface>
+
+        def Shader "PBR"
+        {
+            uniform token info:id = "UsdPreviewSurface"
+            color3f inputs:diffuseColor = (1, 0, 0)
+            token outputs:surface
+        }
+    }
+
+    def Material "PartOne"
+    {
+        token outputs:surface.connect = </Looks/PartOne/PBR.outputs:surface>
+
+        def Shader "PBR"
+        {
+            uniform token info:id = "UsdPreviewSurface"
+            color3f inputs:diffuseColor = (0, 1, 0)
+            token outputs:surface
+        }
+    }
+}
+
+def Scope "Dataset" (
+    prepend apiSchemas = ["MaterialBindingAPI"]
+)
+{
+    rel material:binding = </Looks/Shared>
+
+    def Mesh "part_one" (
+        prepend apiSchemas = ["MaterialBindingAPI"]
+        customData = {
+            dictionary ensight = {
+                string partName = "part_one"
+            }
+        }
+    )
+    {
+        rel material:binding = </Looks/PartOne>
+)" + std::string(QUAD_MESH_BODY) + R"(    }
+
+    def Mesh "part_two" (
+        customData = {
+            dictionary ensight = {
+                string partName = "part_two"
+            }
+        }
+    )
+    {
+)" + std::string(QUAD_MESH_BODY) + R"(    }
+}
+)");
+
+    // Materials are named for the prim path they came from, so the name says
+    // which Material prim the part ended up bound to.
+    auto materialNameOfPart = [&](const char *partName) {
+      auto surface = findObject<tsd::scene::Surface>(
+          stage.scene, ANARI_SURFACE, partName);
+      REQUIRE(surface);
+      auto *material = surface->parameterValueAsObject<tsd::scene::Material>(
+          tsd::scene::tokens::surface::material);
+      REQUIRE(material != nullptr);
+      return material->name();
+    };
+
+    WHEN("The Stage is imported")
+    {
+      THEN("The part with its own binding gets that material")
+      {
+        REQUIRE(materialNameOfPart("part_one") == "/Looks/PartOne");
+      }
+
+      THEN("The part without one falls back to the carrier's material")
+      {
+        REQUIRE(materialNameOfPart("part_two") == "/Looks/Shared");
       }
     }
   }

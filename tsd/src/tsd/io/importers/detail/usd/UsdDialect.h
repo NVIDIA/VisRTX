@@ -49,6 +49,7 @@ std::shared_ptr<ClaimedPrims> claimDialectPrims(ImportContext &ctx);
 
 // Route Claimed Prims to the dialect's own importers.
 void importDialectPrims(ImportContext &ctx,
+    const pxr::HdSceneIndexBaseRefPtr &sceneIndex,
     const std::shared_ptr<ClaimedPrims> &claimed,
     LayerNodeRef importRoot);
 

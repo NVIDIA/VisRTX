@@ -345,7 +345,7 @@ UsdImportReport import_USD(Scene &scene,
   attachNativeInstances(ctx, sceneIndex, instancers, root);
 
   // Dialect content is routed to the handlers that already know these formats.
-  importDialectPrims(ctx, claimed, root);
+  importDialectPrims(ctx, sceneIndex, claimed, root);
   scene.endLayerEditBatch();
 
   logStatus("[import_USD] %s: %s", filepath, report.summary().c_str());
