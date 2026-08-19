@@ -9,13 +9,9 @@
 #include "tsd/io/importers/detail/importer_common.hpp"
 // std
 #include <algorithm>
+#include <cstdint>
 #include <cstring>
 #include <utility>
-
-using U64Vec2 = tsd::math::vec<std::uint64_t, 2>;
-namespace anari {
-ANARI_TYPEFOR_SPECIALIZATION(U64Vec2, ANARI_UINT64_VEC2);
-}
 
 namespace tsd::io {
 
@@ -159,14 +155,12 @@ Image ImageCache::store(
 
   Image image;
   image.vFlipInSampler = !normalizeRowOrder(decoded, source.rowOrder);
-  image.blockCompressed = decoded.blockCompressed;
-  if (decoded.blockCompressed) {
+  image.width = decoded.width;
+  image.height = decoded.height;
+  image.compressedFormat = decoded.compressedFormat;
+  if (image.blockCompressed()) {
     image.texels = m_scene->createArray(ANARI_INT8, decoded.texels.size());
     image.texels->setData(decoded.texels.data());
-    image.texels->setMetadataValue(
-        "compressedFormat", decoded.compressedFormat.value());
-    image.texels->setMetadataValue(
-        "imageSize", U64Vec2(decoded.width, decoded.height));
   } else {
     image.texels = m_scene->createArray(
         decoded.elementType, decoded.width, decoded.height);
@@ -185,17 +179,17 @@ SamplerRef makeImageSampler(Scene &scene,
   if (!image)
     return {};
 
-  auto sampler = scene.createObject<Sampler>(image.blockCompressed
+  auto sampler = scene.createObject<Sampler>(image.blockCompressed()
           ? tokens::sampler::compressedImage2D
           : tokens::sampler::image2D);
 
   sampler->setParameterObject("image", *image.texels);
-  if (image.blockCompressed) {
-    const auto compressedFormat =
-        image.texels->getMetadataValue("compressedFormat").getString();
-    sampler->setParameter("format", compressedFormat.c_str());
-    sampler->setParameter(
-        "size", image.texels->getMetadataValue("imageSize").get<U64Vec2>());
+  if (image.blockCompressed()) {
+    sampler->setParameter("format", image.compressedFormat.c_str());
+    // Passed untyped because no vector type in the tree maps onto
+    // ANARI_UINT64_VEC2, and this is the only parameter that wants one.
+    const std::uint64_t size[] = {image.width, image.height};
+    sampler->setParameter("size", ANARI_UINT64_VEC2, size);
   }
   sampler->setParameter("inAttribute", settings.inAttribute);
   sampler->setParameter("wrapMode1", settings.wrapMode1);

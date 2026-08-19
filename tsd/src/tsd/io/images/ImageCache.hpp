@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "tsd/core/Token.hpp"
 #include "tsd/core/TypeMacros.hpp"
 #include "tsd/scene/Scene.hpp"
 // std
@@ -53,13 +54,22 @@ struct ImageSource
 struct Image
 {
   tsd::scene::ArrayRef texels;
-  // Block-compressed texels are the authored block stream rather than a texel
-  // grid, so they cannot be reordered.
-  bool blockCompressed{false};
+  // The picture's dimensions. Kept here rather than read back off the Array,
+  // whose shape does not carry them for block-compressed texels: those are
+  // the authored block stream rather than a texel grid.
+  size_t width{0};
+  size_t height{0};
+  // The ANARI block format ("BC1_RGB", "BC7_SRGB", ...) the texels are the
+  // block stream of; empty for a texel grid. A decoder that recognizes no
+  // format yields no image at all, so this doubles as "is block-compressed".
+  tsd::core::Token compressedFormat;
   // Set when the texels could not be brought into the order the source asked
-  // for -- only block-compressed ones -- so makeImageSampler compensates in
-  // the sampler's uv transform instead.
+  // for -- only block-compressed ones, which cannot be reordered without
+  // decoding and re-encoding -- so makeImageSampler compensates in the
+  // sampler's uv transform instead.
   bool vFlipInSampler{false};
+
+  bool blockCompressed() const;
 
   explicit operator bool() const;
 };
@@ -149,6 +159,11 @@ tsd::scene::SamplerRef makeImageSampler(ImageCache &cache,
     const SamplerSettings &settings = {});
 
 // Inlined definitions ////////////////////////////////////////////////////////
+
+inline bool Image::blockCompressed() const
+{
+  return !compressedFormat.empty();
+}
 
 inline Image::operator bool() const
 {
