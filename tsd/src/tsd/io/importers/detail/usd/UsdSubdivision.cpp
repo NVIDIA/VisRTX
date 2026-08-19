@@ -115,24 +115,24 @@ std::vector<FloatTuple<N>> refineFaceVaryingBuffer(
 // member template that a local class may not declare.
 struct VertexRefiner
 {
-  OpenSubdiv::Far::TopologyRefiner &refiner;
+  OpenSubdiv::Far::TopologyRefiner *refiner{nullptr};
 
   template <int N>
   std::vector<FloatTuple<N>> operator()(const float *source, size_t count) const
   {
-    return refineVertexBuffer<N>(refiner, source, count);
+    return refineVertexBuffer<N>(*refiner, source, count);
   }
 };
 
 struct FaceVaryingRefiner
 {
-  OpenSubdiv::Far::TopologyRefiner &refiner;
-  int channel;
+  OpenSubdiv::Far::TopologyRefiner *refiner{nullptr};
+  int channel{0};
 
   template <int N>
   std::vector<FloatTuple<N>> operator()(const float *source, size_t count) const
   {
-    return refineFaceVaryingBuffer<N>(refiner, source, count, channel);
+    return refineFaceVaryingBuffer<N>(*refiner, source, count, channel);
   }
 };
 
@@ -363,7 +363,7 @@ RefinedMesh refineMesh(const pxr::HdMeshSchema &meshSchema,
       retval.holeIndices.push_back(face);
   }
 
-  const VertexRefiner vertexRefiner{*refiner};
+  const VertexRefiner vertexRefiner{refiner.get()};
 
   {
     pxr::VtValue refinedPoints;
@@ -380,7 +380,7 @@ RefinedMesh refineMesh(const pxr::HdMeshSchema &meshSchema,
 
   for (size_t channel = 0; channel < primvars.faceVarying.size(); ++channel) {
     const auto &[name, value] = primvars.faceVarying[channel];
-    const FaceVaryingRefiner faceVaryingRefiner{*refiner, int(channel)};
+    const FaceVaryingRefiner faceVaryingRefiner{refiner.get(), int(channel)};
 
     pxr::VtValue refined;
     if (!refineFloatArray(value, &refined, faceVaryingRefiner))
