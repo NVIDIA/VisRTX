@@ -356,15 +356,22 @@ which is why it did not ride along with a behavior change.
 Prerequisite already done: `ImageSource` ids are file-scoped
 (`gltf:<file>:<image>`), so sharing a cache across files is safe.
 
-### 2. Retire the shims
+### 2. Retire the shims — **decided against**
 
 `importTexture`, `importTextureFromMemory`, and `importRawTexture2D`
-(`importer_common.hpp:32-54`) are pure forwarding to `ImageCache` and
-`makeImageSampler`. They exist so the ~20 call sites did not churn in the same
-commit as the behavior change, which has now happened. Two ways to do the same
-thing is the state this work set out to remove, so they should go once
-something else is touching those call sites anyway — item 1 is the natural
-moment.
+(`importer_common.hpp`) were to be deleted as pure forwarding to `ImageCache`
+and `makeImageSampler`, on the grounds that two ways to do the same thing is
+the state this work set out to remove.
+
+They stay, and now take `ImageCache &` alone instead of an `ImageCache &`
+beside a `Scene &`. The pair was the real problem: a caller could name a Scene
+the image had never reached, which is the failure the cache's ownership of a
+Scene exists to prevent. `makeImageSampler` gained an overload taking the
+cache for the same reason, and the callers that acquire their own image
+(`importGLTFTexture`, PBRT's `importHeightAsNormalMap`) use it. What is left
+of the shims is the path normalization and colour-space choice their nine call
+sites share, which is worth one function. They are the intended API, not a
+migration aid.
 
 ### 3. PBRT's infinite light
 
