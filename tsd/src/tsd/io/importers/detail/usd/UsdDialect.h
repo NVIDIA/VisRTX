@@ -52,11 +52,4 @@ void importDialectPrims(ImportContext &ctx,
     const std::shared_ptr<ClaimedPrims> &claimed,
     LayerNodeRef importRoot);
 
-bool isVolumePrimType(const pxr::TfToken &primType);
-
-// Import a UsdVol Volume prim, honouring the `anari:` value-range and
-// unit-distance annotations and any transfer function authored on the Stage.
-bool convertVolume(
-    ImportContext &ctx, const pxr::SdfPath &primPath, LayerNodeRef node);
-
 } // namespace tsd::io::usd

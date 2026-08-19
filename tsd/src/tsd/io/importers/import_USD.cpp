@@ -12,6 +12,7 @@
 #include "tsd/io/importers/detail/usd/UsdImportContext.h"
 #include "tsd/io/importers/detail/usd/UsdInstancing.h"
 #include "tsd/io/importers/detail/usd/UsdLights.h"
+#include "tsd/io/importers/detail/usd/UsdVolume.h"
 #include "tsd/io/usd/UsdStageSession.h"
 // usd
 #include <pxr/imaging/hd/instancedBySchema.h>
