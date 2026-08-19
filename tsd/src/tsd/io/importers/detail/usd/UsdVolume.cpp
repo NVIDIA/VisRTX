@@ -1,4 +1,4 @@
-// Copyright 2024-2026 NVIDIA Corporation
+// Copyright 2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/io/importers/detail/usd/UsdVolume.h"
@@ -9,6 +9,7 @@
 // usd
 #include <pxr/base/gf/vec2f.h>
 #include <pxr/base/gf/vec4f.h>
+#include <pxr/base/vt/array.h>
 #include <pxr/imaging/hd/tokens.h>
 #include <pxr/usd/sdf/assetPath.h>
 #include <pxr/usd/usdShade/material.h>

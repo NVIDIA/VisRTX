@@ -23,7 +23,7 @@ namespace {
 // `valueRange` is held as an ANARI_FLOAT32_BOX1, which does not round-trip
 // through Object::parameterValueAs<>() -- that asks the Any for its C++ type
 // alone and a box1 is a float2 by another name.
-inline tsd::math::float2 valueRangeOf(tsd::scene::Volume *volume)
+tsd::math::float2 valueRangeOf(tsd::scene::Volume *volume)
 {
   auto *parameter = volume->parameter("valueRange");
   REQUIRE(parameter != nullptr);
