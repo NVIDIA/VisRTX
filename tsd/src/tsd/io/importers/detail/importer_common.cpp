@@ -30,36 +30,30 @@ namespace tsd::io {
 using namespace tsd::core;
 using namespace tsd::scene;
 
-#ifdef _WIN32
-constexpr char path_sep = '\\';
-#else
-constexpr char path_sep = '/';
-#endif
-
-// Both of these defer the separator scanning to std::filesystem::path, which
-// knows that Windows accepts '/' as well as '\\'. Scanning for one character
-// missed that, and missed the bare filename -- 'volume.raw' has no separator
-// at all, and reporting no file for it turned every importer that guards on
-// the result into a silent no-op for a path typed relative to the cwd.
-
-// The directory `filepath` names, with the trailing separator kept so callers
-// can concatenate a sibling file onto it. Empty when the path names no
-// directory.
-std::string pathOf(const std::string &filepath)
-{
-  auto parent = std::filesystem::path(filepath).parent_path().string();
-  if (parent.empty())
-    return "";
-  if (parent.back() != '/' && parent.back() != '\\')
-    parent += path_sep;
-  return parent;
-}
+// These two used to scan for one separator character themselves, which missed
+// that Windows accepts '/' as well as '\\', and missed the bare filename --
+// 'volume.raw' has no separator at all, and reporting no file for it turned
+// every importer that guards on the result into a silent no-op for a path
+// typed relative to the cwd.
 
 // The file `filepath` names, without its directory. Empty only when the path
 // names no file -- it is empty itself, or ends in a separator.
 std::string fileOf(const std::string &filepath)
 {
   return std::filesystem::path(filepath).filename().string();
+}
+
+// The directory `filepath` names, with the trailing separator kept so callers
+// can concatenate a sibling file onto it. Empty when the path names no
+// directory.
+//
+// Taken as the prefix fileOf() left behind rather than rebuilt from
+// parent_path(), so the separator is the one the path already used and the two
+// halves always rejoin into the original. Appending the platform's own
+// separator instead would hand back '/a/b\\x.raw' for '/a/b/x.raw' on Windows.
+std::string pathOf(const std::string &filepath)
+{
+  return filepath.substr(0, filepath.size() - fileOf(filepath).size());
 }
 
 std::string extensionOf(const std::string &filepath)

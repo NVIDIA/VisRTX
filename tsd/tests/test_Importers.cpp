@@ -18,14 +18,35 @@
 
 SCENARIO("Splitting a path names its file and its directory", "[Importers]")
 {
+  // Callers concatenate the two back together to reach a file's sibling, so
+  // whatever else the split does, it has to be reversible. On Windows that
+  // rules out answering with the platform's own separator: these paths carry
+  // '/', which Windows accepts, and handing back '/a/b\\volume.raw' would not
+  // be the path that was passed in.
+  auto rejoins = [](const char *path) {
+    return tsd::io::pathOf(path) + tsd::io::fileOf(path) == path;
+  };
+
   GIVEN("A path with a directory component")
   {
     THEN("The two halves rejoin into the original")
     {
       REQUIRE(tsd::io::fileOf("/a/b/volume.raw") == "volume.raw");
       REQUIRE(tsd::io::pathOf("/a/b/volume.raw") == "/a/b/");
+      REQUIRE(rejoins("/a/b/volume.raw"));
       REQUIRE(tsd::io::fileOf("b/volume.raw") == "volume.raw");
       REQUIRE(tsd::io::pathOf("b/volume.raw") == "b/");
+      REQUIRE(rejoins("b/volume.raw"));
+    }
+  }
+
+  GIVEN("A path written with the separator the host prefers")
+  {
+    THEN("The two halves still rejoin")
+    {
+      REQUIRE(rejoins((std::filesystem::temp_directory_path() / "volume.raw")
+              .string()
+              .c_str()));
     }
   }
 
@@ -37,6 +58,7 @@ SCENARIO("Splitting a path names its file and its directory", "[Importers]")
       // answering "no file" here made every one of them a silent no-op.
       REQUIRE(tsd::io::fileOf("volume.raw") == "volume.raw");
       REQUIRE(tsd::io::pathOf("volume.raw").empty());
+      REQUIRE(rejoins("volume.raw"));
     }
   }
 
@@ -45,7 +67,9 @@ SCENARIO("Splitting a path names its file and its directory", "[Importers]")
     THEN("There is no file")
     {
       REQUIRE(tsd::io::fileOf("/a/b/").empty());
+      REQUIRE(tsd::io::pathOf("/a/b/") == "/a/b/");
       REQUIRE(tsd::io::fileOf("").empty());
+      REQUIRE(tsd::io::pathOf("").empty());
     }
   }
 
@@ -55,6 +79,7 @@ SCENARIO("Splitting a path names its file and its directory", "[Importers]")
     {
       REQUIRE(tsd::io::fileOf("/volume.raw") == "volume.raw");
       REQUIRE(tsd::io::pathOf("/volume.raw") == "/");
+      REQUIRE(rejoins("/volume.raw"));
     }
   }
 }
