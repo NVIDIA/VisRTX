@@ -203,16 +203,15 @@ bool isLightPrimType(const pxr::TfToken &primType)
 
 LightRef convertLight(ImportContext &ctx,
     const pxr::SdfPath &primPath,
-    const pxr::HdSceneIndexPrim &prim)
+    const pxr::HdSceneIndexPrim &prim,
+    std::string *skipDetail)
 {
   // Light radiometry is modelled by UsdLux itself, so it is read from the
   // retained Stage rather than re-derived from the resolved prim.
   auto usdPrim = ctx.stage->GetPrimAtPath(primPath);
   if (!usdPrim) {
-    ctx.reportSkip(primPath,
-        prim.primType.GetString(),
-        UsdSkipReason::UNSUPPORTED_LIGHT_TYPE,
-        "light has no Stage prim (instanced lights are not supported)");
+    *skipDetail =
+        "light has no Stage prim (instanced lights are not supported)";
     return {};
   }
 
@@ -319,8 +318,6 @@ LightRef convertLight(ImportContext &ctx,
     return light;
   }
 
-  ctx.reportSkip(
-      primPath, type.GetString(), UsdSkipReason::UNSUPPORTED_LIGHT_TYPE);
   return {};
 }
 

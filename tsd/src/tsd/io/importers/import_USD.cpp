@@ -53,20 +53,31 @@ bool purposeIsIncluded(
   return selection.defaultPurpose;
 }
 
-// Leave a named, empty, disabled node where content would have been, so that a
-// gap is visible in the hierarchy rather than only in a log.
-LayerNodeRef insertPlaceholder(ImportContext &ctx,
+// Undo the node a prim created, if any, and leave a named, empty, disabled
+// Placeholder Node in its place, so that a gap is visible in the hierarchy
+// rather than only in a log. Every prim whose content is a loss goes through
+// here, which is what keeps one report entry and one Placeholder Node
+// together: converters signal failure, this reports it.
+void skipPrim(ImportContext &ctx,
+    LayerNodeRef node, // null when the prim never got one
     LayerNodeRef parent,
     const pxr::SdfPath &primPath,
-    UsdSkipReason reason)
+    const std::string &primType,
+    UsdSkipReason reason,
+    const std::string &detail = "")
 {
+  if (node)
+    ctx.scene->removeNode(node);
+
+  ctx.reportSkip(primPath, primType, reason, detail);
+
   // insertChildNode() already leaves the node empty; setEmpty() would clear
   // the name along with the value.
-  auto node = ctx.scene->insertChildNode(parent, primPath.GetName().c_str());
-  (*node)->setEnabled(false);
-  (*node)->setInstanceParameter("usd:skipReason", Any(toString(reason)));
-  (*node)->setInstanceParameter("usd:primPath", Any(primPath.GetText()));
-  return node;
+  auto placeholder =
+      ctx.scene->insertChildNode(parent, primPath.GetName().c_str());
+  (*placeholder)->setEnabled(false);
+  (*placeholder)->setInstanceParameter("usd:skipReason", Any(toString(reason)));
+  (*placeholder)->setInstanceParameter("usd:primPath", Any(primPath.GetText()));
 }
 
 struct Traversal
@@ -139,11 +150,13 @@ void Traversal::visit(const pxr::SdfPath &primPath,
       purpose = value->GetTypedValue(0);
   }
   if (!purposeIsIncluded(purpose, ctx->options->purposes)) {
-    ctx->reportSkip(primPath,
+    skipPrim(*ctx,
+        {},
+        parent,
+        primPath,
         prim.primType.GetString(),
         UsdSkipReason::PURPOSE_EXCLUDED,
         purpose.GetString());
-    insertPlaceholder(*ctx, parent, primPath, UsdSkipReason::PURPOSE_EXCLUDED);
     return;
   }
 
@@ -201,12 +214,12 @@ void Traversal::visit(const pxr::SdfPath &primPath,
   bool convertedAnything = false;
   if (prim.primType.IsEmpty()) {
     if (!isHierarchyPrim(primPath)) {
-      ctx->scene->removeNode(node);
-      ctx->reportSkip(primPath,
+      skipPrim(*ctx,
+          node,
+          parent,
+          primPath,
           ctx->stage->GetPrimAtPath(primPath).GetTypeName().GetString(),
           UsdSkipReason::UNSUPPORTED_PRIM_TYPE);
-      insertPlaceholder(
-          *ctx, parent, primPath, UsdSkipReason::UNSUPPORTED_PRIM_TYPE);
       return;
     }
   } else if (isGeometryPrimType(prim.primType)) {
@@ -220,14 +233,19 @@ void Traversal::visit(const pxr::SdfPath &primPath,
     convertInstancer(*ctx, sceneIndex, primPath, prim, node, *instancers);
     convertedAnything = true;
   } else if (isLightPrimType(prim.primType)) {
-    if (auto light = convertLight(*ctx, primPath, prim)) {
+    std::string skipDetail;
+    if (auto light = convertLight(*ctx, primPath, prim, &skipDetail)) {
       ctx->scene->insertChildObjectNode(
           node, light, primPath.GetName().c_str());
       convertedAnything = true;
     } else {
-      ctx->scene->removeNode(node);
-      insertPlaceholder(
-          *ctx, parent, primPath, UsdSkipReason::UNSUPPORTED_LIGHT_TYPE);
+      skipPrim(*ctx,
+          node,
+          parent,
+          primPath,
+          prim.primType.GetString(),
+          UsdSkipReason::UNSUPPORTED_LIGHT_TYPE,
+          skipDetail);
       return;
     }
   } else if (prim.primType == pxr::HdPrimTypeTokens->camera) {
@@ -240,20 +258,25 @@ void Traversal::visit(const pxr::SdfPath &primPath,
     ctx->scene->removeNode(node);
     return;
   } else if (isVolumePrimType(prim.primType)) {
-    convertedAnything = convertVolume(*ctx, primPath, node);
+    std::string skipDetail;
+    convertedAnything = convertVolume(*ctx, primPath, node, &skipDetail);
     if (!convertedAnything) {
-      ctx->scene->removeNode(node);
-      insertPlaceholder(
-          *ctx, parent, primPath, UsdSkipReason::UNSUPPORTED_PRIM_TYPE);
+      skipPrim(*ctx,
+          node,
+          parent,
+          primPath,
+          prim.primType.GetString(),
+          UsdSkipReason::FIELD_LOAD_FAILED,
+          skipDetail);
       return;
     }
   } else {
-    ctx->scene->removeNode(node);
-    ctx->reportSkip(primPath,
+    skipPrim(*ctx,
+        node,
+        parent,
+        primPath,
         prim.primType.GetString(),
         UsdSkipReason::UNSUPPORTED_PRIM_TYPE);
-    insertPlaceholder(
-        *ctx, parent, primPath, UsdSkipReason::UNSUPPORTED_PRIM_TYPE);
     return;
   }
 

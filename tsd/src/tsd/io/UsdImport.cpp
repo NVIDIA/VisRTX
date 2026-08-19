@@ -96,6 +96,8 @@ const char *toString(UsdSkipReason reason)
     return "material resolution failed";
   case UsdSkipReason::TEXTURE_LOAD_FAILED:
     return "texture load failed";
+  case UsdSkipReason::FIELD_LOAD_FAILED:
+    return "field load failed";
   case UsdSkipReason::UNSUPPORTED_LIGHT_TYPE:
     return "unsupported light type";
   case UsdSkipReason::RICHER_MATERIAL_AVAILABLE:

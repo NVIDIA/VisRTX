@@ -176,12 +176,16 @@ bool isVolumePrimType(const pxr::TfToken &primType)
   return primType == pxr::HdPrimTypeTokens->volume;
 }
 
-bool convertVolume(
-    ImportContext &ctx, const pxr::SdfPath &primPath, LayerNodeRef node)
+bool convertVolume(ImportContext &ctx,
+    const pxr::SdfPath &primPath,
+    LayerNodeRef node,
+    std::string *skipDetail)
 {
   auto prim = ctx.stage->GetPrimAtPath(primPath);
-  if (!prim)
+  if (!prim) {
+    *skipDetail = "volume has no Stage prim";
     return false;
+  }
 
   const auto primName = primPath.GetString();
 
@@ -236,15 +240,19 @@ bool convertVolume(
     }
   }
 
-  if (filePaths.empty())
+  if (filePaths.empty()) {
+    *skipDetail = "volume names no field file to read";
     return false;
+  }
 
   const auto &filePath = filePaths.front();
 
   auto field = import_spatial_field(
       *ctx.scene, filePath.c_str(), std::move(propertyName));
-  if (!field)
+  if (!field) {
+    *skipDetail = "field file '" + filePath + "' could not be loaded";
     return false;
+  }
 
   const auto tf = getVolumeTransferFunction(prim);
   auto valueRange = field->computeValueRange();
