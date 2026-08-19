@@ -421,7 +421,7 @@ SCENARIO("Decoded images are stored in ANARI orientation", "[ImageImport]")
 
 // An hdri light's radiance is mapped over the sphere by the light rather than
 // addressed by an image sampler, so the top-left origin the sampler path is
-// stored for does not reach it. It asks the cache for bottom-up rows instead.
+// stored for does not reach it. It keeps the decoder's bottom-up rows.
 SCENARIO("An imported HDRI's radiance runs bottom-up", "[ImageImport]")
 {
   GIVEN("A 1x2 Radiance HDR, red on top and blue on the bottom")

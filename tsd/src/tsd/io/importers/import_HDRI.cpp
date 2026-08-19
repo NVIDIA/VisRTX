@@ -30,28 +30,26 @@ void import_HDRI(Scene &scene,
       }
     }
 
-    ImageCache cache(&scene);
-    // Stored bottom-up: an hdri light's radiance is mapped over the sphere by
-    // the light rather than addressed by an image sampler, so the top-left
-    // origin samplers are stored for does not apply to it.
-    auto image = cache.acquireDecoded(
-        {hdriFilename, ColorSpace::LINEAR, RowOrder::BOTTOM_UP},
-        ANARI_FLOAT32_VEC3,
-        img.width,
-        img.height,
-        img.rowOrder,
-        rgb.data());
-
-    if (!image) {
-      logError("[import_HDRI] failed to store radiance for '%s'", filepath);
-      return;
-    }
+    // Not stored through ImageCache: this importer decodes exactly one image
+    // per call, so a cache scoped to the call can never be hit and only buys a
+    // second copy of the texels. import_PBRT's infinite light binds its
+    // radiance directly for the same reason; UsdLights caches because many
+    // dome lights in one Stage can share a file and a radiometry scale.
+    // The rows stay bottom-up as HDRImage decoded them, which is the order an
+    // hdri light wants: its radiance is mapped over the sphere by the light
+    // rather than addressed by a sampler, so the top-left origin ADR 0014
+    // stores sampled images in does not apply. That ADR still describes this
+    // radiance as reaching the light through ImageCache, which is now true
+    // only of the UsdLights path.
+    auto radiance =
+        scene.createArray(ANARI_FLOAT32_VEC3, img.width, img.height);
+    radiance->setData(rgb.data());
 
     auto [inst, hdri] = scene.insertNewChildObjectNode<Light>(
         location ? location : scene.defaultLayer()->root(),
         tokens::light::hdri);
     hdri->setName(fileOf(filepath).c_str());
-    hdri->setParameterObject("radiance", *image.texels);
+    hdri->setParameterObject("radiance", *radiance);
   } else {
     tsd::core::logError("[import_HDRI] Failed to load file '%s'", filepath);
   }

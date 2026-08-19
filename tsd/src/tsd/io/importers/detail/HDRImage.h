@@ -13,8 +13,8 @@ namespace tsd::io {
 // The one decoder that does not go through ImageCache's own decode paths: it
 // handles multipart EXR and forces three channels, neither of which the shared
 // texture path does. It still declares the row order it produced, so callers
-// hand it to ImageCache::acquireDecoded and get the same normalization,
-// keying, and lifetime as any other image.
+// that store its texels through ImageCache::acquireDecoded get the same
+// normalization, keying, and lifetime as any other image.
 struct HDRImage
 {
   bool import(std::string fileName);
