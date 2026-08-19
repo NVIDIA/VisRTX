@@ -13,7 +13,9 @@
 #include <nanovdb/io/IO.h>
 #include <nanovdb/tools/GridStats.h>
 
+#include <cstdint>
 #include <filesystem>
+#include <fstream>
 #include <limits>
 #include <string_view>
 
@@ -21,11 +23,46 @@ namespace tsd::io {
 
 using namespace tsd::core;
 
+namespace {
+
+// nanovdb::io::readGrid does not bound its own reads: on a file too short to
+// hold a header it retries against a stream that is already at EOF and never
+// returns. A truncated download or an empty placeholder therefore hangs
+// whatever called it, with no timeout to escape through, so check the magic
+// ourselves before handing the path over.
+bool hasNanoVdbMagic(const char *filepath, uint64_t &magic)
+{
+  magic = 0;
+  std::ifstream file(filepath, std::ios::binary);
+  if (!file.read(reinterpret_cast<char *>(&magic), sizeof(magic)))
+    return false;
+  return magic == NANOVDB_MAGIC_NUMB || magic == NANOVDB_MAGIC_FILE
+      || magic == NANOVDB_MAGIC_GRID;
+}
+
+} // namespace
+
 SpatialFieldRef import_NVDB(Scene &scene, const char *filepath)
 {
   std::string file = fileOf(filepath);
   if (file.empty())
     return {};
+
+  uint64_t magic = 0;
+  if (!hasNanoVdbMagic(filepath, magic)) {
+    // '.vdb' names a NanoVDB grid here, not an OpenVDB one: tsdVolumeToNanoVDB
+    // writes NanoVDB under that extension. Say so, because a file from any
+    // other OpenVDB tool lands on this path and the extension gives no hint.
+    if (nanovdb::toMagic(magic) == nanovdb::MagicType::OpenVDB) {
+      logError(
+          "[import_NVDB] '%s' is an OpenVDB file; TSD reads NanoVDB grids, "
+          "which tsdVolumeToNanoVDB can convert one into",
+          filepath);
+    } else {
+      logError("[import_NVDB] '%s' is not a NanoVDB file", filepath);
+    }
+    return {};
+  }
 
   const std::filesystem::path nvdbPath(filepath);
   const auto sidecarPath = makeSidecarPath(nvdbPath);

@@ -113,6 +113,59 @@ SCENARIO("The spatial field dispatcher reads NanoVDB under both of its names",
   std::filesystem::remove(vdbPath);
 }
 
+SCENARIO("The NanoVDB reader rejects a file it cannot be holding a grid",
+    "[Importers]")
+{
+  // nanovdb::io::readGrid never returns on a file too short to hold a header,
+  // so a stray '.vdb' -- an interrupted download, an empty placeholder, an
+  // actual OpenVDB grid -- would hang whatever asked for it. If this scenario
+  // ever times out rather than failing, that guard is gone.
+  const auto path =
+      std::filesystem::temp_directory_path() / "tsd_test_not_a_grid.vdb";
+
+  auto writeBytes = [&](const void *bytes, size_t numBytes) {
+    std::ofstream file(path, std::ios::binary);
+    file.write(static_cast<const char *>(bytes), numBytes);
+  };
+
+  tsd::scene::Scene scene;
+
+  GIVEN("An empty file under a '.vdb' name")
+  {
+    writeBytes(nullptr, 0);
+
+    THEN("No field arrives")
+    {
+      REQUIRE(!tsd::io::import_spatial_field(scene, path.string().c_str()));
+    }
+  }
+
+  GIVEN("A file too short to hold a header")
+  {
+    const unsigned char bytes[4] = {'N', 'a', 'n', 'o'};
+    writeBytes(bytes, sizeof(bytes));
+
+    THEN("No field arrives")
+    {
+      REQUIRE(!tsd::io::import_spatial_field(scene, path.string().c_str()));
+    }
+  }
+
+  GIVEN("An OpenVDB grid under a '.vdb' name")
+  {
+    // The magic OpenVDB writes, then nothing that follows it.
+    const unsigned char bytes[8] = {0x20, 0x42, 0x44, 0x56, 0, 0, 0, 0};
+    writeBytes(bytes, sizeof(bytes));
+
+    THEN("No field arrives")
+    {
+      REQUIRE(!tsd::io::import_spatial_field(scene, path.string().c_str()));
+    }
+  }
+
+  std::filesystem::remove(path);
+}
+
 namespace {
 
 // A 1x1 uncompressed grey+alpha 8-bit TIFF. Two channels is the case where
