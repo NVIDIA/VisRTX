@@ -425,7 +425,8 @@ void convertInstancer(ImportContext &ctx,
     // binding re-fills; handing it over here is what keeps a scrub from having
     // to find it again by name.
     if (animatedSamples > 1) {
-      addInstancerAnimation(ctx, primPath, protoIndex, arrayNode, transformArray);
+      addInstancerAnimation(
+          ctx, primPath, protoIndex, arrayNode, transformArray);
       boundAnyPrototype = true;
     }
   }
