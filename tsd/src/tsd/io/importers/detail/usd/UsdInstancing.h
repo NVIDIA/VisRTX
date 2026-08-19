@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "tsd/core/TypeMacros.hpp"
 #include "tsd/io/importers/detail/usd/UsdImportContext.h"
 // usd
 #include <pxr/imaging/hd/sceneIndex.h>
@@ -91,6 +92,8 @@ std::vector<double> pointInstancerSampleTimes(const pxr::UsdPrim &prim);
 struct InstancerRegistry
 {
   explicit InstancerRegistry(const pxr::HdSceneIndexBaseRefPtr &sceneIndex);
+  TSD_NOT_COPYABLE(InstancerRegistry)
+  TSD_DEFAULT_MOVEABLE(InstancerRegistry)
 
   // Where a placement path landed in the Layer, or `fallback` if the traversal
   // never reached it.
