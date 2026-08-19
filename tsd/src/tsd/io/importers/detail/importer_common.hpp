@@ -28,28 +28,27 @@ std::vector<std::string> splitString(const std::string &s, char delim);
 tsd::scene::ArrayRef readArray(
     tsd::scene::Scene &scene, anari::DataType elementType, std::FILE *fp);
 
-// Thin shims over tsd::io::images; see the note above their definitions.
-tsd::scene::SamplerRef importTexture(tsd::scene::Scene &scene,
+// Thin shims over tsd::io::images; the Sampler lands in the Scene the given
+// ImageCache holds, so no caller can name a different one. See the note above
+// their definitions.
+tsd::scene::SamplerRef importTexture(ImageCache &cache,
     std::string filepath,
-    ImageCache &cache,
     bool isLinear = false,
     const SamplerSettings &settings = {});
-tsd::scene::SamplerRef importTextureFromMemory(tsd::scene::Scene &scene,
+tsd::scene::SamplerRef importTextureFromMemory(ImageCache &cache,
     const std::string &cacheKey,
     const std::string &displayName,
     const void *data,
     size_t numBytes,
-    ImageCache &cache,
     bool isLinear = false,
     const std::string &formatHint = "",
     const SamplerSettings &settings = {});
-tsd::scene::SamplerRef importRawTexture2D(tsd::scene::Scene &scene,
+tsd::scene::SamplerRef importRawTexture2D(ImageCache &cache,
     const std::string &cacheKey,
     const std::string &displayName,
     const void *data,
     size_t width,
     size_t height,
-    ImageCache &cache,
     bool isLinear = false,
     const SamplerSettings &settings = {});
 

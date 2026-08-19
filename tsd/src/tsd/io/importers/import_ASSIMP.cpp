@@ -24,10 +24,9 @@ using namespace tsd::core;
 
 #if TSD_USE_ASSIMP
 
-static SamplerRef importEmbeddedTexture(Scene &scene,
+static SamplerRef importEmbeddedTexture(ImageCache &cache,
     const aiTexture *embeddedTexture,
     int embeddedTextureIndex,
-    ImageCache &cache,
     bool isLinear,
     const SamplerSettings &settings)
 {
@@ -55,12 +54,11 @@ static SamplerRef importEmbeddedTexture(Scene &scene,
   }
 
   if (embeddedTexture->mHeight == 0) {
-    auto tex = importTextureFromMemory(scene,
+    auto tex = importTextureFromMemory(cache,
         textureId,
         displayName,
         embeddedTexture->pcData,
         embeddedTexture->mWidth,
-        cache,
         isLinear,
         embeddedTexture->achFormatHint,
         settings);
@@ -85,13 +83,12 @@ static SamplerRef importEmbeddedTexture(Scene &scene,
     rgba[i * 4 + 3] = src.a;
   }
 
-  return importRawTexture2D(scene,
+  return importRawTexture2D(cache,
       textureId,
       displayName,
       rgba.data(),
       embeddedTexture->mWidth,
       embeddedTexture->mHeight,
-      cache,
       isLinear,
       settings);
 }
@@ -265,15 +262,11 @@ static std::vector<MaterialRef> importASSIMPMaterials(
         auto [embeddedTexture, embeddedTextureIndex] =
             a_scene->GetEmbeddedTextureAndIndex(texName.C_Str());
         if (embeddedTexture) {
-          tex = importEmbeddedTexture(scene,
-              embeddedTexture,
-              embeddedTextureIndex,
-              cache,
-              isLinear,
-              settings);
+          tex = importEmbeddedTexture(
+              cache, embeddedTexture, embeddedTextureIndex, isLinear, settings);
         } else {
           tex = importTexture(
-              scene, basePath + texName.C_Str(), cache, isLinear, settings);
+              cache, basePath + texName.C_Str(), isLinear, settings);
         }
       }
 

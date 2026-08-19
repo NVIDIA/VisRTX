@@ -416,8 +416,7 @@ MaterialRef tryOmniPbrMapping(ImportContext &ctx,
       return false;
     // OmniPBR names no colour space of its own, so the role of the input is
     // what says whether its texels must be de-gamma'd on load.
-    auto sampler =
-        importTexture(*ctx.scene, file, ctx.textureCache, !colorRole);
+    auto sampler = importTexture(ctx.textureCache, file, !colorRole);
     if (!sampler) {
       ctx.reportSkip(materialPath,
           primType.GetString(),
@@ -830,8 +829,8 @@ MaterialRef tryMaterialXPassthrough(ImportContext &ctx,
   // surface, and through the same cache, so a texture shared between materials
   // is read once.
   for (const auto &texture : documentTextures) {
-    auto sampler = importTexture(
-        *ctx.scene, texture.file, ctx.textureCache, texture.isLinear);
+    auto sampler =
+        importTexture(ctx.textureCache, texture.file, texture.isLinear);
     if (!sampler) {
       ctx.reportSkip(materialPath,
           prim.primType.GetString(),
@@ -974,8 +973,7 @@ ResolvedMaterial convertPreviewSurface(ImportContext &ctx,
     settings.uvTransform = uvTransformOfTexture(walker, texturePath);
 
     const bool isLinear = textureIsLinear(walker, texturePath, colorRole);
-    auto sampler =
-        importTexture(*ctx.scene, file, ctx.textureCache, isLinear, settings);
+    auto sampler = importTexture(ctx.textureCache, file, isLinear, settings);
     if (!sampler) {
       ctx.reportSkip(materialPath,
           prim.primType.GetString(),

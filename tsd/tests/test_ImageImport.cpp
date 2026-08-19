@@ -401,8 +401,8 @@ SCENARIO("Decoded images are stored in ANARI orientation", "[ImageImport]")
 
     WHEN("It is imported through the shared texture path")
     {
-      auto sampler = tsd::io::importTexture(
-          scene, texture.path(), cache, /*isLinear=*/true);
+      auto sampler =
+          tsd::io::importTexture(cache, texture.path(), /*isLinear=*/true);
 
       THEN("Row 0 of the array is the top row of the picture")
       {
@@ -481,7 +481,7 @@ SCENARIO("Block-compressed images are bound as the file authored them",
 
     WHEN("It is imported with no uv transform of its own")
     {
-      auto sampler = tsd::io::importTexture(scene, texture.path(), cache);
+      auto sampler = tsd::io::importTexture(cache, texture.path());
 
       THEN("The sampler leaves the coordinates alone")
       {
@@ -504,7 +504,7 @@ SCENARIO("Block-compressed images are bound as the file authored them",
               float4(0.f, 0.f, 0.f, 1.f))};
 
       auto sampler = tsd::io::importTexture(
-          scene, texture.path(), cache, /*isLinear=*/false, settings);
+          cache, texture.path(), /*isLinear=*/false, settings);
 
       THEN("That transform reaches the sampler unchanged")
       {
@@ -519,7 +519,7 @@ SCENARIO("Block-compressed images are bound as the file authored them",
       auto image = cache.acquire({texture.path(),
           tsd::io::ColorSpace::SRGB,
           tsd::io::RowOrder::BOTTOM_UP});
-      auto sampler = tsd::io::makeImageSampler(scene, image, texture.path());
+      auto sampler = tsd::io::makeImageSampler(cache, image, texture.path());
 
       THEN("The sampler reverses v, since the texels could not be")
       {

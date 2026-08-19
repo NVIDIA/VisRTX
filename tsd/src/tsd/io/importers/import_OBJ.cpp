@@ -69,7 +69,7 @@ void import_OBJ(Scene &scene,
       m->setName(mat.name.c_str());
 
       if (!mat.diffuse_texname.empty()) {
-        auto tex = importTexture(scene, basePath + mat.diffuse_texname, cache);
+        auto tex = importTexture(cache, basePath + mat.diffuse_texname);
         if (tex)
           m->setParameterObject("color", *tex);
       }

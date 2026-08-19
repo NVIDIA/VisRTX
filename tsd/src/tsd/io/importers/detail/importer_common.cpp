@@ -104,8 +104,11 @@ tsd::scene::ArrayRef readArray(
 // Texture import shims ///////////////////////////////////////////////////////
 
 // These forward to tsd::io::images, which owns decoding, orientation, keying,
-// and lifetime for every image in the tree. They exist so the ~20 importer
-// call sites keep one signature; new code should use ImageCache directly.
+// and lifetime for every image in the tree. They exist so the call sites that
+// want the whole of it -- acquire, then build a Sampler for what came back --
+// keep one signature. Like the makeImageSampler overload they end in, they
+// take the ImageCache alone, so no caller can put the Sampler in a Scene the
+// image never reached.
 
 namespace {
 
@@ -116,9 +119,8 @@ ColorSpace colorSpaceOf(bool isLinear)
 
 } // namespace
 
-SamplerRef importTexture(Scene &scene,
+SamplerRef importTexture(ImageCache &cache,
     std::string filepath,
-    ImageCache &cache,
     bool isLinear,
     const SamplerSettings &settings)
 {
@@ -128,31 +130,29 @@ SamplerRef importTexture(Scene &scene,
       });
 
   auto image = cache.acquire({filepath, colorSpaceOf(isLinear)});
-  return makeImageSampler(scene, image, filepath, settings);
+  return makeImageSampler(cache, image, filepath, settings);
 }
 
-SamplerRef importTextureFromMemory(Scene &scene,
+SamplerRef importTextureFromMemory(ImageCache &cache,
     const std::string &cacheKey,
     const std::string &displayName,
     const void *data,
     size_t numBytes,
-    ImageCache &cache,
     bool isLinear,
     const std::string &formatHint,
     const SamplerSettings &settings)
 {
   auto image = cache.acquire(
       {cacheKey, colorSpaceOf(isLinear)}, data, numBytes, formatHint);
-  return makeImageSampler(scene, image, displayName, settings);
+  return makeImageSampler(cache, image, displayName, settings);
 }
 
-SamplerRef importRawTexture2D(Scene &scene,
+SamplerRef importRawTexture2D(ImageCache &cache,
     const std::string &cacheKey,
     const std::string &displayName,
     const void *data,
     size_t width,
     size_t height,
-    ImageCache &cache,
     bool isLinear,
     const SamplerSettings &settings)
 {
@@ -162,7 +162,7 @@ SamplerRef importRawTexture2D(Scene &scene,
       height,
       RowOrder::TOP_DOWN,
       data);
-  return makeImageSampler(scene, image, displayName, settings);
+  return makeImageSampler(cache, image, displayName, settings);
 }
 
 SamplerRef makeDefaultColorMapSampler(Scene &scene, const float2 &range)

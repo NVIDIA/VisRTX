@@ -178,10 +178,9 @@ static SamplerSettings gltfSamplerSettings(
   return settings;
 }
 
-static SamplerRef importGLTFTexture(Scene &scene,
+static SamplerRef importGLTFTexture(ImageCache &cache,
     const tinygltf::Model &model,
     int textureIndex,
-    ImageCache &cache,
     // Scopes the cache id to this glTF: image names are local to a file, so
     // two assets each naming an image "diffuse" are different images.
     const std::string &sourcePrefix,
@@ -232,7 +231,7 @@ static SamplerRef importGLTFTexture(Scene &scene,
       ? std::string(samplerName) + ":" + imageId
       : imageId;
 
-  return makeImageSampler(scene, decoded, displayName, settings);
+  return makeImageSampler(cache, decoded, displayName, settings);
 }
 
 static void applyNormalTextureScale(SamplerRef sampler, float scale)
@@ -272,10 +271,9 @@ static std::vector<MaterialRef> importGLTFMaterials(
         pbr.baseColorFactor[2],
         pbr.baseColorFactor[3]);
 
-    if (auto sampler = importGLTFTexture(scene,
+    if (auto sampler = importGLTFTexture(cache,
             model,
             pbr.baseColorTexture.index,
-            cache,
             sourcePrefix,
             false,
             "baseColor",
@@ -293,10 +291,9 @@ static std::vector<MaterialRef> importGLTFMaterials(
           float3(baseColorFactor[0], baseColorFactor[1], baseColorFactor[2]));
     }
 
-    if (auto sampler = importGLTFTexture(scene,
+    if (auto sampler = importGLTFTexture(cache,
             model,
             pbr.baseColorTexture.index,
-            cache,
             sourcePrefix,
             true,
             "opacity",
@@ -313,10 +310,9 @@ static std::vector<MaterialRef> importGLTFMaterials(
 
     // Metallic factor
     float metallicFactor = pbr.metallicFactor;
-    if (auto sampler = importGLTFTexture(scene,
+    if (auto sampler = importGLTFTexture(cache,
             model,
             pbr.metallicRoughnessTexture.index,
-            cache,
             sourcePrefix,
             true,
             "metallic",
@@ -334,10 +330,9 @@ static std::vector<MaterialRef> importGLTFMaterials(
 
     // Roughness factor
     float roughnessFactor = pbr.roughnessFactor;
-    if (auto sampler = importGLTFTexture(scene,
+    if (auto sampler = importGLTFTexture(cache,
             model,
             pbr.metallicRoughnessTexture.index,
-            cache,
             sourcePrefix,
             true,
             "roughness",
@@ -354,10 +349,9 @@ static std::vector<MaterialRef> importGLTFMaterials(
     }
 
     // Normal map
-    if (auto sampler = importGLTFTexture(scene,
+    if (auto sampler = importGLTFTexture(cache,
             model,
             gltfMaterial.normalTexture.index,
-            cache,
             sourcePrefix,
             true,
             "normal",
@@ -368,10 +362,9 @@ static std::vector<MaterialRef> importGLTFMaterials(
     }
 
     // Occlusion map
-    if (auto sampler = importGLTFTexture(scene,
+    if (auto sampler = importGLTFTexture(cache,
             model,
             gltfMaterial.occlusionTexture.index,
-            cache,
             sourcePrefix,
             true,
             "occlusion",
@@ -393,10 +386,9 @@ static std::vector<MaterialRef> importGLTFMaterials(
           GetValueOrDefault(emissiveStrengthExt, 1.0f, "emissiveStrength");
     }
 
-    if (auto sampler = importGLTFTexture(scene,
+    if (auto sampler = importGLTFTexture(cache,
             model,
             gltfMaterial.emissiveTexture.index,
-            cache,
             sourcePrefix,
             false,
             "emissive",
@@ -440,10 +432,9 @@ static std::vector<MaterialRef> importGLTFMaterials(
           transmissionExt, -1, "transmissionTexture", "index");
       auto transmissionTexCoord = GetValueOrDefault(
           transmissionExt, 0, "transmissionTexture", "texCoord");
-      if (auto sampler = importGLTFTexture(scene,
+      if (auto sampler = importGLTFTexture(cache,
               model,
               transmissionTextureIndex,
-              cache,
               sourcePrefix,
               true,
               "transmission",
@@ -487,10 +478,9 @@ static std::vector<MaterialRef> importGLTFMaterials(
           GetValueOrDefault(volumeExt, -1, "thicknessTexture", "index");
       auto thicknessTexCoord =
           GetValueOrDefault(volumeExt, 0, "thicknessTexture", "texCoord");
-      if (auto sampler = importGLTFTexture(scene,
+      if (auto sampler = importGLTFTexture(cache,
               model,
               thicknessTextureIndex,
-              cache,
               sourcePrefix,
               true,
               "thickness",
@@ -537,10 +527,9 @@ static std::vector<MaterialRef> importGLTFMaterials(
           GetValueOrDefault(clearcoatExt, -1, "clearcoatTexture", "index");
       auto clearcoatTexCoord =
           GetValueOrDefault(clearcoatExt, 0, "clearcoatTexture", "texCoord");
-      if (auto sampler = importGLTFTexture(scene,
+      if (auto sampler = importGLTFTexture(cache,
               model,
               clearcoatTextureIndex,
-              cache,
               sourcePrefix,
               true,
               "clearcoat",
@@ -564,10 +553,9 @@ static std::vector<MaterialRef> importGLTFMaterials(
           clearcoatExt, -1, "clearcoatRoughnessTexture", "index");
       auto clearcoatRoughnessTexCoord = GetValueOrDefault(
           clearcoatExt, 0, "clearcoatRoughnessTexture", "texCoord");
-      if (auto sampler = importGLTFTexture(scene,
+      if (auto sampler = importGLTFTexture(cache,
               model,
               clearcoatRoughnessTextureIndex,
-              cache,
               sourcePrefix,
               true,
               "clearcoatRoughness",
@@ -589,10 +577,9 @@ static std::vector<MaterialRef> importGLTFMaterials(
           clearcoatExt, 1.0f, "clearcoatNormalTexture", "scale");
       auto clearcoatNormalTexCoord = GetValueOrDefault(
           clearcoatExt, 0, "clearcoatNormalTexture", "texCoord");
-      if (auto sampler = importGLTFTexture(scene,
+      if (auto sampler = importGLTFTexture(cache,
               model,
               clearcoatNormalTextureIndex,
-              cache,
               sourcePrefix,
               true,
               "clearcoatNormal",
@@ -620,10 +607,9 @@ static std::vector<MaterialRef> importGLTFMaterials(
           GetValueOrDefault(specularExt, -1, "specularTexture", "index");
       auto specularTexCoord =
           GetValueOrDefault(specularExt, 0, "specularTexture", "texCoord");
-      if (auto sampler = importGLTFTexture(scene,
+      if (auto sampler = importGLTFTexture(cache,
               model,
               specularTextureIndex,
-              cache,
               sourcePrefix,
               true,
               "specular",
@@ -647,10 +633,9 @@ static std::vector<MaterialRef> importGLTFMaterials(
           GetValueOrDefault(specularExt, -1, "specularColorTexture", "index");
       auto specularColorTexCoord =
           GetValueOrDefault(specularExt, 0, "specularColorTexture", "texCoord");
-      if (auto sampler = importGLTFTexture(scene,
+      if (auto sampler = importGLTFTexture(cache,
               model,
               specularColorTextureIndex,
-              cache,
               sourcePrefix,
               false,
               "specularColor",
@@ -685,10 +670,9 @@ static std::vector<MaterialRef> importGLTFMaterials(
           GetValueOrDefault(sheenExt, -1, "sheenColorTexture", "index");
       auto sheenColorTexCoord =
           GetValueOrDefault(sheenExt, 0, "sheenColorTexture", "texCoord");
-      if (auto sampler = importGLTFTexture(scene,
+      if (auto sampler = importGLTFTexture(cache,
               model,
               sheenColorTextureIndex,
-              cache,
               sourcePrefix,
               false,
               "sheenColor",
@@ -712,10 +696,9 @@ static std::vector<MaterialRef> importGLTFMaterials(
           GetValueOrDefault(sheenExt, -1, "sheenRoughnessTexture", "index");
       auto sheenRoughnessTexCoord =
           GetValueOrDefault(sheenExt, 0, "sheenRoughnessTexture", "texCoord");
-      if (auto sampler = importGLTFTexture(scene,
+      if (auto sampler = importGLTFTexture(cache,
               model,
               sheenRoughnessTextureIndex,
-              cache,
               sourcePrefix,
               true,
               "sheenRoughness",
@@ -750,10 +733,9 @@ static std::vector<MaterialRef> importGLTFMaterials(
           GetValueOrDefault(iridescenceExt, -1, "iridescenceTexture", "index");
       auto iridescenceTexCoord = GetValueOrDefault(
           iridescenceExt, 0, "iridescenceTexture", "texCoord");
-      if (auto sampler = importGLTFTexture(scene,
+      if (auto sampler = importGLTFTexture(cache,
               model,
               iridescenceTextureIndex,
-              cache,
               sourcePrefix,
               true,
               "iridescence",
@@ -786,10 +768,9 @@ static std::vector<MaterialRef> importGLTFMaterials(
           iridescenceExt, -1, "iridescenceThicknessTexture", "index");
       auto iridescenceThicknessTexCoord = GetValueOrDefault(
           iridescenceExt, 0, "iridescenceThicknessTexture", "texCoord");
-      if (auto sampler = importGLTFTexture(scene,
+      if (auto sampler = importGLTFTexture(cache,
               model,
               iridescenceThicknessTextureIndex,
-              cache,
               sourcePrefix,
               true,
               "iridescenceThickness",

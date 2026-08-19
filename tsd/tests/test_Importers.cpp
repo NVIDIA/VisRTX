@@ -220,8 +220,8 @@ SCENARIO("TIFF textures decode into float texel arrays", "[Importers]")
 
     WHEN("It is imported as a linear texture")
     {
-      auto sampler = tsd::io::importTexture(
-          scene, tiff.path(), cache, /*isLinear=*/true);
+      auto sampler =
+          tsd::io::importTexture(cache, tiff.path(), /*isLinear=*/true);
 
 #if TSD_USE_OIIO
       THEN("The sampler carries the file's texels untransformed")
@@ -248,8 +248,8 @@ SCENARIO("TIFF textures decode into float texel arrays", "[Importers]")
 #if TSD_USE_OIIO
     WHEN("It is imported as an sRGB texture")
     {
-      auto sampler = tsd::io::importTexture(
-          scene, tiff.path(), cache, /*isLinear=*/false);
+      auto sampler =
+          tsd::io::importTexture(cache, tiff.path(), /*isLinear=*/false);
 
       THEN("The texels are decoded to linear, matching the stb-backed paths")
       {
@@ -276,8 +276,8 @@ SCENARIO("TIFF textures decode into float texel arrays", "[Importers]")
 
     WHEN("It is imported as an sRGB texture")
     {
-      auto sampler = tsd::io::importTexture(
-          scene, tiff.path(), cache, /*isLinear=*/false);
+      auto sampler =
+          tsd::io::importTexture(cache, tiff.path(), /*isLinear=*/false);
 
       THEN("Only the grey channel is gamma-decoded, leaving alpha linear")
       {

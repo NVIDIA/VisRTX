@@ -930,20 +930,18 @@ static SamplerSettings pbrtSamplerSettings(const pbrt::ParamList &params)
   return settings;
 }
 
-static BakedTexture bakeTexture(Scene &scene,
+static BakedTexture bakeTexture(ImageCache &texCache,
     const pbrt::Scene &pbrtScene,
     const std::string &textureName,
-    const std::string &basePath,
-    ImageCache &texCache);
+    const std::string &basePath);
 
 // Resolve a PBRT texture-or-constant slot ("rgb tex1" / "float tex1" /
 // "texture tex1"). Used by both `scale` and `mix`.
-static BakedTexture bakeTextureSlot(Scene &scene,
+static BakedTexture bakeTextureSlot(ImageCache &texCache,
     const pbrt::ParamList &params,
     const std::string &paramName,
     const pbrt::Scene &pbrtScene,
-    const std::string &basePath,
-    ImageCache &texCache)
+    const std::string &basePath)
 {
   auto it = params.values.find(paramName);
   if (it == params.values.end()) {
@@ -963,7 +961,7 @@ static BakedTexture bakeTextureSlot(Scene &scene,
   }
   if (auto *strings = std::get_if<std::vector<std::string>>(&it->second);
       strings && !strings->empty()) {
-    return bakeTexture(scene, pbrtScene, (*strings)[0], basePath, texCache);
+    return bakeTexture(texCache, pbrtScene, (*strings)[0], basePath);
   }
   return {};
 }
@@ -988,11 +986,10 @@ static float3 bakeMixAmount(const pbrt::ParamList &params)
   return float3(0.5f);
 }
 
-static BakedTexture bakeTexture(Scene &scene,
+static BakedTexture bakeTexture(ImageCache &texCache,
     const pbrt::Scene &pbrtScene,
     const std::string &textureName,
-    const std::string &basePath,
-    ImageCache &texCache)
+    const std::string &basePath)
 {
   auto texIt = pbrtScene.textures.find(textureName);
   if (texIt == pbrtScene.textures.end()) {
@@ -1016,11 +1013,8 @@ static BakedTexture bakeTexture(Scene &scene,
     // PBRT splits image textures by colorType: "spectrum" is sRGB color
     // data, "float" is linear scalar data (roughness, masks, bumps).
     const bool isLinear = (texDef.colorType == "float");
-    auto sampler = importTexture(scene,
-        fullPath,
-        texCache,
-        isLinear,
-        pbrtSamplerSettings(texDef.params));
+    auto sampler = importTexture(
+        texCache, fullPath, isLinear, pbrtSamplerSettings(texDef.params));
     if (!sampler)
       return {};
     // Per the ANARI sampler spec, a fetched texel is completed to four
@@ -1063,18 +1057,18 @@ static BakedTexture bakeTexture(Scene &scene,
     // texture-ref) — not `tex1` / `tex2`. With the old keys, every `scale`
     // chain in `crown.pbrt` silently resolved to Constant(1) and the
     // referenced imagemaps never made it into the scene.
-    auto a = bakeTextureSlot(
-        scene, texDef.params, "tex", pbrtScene, basePath, texCache);
-    auto b = bakeTextureSlot(
-        scene, texDef.params, "scale", pbrtScene, basePath, texCache);
+    auto a =
+        bakeTextureSlot(texCache, texDef.params, "tex", pbrtScene, basePath);
+    auto b =
+        bakeTextureSlot(texCache, texDef.params, "scale", pbrtScene, basePath);
     return combineMul(a, b);
   }
 
   if (texDef.implType == "mix") {
-    auto a = bakeTextureSlot(
-        scene, texDef.params, "tex1", pbrtScene, basePath, texCache);
-    auto b = bakeTextureSlot(
-        scene, texDef.params, "tex2", pbrtScene, basePath, texCache);
+    auto a =
+        bakeTextureSlot(texCache, texDef.params, "tex1", pbrtScene, basePath);
+    auto b =
+        bakeTextureSlot(texCache, texDef.params, "tex2", pbrtScene, basePath);
     return combineMix(a, b, bakeMixAmount(texDef.params));
   }
 
@@ -1115,8 +1109,7 @@ static void applyAffineToSampler(
   sampler->setParameter("outOffset", o);
 }
 
-static void resolveTexture(Scene &scene,
-    MaterialRef mat,
+static void resolveTexture(MaterialRef mat,
     const std::string &paramName,
     const std::string &texParamName,
     const pbrt::MaterialDef &matDef,
@@ -1129,7 +1122,7 @@ static void resolveTexture(Scene &scene,
   if (texName.empty())
     return;
 
-  auto baked = bakeTexture(scene, pbrtScene, texName, basePath, texCache);
+  auto baked = bakeTexture(texCache, pbrtScene, texName, basePath);
   switch (baked.kind) {
   case BakedTexture::Kind::None:
     return;
@@ -1215,17 +1208,15 @@ static bool resolveImagemapChain(const pbrt::Scene &pbrtScene,
 // height. The fixed `kBumpStrength` boost exists because PBRT scales
 // (e.g. 0.25 in crown.pbrt) are calibrated for geometric displacement;
 // a tangent-only fake of the same scale would be visually invisible.
-static SamplerRef importHeightAsNormalMap(Scene &scene,
-    const std::string &filepath,
-    float heightScale,
-    ImageCache &texCache)
+static SamplerRef importHeightAsNormalMap(
+    ImageCache &texCache, const std::string &filepath, float heightScale)
 {
   // Key under a separate id so this doesn't collide with any value-domain
   // sampler that may already exist for the same file.
   const ImageSource source{"pbrt:" + filepath + "::normal", ColorSpace::LINEAR};
 
   if (auto cached = texCache.find(source))
-    return makeImageSampler(scene, cached, fileOf(filepath) + "_bump");
+    return makeImageSampler(texCache, cached, fileOf(filepath) + "_bump");
 
   int w = 0, h = 0, channels = 0;
   stbi_ldr_to_hdr_scale(1.f);
@@ -1271,7 +1262,7 @@ static SamplerRef importHeightAsNormalMap(Scene &scene,
       RowOrder::TOP_DOWN,
       texels.data());
 
-  return makeImageSampler(scene, image, fileOf(filepath) + "_bump");
+  return makeImageSampler(texCache, image, fileOf(filepath) + "_bump");
 }
 
 // Approximate normal-incidence reflectance for common PBRT named metal spectra.
@@ -1463,14 +1454,8 @@ static MaterialRef convertMaterial(Scene &scene,
     mat = scene.createObject<Material>(tokens::material::matte);
     auto color = getRgb(params, "reflectance");
     mat->setParameter("color", ANARI_FLOAT32_VEC3, &color);
-    resolveTexture(scene,
-        mat,
-        "color",
-        "reflectance",
-        matDef,
-        pbrtScene,
-        basePath,
-        texCache);
+    resolveTexture(
+        mat, "color", "reflectance", matDef, pbrtScene, basePath, texCache);
   } else if (type == "coateddiffuse") {
     mat = scene.createObject<Material>(tokens::material::physicallyBased);
     auto baseColor = getRgb(params, "reflectance");
@@ -1488,16 +1473,9 @@ static MaterialRef convertMaterial(Scene &scene,
     else
       coatRoughness = 0.f;
     mat->setParameter("clearcoatRoughness", coatRoughness);
-    resolveTexture(scene,
-        mat,
-        "baseColor",
-        "reflectance",
-        matDef,
-        pbrtScene,
-        basePath,
-        texCache);
-    resolveTexture(scene,
-        mat,
+    resolveTexture(
+        mat, "baseColor", "reflectance", matDef, pbrtScene, basePath, texCache);
+    resolveTexture(mat,
         "clearcoatRoughness",
         "roughness",
         matDef,
@@ -1512,8 +1490,7 @@ static MaterialRef convertMaterial(Scene &scene,
     mat->setParameter("baseColor", ANARI_FLOAT32_VEC3, &baseColor);
     mat->setParameter("metallic", 1.f);
     mat->setParameter("roughness", conductorRoughness(params));
-    resolveTexture(scene,
-        mat,
+    resolveTexture(mat,
         "roughness",
         "roughness",
         matDef,
@@ -1530,8 +1507,7 @@ static MaterialRef convertMaterial(Scene &scene,
     mat->setParameter("metallic", 0.f);
     mat->setParameter("specular", 1.f);
     mat->setParameter("transmission", 1.f);
-    resolveTexture(scene,
-        mat,
+    resolveTexture(mat,
         "roughness",
         "roughness",
         matDef,
@@ -1547,14 +1523,8 @@ static MaterialRef convertMaterial(Scene &scene,
     mat->setParameter("specular", 1.f);
     mat->setParameter("roughness", 1.f);
     mat->setParameter("transmission", 1.f);
-    resolveTexture(scene,
-        mat,
-        "baseColor",
-        "reflectance",
-        matDef,
-        pbrtScene,
-        basePath,
-        texCache);
+    resolveTexture(
+        mat, "baseColor", "reflectance", matDef, pbrtScene, basePath, texCache);
   } else if (type == "coatedconductor") {
     mat = scene.createObject<Material>(tokens::material::physicallyBased);
     auto baseColor = getRgb(params,
@@ -1704,8 +1674,7 @@ static MaterialRef convertMaterial(Scene &scene,
           // Bake `result = c0 + (c1 - c0) * mask` into the mask sampler.
           // BakedTexture's affine is `tint*S + offset` per channel, so the
           // composed affine is `(c1-c0)*tint*S + ((c1-c0)*offset + c0)`.
-          auto baked =
-              bakeTexture(scene, pbrtScene, maskTexName, basePath, texCache);
+          auto baked = bakeTexture(texCache, pbrtScene, maskTexName, basePath);
           if (baked.kind == BakedTexture::Kind::Sampler) {
             const float3 bc0 = readBaseColor(mat0);
             const float3 bc1 = readBaseColor(mat1);
@@ -1751,7 +1720,7 @@ static MaterialRef convertMaterial(Scene &scene,
   if (!normalMapPath.empty()) {
     try {
       auto fullPath = pbrt::resolveScenePath(basePath, normalMapPath);
-      if (auto sampler = importTexture(scene, fullPath, texCache, true))
+      if (auto sampler = importTexture(texCache, fullPath, true))
         mat->setParameterObject("normal", *sampler);
     } catch (const std::exception &e) {
       logWarning("[import_PBRT] normalmap: %s", e.what());
@@ -1768,8 +1737,8 @@ static MaterialRef convertMaterial(Scene &scene,
         float heightScale = 1.f;
         if (resolveImagemapChain(
                 pbrtScene, (*sv)[0], basePath, heightPath, heightScale)) {
-          if (auto sampler = importHeightAsNormalMap(
-                  scene, heightPath, heightScale, texCache))
+          if (auto sampler =
+                  importHeightAsNormalMap(texCache, heightPath, heightScale))
             mat->setParameterObject("normal", *sampler);
         } else {
           logWarning(
@@ -1940,7 +1909,7 @@ static MaterialRef applyShapeAlpha(Scene &scene,
           e.what());
       return mat;
     }
-    sampler = importTexture(scene, fullPath, texCache, true);
+    sampler = importTexture(texCache, fullPath, true);
     if (!sampler)
       return mat;
     // The standard importer wires all 4 channels straight through. The

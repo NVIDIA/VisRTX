@@ -218,4 +218,14 @@ SamplerRef makeImageSampler(Scene &scene,
   return sampler;
 }
 
+SamplerRef makeImageSampler(ImageCache &cache,
+    const Image &image,
+    const std::string &displayName,
+    const SamplerSettings &settings)
+{
+  if (auto *scene = cache.scene())
+    return makeImageSampler(*scene, image, displayName, settings);
+  return {};
+}
+
 } // namespace tsd::io
