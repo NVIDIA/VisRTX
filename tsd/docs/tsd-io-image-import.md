@@ -341,9 +341,9 @@ Roughly in the order that pays off soonest.
 
 This document's [Cache lifetime](#cache-lifetime) section is the one part of
 step 1 that was not implemented. Every importer still builds a function-local
-`ImageCache` (`import_OBJ.cpp:59`, `import_GLTF.cpp:259`,
-`import_ASSIMP.cpp:249`, `import_PBRT.cpp:2321`, `UsdImportContext.h:56`,
-`import_HDRI.cpp:33`), so reuse still exists only *within* one importer call.
+`ImageCache` (`import_OBJ.cpp:59`, `import_GLTF.cpp:258`,
+`import_ASSIMP.cpp:246`, `import_PBRT.cpp:2292`, `UsdImportContext.h:122`),
+so reuse still exists only *within* one importer call.
 The stated payoff — "a USD stage that references an OBJ decodes it twice" —
 is unfixed.
 
@@ -366,11 +366,11 @@ the state this work set out to remove.
 They stay, and now take `ImageCache &` alone instead of an `ImageCache &`
 beside a `Scene &`. The pair was the real problem: a caller could name a Scene
 the image had never reached, which is the failure the cache's ownership of a
-Scene exists to prevent. `makeImageSampler` gained an overload taking the
-cache for the same reason, and the callers that acquire their own image
-(`importGLTFTexture`, PBRT's `importHeightAsNormalMap`) use it. What is left
-of the shims is the path normalization and colour-space choice their nine call
-sites share, which is worth one function. They are the intended API, not a
+Scene exists to prevent. `makeImageSampler` takes the cache for the same
+reason, and the callers that acquire their own image (`importGLTFTexture`,
+PBRT's `importHeightAsNormalMap`) reach it that way too. What is left of the
+shims is the path normalization and colour-space choice their call sites
+share, which is worth one function. They are the intended API, not a
 migration aid.
 
 ### 3. PBRT's infinite light
