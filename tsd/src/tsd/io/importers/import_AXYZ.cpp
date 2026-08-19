@@ -23,8 +23,6 @@ void import_AXYZ(Scene &scene,
     LayerNodeRef location)
 {
   std::string file = fileOf(filepath);
-  if (file.empty())
-    return;
 
   // load particle data from file //
 

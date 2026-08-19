@@ -21,13 +21,16 @@ void import_XYZDP(Scene &scene,
 {
   (void)animMgr;
   std::string file = fileOf(filepath);
-  if (file.empty())
-    return;
 
   // load particle data from file //
 
-  uint64_t numParticles = 0;
   auto *fp = std::fopen(filepath, "rb");
+  if (!fp) {
+    logError("[import_XYZ] could not open file %s", filepath);
+    return;
+  }
+
+  uint64_t numParticles = 0;
   auto r = std::fread(&numParticles, sizeof(numParticles), 1, fp);
 
   logInfo(

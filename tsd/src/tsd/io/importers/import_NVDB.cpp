@@ -45,8 +45,6 @@ bool hasNanoVdbMagic(const char *filepath, uint64_t &magic)
 SpatialFieldRef import_NVDB(Scene &scene, const char *filepath)
 {
   std::string file = fileOf(filepath);
-  if (file.empty())
-    return {};
 
   uint64_t magic = 0;
   if (!hasNanoVdbMagic(filepath, magic)) {

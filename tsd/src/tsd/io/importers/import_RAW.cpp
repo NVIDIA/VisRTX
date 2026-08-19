@@ -12,8 +12,6 @@ namespace tsd::io {
 SpatialFieldRef import_RAW(Scene &scene, const char *filepath)
 {
   std::string file = fileOf(filepath);
-  if (file.empty())
-    return {};
 
   int dimX = 0, dimY = 0, dimZ = 0;
   anari::DataType type = ANARI_UNKNOWN;

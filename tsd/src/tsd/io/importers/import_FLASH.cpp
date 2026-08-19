@@ -418,8 +418,6 @@ struct FlashReader
 SpatialFieldRef import_FLASH(Scene &scene, const char *filepath)
 {
   std::string file = fileOf(filepath);
-  if (file.empty())
-    return {};
 
   FlashReader reader;
   if (!reader.open(filepath)) {
