@@ -19,6 +19,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <utility>
 
 namespace tsd::animation {
 struct Animation;
@@ -53,6 +54,12 @@ struct ResolvedMaterial
  * -- the `anari:` and `tsd:io:` attribute vocabularies, carrier metadata --
  * can be read directly from prims by path.
  *
+ * One import makes one of these and passes it by reference from there on: it
+ * is not copyable, because `textureCache` holds the same Scene the `scene`
+ * member names and a copy is the only way the two could ever come to name
+ * different Scenes -- which would put an image's Sampler somewhere the rest
+ * of the import never reached.
+ *
  * Example:
  *   ImportContext ctx{&scene, &animMgr, &options, &report,
  *       session, stage, filePath, basePath};
@@ -61,6 +68,18 @@ struct ResolvedMaterial
  */
 struct ImportContext
 {
+  ImportContext(Scene *scene,
+      tsd::animation::AnimationManager *animMgr,
+      const UsdImportOptions *options,
+      UsdImportReport *report,
+      std::shared_ptr<UsdStageSession> session,
+      pxr::UsdStageRefPtr stage,
+      std::string filePath,
+      std::string basePath);
+
+  ImportContext(const ImportContext &) = delete;
+  ImportContext &operator=(const ImportContext &) = delete;
+
   Scene *scene{nullptr};
   tsd::animation::AnimationManager *animMgr{nullptr};
   const UsdImportOptions *options{nullptr};
@@ -92,10 +111,10 @@ struct ImportContext
   const ClaimedPrims *claimedPrims{nullptr};
   bool isClaimed(const pxr::SdfPath &path) const;
 
-  // Set by animation(); this stays an aggregate, so it cannot be private. An
-  // index rather than a pointer or reference: the AnimationManager holds its
-  // Animations by value in a vector, so any other addAnimation() during this
-  // import -- a camera's, the dialect's -- moves the one this import made.
+  // Set by animation(). An index rather than a pointer or reference: the
+  // AnimationManager holds its Animations by value in a vector, so any other
+  // addAnimation() during this import -- a camera's, the dialect's -- moves
+  // the one this import made.
   static constexpr size_t NO_ANIMATION = ~size_t(0);
   size_t importAnimationIndex{NO_ANIMATION};
 
@@ -125,6 +144,24 @@ tsd::math::mat4 toTsdMat4(const pxr::GfMatrix4d &m);
 bool attributeValueVaries(const pxr::UsdAttribute &attribute);
 
 // Inlined definitions ////////////////////////////////////////////////////////
+
+inline ImportContext::ImportContext(Scene *scene,
+    tsd::animation::AnimationManager *animMgr,
+    const UsdImportOptions *options,
+    UsdImportReport *report,
+    std::shared_ptr<UsdStageSession> session,
+    pxr::UsdStageRefPtr stage,
+    std::string filePath,
+    std::string basePath)
+    : scene(scene),
+      animMgr(animMgr),
+      options(options),
+      report(report),
+      session(std::move(session)),
+      stage(std::move(stage)),
+      filePath(std::move(filePath)),
+      basePath(std::move(basePath))
+{}
 
 inline void ImportContext::reportSkip(const pxr::SdfPath &primPath,
     const std::string &primType,
