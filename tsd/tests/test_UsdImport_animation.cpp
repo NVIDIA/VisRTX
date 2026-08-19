@@ -258,7 +258,7 @@ def Mesh "Real"
 // the shared fixture directory in the binary geometry format import_ENSIGHT
 // accepts. The files live for the lifetime of the test binary along with every
 // other fixture in that directory.
-inline std::string writeEnSightDataset(const char *baseName)
+std::string writeEnSightDataset(const char *baseName)
 {
   const auto geoName = std::string(baseName) + ".geo";
   const auto casePath = fixtureDirectory() / (std::string(baseName) + ".case");
@@ -281,7 +281,7 @@ inline std::string writeEnSightDataset(const char *baseName)
   auto integer = [&](int32_t value) {
     geo.write(reinterpret_cast<const char *>(&value), sizeof(value));
   };
-  auto triangle = [&](int32_t id, const char *description) {
+  auto singleTrianglePart = [&](int32_t id, const char *description) {
     record("part");
     integer(id);
     record(description);
@@ -304,8 +304,8 @@ inline std::string writeEnSightDataset(const char *baseName)
   record("two single-triangle parts");
   record("node id off");
   record("element id off");
-  triangle(1, "part_one");
-  triangle(2, "part_two");
+  singleTrianglePart(1, "part_one");
+  singleTrianglePart(2, "part_two");
 
   return casePath.string();
 }
