@@ -217,6 +217,53 @@ def Volume "Vol"
   }
 }
 
+SCENARIO("A Volume whose field cannot be loaded is reported", "[UsdImport]")
+{
+  GIVEN("A Volume prim naming a field file that is not there")
+  {
+    ImportedStage stage("tsd_test_usd_volume_missing_field.usda", R"(#usda 1.0
+
+def Volume "Vol"
+{
+    rel field:density = </Vol/Density>
+
+    def "Density"
+    {
+        asset filePath = @tsd_test_usd_absent_2x2x2_uint8.raw@
+    }
+}
+)");
+
+    WHEN("The Stage is imported")
+    {
+      THEN("No volume arrives")
+      {
+        REQUIRE(stage.scene.numberOfObjects(ANARI_VOLUME) == 0);
+      }
+
+      THEN("The prim is named in the Import Report")
+      {
+        REQUIRE(stage.report.skipped.size() == 1);
+        REQUIRE(stage.report.skipped[0].primPath == "/Vol");
+        REQUIRE(stage.report.skipped[0].reason
+            == tsd::io::UsdSkipReason::FIELD_LOAD_FAILED);
+        REQUIRE(stage.report.skipped[0].detail.find(
+                    "tsd_test_usd_absent_2x2x2_uint8.raw")
+            != std::string::npos);
+      }
+
+      THEN("It leaves a disabled Placeholder Node where it belongs")
+      {
+        auto *layer = stage.scene.defaultLayer();
+        auto vol = findNode(layer, "Vol");
+        REQUIRE(vol);
+        REQUIRE((*vol)->isEmpty());
+        REQUIRE_FALSE((*vol)->isEnabled());
+      }
+    }
+  }
+}
+
 SCENARIO("Volume fields go through the shared spatial-field dispatcher",
     "[UsdImport]")
 {
