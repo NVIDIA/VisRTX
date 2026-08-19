@@ -254,13 +254,32 @@ def Mesh "Real"
   }
 }
 
+// EnSight Gold writes its strings as fixed 80-byte records and its numbers
+// raw, so both files below are laid out with these two.
+void writeRecord(std::ofstream &out, const char *text)
+{
+  char buffer[80] = {};
+  std::strncpy(buffer, text, sizeof(buffer) - 1);
+  out.write(buffer, sizeof(buffer));
+}
+
+void writeInteger(std::ofstream &out, int32_t value)
+{
+  out.write(reinterpret_cast<const char *>(&value), sizeof(value));
+}
+
 // A minimal EnSight Gold dataset -- two single-triangle parts -- written into
 // the shared fixture directory in the binary geometry format import_ENSIGHT
 // accepts. The files live for the lifetime of the test binary along with every
 // other fixture in that directory.
-std::string writeEnSightDataset(const char *baseName)
+//
+// With `withScalarField`, the dataset also carries one node-centered scalar,
+// which is what makes import_ENSIGHT synthesize a colormap material for a part
+// that has no material bound to it.
+std::string writeEnSightDataset(const char *baseName, bool withScalarField)
 {
   const auto geoName = std::string(baseName) + ".geo";
+  const auto scalarName = std::string(baseName) + ".scl";
   const auto casePath = fixtureDirectory() / (std::string(baseName) + ".case");
   const auto geoPath = fixtureDirectory() / geoName;
 
@@ -270,44 +289,58 @@ std::string writeEnSightDataset(const char *baseName)
              << "type: ensight gold\n"
              << "GEOMETRY\n"
              << "model: " << geoName << "\n";
+    if (withScalarField) {
+      caseFile << "VARIABLE\n"
+               << "scalar per node: density " << scalarName << "\n";
+    }
   }
 
-  std::ofstream geo(geoPath, std::ios::binary);
-  auto record = [&](const char *text) {
-    char buffer[80] = {};
-    std::strncpy(buffer, text, sizeof(buffer) - 1);
-    geo.write(buffer, sizeof(buffer));
-  };
-  auto integer = [&](int32_t value) {
-    geo.write(reinterpret_cast<const char *>(&value), sizeof(value));
-  };
-  auto singleTrianglePart = [&](int32_t id, const char *description) {
-    record("part");
-    integer(id);
-    record(description);
-    record("coordinates");
-    integer(3);
-    // clang-format off
-    const float coordinates[9] = {
-        0.f, 1.f, 0.f, // x
-        0.f, 0.f, 1.f, // y
-        0.f, 0.f, 0.f}; // z
-    // clang-format on
-    geo.write(reinterpret_cast<const char *>(coordinates), sizeof(coordinates));
-    record("tria3");
-    integer(1);
-    integer(1);
-    integer(2);
-    integer(3);
-  };
+  const int32_t partIds[2] = {1, 2};
+  const char *partDescriptions[2] = {"part_one", "part_two"};
+  constexpr int numNodes = 3;
 
-  record("C Binary");
-  record("TSD test dataset");
-  record("two single-triangle parts");
-  record("node id off");
-  record("element id off");
-  singleTrianglePart(1, "part_one");
-  singleTrianglePart(2, "part_two");
+  {
+    std::ofstream geo(geoPath, std::ios::binary);
+    writeRecord(geo, "C Binary");
+    writeRecord(geo, "TSD test dataset");
+    writeRecord(geo, "two single-triangle parts");
+    writeRecord(geo, "node id off");
+    writeRecord(geo, "element id off");
+
+    for (int i = 0; i < 2; ++i) {
+      writeRecord(geo, "part");
+      writeInteger(geo, partIds[i]);
+      writeRecord(geo, partDescriptions[i]);
+      writeRecord(geo, "coordinates");
+      writeInteger(geo, numNodes);
+      // clang-format off
+      const float coordinates[9] = {
+          0.f, 1.f, 0.f, // x
+          0.f, 0.f, 1.f, // y
+          0.f, 0.f, 0.f}; // z
+      // clang-format on
+      geo.write(
+          reinterpret_cast<const char *>(coordinates), sizeof(coordinates));
+      writeRecord(geo, "tria3");
+      writeInteger(geo, 1);
+      writeInteger(geo, 1);
+      writeInteger(geo, 2);
+      writeInteger(geo, 3);
+    }
+  }
+
+  if (withScalarField) {
+    std::ofstream scalar(fixtureDirectory() / scalarName, std::ios::binary);
+    writeRecord(scalar, "per node scalar values");
+    for (int i = 0; i < 2; ++i) {
+      writeRecord(scalar, "part");
+      writeInteger(scalar, partIds[i]);
+      writeRecord(scalar, "coordinates");
+      // The values only have to span a range for a colormap to be built over.
+      const float values[numNodes] = {0.f, 0.5f, 1.f};
+      scalar.write(reinterpret_cast<const char *>(values), sizeof(values));
+    }
+  }
 
   return casePath.string();
 }
@@ -319,7 +352,8 @@ SCENARIO(
   {
     // Claimed Prims never reach the resolved traversal, so the materials they
     // bind only convert if the dialect importer asks for them itself.
-    const auto caseFile = writeEnSightDataset("tsd_test_ensight_materials");
+    const auto caseFile =
+        writeEnSightDataset("tsd_test_ensight_materials", false);
     ImportedStage stage("tsd_test_usd_ensight_materials.usda",
         R"(#usda 1.0
 (
@@ -412,6 +446,112 @@ def Scope "Dataset" (
       THEN("The part without one falls back to the carrier's material")
       {
         REQUIRE(materialNameOfPart("part_two") == "/Looks/Shared");
+      }
+    }
+  }
+}
+
+SCENARIO("A material bound on an EnSight carrier outranks the scalar colormap",
+    "[UsdImport]")
+{
+  // import_ENSIGHT picks a part's material as
+  //   per-part binding > carrier binding > scalar colormap > default,
+  // but until carrier bindings converted at all, neither binding rung could
+  // ever win. Both halves below read the same dataset, so the only thing that
+  // differs is whether the carrier binds anything.
+  //
+  // The carriers map a field explicitly. The dialect always hands
+  // import_ENSIGHT a field list, so an unmapped variable is loaded by nobody
+  // and there would be no colormap for a binding to outrank.
+  const auto caseFile = writeEnSightDataset("tsd_test_ensight_colormap", true);
+
+  auto materialOfPart = [](ImportedStage &stage, const char *partName) {
+    auto surface =
+        findObject<tsd::scene::Surface>(stage.scene, ANARI_SURFACE, partName);
+    REQUIRE(surface);
+    auto *material = surface->parameterValueAsObject<tsd::scene::Material>(
+        tsd::scene::tokens::surface::material);
+    REQUIRE(material != nullptr);
+    return material;
+  };
+
+  const auto stageBody = [&](const char *carrierBinding) {
+    return R"(#usda 1.0
+(
+    customLayerData = {
+        dictionary ensight = {
+            string caseFile = ")"
+        + caseFile + R"("
+        }
+    }
+)
+
+def Scope "Looks"
+{
+    def Material "Shared"
+    {
+        token outputs:surface.connect = </Looks/Shared/PBR.outputs:surface>
+
+        def Shader "PBR"
+        {
+            uniform token info:id = "UsdPreviewSurface"
+            color3f inputs:diffuseColor = (1, 0, 0)
+            token outputs:surface
+        }
+    }
+}
+
+def Scope "Dataset" (
+    prepend apiSchemas = ["MaterialBindingAPI"]
+)
+{
+    custom string ensight:fieldMapping:attribute0 = "density"
+)" + std::string(carrierBinding)
+        + R"(
+    def Mesh "part_one" (
+        customData = {
+            dictionary ensight = {
+                string partName = "part_one"
+            }
+        }
+    )
+    {
+)" + std::string(QUAD_MESH_BODY)
+        + R"(    }
+}
+)";
+  };
+
+  GIVEN("A carrier that binds no material over a dataset with a scalar field")
+  {
+    ImportedStage stage(
+        "tsd_test_usd_ensight_colormap_unbound.usda", stageBody(""));
+
+    WHEN("The Stage is imported")
+    {
+      THEN("The part takes the colormap built from that field")
+      {
+        // The colormap material is synthesized rather than converted from a
+        // prim, so it carries no name -- unlike the Scene's own default, which
+        // is a matte one called "default".
+        auto *material = materialOfPart(stage, "part_one");
+        REQUIRE(material->name().empty());
+        REQUIRE(material->subtype()
+            == tsd::scene::tokens::material::physicallyBased);
+      }
+    }
+  }
+
+  GIVEN("The same dataset under a carrier that does bind one")
+  {
+    ImportedStage stage("tsd_test_usd_ensight_colormap_bound.usda",
+        stageBody("    rel material:binding = </Looks/Shared>"));
+
+    WHEN("The Stage is imported")
+    {
+      THEN("The bound material wins and no colormap is built")
+      {
+        REQUIRE(materialOfPart(stage, "part_one")->name() == "/Looks/Shared");
       }
     }
   }
