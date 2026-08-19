@@ -9,6 +9,8 @@
 #include "catch.hpp"
 // tsd_tests
 #include "UsdTestFixtures.h"
+// std
+#include <cmath>
 
 SCENARIO(
     "Light exposure and normalization reach the emitted light", "[UsdImport]")

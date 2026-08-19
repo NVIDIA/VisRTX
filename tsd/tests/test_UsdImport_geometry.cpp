@@ -319,28 +319,6 @@ def Xform "World"
   }
 }
 
-// Animated USD ///////////////////////////////////////////////////////////////
-
-namespace {
-
-// The transform Array of the first transform-array node beneath `name`.
-tsd::scene::Array *findTransformArray(
-    tsd::scene::Layer *layer, const char *name)
-{
-  auto parent = findNode(layer, name);
-  if (!parent)
-    return nullptr;
-  tsd::scene::Array *found = nullptr;
-  layer->traverse(parent, [&](auto &node, int) {
-    if (!found && node->type() == ANARI_ARRAY1D)
-      found = node->getTransformArray();
-    return true;
-  });
-  return found;
-}
-
-} // namespace
-
 SCENARIO("Conversion leaves nothing behind for geometry it does not emit",
     "[UsdImport]")
 {
