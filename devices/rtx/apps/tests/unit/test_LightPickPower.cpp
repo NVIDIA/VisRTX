@@ -167,17 +167,28 @@ int main()
         > lightPickPower(small, identity, radius));
   }
 
-  // HDRI: an infinite light — power grows with scale and with radius^2.
+  // HDRI: an infinite light — power grows with scale, with radius^2, and with
+  // the map's mean luminance (recovered from pdfWeight; larger pdfWeight means
+  // a DIMMER map, so power falls as pdfWeight grows). A zero pdfWeight (all-
+  // black map) yields zero power so it is never picked.
   {
     LightGPUData env{};
     env.type = LightType::HDRI;
     env.color = vec3(1.f);
     env.hdri.scale = 1.f;
+    env.hdri.pdfWeight = 1.f; // meanLuminance = 1/(4*pi)
     LightGPUData brighter = env;
     brighter.hdri.scale = 2.f;
+    LightGPUData higherMean = env;
+    higherMean.hdri.pdfWeight = 0.5f; // dimmer denominator => brighter map
+    LightGPUData black = env;
+    black.hdri.pdfWeight = 0.f;
     CHECK(lightPickPower(env, identity, radius) > 0.f);
     CHECK(lightPickPower(brighter, identity, radius)
         > lightPickPower(env, identity, radius));
+    CHECK(lightPickPower(higherMean, identity, radius)
+        > lightPickPower(env, identity, radius));
+    CHECK(lightPickPower(black, identity, radius) == 0.f);
     CHECK(lightPickPower(env, identity, 2.f) > lightPickPower(env, identity, 1.f));
   }
 
