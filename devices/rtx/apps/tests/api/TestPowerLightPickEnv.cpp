@@ -30,17 +30,19 @@
  */
 
 // Power-proportional Light Pick must keep the environment (HDRI) MIS fold
-// unbiased. The HDRI is the one light both NEE and the BSDF escape reach, so
-// power picking multiplies its pick probability into the env light density on
-// BOTH MIS sides. Light transport is linear, so a scene lit by an HDRI plus a
-// directional light must equal the sum of the two single-light renders; a broken
-// env pick-probability fold (missing on the miss side, or double-applied) breaks
-// that. Rendered with 'quality' into a linear float buffer, firefly off.
+// unbiased. The HDRI is reached by env-CDF NEE, cosine-hemisphere NEE, and the
+// BSDF escape; power picking multiplies its pick probability into the env light
+// density on every NEE-side weight. Light transport is linear, so a scene lit
+// by an HDRI plus a directional light must equal the sum of the two
+// single-light renders. A second check (matte plane under a uniform HDRI) must
+// match ρL — a broken two-strategy partition (double-count, or cosine omitted
+// from the env-CDF weight) shows up as a mean energy error. Rendered with
+// 'quality' into a linear float buffer, firefly off.
 
 #define ANARI_EXTENSION_UTILITY_IMPL
 #include <anari/anari_cpp/ext/std.h>
-#include <anari/anari_cpp.hpp>
 #include <anari/ext/visrtx/makeVisRTXDevice.h>
+#include <anari/anari_cpp.hpp>
 #include <array>
 #include <cmath>
 #include <cstdint>
@@ -76,8 +78,9 @@ static anari::Light makeHDRI(ANARIDevice device)
   constexpr uint32_t W = 8, H = 4;
   std::vector<vec3> texels(W * H, vec3{0.6f, 0.6f, 0.6f});
   auto radiance = anari::newArray2D(device, ANARI_FLOAT32_VEC3, W, H);
-  std::memcpy(
-      anari::map<vec3>(device, radiance), texels.data(), texels.size() * sizeof(vec3));
+  std::memcpy(anari::map<vec3>(device, radiance),
+      texels.data(),
+      texels.size() * sizeof(vec3));
   anari::unmap(device, radiance);
 
   auto light = anari::newObject<anari::Light>(device, "hdri");
@@ -174,12 +177,105 @@ static double render(ANARIDevice device, bool hdri, bool directional)
   return n ? sum / double(n) : 0.0;
 }
 
+// A planar Lambertian under a uniform environment of radiance L reflects ρL
+// exactly (view-independent). Used to catch two-strategy MIS energy error
+// (double-count, or cosine NEE omitted from the env-CDF weight). `pbr` uses
+// physicallyBased with specular=0 so the continuation lobe has a finite pdf
+// — the miss-side three-way weight is invisible to matte (pdf=0).
+static double renderDiffusePlane(ANARIDevice device, bool pbr)
+{
+  const std::array<vec3, 4> pos = {vec3{-20.f, 0.f, -20.f},
+      vec3{20.f, 0.f, -20.f},
+      vec3{20.f, 0.f, 20.f},
+      vec3{-20.f, 0.f, 20.f}};
+  // Winding produces +Y geometric normals so the camera above the plane sees
+  // front faces (v0-v1-v2: e1×e2 = +Y).
+  const std::array<std::array<unsigned, 3>, 2> idx = {
+      std::array<unsigned, 3>{0, 2, 1}, std::array<unsigned, 3>{0, 3, 2}};
+
+  auto geometry = anari::newObject<anari::Geometry>(device, "triangle");
+  anari::setParameterArray1D(
+      device, geometry, "vertex.position", pos.data(), 4);
+  anari::setParameterArray1D(
+      device, geometry, "primitive.index", idx.data(), 2);
+  anari::commitParameters(device, geometry);
+
+  anari::Material material;
+  if (pbr) {
+    material = anari::newObject<anari::Material>(device, "physicallyBased");
+    anari::setParameter(device, material, "baseColor", vec3{0.8f, 0.8f, 0.8f});
+    anari::setParameter(device, material, "metallic", 0.f);
+    anari::setParameter(device, material, "roughness", 1.f);
+    anari::setParameter(device, material, "specular", 0.f);
+  } else {
+    material = anari::newObject<anari::Material>(device, "matte");
+    anari::setParameter(device, material, "color", vec3{0.8f, 0.8f, 0.8f});
+  }
+  anari::commitParameters(device, material);
+
+  auto surface = anari::newObject<anari::Surface>(device);
+  anari::setAndReleaseParameter(device, surface, "geometry", geometry);
+  anari::setAndReleaseParameter(device, surface, "material", material);
+  anari::commitParameters(device, surface);
+
+  auto light = makeHDRI(device);
+
+  auto world = anari::newObject<anari::World>(device);
+  anari::setParameterArray1D(device, world, "surface", &surface, 1);
+  anari::setParameterArray1D(device, world, "light", &light, 1);
+  anari::release(device, surface);
+  anari::release(device, light);
+  anari::commitParameters(device, world);
+
+  auto camera = anari::newObject<anari::Camera>(device, "perspective");
+  anari::setParameter(device, camera, "position", vec3{0.f, 4.f, 0.f});
+  anari::setParameter(device, camera, "direction", vec3{0.f, -1.f, 0.f});
+  anari::setParameter(device, camera, "up", vec3{0.f, 0.f, 1.f});
+  anari::setParameter(
+      device, camera, "aspect", IMAGE_SIZE[0] / float(IMAGE_SIZE[1]));
+  anari::commitParameters(device, camera);
+
+  auto renderer = anari::newObject<anari::Renderer>(device, "quality");
+  anari::setParameter(device, renderer, "background", vec4{0.f, 0.f, 0.f, 1.f});
+  anari::setParameter(device, renderer, "ambientRadiance", 0.f);
+  anari::setParameter(device, renderer, "pixelSamples", PIXEL_SAMPLES);
+  anari::setParameter(device, renderer, "fireflyFilterMode", "none");
+  anari::commitParameters(device, renderer);
+
+  auto frame = anari::newObject<anari::Frame>(device);
+  anari::setParameter(device, frame, "size", IMAGE_SIZE);
+  anari::setParameter(device, frame, "channel.color", ANARI_FLOAT32_VEC4);
+  anari::setAndReleaseParameter(device, frame, "world", world);
+  anari::setAndReleaseParameter(device, frame, "camera", camera);
+  anari::setAndReleaseParameter(device, frame, "renderer", renderer);
+  anari::commitParameters(device, frame);
+
+  anari::render(device, frame);
+  anari::wait(device, frame);
+  auto fb = anari::map<vec4>(device, frame, "channel.color");
+
+  double sum = 0.0;
+  uint64_t n = 0;
+  for (uint32_t y = IMAGE_SIZE[1] / 4; y < 3 * IMAGE_SIZE[1] / 4; ++y) {
+    for (uint32_t x = IMAGE_SIZE[0] / 4; x < 3 * IMAGE_SIZE[0] / 4; ++x) {
+      const vec4 &p = fb.data[y * IMAGE_SIZE[0] + x];
+      sum += 0.2126 * p[0] + 0.7152 * p[1] + 0.0722 * p[2];
+      ++n;
+    }
+  }
+  anari::unmap(device, frame, "channel.color");
+  anari::release(device, frame);
+  return n ? sum / double(n) : 0.0;
+}
+
 int main()
 {
   auto device = makeVisRTXDevice(statusFunc);
   const double both = render(device, true, true);
   const double env = render(device, true, false);
   const double sun = render(device, false, true);
+  const double plane = renderDiffusePlane(device, false);
+  const double planePbr = renderDiffusePlane(device, true);
   anari::release(device, device);
 
   const double sum = env + sun;
@@ -193,6 +289,44 @@ int main()
 
   if (env <= 0.0) {
     fprintf(stderr, "FAIL: HDRI environment did not light the ground\n");
+    return 1;
+  }
+  // Lambertian under a uniform environment of radiance L reflects ρL. The HDRI
+  // texels are 0.6 and the matte albedo is 0.8, so the ground mean must match
+  // 0.48 — a broken two-strategy MIS (double-count, or cosine NEE omitted from
+  // the env-CDF weight) shows up as a mean energy error, not just extra noise.
+  constexpr double albedo = 0.8;
+  constexpr double envRadiance = 0.6;
+  const double expected = albedo * envRadiance;
+  const double relErrEnv =
+      expected > 0.0 ? std::abs(plane - expected) / expected : 1.0;
+  printf("plane=%f  planePbr=%f  envExpected=%f  relErrEnv=%f\n",
+      plane,
+      planePbr,
+      expected,
+      relErrEnv);
+  constexpr double ENV_ENERGY_TOLERANCE = 0.05;
+  if (!(relErrEnv <= ENV_ENERGY_TOLERANCE)) {
+    fprintf(stderr,
+        "FAIL: matte plane under uniform HDRI not ρL (plane=%f expected=%f "
+        "relErr=%f, tol %f)\n",
+        plane,
+        expected,
+        relErrEnv,
+        ENV_ENERGY_TOLERANCE);
+    return 1;
+  }
+  const double relErrPbr =
+      expected > 0.0 ? std::abs(planePbr - expected) / expected : 1.0;
+  printf("relErrPbr=%f\n", relErrPbr);
+  if (!(relErrPbr <= ENV_ENERGY_TOLERANCE)) {
+    fprintf(stderr,
+        "FAIL: PBR plane under uniform HDRI not ρL (planePbr=%f expected=%f "
+        "relErr=%f, tol %f) — miss-side env MIS likely omitted p_C\n",
+        planePbr,
+        expected,
+        relErrPbr,
+        ENV_ENERGY_TOLERANCE);
     return 1;
   }
   constexpr double TOLERANCE = 0.03;
