@@ -55,7 +55,6 @@ jobs:
           -DVISRTX_BUILD_RTX_DEVICE=ON
           -DVISRTX_PRECOMPILE_SHADERS=OFF
           -DVISRTX_BUILD_GL_DEVICE=OFF
-          -DVISRTX_BUILD_TSD=OFF
       - name: Install VisRTX
         run: >
           cmake --build ${{ github.workspace }}/build-visrtx --config ${{ matrix.config }} --target install --parallel

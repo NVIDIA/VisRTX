@@ -10,7 +10,7 @@ inputs:
   build-deps-path:
     description: 'Path to the build_deps directory containing CMakeLists.txt'
     required: false
-    default: 'tsd/cmake/build_deps'
+    default: 'devices/rtx/cmake/build_deps'
   generator:
     description: 'CMake generator to use'
     required: false

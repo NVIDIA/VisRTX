@@ -42,17 +42,9 @@ project(VisRTX LANGUAGES C CXX)
 
 enable_testing()
 
-## Options ####################################################################
-
-option(VISRTX_BUILD_TSD "Build TSD sample applications" OFF)
-mark_as_advanced(VISRTX_BUILD_TSD)
-
 ## Build targets ##############################################################
 
 option(VISRTX_BUILD_RTX_DEVICE "Build CUDA/OptiX device" ON)
 option(VISRTX_BUILD_GL_DEVICE "Build OpenGL device" ON)
 
 add_subdirectory(devices)
-if (VISRTX_BUILD_TSD)
-  add_subdirectory(tsd)
-endif()

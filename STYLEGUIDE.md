@@ -3,8 +3,6 @@
 This guide covers coding conventions for the VisRTX project. Mechanical formatting
 is handled by `.clang-format`; this document covers everything else.
 
-See [`tsd/STYLEGUIDE.md`](tsd/STYLEGUIDE.md) for TSD-specific addenda.
-
 ---
 
 ## 1. Formatting
@@ -35,8 +33,8 @@ See [`tsd/STYLEGUIDE.md`](tsd/STYLEGUIDE.md) for TSD-specific addenda.
 | Private member variables | `m_` + snake_case | `m_storage`, `m_freeIndices` |
 | Public data members | camelCase | `size`, `colorType` |
 | Local variables | camelCase | `controlPoints`, `diff` |
-| Namespaces | lowercase | `tsd::core`, `tsd::scene` |
-| Macros | UPPER_SNAKE_CASE | `TSD_NOT_COPYABLE`, `VISRTX_DEVICE` |
+| Namespaces | lowercase | `visrtx`, `visgl` |
+| Macros | UPPER_SNAKE_CASE | `VISRTX_DEVICE`, `VISRTX_HOST_DEVICE` |
 | `constexpr` constants | UPPER_SNAKE_CASE | `INVALID_INDEX`, `MAX_LOCAL_STORAGE` |
 | Type aliases | PascalCase with suffix | `Ptr`, `Ref`, `element_t` |
 | GPU data structs | PascalCase + `GPUData` suffix | `FrameGPUData`, `MaterialGPUData` |
@@ -55,7 +53,7 @@ Additional rules:
 
 - **`#pragma once`** exclusively — no `#ifndef`/`#define` include guards.
 - **Include order** (blank line between each group):
-  1. Project headers (`"tsd/..."`, `"visrtx/..."`)
+  1. Project headers (`"visrtx/..."`, `"gpu/..."`)
   2. External library headers (`<anari/...>`, `<helium/...>`)
   3. Standard library headers (`<vector>`, `<memory>`, …)
 - Forward-declare types in headers where possible to minimize include depth.
@@ -65,8 +63,7 @@ Additional rules:
 
 ## 4. Namespaces
 
-- Hierarchical, 2–3 levels deep: `tsd::core`, `tsd::scene`, `tsd::rendering`,
-  `tsd::io`, `tsd::app`; device namespaces: `visrtx`, `visgl`.
+- One top-level namespace per device: `visrtx`, `visgl`.
 - Sub-namespaces for implementation details: `detail`, `tokens`, `colormap`.
 - Anonymous namespaces (`namespace { ... }`) for translation-unit–local linkage
   in `.cpp` files.
@@ -81,7 +78,7 @@ Order within a class/struct body:
 
 1. Public type aliases and nested types
 2. Public constructors / destructor
-3. Lifetime macros (`TSD_NOT_COPYABLE`, `TSD_DEFAULT_MOVEABLE`, …)
+3. Explicit copy/move declarations (`= delete` / `= default`)
 4. Public method *declarations* (queries before mutators)
 5. `protected` virtual hooks / overrides — *declarations* only
 6. `private` data members
@@ -127,15 +124,14 @@ implementation detail below.
   - `std::shared_ptr<T>` for shared ownership (use sparingly).
 - Non-owning references use raw pointers or project-specific ref wrappers
   (`ObjectPoolRef<T>`).
-- Express copy/move intent explicitly. In TSD-layer code, use the macros from
-  `tsd/core/TypeMacros.hpp` rather than hand-rolled `= delete`/`= default`
-  lists:
+- Express copy/move intent explicitly with `= delete`/`= default` rather than
+  relying on the implicitly generated members:
   ```cpp
-  TSD_NOT_COPYABLE(MyClass)
-  TSD_DEFAULT_MOVEABLE(MyClass)
+  MyClass(const MyClass &) = delete;
+  MyClass &operator=(const MyClass &) = delete;
+  MyClass(MyClass &&) = default;
+  MyClass &operator=(MyClass &&) = default;
   ```
-  (Device code under `devices/` has no TSD dependency — spell intent with
-  explicit `= delete`/`= default` there.)
 - RAII everywhere — resources are owned and released by objects, never managed
   manually.
 

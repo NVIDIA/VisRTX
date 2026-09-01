@@ -35,7 +35,7 @@ if(NOT CMAKE_INSTALL_PREFIX)
       CACHE STRING "Final install location." FORCE)
 endif()
 
-project(tsd_dependencies)
+project(visrtx_dependencies)
 
 include(superbuild_macros.cmake)
 
