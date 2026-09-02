@@ -89,6 +89,16 @@ bool Light::isHDRI() const
   return false;
 }
 
+bool Light::hasAreaProxy() const
+{
+  return false;
+}
+
+box3 Light::areaProxyBounds(const mat4 &) const
+{
+  return box3();
+}
+
 float Light::pickPower(const mat4 &xfm, float sceneRadius) const
 {
   return lightPickPower(gpuData(), xfm, sceneRadius);

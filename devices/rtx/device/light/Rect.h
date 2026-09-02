@@ -42,6 +42,9 @@ struct Rect : public Light
 
   void commitParameters() override;
 
+  bool hasAreaProxy() const override;
+  box3 areaProxyBounds(const mat4 &xfm) const override;
+
  private:
   LightGPUData gpuData() const override;
 
@@ -55,6 +58,9 @@ struct Rect : public Light
     BACK,
     BOTH
   } m_side = Side::FRONT;
+  // khr_light_primary_visibility `visible`: camera visibility only. Never
+  // affects illumination, NEE, or appearance in reflections/GI.
+  bool m_visible = true;
 };
 
 } // namespace visrtx

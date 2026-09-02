@@ -146,6 +146,10 @@ enum class GeometryType
   SDF,
   NEURAL,
   ISOSURFACE,
+  // Analytic area-light proxy (ADR 0009). Not ANARI geometry and never backed
+  // by a Surface or a Material: it carries only the index of the light it
+  // stands for, and is traced through its own SBT slot.
+  LIGHT_PROXY,
   UNKNOWN
 };
 
@@ -721,6 +725,10 @@ struct RectLightGPUData
     unsigned int back : 1;
   } side;
   float oneOverArea;
+  // khr_light_primary_visibility `visible`: does the light show to CAMERA rays.
+  // It never affects illumination, NEE, or the light's appearance in
+  // reflections/GI.
+  bool visible;
 };
 
 struct SpotLightGPUData
@@ -827,6 +835,20 @@ struct InstanceLightGPUData
   DeviceObjectIndex surfaceInstanceIndex = -1;
 };
 
+// One traceable analytic area-light proxy (ADR 0009). Carries ONLY the identity
+// of the light it represents: every shape and radiometric parameter is read
+// from registry.lights[lightIndex], so a proxy cannot drift from its light.
+//
+// lightInstanceIndex points at the WorldGPUData::lightInstances slot this proxy
+// stands for, which is what lets the hit side recover the exact pick
+// probability the NEE sampler used for that same instance.
+struct LightProxyGPUData
+{
+  DeviceObjectIndex lightIndex; // Index into registry.lights[]
+  DeviceObjectIndex lightInstanceIndex; // Index into world.lightInstances[]
+  mat4 xfm; // Instance transform, matching the light instance
+};
+
 // World //
 
 struct WorldGPUData
@@ -844,6 +866,13 @@ struct WorldGPUData
 
   const InstanceLightGPUData *hdriLightInstances;
   size_t numHdriLightInstances;
+
+  // Analytic area-light proxies (ADR 0009), one per rect/ring light instance.
+  // These add NO entry to the light pick CDF -- they are a second
+  // representation of lights already in lightInstances, so double counting is
+  // structurally impossible rather than something tests must catch.
+  const LightProxyGPUData *lightProxies;
+  size_t numLightProxies;
 
   // Power-proportional Light Pick (built in World::buildInstanceLightGPUData).
   // Normalized cumulative Pick Power over lightInstances (length

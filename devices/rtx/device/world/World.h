@@ -65,6 +65,10 @@ struct World : public Object
   void buildInstanceSurfaceGPUData();
   void buildInstanceVolumeGPUData();
   void buildInstanceLightGPUData();
+  // Builds the analytic area-light proxy records, their AABBs and their BLAS
+  // (ADR 0009). Must run after buildInstanceLightGPUData: proxies reference
+  // light-instance slots by index.
+  void buildLightProxies();
   void synthesizeGeometryLights();
   size_t countGeometryLights(Group *group) const;
   void cleanup();
@@ -113,6 +117,18 @@ struct World : public Object
 
   HostDeviceArray<InstanceLightGPUData> m_instanceLightGPUData;
   HostDeviceArray<InstanceLightGPUData> m_instanceHdriLightGPUData;
+
+  // Analytic area-light proxies (ADR 0009): traceable stand-ins for the rect
+  // and ring entries of m_instanceLightGPUData, in their own BLAS instanced
+  // into the surfaces TLAS behind a visibility mask. They are NOT surface
+  // instances and add NO light-pick entries.
+  HostDeviceArray<LightProxyGPUData> m_lightProxyGPUData;
+  HostDeviceArray<OptixAabb> m_lightProxyAabbs;
+  // OptixBuildInput takes the AABB buffer by POINTER, so the device address
+  // must outlive the build call.
+  CUdeviceptr m_lightProxyAabbsPtr{};
+  DeviceBuffer m_bvhLightProxies;
+  OptixTraversableHandle m_traversableLightProxies{};
 
   // Power-proportional Light Pick, rebuilt with the light instances.
   HostDeviceArray<double> m_lightPickCdf;

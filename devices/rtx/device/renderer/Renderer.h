@@ -49,6 +49,11 @@ struct HitgroupFunctionNames
 {
   std::string closestHit{"__closesthit__"};
   std::string anyHit;
+  // Closest-hit for analytic area-light proxies (ADR 0009). A proxy carries no
+  // Surface/Material/Geometry, so it needs a program that does not dereference
+  // them. Empty means "reuse closestHit", which is correct for ray types that
+  // never set a proxy visibility bit and therefore never reach one.
+  std::string lightProxyClosestHit;
 };
 
 struct Renderer : public Object

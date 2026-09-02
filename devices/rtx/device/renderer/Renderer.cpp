@@ -508,6 +508,39 @@ void Renderer::initOptixPipeline()
               ANARI_SEVERITY_DEBUG, "PG Hitgroup Log (Custom):\n%s", log);
         }
       }
+
+      // Light proxies (ADR 0009)
+      //
+      // A dedicated slot with its own closest-hit, because a proxy has no
+      // Surface, Material or Geometry record and the shading CH dereferences
+      // all three. A renderer that does not name a proxy CH gets the inert
+      // default, and its rays never set the proxy visibility bits anyway.
+      {
+        OptixProgramGroupOptions pgOptions = {};
+        OptixProgramGroupDesc pgDesc = {};
+        pgDesc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
+        pgDesc.hitgroup.moduleCH = shadingModule;
+        pgDesc.hitgroup.entryFunctionNameCH = hgn.lightProxyClosestHit.empty()
+            ? hgn.closestHit.c_str()
+            : hgn.lightProxyClosestHit.c_str();
+
+        pgDesc.hitgroup.moduleIS = state.intersectionModules.customIntersectors;
+        pgDesc.hitgroup.entryFunctionNameIS = "__intersection__lightProxy";
+
+        sizeof_log = sizeof(log);
+        OPTIX_CHECK(optixProgramGroupCreate(state.optixContext,
+            &pgDesc,
+            1,
+            &pgOptions,
+            log,
+            &sizeof_log,
+            &m_hitgroupPGs[i++]));
+
+        if (sizeof_log > 1) {
+          reportMessage(
+              ANARI_SEVERITY_DEBUG, "PG Hitgroup Log (Light Proxy):\n%s", log);
+        }
+      }
     }
   }
 

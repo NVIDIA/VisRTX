@@ -1167,4 +1167,70 @@ VISRTX_GLOBAL void __intersection__()
     intersectVolume();
 }
 
+// Analytic area-light proxy intersection (ADR 0009) //////////////////////////
+
+// Separate entry point rather than a case inside intersectGeometry(): a proxy
+// has no Surface and no Material, so ray::surfaceData() -- which
+// intersectGeometry() calls before dispatching -- would index the
+// surface-instance array with a proxy's instID and read garbage.
+//
+// The proxy primitive index selects the proxy record; everything else is read
+// from the light itself, so a proxy cannot drift from what NEE samples.
+VISRTX_GLOBAL void __intersection__lightProxy()
+{
+  const auto &ss = ray::screenSample();
+  const auto &frameData = *ss.frameData;
+  const auto &world = frameData.world;
+
+  const uint32_t proxyID = ray::primID();
+  if (proxyID >= world.numLightProxies)
+    return;
+
+  const LightProxyGPUData &proxy = world.lightProxies[proxyID];
+  const LightGPUData &ld = frameData.registry.lights[proxy.lightIndex];
+  if (ld.type != LightType::RECT)
+    return;
+
+  // `visible` gates CAMERA rays only. Resolved here, per primitive, so toggling
+  // it never rebuilds an acceleration structure. Reflection/GI rays carry the
+  // hidden bit too and are unaffected.
+  if (!ld.rect.visible
+      && (optixGetRayVisibilityMask() & VISRTX_MASK_LIGHT_PROXY_HIDDEN) == 0) {
+    return;
+  }
+
+  // The proxy AABB is in world space and the BLAS instance is identity, so the
+  // object-space ray here IS the world ray. Transform the rect into world space
+  // by its light's own instance transform -- the same xfm the NEE sampler uses.
+  const vec3 org = ray::localOrigin();
+  const vec3 dir = ray::localDirection();
+
+  RectLightGPUData worldRect = ld.rect;
+  worldRect.position = xfmPoint(proxy.xfm, ld.rect.position);
+  worldRect.edge1 = xfmVec(proxy.xfm, ld.rect.edge1);
+  worldRect.edge2 = xfmVec(proxy.xfm, ld.rect.edge2);
+
+  const RectIntersection isect = intersectRect(worldRect, org, dir);
+  if (!isect.hit)
+    return;
+
+  // Cull from the non-emitting side using the SAME side predicate NEE uses, so
+  // "which side is lit" cannot be answered two ways. A front-only light seen
+  // from behind is IGNORED rather than reported black, so it cannot occlude
+  // anything behind it.
+  const vec3 normal = normalize(cross(worldRect.edge1, worldRect.edge2));
+  // rectEmissionCosTheta takes the direction from the shaded point TO the light,
+  // which is the ray direction (normalized).
+  const float cosTheta =
+      rectEmissionCosTheta(worldRect, normal, normalize(dir));
+  if (!(cosTheta > 0.0f))
+    return;
+
+  optixReportIntersection(isect.t,
+      HIT_KIND_FRONT,
+      bit_cast<uint32_t>(isect.uv.x),
+      bit_cast<uint32_t>(isect.uv.y),
+      proxyID);
+}
+
 } // namespace visrtx

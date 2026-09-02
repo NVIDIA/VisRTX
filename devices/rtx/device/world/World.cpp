@@ -227,6 +227,9 @@ WorldGPUData World::gpuData() const
   retval.hdriLightInstances = m_instanceHdriLightGPUData.dataDevice();
   retval.numHdriLightInstances = m_instanceHdriLightGPUData.size();
 
+  retval.lightProxies = m_lightProxyGPUData.dataDevice();
+  retval.numLightProxies = m_lightProxyGPUData.size();
+
   retval.lightPickCdf = m_lightPickCdf.dataDevice();
   retval.lightPickDelta = m_lightPickDelta.dataDevice();
   retval.totalLightPower = m_totalLightPower;
@@ -255,6 +258,11 @@ void World::rebuildWorld()
     m_traversableSurfaces = {};
     m_traversableVolumes = {};
 
+    // Light instances and their proxies must exist BEFORE the surfaces TLAS is
+    // populated: the proxy BLAS is instanced into that TLAS.
+    buildInstanceLightGPUData();
+    buildLightProxies();
+
     populateOptixInstances();
     reportMessage(ANARI_SEVERITY_DEBUG,
         "visrtx::World building surface BVH over %zu instances",
@@ -279,8 +287,6 @@ void World::rebuildWorld()
     reportMessage(
         ANARI_SEVERITY_DEBUG, "visrtx::World building volume gpu data");
     buildInstanceVolumeGPUData();
-
-    buildInstanceLightGPUData();
 
     reportMessage(ANARI_SEVERITY_DEBUG,
         "visrtx::World finished building world over %zu instances",
@@ -310,8 +316,14 @@ void World::populateOptixInstances()
       m_numVolumeInstances += numTransforms;
   });
 
-  m_optixSurfaceInstances.resize(
-      m_numTriangleInstances + m_numCurveInstances + m_numUserInstances);
+  // The light-proxy BLAS rides in the surfaces TLAS as ONE extra instance,
+  // behind a visibility mask (ADR 0009). It is deliberately not a surface
+  // instance: buildInstanceSurfaceGPUData's array and its cursor invariant stay
+  // exactly as they were.
+  const bool hasLightProxies = m_traversableLightProxies != 0;
+
+  m_optixSurfaceInstances.resize(m_numTriangleInstances + m_numCurveInstances
+      + m_numUserInstances + (hasLightProxies ? 1 : 0));
   m_optixVolumeInstances.resize(m_numVolumeInstances);
 
   auto prepInstance = [](auto &i,
@@ -329,7 +341,7 @@ void World::populateOptixInstances()
     inst.flags = OPTIX_INSTANCE_FLAG_NONE;
     inst.instanceId = instID;
     inst.sbtOffset = sbtOffset;
-    inst.visibilityMask = 1;
+    inst.visibilityMask = VISRTX_MASK_GEOMETRY;
 
     return inst;
   };
@@ -369,6 +381,27 @@ void World::populateOptixInstances()
       }
     }
   });
+
+  if (hasLightProxies) {
+    // One instance covering the whole proxy BLAS. Identity transform: proxy
+    // AABBs were built in world space already, since each proxy carries its own
+    // light's instance transform.
+    //
+    // The mask is the union of both proxy bits. Per-light `visible` is resolved
+    // per primitive at intersection time rather than by splitting the BLAS in
+    // two: toggling `visible` then never rebuilds an acceleration structure.
+    OptixInstance &proxyInstance = m_optixSurfaceInstances.dataHost()[instID];
+    proxyInstance = OptixInstance{};
+    const mat3x4 identity = glm::transpose(mat4(1.f));
+    std::memcpy(proxyInstance.transform, &identity, sizeof(identity));
+    proxyInstance.traversableHandle = m_traversableLightProxies;
+    proxyInstance.flags = OPTIX_INSTANCE_FLAG_NONE;
+    proxyInstance.instanceId = instID;
+    proxyInstance.sbtOffset = SBT_LIGHT_PROXY_OFFSET;
+    proxyInstance.visibilityMask =
+        VISRTX_MASK_LIGHT_PROXY_VISIBLE | VISRTX_MASK_LIGHT_PROXY_HIDDEN;
+    instID++;
+  }
 
   m_optixSurfaceInstances.upload();
   m_optixVolumeInstances.upload();
@@ -737,6 +770,135 @@ void World::buildInstanceLightGPUData()
   m_instanceHdriLightGPUData.upload();
   m_lightPickCdf.upload();
   m_lightPickDelta.upload();
+}
+
+// An area light is flat, so its world AABB is degenerate along one axis
+// whenever the light is axis-aligned. A zero-thickness box can drop grazing
+// rays in the traversal, so every proxy AABB is padded relative to the light's
+// own extent, with an absolute floor so a tiny light at the origin still gets a
+// non-degenerate box.
+constexpr float LIGHT_PROXY_AABB_RELATIVE_PAD = 1.0e-4f;
+constexpr float LIGHT_PROXY_AABB_MINIMUM_PAD = 1.0e-6f;
+
+void World::buildLightProxies()
+{
+  // Traceable stand-ins for the analytic AREA lights (ADR 0009), so a camera or
+  // BSDF-continuation ray can hit them. Deliberately derived from the ALREADY
+  // BUILT light instances rather than re-walking the instance tree: the proxy
+  // must stand for exactly the light instances NEE samples, and reusing their
+  // slot indices is what lets the hit side recover the same pick probability.
+  //
+  // No light-pick entry is added here. A rect/ring light contributes exactly
+  // one pick entry, created by appendLight, shared by NEE and the hit deposit.
+  m_lightProxyGPUData.resize(0);
+  m_lightProxyAabbs.resize(0);
+  m_traversableLightProxies = {};
+
+  std::vector<LightProxyGPUData> proxies;
+  std::vector<OptixAabb> aabbs;
+
+  // Walk the instances in the SAME order buildInstanceLightGPUData did, so the
+  // running index tracks that function's lightIndex cursor exactly. That index
+  // is the proxy's link back to the light instance NEE samples, and hence to
+  // the pick probability the hit side must reproduce.
+  size_t lightInstanceCursor = 0;
+  std::for_each(m_instances.begin(), m_instances.end(), [&](auto *inst) {
+    auto *group = inst->group();
+    for (size_t t = 0; t < inst->numTransforms(); t++) {
+      const mat4 xfm = mat4(inst->xfm(t));
+      for (auto *light : group->lights()) {
+        const size_t slot = lightInstanceCursor++;
+        if (!light->hasAreaProxy())
+          continue;
+
+        const box3 b = light->areaProxyBounds(xfm);
+        if (empty(b))
+          continue;
+
+        LightProxyGPUData proxy;
+        proxy.lightIndex = light->index();
+        proxy.lightInstanceIndex = DeviceObjectIndex(slot);
+        proxy.xfm = xfm;
+        proxies.push_back(proxy);
+
+        const vec3 lo = b.lower;
+        const vec3 hi = b.upper;
+        const vec3 span = hi - lo;
+        const float extent = glm::max(span.x, glm::max(span.y, span.z));
+        const float pad = glm::max(extent * LIGHT_PROXY_AABB_RELATIVE_PAD,
+            LIGHT_PROXY_AABB_MINIMUM_PAD);
+
+        OptixAabb aabb;
+        aabb.minX = lo.x - pad;
+        aabb.minY = lo.y - pad;
+        aabb.minZ = lo.z - pad;
+        aabb.maxX = hi.x + pad;
+        aabb.maxY = hi.y + pad;
+        aabb.maxZ = hi.z + pad;
+        aabbs.push_back(aabb);
+      }
+
+      // Synthesized Geometry Lights occupy light-instance slots too, and are
+      // appended AFTER the authored lights for this transform. They already
+      // have real geometry in a BLAS and never get a proxy, but the cursor must
+      // still step over them or every later proxy points at the wrong light
+      // instance.
+      for (auto *surface : group->surfacesTriangle()) {
+        if (surface->geometryLight())
+          ++lightInstanceCursor;
+      }
+      for (auto *surface : group->surfacesUser()) {
+        if (surface->geometryLight())
+          ++lightInstanceCursor;
+      }
+    }
+  });
+
+  // Tripwire: this cursor mirrors buildInstanceLightGPUData's traversal with no
+  // shared source of truth. If the two ever drift, a proxy would reconstruct
+  // its pick probability from the wrong light instance and silently bias MIS. A
+  // release build must not ship that bias, so this is a real check rather than
+  // an assert: drop every proxy and fall back to NEE-only lighting, which is
+  // merely the pre-ADR-0009 behavior instead of a wrong image.
+  if (lightInstanceCursor != m_instanceLightGPUData.size()) {
+    reportMessage(ANARI_SEVERITY_FATAL_ERROR,
+        "visrtx::World light-proxy cursor drift (%zu walked, %zu light "
+        "instances) -- area lights will not be directly visible",
+        lightInstanceCursor,
+        m_instanceLightGPUData.size());
+    return;
+  }
+
+  if (proxies.empty())
+    return;
+
+  m_lightProxyGPUData.resize(proxies.size());
+  std::copy(proxies.begin(), proxies.end(), m_lightProxyGPUData.dataHost());
+  m_lightProxyGPUData.upload();
+
+  m_lightProxyAabbs.resize(aabbs.size());
+  std::copy(aabbs.begin(), aabbs.end(), m_lightProxyAabbs.dataHost());
+  m_lightProxyAabbs.upload();
+
+  reportMessage(ANARI_SEVERITY_DEBUG,
+      "visrtx::World building light-proxy BLAS over %zu proxies",
+      proxies.size());
+
+  OptixBuildInput buildInput{};
+  buildInput.type = OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
+  m_lightProxyAabbsPtr = (CUdeviceptr)m_lightProxyAabbs.dataDevice();
+  buildInput.customPrimitiveArray.aabbBuffers = &m_lightProxyAabbsPtr;
+  buildInput.customPrimitiveArray.numPrimitives = uint32_t(aabbs.size());
+  static uint32_t proxyBuildFlags[1] = {OPTIX_GEOMETRY_FLAG_NONE};
+  buildInput.customPrimitiveArray.flags = proxyBuildFlags;
+  buildInput.customPrimitiveArray.numSbtRecords = 1;
+
+  box3 proxyBounds;
+  buildOptixBVH({buildInput},
+      m_bvhLightProxies,
+      m_traversableLightProxies,
+      proxyBounds,
+      this);
 }
 
 } // namespace visrtx

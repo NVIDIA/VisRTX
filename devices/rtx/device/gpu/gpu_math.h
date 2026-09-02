@@ -144,8 +144,27 @@ struct SurfaceHit
   const GeometryGPUData *geometry{nullptr};
   const MaterialGPUData *material{nullptr};
 
+  // Analytic area-light proxy hit (ADR 0009). ~0u for every ordinary surface
+  // hit; otherwise the index into WorldGPUData::lightProxies.
+  //
+  // A proxy hit sets foundHit and t but leaves instance/geometry/material NULL,
+  // because a proxy has none of them. ANY consumer of a SurfaceHit must test
+  // isLightProxy() before dereferencing those pointers -- a null material
+  // reaching a shading call is a device crash, not a wrong pixel.
+  uint32_t lightProxyIndex{~0u};
+  vec2 lightProxyUv{0.0f};
+
+  VISRTX_DEVICE bool isLightProxy() const;
+
   VISRTX_DEVICE SurfaceHit() : isFrontFace(false), foundHit(false) {}
 };
+
+// Inlined definitions ////////////////////////////////////////////////////////
+
+VISRTX_DEVICE bool SurfaceHit::isLightProxy() const
+{
+  return lightProxyIndex != ~0u;
+}
 
 struct VolumeHit
 {

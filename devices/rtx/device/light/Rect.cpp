@@ -44,6 +44,9 @@ void Rect::commitParameters()
   m_intensity = std::max(
       getParam<float>("intensity", getParam<float>("power", 1.f)), 0.f);
 
+  // khr_light_primary_visibility. Default true, per the extension schema.
+  m_visible = getParam<bool>("visible", true);
+
   auto side = getParamString("side", "front");
   if (side == "front")
     m_side = Side::FRONT;
@@ -69,8 +72,28 @@ LightGPUData Rect::gpuData() const
   retval.rect.side.front = (m_side == Side::FRONT || m_side == Side::BOTH) ? 1 : 0;
   auto area = length(cross(m_edge1, m_edge2));
   retval.rect.oneOverArea = area > 0.f ? 1.f / area : 1.f;
+  retval.rect.visible = m_visible;
 
   return retval;
+}
+
+bool Rect::hasAreaProxy() const
+{
+  // A degenerate rect has nothing to show and no well-defined plane; skipping
+  // it here keeps a zero-area light out of the BLAS entirely.
+  return length(cross(m_edge1, m_edge2)) > 0.f;
+}
+
+box3 Rect::areaProxyBounds(const mat4 &xfm) const
+{
+  box3 bounds;
+  const vec3 corners[4] = {m_position,
+      m_position + m_edge1,
+      m_position + m_edge2,
+      m_position + m_edge1 + m_edge2};
+  for (const vec3 &c : corners)
+    bounds.extend(xfmPoint(xfm, c));
+  return bounds;
 }
 
 } // namespace visrtx

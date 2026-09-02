@@ -1,0 +1,482 @@
+/*
+ * Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright notice,
+ * this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright notice,
+ * this list of conditions and the following disclaimer in the documentation
+ * and/or other materials provided with the distribution.
+ *
+ * 3. Neither the name of the copyright holder nor the names of its
+ * contributors may be used to endorse or promote products derived from
+ * this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ */
+
+// An analytic quad light is visible to the camera (ADR 0009).
+//
+// Before the light-proxy work these lights existed only in the light-pick CDF
+// and in no acceleration structure, so a camera ray had nothing to hit and the
+// light's own position rendered as background.
+//
+// What is pinned here:
+//  - the light shows where it is placed, at the radiance it emits (measured
+//    against an authored emissive quad surface as the oracle);
+//  - `side` governs visibility, front and back alike;
+//  - a light neither shadows the scene nor shadows itself;
+//  - illumination is UNCHANGED by making the light visible -- the mask/BLAS
+//    work must not perturb the light transport it was added alongside.
+//
+// Rendered with 'quality' into a linear float buffer, firefly filter off.
+
+// anari_cpp
+#define ANARI_EXTENSION_UTILITY_IMPL
+#include <anari/anari_cpp/ext/std.h>
+#include <anari/anari_cpp.hpp>
+// VisRTX
+#include <anari/ext/visrtx/makeVisRTXDevice.h>
+// std
+#include <array>
+#include <cmath>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <string>
+#include <vector>
+
+using uvec2 = std::array<unsigned int, 2>;
+using vec3 = std::array<float, 3>;
+using vec4 = std::array<float, 4>;
+
+static void statusFunc(const void *,
+    ANARIDevice,
+    ANARIObject source,
+    ANARIDataType,
+    ANARIStatusSeverity severity,
+    ANARIStatusCode,
+    const char *message)
+{
+  if (severity == ANARI_SEVERITY_FATAL_ERROR) {
+    fprintf(stderr, "[FATAL][%p] %s\n", source, message);
+    std::exit(1);
+  } else if (severity == ANARI_SEVERITY_ERROR)
+    fprintf(stderr, "[ERROR][%p] %s\n", source, message);
+}
+
+static constexpr uvec2 IMAGE_SIZE = {200, 200};
+static constexpr int PIXEL_SAMPLES = 128;
+static constexpr float EMISSIVE_RADIANCE = 5.f;
+
+// The emitter: a 1x1 quad at y=1, in the XZ plane, centred over the origin.
+// Straight ahead of a camera that looks level along +Z from y=1.
+static constexpr float QUAD_Y = 1.0f;
+static constexpr float QUAD_HALF = 0.5f;
+static constexpr float QUAD_Z = 2.0f;
+
+// The light faces the camera (-Z). Per the ANARI spec the front side is
+// edge2 x edge1, so edge1=+X, edge2=+Y gives +Y x +X = -Z, from the (-x,-y)
+// corner.
+static anari::Light makeQuadLight(
+    ANARIDevice d, const char *side, bool visible = true)
+{
+  auto light = anari::newObject<anari::Light>(d, "quad");
+  anari::setParameter(d, light, "color", vec3{1.f, 1.f, 1.f});
+  anari::setParameter(
+      d, light, "position", vec3{-QUAD_HALF, QUAD_Y - QUAD_HALF, QUAD_Z});
+  anari::setParameter(d, light, "edge1", vec3{2.f * QUAD_HALF, 0.f, 0.f});
+  anari::setParameter(d, light, "edge2", vec3{0.f, 2.f * QUAD_HALF, 0.f});
+  anari::setParameter(d, light, "intensity", EMISSIVE_RADIANCE);
+  anari::setParameter(d, light, "side", side);
+  if (!visible)
+    anari::setParameter(d, light, "visible", false);
+  anari::commitParameters(d, light);
+  return light;
+}
+
+// The oracle: the same footprint authored as an emissive surface. ADR 0009
+// rejected this as the fix but kept it as the equivalence check.
+static anari::Surface makeEmissiveQuad(ANARIDevice d)
+{
+  const std::array<vec3, 4> pos = {vec3{-QUAD_HALF, QUAD_Y - QUAD_HALF, QUAD_Z},
+      vec3{QUAD_HALF, QUAD_Y - QUAD_HALF, QUAD_Z},
+      vec3{QUAD_HALF, QUAD_Y + QUAD_HALF, QUAD_Z},
+      vec3{-QUAD_HALF, QUAD_Y + QUAD_HALF, QUAD_Z}};
+  const std::array<std::array<unsigned, 3>, 2> idx = {
+      std::array<unsigned, 3>{0, 1, 2}, std::array<unsigned, 3>{0, 2, 3}};
+
+  auto geom = anari::newObject<anari::Geometry>(d, "triangle");
+  anari::setParameterArray1D(d, geom, "vertex.position", pos.data(), 4);
+  anari::setParameterArray1D(d, geom, "primitive.index", idx.data(), 2);
+  anari::commitParameters(d, geom);
+
+  auto mat = anari::newObject<anari::Material>(d, "physicallyBased");
+  anari::setParameter(d, mat, "baseColor", vec3{0.f, 0.f, 0.f});
+  anari::setParameter(d, mat, "metallic", 0.f);
+  anari::setParameter(d, mat, "roughness", 1.f);
+  anari::setParameter(d,
+      mat,
+      "emissive",
+      vec3{EMISSIVE_RADIANCE, EMISSIVE_RADIANCE, EMISSIVE_RADIANCE});
+  anari::commitParameters(d, mat);
+
+  auto surface = anari::newObject<anari::Surface>(d);
+  anari::setAndReleaseParameter(d, surface, "geometry", geom);
+  anari::setAndReleaseParameter(d, surface, "material", mat);
+  anari::commitParameters(d, surface);
+  return surface;
+}
+
+// A DOWNWARD-facing emitter above the floor, for the illumination checks.
+// Separate from the camera-facing emitter above: a vertical quad barely
+// illuminates a horizontal floor (cos ~ 0), so reusing it would measure noise.
+// Placed low enough that its proxy sits close over the floor, which is what
+// makes self-shadowing visible if the mask exclusion is wrong.
+static constexpr float DOWN_Y = 1.5f;
+
+// The front side (edge2 x edge1) must point at -Y (down): edge1=+Z, edge2=+X
+// gives +X x +Z = -Y.
+static anari::Light makeDownLight(ANARIDevice d)
+{
+  auto light = anari::newObject<anari::Light>(d, "quad");
+  anari::setParameter(d, light, "color", vec3{1.f, 1.f, 1.f});
+  anari::setParameter(
+      d, light, "position", vec3{-QUAD_HALF, DOWN_Y, -QUAD_HALF});
+  anari::setParameter(d, light, "edge1", vec3{0.f, 0.f, 2.f * QUAD_HALF});
+  anari::setParameter(d, light, "edge2", vec3{2.f * QUAD_HALF, 0.f, 0.f});
+  anari::setParameter(d, light, "intensity", EMISSIVE_RADIANCE);
+  anari::setParameter(d, light, "side", "front");
+  anari::commitParameters(d, light);
+  return light;
+}
+
+static anari::Surface makeDownEmissiveQuad(ANARIDevice d)
+{
+  const std::array<vec3, 4> pos = {vec3{-QUAD_HALF, DOWN_Y, -QUAD_HALF},
+      vec3{QUAD_HALF, DOWN_Y, -QUAD_HALF},
+      vec3{QUAD_HALF, DOWN_Y, QUAD_HALF},
+      vec3{-QUAD_HALF, DOWN_Y, QUAD_HALF}};
+  const std::array<std::array<unsigned, 3>, 2> idx = {
+      std::array<unsigned, 3>{0, 1, 2}, std::array<unsigned, 3>{0, 2, 3}};
+
+  auto geom = anari::newObject<anari::Geometry>(d, "triangle");
+  anari::setParameterArray1D(d, geom, "vertex.position", pos.data(), 4);
+  anari::setParameterArray1D(d, geom, "primitive.index", idx.data(), 2);
+  anari::commitParameters(d, geom);
+
+  auto mat = anari::newObject<anari::Material>(d, "physicallyBased");
+  anari::setParameter(d, mat, "baseColor", vec3{0.f, 0.f, 0.f});
+  anari::setParameter(d, mat, "metallic", 0.f);
+  anari::setParameter(d, mat, "roughness", 1.f);
+  anari::setParameter(d,
+      mat,
+      "emissive",
+      vec3{EMISSIVE_RADIANCE, EMISSIVE_RADIANCE, EMISSIVE_RADIANCE});
+  anari::commitParameters(d, mat);
+
+  auto surface = anari::newObject<anari::Surface>(d);
+  anari::setAndReleaseParameter(d, surface, "geometry", geom);
+  anari::setAndReleaseParameter(d, surface, "material", mat);
+  anari::commitParameters(d, surface);
+  return surface;
+}
+
+// A diffuse floor at y=0, to measure illumination.
+static anari::Surface makeFloor(ANARIDevice d)
+{
+  const std::array<vec3, 4> pos = {vec3{-6.f, 0.f, -6.f},
+      vec3{6.f, 0.f, -6.f},
+      vec3{6.f, 0.f, 6.f},
+      vec3{-6.f, 0.f, 6.f}};
+  const std::array<std::array<unsigned, 3>, 2> idx = {
+      std::array<unsigned, 3>{0, 1, 2}, std::array<unsigned, 3>{0, 2, 3}};
+
+  auto geom = anari::newObject<anari::Geometry>(d, "triangle");
+  anari::setParameterArray1D(d, geom, "vertex.position", pos.data(), 4);
+  anari::setParameterArray1D(d, geom, "primitive.index", idx.data(), 2);
+  anari::commitParameters(d, geom);
+
+  auto mat = anari::newObject<anari::Material>(d, "physicallyBased");
+  anari::setParameter(d, mat, "baseColor", vec3{0.6f, 0.6f, 0.6f});
+  anari::setParameter(d, mat, "metallic", 0.f);
+  anari::setParameter(d, mat, "roughness", 1.f);
+  anari::commitParameters(d, mat);
+
+  auto surface = anari::newObject<anari::Surface>(d);
+  anari::setAndReleaseParameter(d, surface, "geometry", geom);
+  anari::setAndReleaseParameter(d, surface, "material", mat);
+  anari::commitParameters(d, surface);
+  return surface;
+}
+
+struct Scene
+{
+  const char *side = "both";
+  bool visible = true;
+  bool useEmissiveMesh = false; // author the oracle instead of the light
+  bool withFloor = false;
+  bool behind = false; // put the camera on the far side of the light
+  bool noLight = false; // control: no emitter at all
+  // Use the downward-facing emitter and a camera aimed at the lit floor.
+  bool floorScene = false;
+  const char *rendererSubtype = "quality";
+};
+
+static std::vector<vec4> render(ANARIDevice d, const Scene &sc)
+{
+  std::vector<anari::Surface> surfaces;
+  std::vector<anari::Light> lights;
+
+  if (sc.withFloor)
+    surfaces.push_back(makeFloor(d));
+  if (!sc.noLight) {
+    if (sc.floorScene) {
+      if (sc.useEmissiveMesh)
+        surfaces.push_back(makeDownEmissiveQuad(d));
+      else
+        lights.push_back(makeDownLight(d));
+    } else if (sc.useEmissiveMesh)
+      surfaces.push_back(makeEmissiveQuad(d));
+    else
+      lights.push_back(makeQuadLight(d, sc.side, sc.visible));
+  }
+
+  auto world = anari::newObject<anari::World>(d);
+  if (!surfaces.empty()) {
+    anari::setParameterArray1D(
+        d, world, "surface", surfaces.data(), surfaces.size());
+  }
+  if (!lights.empty()) {
+    anari::setParameterArray1D(d, world, "light", lights.data(), lights.size());
+  }
+  for (auto s : surfaces)
+    anari::release(d, s);
+  for (auto l : lights)
+    anari::release(d, l);
+  anari::commitParameters(d, world);
+
+  auto camera = anari::newObject<anari::Camera>(d, "perspective");
+  if (sc.floorScene) {
+    // Look across the floor. The emitter is above the top of frame, so only its
+    // cast pool is measured -- the emitter's own glow never enters the region,
+    // which is what makes the light and the emissive-mesh oracle comparable.
+    anari::setParameter(d, camera, "position", vec3{0.f, 0.5f, -3.f});
+    anari::setParameter(d, camera, "direction", vec3{0.f, -0.15f, 1.f});
+  } else if (sc.behind) {
+    // Far side of the light, looking back at it.
+    anari::setParameter(d, camera, "position", vec3{0.f, QUAD_Y, QUAD_Z + 2.f});
+    anari::setParameter(d, camera, "direction", vec3{0.f, 0.f, -1.f});
+  } else {
+    anari::setParameter(d, camera, "position", vec3{0.f, QUAD_Y, 0.f});
+    anari::setParameter(d, camera, "direction", vec3{0.f, 0.f, 1.f});
+  }
+  anari::setParameter(d, camera, "up", vec3{0.f, 1.f, 0.f});
+  anari::setParameter(
+      d, camera, "aspect", IMAGE_SIZE[0] / float(IMAGE_SIZE[1]));
+  anari::commitParameters(d, camera);
+
+  auto renderer = anari::newObject<anari::Renderer>(d, sc.rendererSubtype);
+  anari::setParameter(d, renderer, "background", vec4{0.f, 0.f, 0.f, 1.f});
+  anari::setParameter(d, renderer, "ambientRadiance", 0.f);
+  anari::setParameter(d, renderer, "pixelSamples", PIXEL_SAMPLES);
+  anari::setParameter(d, renderer, "fireflyFilterMode", "none");
+  anari::commitParameters(d, renderer);
+
+  auto frame = anari::newObject<anari::Frame>(d);
+  anari::setParameter(d, frame, "size", IMAGE_SIZE);
+  anari::setParameter(d, frame, "channel.color", ANARI_FLOAT32_VEC4);
+  anari::setAndReleaseParameter(d, frame, "world", world);
+  anari::setAndReleaseParameter(d, frame, "camera", camera);
+  anari::setAndReleaseParameter(d, frame, "renderer", renderer);
+  anari::commitParameters(d, frame);
+
+  anari::render(d, frame);
+  anari::wait(d, frame);
+
+  auto fb = anari::map<vec4>(d, frame, "channel.color");
+  std::vector<vec4> out(fb.data, fb.data + size_t(fb.width) * fb.height);
+  anari::unmap(d, frame, "channel.color");
+  anari::release(d, frame);
+  return out;
+}
+
+static double luminanceAt(const std::vector<vec4> &fb, uint32_t x, uint32_t y)
+{
+  const vec4 &p = fb[y * IMAGE_SIZE[0] + x];
+  return 0.2126 * p[0] + 0.7152 * p[1] + 0.0722 * p[2];
+}
+
+// Mean luminance over a small window at the centre of frame, where the emitter
+// sits.
+static double centreMean(const std::vector<vec4> &fb)
+{
+  double sum = 0.0;
+  uint64_t n = 0;
+  for (uint32_t y = 2 * IMAGE_SIZE[1] / 5; y < 3 * IMAGE_SIZE[1] / 5; ++y) {
+    for (uint32_t x = 2 * IMAGE_SIZE[0] / 5; x < 3 * IMAGE_SIZE[0] / 5; ++x) {
+      sum += luminanceAt(fb, x, y);
+      ++n;
+    }
+  }
+  return n ? sum / double(n) : 0.0;
+}
+
+// Mean luminance over the lit pool on the floor (lower-centre of the frame),
+// matching TestEmissiveGeometryLight's region.
+static double floorMean(const std::vector<vec4> &fb)
+{
+  double sum = 0.0;
+  uint64_t n = 0;
+  for (uint32_t y = IMAGE_SIZE[1] / 8; y < IMAGE_SIZE[1] / 2; ++y) {
+    for (uint32_t x = 3 * IMAGE_SIZE[0] / 8; x < 5 * IMAGE_SIZE[0] / 8; ++x) {
+      sum += luminanceAt(fb, x, y);
+      ++n;
+    }
+  }
+  return n ? sum / double(n) : 0.0;
+}
+
+static int g_failures = 0;
+
+static void check(bool cond, const std::string &what)
+{
+  if (!cond) {
+    fprintf(stderr, "FAIL: %s\n", what.c_str());
+    ++g_failures;
+  } else
+    printf("  ok: %s\n", what.c_str());
+}
+
+int main()
+{
+  auto device = makeVisRTXDevice(statusFunc);
+
+  // 1. The light is visible, and shows the radiance it emits. The authored
+  //    emissive surface is the oracle for "what radiance should appear".
+  const double lightCentre = centreMean(render(device, Scene{"both"}));
+  Scene meshScene;
+  meshScene.useEmissiveMesh = true;
+  const double meshCentre = centreMean(render(device, meshScene));
+
+  printf("visible quad light: light=%f  emissiveMesh=%f\n",
+      lightCentre,
+      meshCentre);
+  check(lightCentre > 0.1, "a quad light is visible to the camera");
+
+  const double relErr =
+      meshCentre > 0.0 ? std::abs(lightCentre - meshCentre) / meshCentre : 1.0;
+  check(relErr < 0.02,
+      "visible radiance matches an authored emissive quad (relErr="
+          + std::to_string(relErr) + ")");
+
+  // 2. `side` governs visibility. The light faces -Z (toward the default
+  //    camera), so "front" is visible from the front and dark from behind, and
+  //    "back" is exactly mirrored.
+  Scene behind;
+  behind.behind = true;
+
+  Scene frontBehind = behind;
+  frontBehind.side = "front";
+  Scene backBehind = behind;
+  backBehind.side = "back";
+
+  const double frontFromFront = centreMean(render(device, Scene{"front"}));
+  const double frontFromBehind = centreMean(render(device, frontBehind));
+  const double backFromFront = centreMean(render(device, Scene{"back"}));
+  const double backFromBehind = centreMean(render(device, backBehind));
+
+  printf("side: front(front/behind)=%f/%f  back(front/behind)=%f/%f\n",
+      frontFromFront,
+      frontFromBehind,
+      backFromFront,
+      backFromBehind);
+
+  check(frontFromFront > 0.1, "side=front is visible from the front");
+  check(frontFromBehind < 1e-4, "side=front is invisible from behind");
+  check(backFromBehind > 0.1, "side=back is visible from behind");
+  check(backFromFront < 1e-4, "side=back is invisible from the front");
+
+  // 3. Illumination is unchanged by the light becoming visible. The floor is
+  //    lit purely by NEE; if the proxy leaked into shadow rays it would darken,
+  //    and if it were double counted it would brighten.
+  Scene litFloor;
+  litFloor.withFloor = true;
+  litFloor.floorScene = true;
+  Scene litFloorMesh = litFloor;
+  litFloorMesh.useEmissiveMesh = true;
+
+  const double floorFromLight = floorMean(render(device, litFloor));
+  const double floorFromMesh = floorMean(render(device, litFloorMesh));
+  printf("floor: light=%f  emissiveMesh=%f\n", floorFromLight, floorFromMesh);
+
+  check(floorFromLight > 1e-3, "the floor is lit by the quad light");
+  const double floorRel = floorFromMesh > 0.0
+      ? std::abs(floorFromLight - floorFromMesh) / floorFromMesh
+      : 1.0;
+  check(floorRel < 0.05,
+      "floor illumination matches the emissive-surface oracle (relErr="
+          + std::to_string(floorRel) + ")");
+
+  // 4. A light does not shadow the scene. With the emitter removed entirely the
+  //    floor is black; with it present the floor is lit. The interesting case
+  //    is that the proxy sitting above the floor must not occlude the light's
+  //    own shadow rays -- that would show as a markedly darker floor than the
+  //    mesh oracle, which check 3 already measures. Here we only confirm the
+  //    control.
+  Scene darkFloor;
+  darkFloor.withFloor = true;
+  darkFloor.floorScene = true;
+  darkFloor.noLight = true;
+  const double floorUnlit = floorMean(render(device, darkFloor));
+  printf("floor with no emitter: %f\n", floorUnlit);
+  check(floorUnlit < 1e-5, "the floor is black with no emitter (control)");
+
+  // 5. Other renderers are inert to the proxy. They trace with the
+  //    geometry-only visibility mask, so their rays cannot reach a proxy at all
+  //    -- which matters because their closest-hit programs would dereference
+  //    the Material a proxy does not have. Rendering without crashing is the
+  //    substance of this check; a proxy hit would fault the device, not just
+  //    shade oddly.
+  for (const char *subtype : {"interactive", "fast", "debug"}) {
+    Scene other;
+    other.withFloor = true;
+    other.floorScene = true;
+    other.rendererSubtype = subtype;
+    const std::vector<vec4> fb = render(device, other);
+
+    bool allFinite = true;
+    for (const vec4 &p : fb) {
+      for (int c = 0; c < 4; ++c) {
+        if (!std::isfinite(p[c]))
+          allFinite = false;
+      }
+    }
+    check(fb.size() == size_t(IMAGE_SIZE[0]) * IMAGE_SIZE[1],
+        std::string(subtype) + " renders a scene with an area light");
+    check(allFinite, std::string(subtype) + " produces no NaN/Inf pixels");
+  }
+
+  anari::release(device, device);
+
+  if (g_failures) {
+    fprintf(stderr, "%d check(s) failed\n", g_failures);
+    return 1;
+  }
+  printf("visible area light: all checks passed\n");
+  return 0;
+}

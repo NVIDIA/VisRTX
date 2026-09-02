@@ -477,6 +477,13 @@ VISRTX_GLOBAL void __miss__shading()
   }
 }
 
+// Analytic area-light proxy closest-hit (ADR 0009). Separate from
+// __closesthit__shading because a proxy carries no Surface/Material/Geometry.
+VISRTX_GLOBAL void __closesthit__lightProxy()
+{
+  ray::populateLightProxyHit();
+}
+
 VISRTX_GLOBAL void __closesthit__shadow() {}
 
 VISRTX_GLOBAL void __anyhit__shadow()
@@ -575,11 +582,16 @@ VISRTX_GLOBAL void __raygen__()
       const bool isFirstBounce = bounceDepth == 0 && transparencyDepth == 0;
 
       SurfaceHit surfaceHit = {};
+      // Camera rays may hit the proxy of a light whose `visible` is true.
+      // Continuation rays do not yet: depositing there needs the hit-side pdf
+      // reconstruction, so until then they must not reach a proxy at all or the
+      // light would be double counted against NEE.
       intersectSurface(ss,
           ray,
           RayType::PRIMARY,
           &surfaceHit,
-          primaryRayOptiXFlags(rendererParams));
+          primaryRayOptiXFlags(rendererParams),
+          isFirstBounce ? primaryWithVisibleLightsMask() : geometryOnlyMask());
 
       float volumeUpperBound = surfaceHit.foundHit ? surfaceHit.t : ray.t.upper;
       auto volumeRay = Ray{ray.org, ray.dir, {ray.t.lower, volumeUpperBound}};
@@ -666,6 +678,32 @@ VISRTX_GLOBAL void __raygen__()
         lastScatterWasSurface = false;
         ++bounceDepth;
         continue;
+      }
+
+      // A directly visible area light. Handled before any material work: a
+      // proxy has no Material to initialize shading from.
+      //
+      // No MIS weight is needed here. This branch is reachable only on a camera
+      // ray, which is a delta event (bsdfPdf == +inf), so the balance heuristic
+      // gives weight 1 -- NEE cannot produce the directly visible light.
+      if (surfaceHit.foundHit && surfaceHit.isLightProxy()) {
+        const auto &proxy =
+            frameData.world.lightProxies[surfaceHit.lightProxyIndex];
+        const auto &ld = frameData.registry.lights[proxy.lightIndex];
+
+        if (isFirstBounce) {
+          // Depth so compositing stays sane, but deliberately NOT the ID
+          // channels: a light is not a scene object and must not be pickable as
+          // one. setPixelIds is skipped entirely.
+          sample.depth = surfaceHit.t;
+          sample.normal = -ray.dir;
+          sample.albedo = vec3(0.0f);
+        }
+
+        sample.color += sampleContribution * rectRadiance(ld.rect, ld.color);
+        // A light is opaque for deposit purposes: terminate rather than
+        // continuing through it, matching the emissive-hit control flow.
+        break;
       }
 
       if (surfaceHit.foundHit) {
