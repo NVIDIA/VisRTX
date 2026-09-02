@@ -750,6 +750,8 @@ struct RingLightGPUData
   float innerRadius;
   float intensity;
   float oneOverArea;
+  // Camera visibility only; see RectLightGPUData::visible.
+  bool visible;
 };
 
 struct HDRILightGPUData
@@ -853,6 +855,10 @@ struct LightProxyGPUData
   DeviceObjectIndex lightIndex; // Index into registry.lights[]
   DeviceObjectIndex lightInstanceIndex; // Index into world.lightInstances[]
   mat4 xfm; // Instance transform, matching the light instance
+  // inverse(xfm). The ring and sphere proxies are intersected in the light's
+  // own frame, which is what makes the hittable set exactly the samplable set
+  // under a non-uniform scale (see intersectRing).
+  mat4 worldToObject;
 };
 
 // World //

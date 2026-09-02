@@ -815,10 +815,19 @@ void World::buildLightProxies()
         if (empty(b))
           continue;
 
+        // The ring and sphere solvers pull the ray back through inverse(xfm).
+        // A singular transform has no inverse: its Pick Power is already 0
+        // (affineAreaScale), so NEE never samples it, and a proxy that can only
+        // ever miss would leave hasAreaProxy claiming otherwise.
+        const float det = glm::determinant(mat3(xfm));
+        if (!(std::isfinite(det) && det != 0.f))
+          continue;
+
         LightProxyGPUData proxy;
         proxy.lightIndex = light->index();
         proxy.lightInstanceIndex = DeviceObjectIndex(slot);
         proxy.xfm = xfm;
+        proxy.worldToObject = glm::inverse(xfm);
         proxies.push_back(proxy);
 
         // Tell the NEE side this instance is reachable by a BSDF continuation,
