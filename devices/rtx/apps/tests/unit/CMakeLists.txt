@@ -72,6 +72,25 @@ target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_17)
 
 add_test(NAME rtx::LightGeometry COMMAND ${PROJECT_NAME})
 
+# The analytic ray/rect solver against an independent fp64 two-triangle oracle —
+# the triangulated proxy ADR 0009 rejected as a representation, used here only as
+# a test oracle.
+project(rtx_test_LightGeometryOracle LANGUAGES CXX)
+
+add_executable(${PROJECT_NAME} test_LightGeometryOracle.cpp)
+target_include_directories(${PROJECT_NAME} PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}/../../../device
+  ${CMAKE_CURRENT_LIST_DIR}/../../../external/nanovdb/include
+  ${OptiX_ROOT_DIR}/include)
+target_link_libraries(${PROJECT_NAME} PRIVATE
+  visrtx::glm
+  anari::anari_headers
+  CUDA::cudart)
+target_compile_definitions(${PROJECT_NAME} PRIVATE GLM_ENABLE_EXPERIMENTAL)
+target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_17)
+
+add_test(NAME rtx::LightGeometryOracle COMMAND ${PROJECT_NAME})
+
 # classifyEmission lives in libmdl, a standalone static lib with no CUDA/OptiX/GPU
 # (the MDL SDK is dlopen'd at runtime), so the classifier is testable on the host.
 # Gated on MDL support, since libmdl only exists then.

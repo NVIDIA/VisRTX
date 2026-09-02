@@ -171,6 +171,75 @@ VISRTX_HOST_DEVICE float rectSolidAnglePdf(
   return areaPdf * pow2(dist) / cosTheta;
 }
 
+// Analytic ray/rect intersection //////////////////////////////////////////////
+
+struct RectIntersection
+{
+  bool hit;
+  float t; // distance along the (not necessarily unit) ray direction
+  vec2 uv; // parametric position within the rect, both in [0,1] on a hit
+};
+
+// Ray against the light's rectangle, in the rect's own coordinate space.
+//
+// Reports the parametric uv directly so the pdf leaf can consume it with no
+// reconstruction step: recomputing the hit position or the rect's area on the
+// deposit side would be a second chance to disagree with the sampler, which is
+// exactly what ADR 0009 exists to prevent.
+//
+// The uv solve uses the Gram matrix rather than the dot(d,e1)/|e1|^2 shortcut,
+// because edge1 and edge2 need not be perpendicular. ANARI places no such
+// constraint on a quad light, and the shortcut silently mis-bounds a sheared
+// parallelogram (accepting points outside it and rejecting points inside).
+VISRTX_HOST_DEVICE RectIntersection intersectRect(
+    const RectLightGPUData &rect, const vec3 &org, const vec3 &dir)
+{
+  RectIntersection out;
+  out.hit = false;
+  out.t = 0.0f;
+  out.uv = vec2(0.0f);
+
+  const vec3 e1 = rect.edge1;
+  const vec3 e2 = rect.edge2;
+  const vec3 normal = cross(e1, e2);
+
+  const float denom = dot(normal, dir);
+  // Ray parallel to (or lying in) the plane: no well-defined single crossing.
+  // Exactly zero rather than an epsilon — a near-parallel ray still has a
+  // genuine, if distant, intersection, and t is checked by the caller.
+  if (denom == 0.0f)
+    return out;
+
+  const float t = dot(normal, rect.position - org) / denom;
+  if (!(t > 0.0f))
+    return out; // behind the origin, or exactly at it
+
+  const vec3 d = (org + t * dir) - rect.position;
+
+  const float e11 = dot(e1, e1);
+  const float e12 = dot(e1, e2);
+  const float e22 = dot(e2, e2);
+  const float det = e11 * e22 - e12 * e12;
+  // Degenerate rect (zero-length or parallel edges): no area, never hit. This
+  // also guards the divide below.
+  if (!(det > 0.0f))
+    return out;
+
+  const float d1 = dot(d, e1);
+  const float d2 = dot(d, e2);
+  const float invDet = 1.0f / det;
+  const float u = (d1 * e22 - d2 * e12) * invDet;
+  const float v = (d2 * e11 - d1 * e12) * invDet;
+
+  if (u < 0.0f || u > 1.0f || v < 0.0f || v > 1.0f)
+    return out;
+
+  out.hit = true;
+  out.t = t;
+  out.uv = vec2(u, v);
+  return out;
+}
+
 // Ring ///////////////////////////////////////////////////////////////////////
 
 // Smoothstep cone falloff, shared so the visible disk shows the same
