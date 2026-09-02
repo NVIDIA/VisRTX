@@ -47,6 +47,8 @@ void Ring::commitParameters()
   m_intensity = std::clamp(getParam<float>("intensity", 1.f),
       0.f,
       std::numeric_limits<float>::max());
+  // Camera visibility only; never affects illumination, NEE, or reflections.
+  m_visible = getParam<bool>("visible", true);
 
   // Validate parameters
   if (m_innerRadius >= m_radius && m_radius > 0.f) {
@@ -76,7 +78,30 @@ LightGPUData Ring::gpuData() const
   retval.ring.innerRadius = m_innerRadius;
   retval.ring.intensity = m_intensity;
   retval.ring.oneOverArea = m_radius > m_innerRadius ? 1.0f / (M_PI * (m_radius * m_radius - m_innerRadius * m_innerRadius)) : 1.0f;
+  retval.ring.visible = m_visible;
   return retval;
+}
+
+bool Ring::hasAreaProxy() const
+{
+  // `radius` defaults to 0, which makes the ring a point light with no extent:
+  // nothing to show, and no plane to intersect. Only a real annulus gets a
+  // proxy.
+  return m_radius > 0.f && m_radius > m_innerRadius
+      && length(m_direction) > 0.f;
+}
+
+box3 Ring::areaProxyBounds(const mat4 &xfm) const
+{
+  // Bound the disk without trigonometry: the extent along each axis is the
+  // radius scaled by how much of that axis lies in the disk's plane, i.e.
+  // r * sqrt(1 - axis_i^2) for a unit normal. Conservative and exact.
+  const vec3 n = normalize(m_direction);
+  const vec3 halfExtent(m_radius * std::sqrt(std::max(0.f, 1.f - n.x * n.x)),
+      m_radius * std::sqrt(std::max(0.f, 1.f - n.y * n.y)),
+      m_radius * std::sqrt(std::max(0.f, 1.f - n.z * n.z)));
+
+  return transformedBoxBounds(xfm, m_position, halfExtent);
 }
 
 } // namespace visrtx

@@ -21,6 +21,7 @@
 #include "gpu/lightGeometry.h"
 
 #include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 #include <cmath>
 #include <cstdio>
@@ -540,6 +541,280 @@ int main()
     // Neither exclusion may swallow the bulk of the samples.
     CHECK(grazingSkipped < tested / 10);
     CHECK(boundarySkipped < tested / 100);
+  }
+
+  // --- Ring: analytic ray/annulus solver ------------------------------------
+  // The inner hole is the ring's analogue of the rectangle's edge bounds: a ray
+  // through it must MISS. A ring that renders as a full disk is the obvious
+  // failure, and it is exactly what a missing inner-radius test produces.
+  {
+    RingLightGPUData ring{};
+    ring.position = vec3(0.0f);
+    ring.direction = vec3(0.0f, -1.0f, 0.0f);
+    ring.cosOuterAngle = 0.0f;
+    ring.cosInnerAngle = 1.0f;
+    ring.radius = 2.0f;
+    ring.innerRadius = 1.0f;
+    ring.intensity = 1.0f;
+    ring.oneOverArea = 1.0f / (kPi * (4.0f - 1.0f));
+
+    const mat4 identity(1.0f);
+    const vec3 down(0.0f, -1.0f, 0.0f);
+    const vec3 up(0.0f, 1.0f, 0.0f);
+
+    // On the annulus: r = 1.5, between inner 1 and outer 2.
+    const RingIntersection onBand =
+        intersectRing(ring, identity, vec3(1.5f, 3.0f, 0.0f), down);
+    CHECK(onBand.hit);
+    CHECK(std::fabs(onBand.t - 3.0f) < 1e-5f);
+    CHECK(std::fabs(onBand.radius - 1.5f) < 1e-5f);
+
+    // Through the inner hole: must miss.
+    CHECK(!intersectRing(ring, identity, vec3(0.5f, 3.0f, 0.0f), down).hit);
+    CHECK(!intersectRing(ring, identity, vec3(0.0f, 3.0f, 0.0f), down).hit);
+    // Outside the outer radius: must miss.
+    CHECK(!intersectRing(ring, identity, vec3(2.5f, 3.0f, 0.0f), down).hit);
+
+    // Radially symmetric: the same radius hits from any azimuth.
+    for (int i = 0; i < 16; ++i) {
+      const float phi = kTwoPi * float(i) / 16.0f;
+      const vec3 o(1.5f * std::cos(phi), 3.0f, 1.5f * std::sin(phi));
+      CHECK(intersectRing(ring, identity, o, down).hit);
+      const vec3 inner(0.5f * std::cos(phi), 3.0f, 0.5f * std::sin(phi));
+      CHECK(!intersectRing(ring, identity, inner, down).hit);
+    }
+
+    // Boundary radii are consistent and finite, whichever way they classify.
+    for (float r : {1.0f, 2.0f}) {
+      const RingIntersection h =
+          intersectRing(ring, identity, vec3(r, 3.0f, 0.0f), down);
+      if (h.hit) {
+        CHECK(std::isfinite(h.t));
+        CHECK(h.radius >= ring.innerRadius - 1e-4f);
+        CHECK(h.radius <= ring.radius + 1e-4f);
+      }
+    }
+
+    // Parallel, in-plane, and behind-the-origin rays.
+    CHECK(!intersectRing(
+        ring, identity, vec3(1.5f, 3.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f))
+            .hit);
+    CHECK(!intersectRing(
+        ring, identity, vec3(-3.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f))
+            .hit);
+    CHECK(!intersectRing(ring, identity, vec3(1.5f, 3.0f, 0.0f), up).hit);
+
+    // Backfacing still hits: culling is the caller's job, not the solver's.
+    CHECK(intersectRing(ring, identity, vec3(1.5f, -3.0f, 0.0f), up).hit);
+
+    // A full disk (innerRadius 0) has no hole.
+    RingLightGPUData disk = ring;
+    disk.innerRadius = 0.0f;
+    CHECK(intersectRing(disk, identity, vec3(0.0f, 3.0f, 0.0f), down).hit);
+
+    // Degenerate rings never hit: a ring with no area emits nothing, so a hit
+    // would deposit radiance NEE never sampled. The aimed-dead-centre ray below
+    // would otherwise land exactly on r == inner == outer, which the inclusive
+    // radial band test accepts.
+    RingLightGPUData zeroRadius = ring;
+    zeroRadius.radius = 0.0f;
+    zeroRadius.innerRadius = 0.0f;
+    CHECK(
+        !intersectRing(zeroRadius, identity, vec3(0.0f, 3.0f, 0.0f), down).hit);
+
+    RingLightGPUData empty = ring;
+    empty.innerRadius = empty.radius;
+    // Aimed straight at the collapsed radius, the one place a hit could sneak
+    // through.
+    CHECK(!intersectRing(empty, identity, vec3(2.0f, 3.0f, 0.0f), down).hit);
+    CHECK(!intersectRing(empty, identity, vec3(1.5f, 3.0f, 0.0f), down).hit);
+
+    // An inner radius that OVERSHOOTS the outer one is degenerate the same way.
+    RingLightGPUData inverted = ring;
+    inverted.innerRadius = inverted.radius * 2.0f;
+    CHECK(!intersectRing(inverted, identity, vec3(1.5f, 3.0f, 0.0f), down).hit);
+
+    // A real annulus is still inclusive at its rim: the degenerate guard must
+    // reject empty rings, not trim valid ones.
+    CHECK(intersectRing(ring, identity, vec3(2.0f, 3.0f, 0.0f), down).hit);
+    CHECK(intersectRing(ring, identity, vec3(1.0f, 3.0f, 0.0f), down).hit);
+  }
+
+  // --- Ring: exact under any affine instance transform ----------------------
+  // The solver works in the light's OBJECT frame, so the hittable set is the
+  // image of the set NEE samples -- for a tilted axis under a non-uniform scale
+  // included. That is the case a world-space circle of averaged radius gets
+  // wrong (the disk is an ellipse), and the case a forward-transformed normal
+  // gets wrong (it is not perpendicular to the transformed disk).
+  {
+    RingLightGPUData ring{};
+    ring.position = vec3(0.3f, -0.2f, 0.1f);
+    ring.direction = normalize(vec3(1.0f, 1.0f, 0.3f));
+    ring.cosOuterAngle = -1.0f;
+    ring.cosInnerAngle = 1.0f;
+    ring.radius = 2.0f;
+    ring.innerRadius = 0.5f;
+    ring.intensity = 1.0f;
+    ring.oneOverArea = 1.0f / (kPi * (4.0f - 0.25f));
+
+    const mat4 xfm = glm::translate(mat4(1.0f), vec3(1.0f, 2.0f, -3.0f))
+        * glm::rotate(mat4(1.0f), glm::radians(31.0f), vec3(0.2f, 1.0f, 0.4f))
+        * glm::scale(mat4(1.0f), vec3(1.0f, 2.5f, 0.4f));
+    const mat4 worldToObject = glm::inverse(xfm);
+
+    const vec3 dObj = normalize(ring.direction);
+    const vec3 ref = std::fabs(dObj.x) < 0.9f ? vec3(1.0f, 0.0f, 0.0f)
+                                              : vec3(0.0f, 1.0f, 0.0f);
+    const vec3 b0 = normalize(cross(dObj, ref));
+    const vec3 b1 = cross(dObj, b0);
+
+    // The world axis is the unit normal of the TRANSFORMED disk, oriented
+    // with the forward-transformed direction.
+    const vec3 axis = ringWorldAxis(ring, xfm);
+    CHECK(std::fabs(length(axis) - 1.0f) < 1e-5f);
+    CHECK(std::fabs(dot(axis, normalize(xfmVec(xfm, b0)))) < 1e-4f);
+    CHECK(std::fabs(dot(axis, normalize(xfmVec(xfm, b1)))) < 1e-4f);
+    CHECK(dot(axis, xfmVec(xfm, dObj)) > 0.0f);
+    // ...and the forward-transformed direction is measurably NOT that normal
+    // for this transform, so a regression to xfmVec(xfm, direction) fails here.
+    const vec3 naive = normalize(xfmVec(xfm, dObj));
+    CHECK(std::fabs(dot(naive, normalize(xfmVec(xfm, b0)))) > 1e-2f
+        || std::fabs(dot(naive, normalize(xfmVec(xfm, b1)))) > 1e-2f);
+
+    // Round trip: every point NEE can sample is hit, at that point, with the
+    // object-space radius it was sampled at.
+    std::mt19937 g(4242);
+    std::uniform_real_distribution<float> unit(0.0f, 1.0f);
+    int roundTrips = 0;
+    for (int i = 0; i < 256; ++i) {
+      const float rr = std::sqrt(unit(g)
+              * (ring.radius * ring.radius
+                  - ring.innerRadius * ring.innerRadius)
+          + ring.innerRadius * ring.innerRadius);
+      const float phi = kTwoPi * unit(g);
+      const vec3 sampledObj =
+          ring.position + b0 * (rr * std::cos(phi)) + b1 * (rr * std::sin(phi));
+      const vec3 sampledWorld = xfmPoint(xfm, sampledObj);
+      const vec3 origin = sampledWorld + axis * 5.0f;
+      const vec3 dir = normalize(sampledWorld - origin);
+      const RingIntersection h =
+          intersectRing(ring, worldToObject, origin, dir);
+      CHECK(h.hit);
+      if (!h.hit)
+        continue;
+      const vec3 hitPoint = origin + h.t * dir;
+      CHECK(length(hitPoint - sampledWorld) < 1e-3f);
+      CHECK(std::fabs(h.radius - rr) < 1e-3f);
+      ++roundTrips;
+    }
+    CHECK(roundTrips == 256);
+
+    // Just outside the annulus in OBJECT units, along either in-plane basis
+    // direction: a miss, however much the instance stretches it in world.
+    for (const vec3 &b : {b0, b1}) {
+      for (const float rr : {ring.radius * 1.05f, ring.innerRadius * 0.95f}) {
+        const vec3 pWorld = xfmPoint(xfm, ring.position + b * rr);
+        const vec3 origin = pWorld + axis * 5.0f;
+        CHECK(!intersectRing(
+            ring, worldToObject, origin, normalize(pWorld - origin))
+                .hit);
+      }
+    }
+  }
+
+  // --- Ring: the MIS identity -----------------------------------------------
+  // Same round trip as the rect case: sample a point on the annulus, shoot at
+  // it, intersect, and reconstruct the density from the hit.
+  {
+    const mat4 identity(1.0f);
+    std::mt19937 g(770009);
+    std::uniform_real_distribution<float> uni(-1.0f, 1.0f);
+    std::uniform_real_distribution<float> unit(0.0f, 1.0f);
+
+    constexpr float kWellConditionedCos = 1e-3f;
+    int tested = 0, mismatches = 0, grazingSkipped = 0;
+    double worstRel = 0.0;
+
+    for (int i = 0; i < 100000; ++i) {
+      RingLightGPUData ring{};
+      ring.position = vec3(uni(g), uni(g), uni(g));
+      ring.direction = vec3(uni(g), uni(g), uni(g));
+      if (length(ring.direction) < 1e-2f)
+        continue;
+      ring.innerRadius = unit(g) * 0.8f;
+      ring.radius = ring.innerRadius + 0.2f + unit(g);
+      ring.intensity = 1.0f;
+      ring.oneOverArea = 1.0f
+          / (kPi
+              * (ring.radius * ring.radius
+                  - ring.innerRadius * ring.innerRadius));
+      // Wide cone so most samples are inside it; the falloff itself is covered
+      // by the dedicated attenuation test.
+      ring.cosOuterAngle = 0.0f;
+      ring.cosInnerAngle = 1.0f;
+
+      const vec3 axis = normalize(ring.direction);
+      const vec3 origin(uni(g) * 3.0f, uni(g) * 3.0f, uni(g) * 3.0f);
+
+      // Sample a point on the annulus, area-uniformly, as the sampler does.
+      const float phi = kTwoPi * unit(g);
+      const float rr = std::sqrt(unit(g)
+              * (ring.radius * ring.radius
+                  - ring.innerRadius * ring.innerRadius)
+          + ring.innerRadius * ring.innerRadius);
+      // Any orthonormal basis of the disk plane works: the density is radially
+      // symmetric, so the basis choice cannot change it.
+      const vec3 ref = std::fabs(axis.x) < 0.9f ? vec3(1.0f, 0.0f, 0.0f)
+                                                : vec3(0.0f, 1.0f, 0.0f);
+      const vec3 b0 = normalize(cross(axis, ref));
+      const vec3 b1 = cross(axis, b0);
+      const vec3 sampled =
+          ring.position + b0 * (rr * std::cos(phi)) + b1 * (rr * std::sin(phi));
+
+      const RingPointRelation nee =
+          ringRelateToPoint(ring, axis, origin, sampled);
+      if (!(nee.solidAnglePdf > 0.0f))
+        continue;
+
+      const RingIntersection isect =
+          intersectRing(ring, identity, origin, nee.dir);
+      if (!isect.hit) {
+        // Only a fault away from the annulus edges, where an ulp can flip the
+        // radial classification.
+        const float edgeSlack = 1e-3f;
+        if (rr > ring.innerRadius + edgeSlack && rr < ring.radius - edgeSlack)
+          ++mismatches;
+        continue;
+      }
+
+      const vec3 hitPoint = origin + isect.t * nee.dir;
+      const RingPointRelation hit =
+          ringRelateToPoint(ring, axis, origin, hitPoint);
+
+      if (nee.cosTheta < kWellConditionedCos) {
+        ++grazingSkipped;
+        continue;
+      }
+
+      ++tested;
+      const double rel =
+          std::fabs(double(hit.solidAnglePdf) - double(nee.solidAnglePdf))
+          / std::fmax(1e-30, double(nee.solidAnglePdf));
+      worstRel = std::fmax(worstRel, rel);
+      if (rel > 1e-3)
+        ++mismatches;
+    }
+
+    std::printf(
+        "  ring MIS identity: %d tested, %d mismatches, worst rel %.3e"
+        " (skipped %d grazing)\n",
+        tested,
+        mismatches,
+        worstRel,
+        grazingSkipped);
+    CHECK(tested > 5000);
+    CHECK(mismatches == 0);
+    CHECK(worstRel < 1e-3);
   }
 
   if (g_failures == 0)

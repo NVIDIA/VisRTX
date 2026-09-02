@@ -231,31 +231,25 @@ VISRTX_DEVICE LightSample sampleRingLight(
   auto localY = r * sinf(phi);
   auto samplePos = basis[0] * localX + basis[1] * localY;
 
-  // Calculate direction and distance to light sample point
-  ls.dir = xfmPoint(xfm, ld.ring.position + samplePos) - origin;
-  ls.dist = length(ls.dir);
-  ls.dir /= ls.dist;
+  // Direction, distance, cone falloff and solid-angle density from the shared
+  // leaf the hit-side deposit calls (ADR 0009) -- one function, so the visible
+  // disk shows the same falloff the illumination has and the MIS densities
+  // cannot drift.
+  const vec3 worldPos = xfmPoint(xfm, ld.ring.position + samplePos);
+  // Unit world axis via the shared leaf: cosTheta is a dot against a unit
+  // direction, so a non-unit axis would shift the cone thresholds under a
+  // scaled instance -- on this side and the hit side alike.
+  const vec3 worldAxis = ringWorldAxis(ld.ring, xfm);
+  const RingPointRelation rel =
+      ringRelateToPoint(ld.ring, worldAxis, origin, worldPos);
 
-  auto worldDirection = xfmVec(xfm, direction);
+  ls.dir = rel.dir;
+  ls.dist = rel.dist;
 
-  // Spotlight-like cone attenuation. Shared leaf: the visible disk (once the
-  // light proxy exists) must show the same falloff the illumination has.
-  const float cosTheta = dot(worldDirection, -ls.dir);
-  const float spot = ringSpotAttenuation(ld.ring, cosTheta);
-
-  if (spot > 0.0f) {
-    if (cosTheta > 0.0f) {
-      // Lambertian radiance. cosTheta is handled through pdf below.
-      ls.radiance = ringRadiance(ld.ring, ld.color, spot);
-
-      // Convert area PDF to solid angle PDF for proper Monte Carlo integration
-      // Ring area = π(R² - r²), so area PDF = 1 / ring_area
-      // Solid angle PDF = area_pdf * distance² / |cos θ|
-      ls.pdf = ringSolidAnglePdf(ld.ring, ls.dist, cosTheta);
-    } else {
-      ls.radiance = vec3(0.0f);
-      ls.pdf = 0.0f;
-    }
+  if (rel.spot > 0.0f && rel.cosTheta > 0.0f) {
+    // Lambertian radiance. cosTheta is handled through pdf below.
+    ls.radiance = ringRadiance(ld.ring, ld.color, rel.spot);
+    ls.pdf = rel.solidAnglePdf;
   } else {
     ls.radiance = vec3(0.0f);
     ls.pdf = 0.0f;

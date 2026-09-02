@@ -71,6 +71,8 @@
 #include "gpu/gpu_math.h"
 #include "gpu/gpu_objects.h"
 
+#include <glm/gtc/matrix_inverse.hpp>
+
 namespace visrtx {
 
 // Rect ///////////////////////////////////////////////////////////////////////
@@ -317,6 +319,136 @@ VISRTX_HOST_DEVICE float ringSolidAnglePdf(
 {
   const float areaPdf = ring.oneOverArea; // This is 1 / ring_area
   return areaPdf * pow2(dist) / cosTheta;
+}
+
+// The ring's world-space axis: the UNIT normal of the TRANSFORMED disk.
+//
+// A plane normal transforms by the inverse transpose, not by the matrix
+// itself. Under a rotation or a uniform scale the two agree; under a
+// non-uniform scale a ring whose axis is not aligned with a scale axis gets a
+// forward-transformed direction that is NOT perpendicular to the transformed
+// disk. The intersector would then solve against a plane tilted away from the
+// surface NEE samples, and the cone falloff would be measured against the wrong
+// axis on both sides. (rectFrame sidesteps the same trap by taking the cross
+// product of the transformed edges.)
+//
+// Orientation comes for free: (M^-T d) . (M d) = d . d > 0, so the emitting
+// hemisphere keeps following the forward-transformed direction, mirroring
+// included.
+//
+// Normalizing AFTER the transform is load-bearing: cosTheta is computed as
+// dot(axis, -dir) with dir already unit, so a non-unit axis scales the cosine
+// and silently shifts the cone thresholds (cosInnerAngle/cosOuterAngle) for any
+// scaled instance.
+VISRTX_HOST_DEVICE vec3 ringWorldAxis(
+    const RingLightGPUData &ring, const mat4 &xfm)
+{
+  return normalize(
+      glm::inverseTranspose(mat3(xfm)) * normalize(ring.direction));
+}
+
+// Ring counterpart of rectRelateToPoint: THE shared density function for ring
+// lights, called by NEE with the point it sampled and by the hit-side deposit
+// with the point the ray hit.
+//
+// Unlike rect, a ring carries a cone falloff, so this also returns the spot
+// attenuation -- the visible disk must show the same falloff the illumination
+// has, which it gets by calling the same leaf rather than a second copy.
+struct RingPointRelation
+{
+  vec3 dir; // unit, from the shading point TO the light
+  float dist;
+  float cosTheta; // against the ring axis; <= 0 means not emitting
+  float spot; // cone attenuation in [0,1]
+  float solidAnglePdf; // 0 unless both spot > 0 and cosTheta > 0
+};
+
+VISRTX_HOST_DEVICE RingPointRelation ringRelateToPoint(
+    const RingLightGPUData &ring,
+    const vec3 &worldAxis,
+    const vec3 &origin,
+    const vec3 &worldPoint)
+{
+  RingPointRelation r;
+  r.dir = worldPoint - origin;
+  r.dist = length(r.dir);
+  r.dir /= r.dist;
+  r.cosTheta = dot(worldAxis, -r.dir);
+  r.spot = ringSpotAttenuation(ring, r.cosTheta);
+  r.solidAnglePdf = (r.spot > 0.0f && r.cosTheta > 0.0f)
+      ? ringSolidAnglePdf(ring, r.dist, r.cosTheta)
+      : 0.0f;
+  return r;
+}
+
+// Analytic ray/ring intersection //////////////////////////////////////////////
+
+struct RingIntersection
+{
+  bool hit;
+  float t;
+  float radius; // distance from the ring centre, in [innerRadius, radius]
+};
+
+// Ray against the ring's annulus: plane intersection, then a radial band test.
+// The inner hole must MISS -- it is the ring's analogue of the rectangle's edge
+// bounds, and a ring rendered as a full disk is the obvious failure.
+//
+// Solved in the light's OBJECT frame, like intersectSphereLight: the world ray
+// is pulled back through worldToObject and tested against the object-space
+// annulus with the object radii and the object axis. sampleRingLight pushes
+// its object-space points forward through the same transform, so the hittable
+// set is exactly the samplable set under any affine instance transform. A
+// non-uniformly scaled disk is an ellipse, and neither a world-space circle of
+// averaged radius (the previous approach) nor a forward-transformed normal
+// describes it; in object space there is nothing to approximate. `radius` is
+// reported in object units.
+VISRTX_HOST_DEVICE RingIntersection intersectRing(const RingLightGPUData &ring,
+    const mat4 &worldToObject,
+    const vec3 &worldOrg,
+    const vec3 &worldDir)
+{
+  RingIntersection out;
+  out.hit = false;
+  out.t = 0.0f;
+  out.radius = 0.0f;
+
+  // An annulus with no area never hits. Without this the radial band test
+  // below, which is inclusive at both edges so a normal ring's rim is not a
+  // seam, would accept the single radius where a collapsed ring's outer edge
+  // and inner hole coincide -- reporting a hit on a light that emits nothing.
+  // Mirrors Ring::hasAreaProxy on the host, which keeps the same rings out of
+  // the proxy BLAS.
+  if (!(ring.radius > ring.innerRadius))
+    return out;
+
+  const vec3 org = xfmPoint(worldToObject, worldOrg);
+  const vec3 dir = xfmVec(worldToObject, worldDir);
+  const vec3 axis = normalize(ring.direction);
+
+  const float denom = dot(axis, dir);
+  if (denom == 0.0f)
+    return out; // parallel to (or lying in) the ring's plane
+
+  const float t = dot(axis, ring.position - org) / denom;
+  if (!(t > 0.0f))
+    return out;
+
+  const vec3 p = org + t * dir;
+  const vec3 radial = p - ring.position;
+  // Distance from the axis, not from the centre: the hit lies in the plane, so
+  // these agree, but subtracting the axial component keeps it exact under fp
+  // error near grazing incidence.
+  const vec3 inPlane = radial - axis * dot(radial, axis);
+  const float r = length(inPlane);
+
+  if (r > ring.radius || r < ring.innerRadius)
+    return out; // outside the outer edge, or through the inner hole
+
+  out.hit = true;
+  out.t = t;
+  out.radius = r;
+  return out;
 }
 
 } // namespace visrtx

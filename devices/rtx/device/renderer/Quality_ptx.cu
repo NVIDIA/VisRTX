@@ -357,7 +357,21 @@ VISRTX_DEVICE float lightProxyHitPdf(
   const auto &world = frameData.world;
   const auto &proxy = world.lightProxies[hit.lightProxyIndex];
   const auto &ld = frameData.registry.lights[proxy.lightIndex];
-  if (ld.type != LightType::RECT)
+
+  // The solid-angle term, from the same shared leaf the sampler calls.
+  float solidAnglePdf = 0.0f;
+  if (ld.type == LightType::RECT) {
+    const RectFrame frame = rectFrame(ld.rect, proxy.xfm);
+    solidAnglePdf =
+        rectRelateToPoint(ld.rect, frame, origin, hit.hitpoint).solidAnglePdf;
+  } else if (ld.type == LightType::RING) {
+    const vec3 axis = ringWorldAxis(ld.ring, proxy.xfm);
+    solidAnglePdf =
+        ringRelateToPoint(ld.ring, axis, origin, hit.hitpoint).solidAnglePdf;
+  } else
+    return 0.0f;
+
+  if (!(solidAnglePdf > 0.0f))
     return 0.0f;
 
   // Same ambient-inclusive partition the pick uses; without the ambient term
@@ -371,19 +385,10 @@ VISRTX_DEVICE float lightProxyHitPdf(
         world.numLightInstances + (ambientPickPower(frameData) > 0.0f ? 1 : 0);
     if (numStrata == 0)
       return 0.0f;
-    const RectFrame frame = rectFrame(ld.rect, proxy.xfm);
-    const RectPointRelation rel =
-        rectRelateToPoint(ld.rect, frame, origin, hit.hitpoint);
-    return rel.solidAnglePdf / float(numStrata);
+    return solidAnglePdf / float(numStrata);
   }
 
-  const RectFrame frame = rectFrame(ld.rect, proxy.xfm);
-  const RectPointRelation rel =
-      rectRelateToPoint(ld.rect, frame, origin, hit.hitpoint);
-  if (!(rel.solidAnglePdf > 0.0f))
-    return 0.0f;
-
-  return rel.solidAnglePdf
+  return solidAnglePdf
       * instancePickProbability(world, proxy.lightInstanceIndex, totalPower);
 }
 
@@ -777,8 +782,35 @@ VISRTX_GLOBAL void __raygen__()
             wEmission = bsdfPdf / (bsdfPdf + pNee);
         }
 
-        sample.color +=
-            wEmission * sampleContribution * rectRadiance(ld.rect, ld.color);
+        // A ring's radiance carries its cone falloff, which varies ACROSS the
+        // disk: each emitting point has its own angle to the shaded point. NEE
+        // evaluates it per sampled point, so the deposit must evaluate it at
+        // the point the ray actually hit -- via the same leaf. Using the ray
+        // direction as a stand-in collapses the whole disk to one angle and
+        // under-reads a narrow cone badly (measured ~6x).
+        //
+        // Measured from lastScatterOrigin, the SAME vertex the MIS pdf above
+        // uses, not from ray.org: a coverage pass-through re-origins the ray at
+        // the cutout without it being a scattering event, which would otherwise
+        // have the weight and the radiance it scales disagree about which point
+        // is being shaded.
+        vec3 proxyRadiance(0.0f);
+        if (ld.type == LightType::RECT)
+          proxyRadiance = rectRadiance(ld.rect, ld.color);
+        else if (ld.type == LightType::RING) {
+          const vec3 axis = ringWorldAxis(ld.ring, proxy.xfm);
+          const RingPointRelation rel = ringRelateToPoint(
+              ld.ring, axis, lastScatterOrigin, surfaceHit.hitpoint);
+          proxyRadiance = ringRadiance(ld.ring, ld.color, rel.spot);
+        }
+
+        sample.color += wEmission * sampleContribution * proxyRadiance;
+        // A visible light COVERS the pixel. Without this the alpha channel
+        // reports the pixel as empty while carrying the light's radiance, and
+        // the background gets composited in behind it -- a visibly wrong,
+        // washed-out light against any non-black background. Matches the
+        // emissive-surface and environment-miss deposits.
+        accumulateValue(sample.opacity, 1.0f, sample.opacity);
         // A light is opaque for deposit purposes: terminate rather than
         // continuing through it, matching the emissive-hit control flow.
         break;

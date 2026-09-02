@@ -69,6 +69,12 @@ struct Light : public RegisteredObject<LightGPUData>
   vec3 m_color{1.f};
 };
 
+// World bounds of an object-space box, from its transformed corners. Corners
+// rather than a transformed extent, so a rotated instance still gets a correct
+// (if conservative) bound instead of one shrunk along the rotated axes.
+box3 transformedBoxBounds(
+    const mat4 &xfm, const vec3 &center, const vec3 &halfExtent);
+
 } // namespace visrtx
 
 VISRTX_ANARI_TYPEFOR_SPECIALIZATION(visrtx::Light *, ANARI_LIGHT);

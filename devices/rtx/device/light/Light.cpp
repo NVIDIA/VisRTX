@@ -66,6 +66,19 @@ LightGPUData Light::gpuData() const
   return retval;
 }
 
+box3 transformedBoxBounds(
+    const mat4 &xfm, const vec3 &center, const vec3 &halfExtent)
+{
+  box3 bounds;
+  for (int i = 0; i < 8; ++i) {
+    const vec3 corner(i & 1 ? halfExtent.x : -halfExtent.x,
+        i & 2 ? halfExtent.y : -halfExtent.y,
+        i & 4 ? halfExtent.z : -halfExtent.z);
+    bounds.extend(xfmPoint(xfm, center + corner));
+  }
+  return bounds;
+}
+
 Light *Light::createInstance(std::string_view subtype, DeviceGlobalState *d)
 {
   if (subtype == "directional")

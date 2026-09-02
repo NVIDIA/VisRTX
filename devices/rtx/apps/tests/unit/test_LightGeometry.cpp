@@ -186,6 +186,22 @@ int main()
     CHECK(negativeDet > 1000);
   }
 
+  // The ring's world axis must be UNIT length under any transform: cosTheta is
+  // a dot against a unit direction, so a non-unit axis silently rescales the
+  // cone thresholds. Regression against normalizing only the object-space
+  // direction and then scaling it by the transform.
+  {
+    const mat4 scaled = glm::scale(mat4(1.0f), vec3(7.0f, 0.2f, 3.0f));
+    RingLightGPUData r = unitRing();
+    r.direction = vec3(0.0f, -3.0f, 0.0f); // deliberately non-unit
+    CHECK(nearf(length(ringWorldAxis(r, scaled)), 1.0f, 1e-5f));
+    CHECK(nearf(length(ringWorldAxis(r, mat4(1.0f))), 1.0f, 1e-5f));
+
+    const mat4 rot =
+        glm::rotate(mat4(1.0f), glm::radians(37.0f), vec3(0.3f, 1.0f, 0.2f));
+    CHECK(nearf(length(ringWorldAxis(r, rot)), 1.0f, 1e-5f));
+  }
+
   // --- rectEmissionCosTheta: the full side table ----------------------------
   // The predicate takes the normal explicitly; use -Y here so a point BELOW the
   // light sees the front face.
