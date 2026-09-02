@@ -64,6 +64,23 @@ using uvec2 = std::array<unsigned int, 2>;
 using vec3 = std::array<float, 3>;
 using vec4 = std::array<float, 4>;
 
+// Device complaints are counted, not just printed, so a test can assert that an
+// operation was ACCEPTED rather than merely that it did not abort. A parameter
+// the device dislikes is reported and then ignored -- Rect::commitParameters
+// warns about an invalid `side` exactly this way -- which a check that only
+// inspects pixels cannot see.
+//
+// WARNING counts alongside ERROR because rejection is reported at whichever of
+// the two the implementation picks, and for a parameter with no visible effect
+// the report is the only evidence either way.
+//
+// Attributed to the reporting OBJECT, because the device also emits unrelated
+// warnings with no source (the MDL compiler is chatty about the built-in
+// materials). A global count would make this a flaky proxy for "did MY object
+// draw a complaint".
+static const void *g_watchedObject = nullptr;
+static int g_watchedComplaints = 0;
+
 static void statusFunc(const void *,
     ANARIDevice,
     ANARIObject source,
@@ -72,11 +89,18 @@ static void statusFunc(const void *,
     ANARIStatusCode,
     const char *message)
 {
+  const bool watched = g_watchedObject && source == g_watchedObject;
   if (severity == ANARI_SEVERITY_FATAL_ERROR) {
     fprintf(stderr, "[FATAL][%p] %s\n", source, message);
     std::exit(1);
-  } else if (severity == ANARI_SEVERITY_ERROR)
+  } else if (severity == ANARI_SEVERITY_ERROR) {
+    g_watchedComplaints += watched ? 1 : 0;
     fprintf(stderr, "[ERROR][%p] %s\n", source, message);
+  } else if (severity == ANARI_SEVERITY_WARNING) {
+    g_watchedComplaints += watched ? 1 : 0;
+    if (watched)
+      fprintf(stderr, "[WARN][%p] %s\n", source, message);
+  }
 }
 
 static constexpr uvec2 IMAGE_SIZE = {200, 200};
@@ -151,7 +175,7 @@ static constexpr float DOWN_Y = 1.5f;
 
 // The front side (edge2 x edge1) must point at -Y (down): edge1=+Z, edge2=+X
 // gives +X x +Z = -Y.
-static anari::Light makeDownLight(ANARIDevice d)
+static anari::Light makeDownLight(ANARIDevice d, bool visible = true)
 {
   auto light = anari::newObject<anari::Light>(d, "quad");
   anari::setParameter(d, light, "color", vec3{1.f, 1.f, 1.f});
@@ -161,6 +185,8 @@ static anari::Light makeDownLight(ANARIDevice d)
   anari::setParameter(d, light, "edge2", vec3{2.f * QUAD_HALF, 0.f, 0.f});
   anari::setParameter(d, light, "intensity", EMISSIVE_RADIANCE);
   anari::setParameter(d, light, "side", "front");
+  if (!visible)
+    anari::setParameter(d, light, "visible", false);
   anari::commitParameters(d, light);
   return light;
 }
@@ -257,7 +283,7 @@ static std::vector<vec4> render(ANARIDevice d, const Scene &sc)
       if (sc.useEmissiveMesh)
         surfaces.push_back(makeDownEmissiveQuad(d));
       else
-        lights.push_back(makeDownLight(d));
+        lights.push_back(makeDownLight(d, sc.visible));
     } else if (sc.useEmissiveMesh)
       surfaces.push_back(makeEmissiveQuad(d));
     else
@@ -529,6 +555,91 @@ int main()
   check(floorAfterRel < 0.05,
       "diffuse illumination is unchanged once the light is hittable (relErr="
           + std::to_string(floorAfterRel) + ")");
+
+  // 8. `visible=false` hides the light from the CAMERA only.
+  //
+  //    VisRTX advertises khr_light_primary_visibility and the ANARI schema
+  //    defines `visible` on quad and ring, but until the light became visible
+  //    at all only HDRI honored it. The parameter must hide the light from view
+  //    while leaving both its illumination and its reflection intact --
+  //    otherwise it is just a slower way to delete the light.
+  Scene hidden;
+  hidden.visible = false;
+  const double hiddenCentre = centreMean(render(device, hidden));
+  printf(
+      "visible=false: centre=%f (visible was %f)\n", hiddenCentre, lightCentre);
+  check(hiddenCentre < 1e-4, "visible=false hides the light from the camera");
+
+  // Illumination survives.
+  Scene hiddenFloor = litFloor;
+  hiddenFloor.visible = false;
+  const double hiddenFloorMean = floorMean(render(device, hiddenFloor));
+  printf("visible=false: floor=%f (visible was %f)\n",
+      hiddenFloorMean,
+      floorAfter);
+  const double hiddenFloorRel = floorAfter > 0.0
+      ? std::abs(hiddenFloorMean - floorAfter) / floorAfter
+      : 1.0;
+  check(hiddenFloorRel < 0.05,
+      "a hidden light still lights the scene (relErr="
+          + std::to_string(hiddenFloorRel) + ")");
+
+  // And so does the reflection -- this is what separates visible=false from
+  // removing the light, and it is why the hidden proxy keeps its own mask bit
+  // instead of being dropped from the BLAS.
+  Scene hiddenMirror = mirror;
+  hiddenMirror.visible = false;
+  const double hiddenRefl = floorMean(render(device, hiddenMirror));
+  printf(
+      "visible=false: reflection=%f (visible was %f)\n", hiddenRefl, reflLight);
+  const double hiddenReflRel =
+      reflLight > 0.0 ? std::abs(hiddenRefl - reflLight) / reflLight : 1.0;
+  check(hiddenReflRel < 0.10,
+      "a hidden light still appears in reflections (relErr="
+          + std::to_string(hiddenReflRel) + ")");
+
+  // Default is visible. Covered by check 1, which never sets the parameter.
+
+  // 9. Setting `visible` on a light with NO EXTENT is accepted and ignored.
+  //    khr_light_primary_visibility defines the parameter as "whether the light
+  //    can be directly seen", and it is only meaningful for area lights -- so a
+  //    true delta light ignoring it is conformant, since there is nothing to
+  //    see. What matters here is that it is not an error.
+  //
+  //    `point` is deliberately NOT in this list. VisRTX maps a point light to
+  //    LightType::SPHERE whenever radius > 0, and radius DEFAULTS TO 1, so an
+  //    ANARI point light is an area light with real extent by default and
+  //    `visible` is genuinely meaningful for it. It is covered by sphere-light
+  //    proxy support, and is what gates advertising the extension.
+  for (const char *subtype : {"spot", "directional"}) {
+    auto probe = anari::newObject<anari::Light>(device, subtype);
+    g_watchedObject = probe;
+    g_watchedComplaints = 0;
+    anari::setParameter(device, probe, "visible", false);
+    anari::commitParameters(device, probe);
+    // commitParameters only QUEUES the object; helium finalizes it when the
+    // commit buffer flushes. Without forcing that flush the light is released
+    // before it is ever finalized, so the subtype never inspects its parameters
+    // and the check below could not fail however the device behaved.
+    int valid = 0;
+    anariGetProperty(device,
+        probe,
+        "valid",
+        ANARI_INT32,
+        &valid,
+        sizeof(valid),
+        ANARI_WAIT);
+    anari::release(device, probe);
+    // The device must stay SILENT about this light. "Accepted" is a claim about
+    // the status callback, so it is read from the callback: the parameter has
+    // no effect on a delta light, so there is nothing in the framebuffer to
+    // assert against instead.
+    const int complaints = g_watchedComplaints;
+    g_watchedObject = nullptr;
+    check(complaints == 0,
+        std::string("visible on a ") + subtype
+            + " light is accepted without complaint");
+  }
 
   anari::release(device, device);
 
