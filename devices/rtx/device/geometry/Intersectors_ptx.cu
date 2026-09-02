@@ -1192,8 +1192,9 @@ VISRTX_GLOBAL void __intersection__lightProxy()
   // `visible` gates CAMERA rays only. Resolved here, per primitive, so toggling
   // it never rebuilds an acceleration structure. Reflection/GI rays carry the
   // hidden bit too and are unaffected.
-  const bool visible =
-      ld.type == LightType::RECT ? ld.rect.visible : ld.ring.visible;
+  const bool visible = ld.type == LightType::RECT ? ld.rect.visible
+      : ld.type == LightType::RING                ? ld.ring.visible
+                                                  : ld.sphere.visible;
   if (!visible
       && (optixGetRayVisibilityMask() & VISRTX_MASK_LIGHT_PROXY_HIDDEN) == 0) {
     return;
@@ -1263,6 +1264,29 @@ VISRTX_GLOBAL void __intersection__lightProxy()
     optixReportIntersection(isect.t,
         HIT_KIND_FRONT,
         bit_cast<uint32_t>(isect.radius),
+        bit_cast<uint32_t>(0.0f),
+        proxyID);
+  } else if (ld.type == LightType::SPHERE) {
+    const vec3 center = xfmPoint(proxy.xfm, ld.sphere.position);
+
+    const SphereIntersection isect =
+        intersectSphereLight(ld.sphere, proxy.worldToObject, org, dir);
+    if (!isect.hit)
+      return;
+
+    // A sphere emits outward over its whole surface, so the only cull is the
+    // back face -- which the nearest-root solve already avoids for an outside
+    // viewer. Checked through the shared leaf so the hit agrees with what NEE
+    // considers emitting.
+    const vec3 hitPoint = org + isect.t * dir;
+    const SpherePointRelation rel =
+        sphereRelateToPoint(ld.sphere, center, org, hitPoint);
+    if (!(rel.cosTheta > 0.0f))
+      return;
+
+    optixReportIntersection(isect.t,
+        HIT_KIND_FRONT,
+        bit_cast<uint32_t>(0.0f),
         bit_cast<uint32_t>(0.0f),
         proxyID);
   }

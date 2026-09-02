@@ -44,6 +44,9 @@ void Point::commitParameters()
           0.f,
           std::numeric_limits<float>::max());
   m_radius = std::max(getParam<float>("radius", 1.f), 0.f);
+  // Camera visibility only; meaningful only when radius > 0 makes this an area
+  // light with something to see.
+  m_visible = getParam<bool>("visible", true);
 }
 
 LightGPUData Point::gpuData() const
@@ -58,9 +61,20 @@ LightGPUData Point::gpuData() const
     retval.sphere.position = m_position;
     retval.sphere.intensity = m_intensity;
     retval.sphere.radius = m_radius;
-    retval.sphere.oneOverArea = 1.0f / (4.0f * float(M_PI) * m_radius * m_radius);
+    retval.sphere.visible = m_visible;
   }
   return retval;
+}
+
+bool Point::hasAreaProxy() const
+{
+  // radius == 0 is a true delta light: no extent, nothing to intersect.
+  return m_radius > 0.f;
+}
+
+box3 Point::areaProxyBounds(const mat4 &xfm) const
+{
+  return transformedBoxBounds(xfm, m_position, vec3(m_radius));
 }
 
 } // namespace visrtx

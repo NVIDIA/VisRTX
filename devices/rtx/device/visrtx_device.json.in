@@ -33,6 +33,7 @@
       "khr_light_directional",
       "khr_light_hdri",
       "khr_light_point",
+      "khr_light_primary_visibility",
       "khr_light_quad",
       "khr_light_ring",
       "khr_light_spot",

@@ -381,6 +381,110 @@ VISRTX_HOST_DEVICE RingPointRelation ringRelateToPoint(
   return r;
 }
 
+// Sphere
+// ///////////////////////////////////////////////////////////////////////
+
+// An ANARI `point` light with radius > 0 becomes LightType::SPHERE: a real area
+// light, sampled uniformly over the whole sphere surface by sampleSphereLight.
+
+struct SpherePointRelation
+{
+  vec3 dir; // unit, from the shading point TO the light
+  float dist;
+  float cosTheta; // against the OUTWARD surface normal at the point
+  float solidAnglePdf; // 0 when the sampled element faces away
+};
+
+VISRTX_HOST_DEVICE vec3 sphereRadiance(
+    const SphereLightGPUData &sphere, const vec3 &color)
+{
+  return color * sphere.intensity;
+}
+
+// Uniform-area sampling over the sphere's whole surface (4*pi*r^2) converted to
+// solid angle. Matches sampleSphereLight's operation order exactly.
+//
+// Like rect/ring this uses the OBJECT-space radius with world-space distances
+// and no transform Jacobian -- the same documented approximation, reproduced so
+// the hit side cannot drift from the sampler.
+VISRTX_HOST_DEVICE SpherePointRelation sphereRelateToPoint(
+    const SphereLightGPUData &sphere,
+    const vec3 &worldCenter,
+    const vec3 &origin,
+    const vec3 &worldPoint)
+{
+  SpherePointRelation r;
+  r.dir = worldPoint - origin;
+  r.dist = length(r.dir);
+  r.dir /= r.dist;
+
+  const vec3 surfaceNormal = normalize(worldPoint - worldCenter);
+  r.cosTheta = dot(surfaceNormal, -r.dir);
+
+  if (r.cosTheta > 0.0f) {
+    const float areaPdf = 1.f / (4.f * kPi * sphere.radius * sphere.radius);
+    r.solidAnglePdf = areaPdf * pow2(r.dist) / r.cosTheta;
+  } else
+    r.solidAnglePdf = 0.0f;
+
+  return r;
+}
+
+struct SphereIntersection
+{
+  bool hit;
+  float t;
+};
+
+// Ray/sphere, nearest positive root. The proxy only ever needs the visible
+// (front) surface: a sphere light's interior is not a place a deposit can come
+// from, and the exit crossing would be behind the emitting surface anyway.
+//
+// Solved in the light's OBJECT frame: the world ray is pulled back through
+// worldToObject and tested against the object-space sphere. sampleSphereLight
+// pushes its object-space points forward through the same transform, so the
+// hittable set is exactly the samplable set under ANY affine instance
+// transform -- a non-uniformly scaled sphere is an ellipsoid, and no
+// world-space sphere of any single radius matches it. The parametric t is
+// invariant under the affine map (origin and direction transform together), so
+// the returned t is directly the world-ray t.
+VISRTX_HOST_DEVICE SphereIntersection intersectSphereLight(
+    const SphereLightGPUData &sphere,
+    const mat4 &worldToObject,
+    const vec3 &worldOrg,
+    const vec3 &worldDir)
+{
+  SphereIntersection out;
+  out.hit = false;
+  out.t = 0.0f;
+
+  const vec3 org = xfmPoint(worldToObject, worldOrg);
+  const vec3 dir = xfmVec(worldToObject, worldDir);
+
+  const vec3 oc = org - sphere.position;
+  const float a = dot(dir, dir);
+  if (!(a > 0.0f))
+    return out;
+  const float b = dot(oc, dir);
+  const float c = dot(oc, oc) - sphere.radius * sphere.radius;
+  const float disc = b * b - a * c;
+  if (disc < 0.0f)
+    return out;
+
+  const float sq = sqrtf(disc);
+  // Nearest positive root; fall through to the far one when the origin is
+  // inside.
+  float t = (-b - sq) / a;
+  if (!(t > 0.0f))
+    t = (-b + sq) / a;
+  if (!(t > 0.0f))
+    return out;
+
+  out.hit = true;
+  out.t = t;
+  return out;
+}
+
 // Analytic ray/ring intersection //////////////////////////////////////////////
 
 struct RingIntersection

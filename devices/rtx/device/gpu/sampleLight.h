@@ -139,30 +139,23 @@ VISRTX_DEVICE LightSample sampleSphereLight(
   // Scale by sphere radius to get point on sphere surface
   auto p = vec3(x, y, z) * ld.sphere.radius;
   auto worldSamplePos = xfmPoint(xfm, ld.sphere.position + p);
-  ls.dir = worldSamplePos - origin;
-  ls.dist = length(ls.dir);
-  ls.dir /= ls.dist;
-
-  // Sphere emits uniformly in all directions (Lambertian)
-  ls.radiance = ld.color * ld.sphere.intensity;
-
-  // Convert area PDF to solid angle PDF for proper Monte Carlo integration
-  // Area PDF = 1 / (4πr²), but we need solid angle PDF
-  // Conversion: pdf_solid_angle = pdf_area * distance² / |cos θ|
-  // For sphere: cos θ = dot(surface_normal, -light_direction)
-  // Surface normal at sampled point: direction from sphere center to sample
-  // point
   auto worldSphereCenter = xfmPoint(xfm, ld.sphere.position);
-  auto surfaceNormal = normalize(worldSamplePos - worldSphereCenter);
-  auto cosTheta = dot(surfaceNormal, -ls.dir);
 
-  if (cosTheta > 0.0f) {
-    // Note: For non-uniform scaling transforms, the area calculation would need
-    // to account for the transform's effect on surface area (determinant of
-    // jacobian) Currently assumes uniform scaling or no scaling of the light
-    // geometry
-    float areaPdf = 1.f / (4.f * kPi * ld.sphere.radius * ld.sphere.radius);
-    ls.pdf = areaPdf * pow2(ls.dist) / cosTheta;
+  // Direction, distance, emission cosine and solid-angle density from the
+  // shared leaf the hit-side deposit calls (ADR 0009), so the two densities are
+  // one function. Note the pdf still uses the OBJECT-space radius with
+  // world-space distances and applies no transform Jacobian -- the documented
+  // approximation, reproduced on both sides rather than fixed on one.
+  const SpherePointRelation rel =
+      sphereRelateToPoint(ld.sphere, worldSphereCenter, origin, worldSamplePos);
+
+  ls.dir = rel.dir;
+  ls.dist = rel.dist;
+
+  if (rel.cosTheta > 0.0f) {
+    // Sphere emits uniformly in all directions (Lambertian)
+    ls.radiance = sphereRadiance(ld.sphere, ld.color);
+    ls.pdf = rel.solidAnglePdf;
   } else {
     // Back-facing surface element contributes no light
     ls.radiance = vec3(0.0f);
