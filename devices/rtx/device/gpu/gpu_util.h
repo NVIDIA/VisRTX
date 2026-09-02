@@ -388,17 +388,20 @@ VISRTX_DEVICE vec3 sampleHDRI(const LightGPUData &ld, const vec3 &rayDir)
   return sampleHDRI(ld, vec2(u, v)) * ld.hdri.scale;
 }
 
-VISRTX_DEVICE bool getBackgroundLight(
-    const FrameGPUData &fd, const vec3 &rayDir, vec3 &outRadiance)
+// Illumination includes every HDRI; visibleOnly is for camera backgrounds.
+VISRTX_DEVICE bool getEnvironmentLight(const FrameGPUData &fd,
+    const vec3 &rayDir,
+    vec3 &outRadiance,
+    bool visibleOnly = false)
 {
-  // Accumulate contributions from all visible HDRI lights
+  // Accumulate radiance independently of which HDRI the CDF technique picked.
   outRadiance = vec3(0.f);
-  bool hasVisibleHDRI = false;
+  bool hasHDRI = false;
 
   for (size_t i = 0; i < fd.world.numHdriLightInstances; i++) {
     const auto &hdriLight = fd.world.hdriLightInstances[i];
     const auto &light = fd.registry.lights[hdriLight.lightIndex];
-    if (light.hdri.visible) {
+    if (!visibleOnly || light.hdri.visible) {
       // Transform ray direction from world space to HDRI local space
       // For orthonormal matrices, inverse = transpose
       const mat3 xfmInv = glm::transpose(mat3(hdriLight.xfm));
@@ -407,11 +410,42 @@ VISRTX_DEVICE bool getBackgroundLight(
       // radiance in sampleHDRILight (raw * hdri.scale * color), so env MIS
       // deposits identical radiance on the NEE and BSDF-escape sides.
       outRadiance += sampleHDRI(light, localRayDir) * light.color;
-      hasVisibleHDRI = true;
+      hasHDRI = true;
     }
   }
 
-  return hasVisibleHDRI;
+  return hasHDRI;
+}
+
+VISRTX_DEVICE bool getBackgroundLight(
+    const FrameGPUData &fd, const vec3 &rayDir, vec3 &outRadiance)
+{
+  return getEnvironmentLight(fd, rayDir, outRadiance, true);
+}
+
+// Density of sampleHDRILight's discrete texel selection and uniform UV jitter.
+// Filtered radiance is the integrand, not the sampling density: using it as
+// the estimator denominator biases coarse maps and sharp texture transitions.
+VISRTX_DEVICE float hdriCdfPdf(
+    const LightGPUData &light, const mat4 &xfm, const vec3 &rayDir)
+{
+  const auto &hdri = light.hdri;
+  if (!(hdri.pdfWeight > 0.0f))
+    return 0.0f;
+  const vec3 d = hdri.xfm * (glm::transpose(mat3(xfm)) * rayDir);
+  const vec2 thetaPhi = sphericalCoordsFromDirection(d);
+  const vec2 uv = vec2(thetaPhi.y / kTwoPi, thetaPhi.x / kPi);
+  const uvec2 xy = glm::min(uvec2(uv * vec2(hdri.size)), hdri.size - 1u);
+  const float rowMass =
+      hdri.marginalCDF[xy.y] - (xy.y > 0 ? hdri.marginalCDF[xy.y - 1] : 0.0f);
+  const float *row = hdri.conditionalCDF + xy.y * hdri.size.x;
+  const float columnMass = row[xy.x] - (xy.x > 0 ? row[xy.x - 1] : 0.0f);
+  // length(x,y) retains precision near the poles where acos(z) rounds to zero.
+  const float sinTheta = length(vec2(d));
+  if (!(sinTheta > 0.0f))
+    return 0.0f; // the exact poles have zero sampling measure
+  return rowMass * columnMass * float(hdri.size.x) * float(hdri.size.y)
+      / (2.0f * kPi * kPi * sinTheta);
 }
 
 // Solid-angle sampling pdf of the visible HDRI environment(s) at `rayDir`, used
@@ -436,6 +470,11 @@ VISRTX_DEVICE float envPdf(const FrameGPUData &fd, const vec3 &rayDir)
         * light.hdri.pdfWeight;
   }
   return pdf;
+}
+
+VISRTX_DEVICE vec3 reflectAcrossNormal(const vec3 &w, const vec3 &n)
+{
+  return w - 2.0f * dot(w, n) * n;
 }
 
 VISRTX_DEVICE uint32_t computeGeometryPrimId(const SurfaceHit &hit)
