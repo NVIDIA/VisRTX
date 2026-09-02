@@ -410,6 +410,138 @@ int main()
     }
   }
 
+  // --- THE MIS IDENTITY -----------------------------------------------------
+  // The single most important property in ADR 0009.
+  //
+  // NEE samples a point on the light and reports a density. A BSDF continuation
+  // toward that same point hits the proxy and must reconstruct the SAME
+  // density, or the balance heuristic weights the deposit against a density
+  // nothing sampled and the render is biased.
+  //
+  // This exercises the full round trip -- sample, shoot, intersect, reconstruct
+  // -- rather than just calling the shared leaf twice, so a drift introduced by
+  // the solver or by the uv handoff is caught too.
+  {
+    std::mt19937 g(20260009);
+    std::uniform_real_distribution<float> uni(-1.0f, 1.0f);
+    std::uniform_real_distribution<float> unit(0.0f, 1.0f);
+
+    // Two effects are excluded, both measured rather than assumed:
+    //
+    // 1. Grazing incidence. The density carries dist^2/cosTheta, so as cosTheta
+    //    goes to 0 it is ill-conditioned BY CONSTRUCTION: a 1-ulp difference in
+    //    the hit point is amplified without bound. Empirically every deviation
+    //    above 1e-3 has cosTheta < 1.2e-4, while the 133k cases with
+    //    cosTheta > 1e-3 agree to 1.3e-4. Both facts are asserted below, so the
+    //    exclusion cannot quietly grow to hide a real drift.
+    //
+    // 2. Points sampled on the rect's boundary to within an ulp. NEE can sample
+    //    v = 1e-6 and the round trip lands at v = -9e-8, just outside. That is
+    //    a boundary classification, not a density disagreement.
+    constexpr float kWellConditionedCos = 1e-3f;
+    constexpr float kBoundaryMargin = 1e-4f;
+
+    int tested = 0, mismatches = 0;
+    int grazingSkipped = 0, boundarySkipped = 0;
+    double worstRel = 0.0;
+    float worstMismatchCos = 0.0f;
+
+    for (int i = 0; i < 200000; ++i) {
+      RectLightGPUData r = makeRect(vec3(uni(g), uni(g), uni(g)),
+          vec3(uni(g), uni(g), uni(g)),
+          vec3(uni(g), uni(g), uni(g)));
+      // Exercise every side configuration.
+      const int sideSel = int(g() % 3);
+      r.side.front = (sideSel == 0 || sideSel == 2) ? 1 : 0;
+      r.side.back = (sideSel == 1 || sideSel == 2) ? 1 : 0;
+
+      const float area = length(cross(r.edge1, r.edge2));
+      if (area < 1e-2f)
+        continue;
+
+      const vec3 origin(uni(g) * 3.0f, uni(g) * 3.0f, uni(g) * 3.0f);
+
+      // --- NEE side: sample a point uniformly on the rect.
+      const vec2 uv(unit(g), unit(g));
+      const vec3 sampled = r.position + r.edge1 * uv.x + r.edge2 * uv.y;
+
+      const mat4 identity(1.0f);
+      const RectFrame frame = rectFrame(r, identity);
+      const RectPointRelation nee =
+          rectRelateToPoint(r, frame, origin, sampled);
+      if (!(nee.solidAnglePdf > 0.0f))
+        continue; // the light does not emit toward this point; NEE reports 0
+
+      const bool onBoundary = uv.x < kBoundaryMargin
+          || uv.x > 1.0f - kBoundaryMargin || uv.y < kBoundaryMargin
+          || uv.y > 1.0f - kBoundaryMargin;
+
+      // --- Hit side: shoot toward that point and reconstruct from the hit.
+      const RectIntersection isect = intersectRect(r, origin, nee.dir);
+      if (!isect.hit) {
+        // The sampled point is on the rect and the light emits toward the
+        // origin, so a ray aimed at it must hit -- UNLESS the sample sat on the
+        // boundary to within an ulp, where the round trip can land a hair
+        // outside. Anywhere else a miss is a real fault: NEE would report a
+        // positive density for a direction the hit side says cannot reach the
+        // light, and MIS could never rebalance it.
+        if (onBoundary)
+          ++boundarySkipped;
+        else
+          ++mismatches;
+        continue;
+      }
+
+      const vec3 hitPoint = origin + isect.t * nee.dir;
+      const RectPointRelation hit =
+          rectRelateToPoint(r, frame, origin, hitPoint);
+
+      const double rel =
+          std::fabs(double(hit.solidAnglePdf) - double(nee.solidAnglePdf))
+          / std::fmax(1e-30, double(nee.solidAnglePdf));
+
+      if (nee.cosTheta < kWellConditionedCos) {
+        ++grazingSkipped;
+        // Still track how far the excluded region strays, so the exclusion is
+        // characterized rather than a blind spot.
+        if (rel > 1e-3)
+          worstMismatchCos = std::fmax(worstMismatchCos, nee.cosTheta);
+        continue;
+      }
+
+      ++tested;
+      worstRel = std::fmax(worstRel, rel);
+      // fp32 round trip through the solver; beyond this is drift, not rounding.
+      if (rel > 1e-3) {
+        ++mismatches;
+        worstMismatchCos = std::fmax(worstMismatchCos, nee.cosTheta);
+      }
+    }
+
+    std::printf(
+        "  MIS identity: %d tested, %d mismatches, worst rel %.3e"
+        " (skipped %d grazing, %d boundary; worst mismatch cos %.3e)\n",
+        tested,
+        mismatches,
+        worstRel,
+        grazingSkipped,
+        boundarySkipped,
+        worstMismatchCos);
+
+    CHECK(tested > 10000);
+    // The identity holds exactly where the density is well conditioned.
+    CHECK(mismatches == 0);
+    // And it holds TIGHTLY there -- not merely inside the 1e-3 gate.
+    CHECK(worstRel < 1e-3);
+    // The grazing exclusion must stay a thin sliver. If a future change starts
+    // disagreeing at moderate angles, this catches it even though those cases
+    // are skipped above.
+    CHECK(worstMismatchCos < kWellConditionedCos);
+    // Neither exclusion may swallow the bulk of the samples.
+    CHECK(grazingSkipped < tested / 10);
+    CHECK(boundarySkipped < tested / 100);
+  }
+
   if (g_failures == 0)
     std::printf("test_LightGeometryOracle: all checks passed\n");
   else

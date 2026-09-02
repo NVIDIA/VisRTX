@@ -140,6 +140,12 @@ struct SurfaceLightSample
   LightSample ls;
   bool isEnv;
   bool isGeometry;
+  // An analytic AREA light that now has a traceable proxy (ADR 0009). Like a
+  // Geometry Light, it is reachable by BOTH next-event estimation and a BSDF
+  // continuation, so its NEE contribution must be MIS-weighted against the
+  // hit-side deposit. Without this the two sides each claim the full
+  // contribution and the light is counted twice.
+  bool isHittableArea;
 };
 
 // Power (relative flux) of the ambient term, treated as an infinite hemisphere
@@ -334,6 +340,53 @@ VISRTX_DEVICE float geometryLightHitPdf(
   return solidAnglePdf * pickProb;
 }
 
+// Hit-side NEE density for an analytic area-light proxy (ADR 0009).
+//
+// The MIS crux. This must return EXACTLY the density sampleLights would have
+// reported for this direction, or the balance heuristic weights the deposit
+// against a density nothing sampled and the image is biased -- subtly, and in a
+// way that is very hard to see.
+//
+// Both factors are therefore taken from the sampler's own sources: the
+// solid-angle term is the shared leaf sampleRectLight calls, and the pick
+// probability is instancePickProbability over the same lightPickDelta and power
+// totals, indexed by the light instance the proxy stands for.
+VISRTX_DEVICE float lightProxyHitPdf(
+    const FrameGPUData &frameData, const SurfaceHit &hit, const vec3 &origin)
+{
+  const auto &world = frameData.world;
+  const auto &proxy = world.lightProxies[hit.lightProxyIndex];
+  const auto &ld = frameData.registry.lights[proxy.lightIndex];
+  if (ld.type != LightType::RECT)
+    return 0.0f;
+
+  // Same ambient-inclusive partition the pick uses; without the ambient term
+  // the pick probabilities would not sum to 1 and the two sides would disagree
+  // whenever ambientRadiance is nonzero.
+  const float totalPower = world.totalLightPower + ambientPickPower(frameData);
+  if (!(totalPower > 0.0f)) {
+    // All-dark fallback: the pick goes uniform over the strata, so the hit side
+    // must too or a dark scene's MIS weights disagree.
+    const size_t numStrata =
+        world.numLightInstances + (ambientPickPower(frameData) > 0.0f ? 1 : 0);
+    if (numStrata == 0)
+      return 0.0f;
+    const RectFrame frame = rectFrame(ld.rect, proxy.xfm);
+    const RectPointRelation rel =
+        rectRelateToPoint(ld.rect, frame, origin, hit.hitpoint);
+    return rel.solidAnglePdf / float(numStrata);
+  }
+
+  const RectFrame frame = rectFrame(ld.rect, proxy.xfm);
+  const RectPointRelation rel =
+      rectRelateToPoint(ld.rect, frame, origin, hit.hitpoint);
+  if (!(rel.solidAnglePdf > 0.0f))
+    return 0.0f;
+
+  return rel.solidAnglePdf
+      * instancePickProbability(world, proxy.lightInstanceIndex, totalPower);
+}
+
 // One Light Pick: which candidate (a light instance or the ambient term) was
 // drawn, and its discrete pick probability folded into the returned pdf. Shared
 // by the surface and volume samplers, which differ only in how they turn the
@@ -408,7 +461,15 @@ VISRTX_DEVICE SurfaceLightSample sampleLights(ScreenSample &ss,
       sampleLight(ss, origin, li.lightIndex, li.xfm, li.surfaceInstanceIndex);
   ls.pdf *= pick.pickPdf;
   const LightType type = frameData.registry.lights[li.lightIndex].type;
-  return {ls, type == LightType::HDRI, type == LightType::GEOMETRY};
+  // Ask the instance, not the type. An analytic area light only reaches the
+  // proxy BLAS if World::buildLightProxies actually emitted one for it, and a
+  // degenerate rect, a collapsed ring or an empty AABB is skipped. Weighting
+  // NEE against a continuation that can never hit the light would drop that
+  // energy outright, since nothing deposits it back.
+  return {ls,
+      type == LightType::HDRI,
+      type == LightType::GEOMETRY,
+      li.hasAreaProxy};
 }
 
 VISRTX_DEVICE LightSample sampleLightsVolume(
@@ -582,16 +643,16 @@ VISRTX_GLOBAL void __raygen__()
       const bool isFirstBounce = bounceDepth == 0 && transparencyDepth == 0;
 
       SurfaceHit surfaceHit = {};
-      // Camera rays may hit the proxy of a light whose `visible` is true.
-      // Continuation rays do not yet: depositing there needs the hit-side pdf
-      // reconstruction, so until then they must not reach a proxy at all or the
-      // light would be double counted against NEE.
+      // Camera rays see proxies of lights whose `visible` is true; continuation
+      // rays see ALL proxies, since hiding a light from the camera must not
+      // remove it from reflections or GI.
       intersectSurface(ss,
           ray,
           RayType::PRIMARY,
           &surfaceHit,
           primaryRayOptiXFlags(rendererParams),
-          isFirstBounce ? primaryWithVisibleLightsMask() : geometryOnlyMask());
+          isFirstBounce ? primaryWithVisibleLightsMask()
+                        : secondaryWithAllLightsMask());
 
       float volumeUpperBound = surfaceHit.foundHit ? surfaceHit.t : ray.t.upper;
       auto volumeRay = Ray{ray.org, ray.dir, {ray.t.lower, volumeUpperBound}};
@@ -680,12 +741,9 @@ VISRTX_GLOBAL void __raygen__()
         continue;
       }
 
-      // A directly visible area light. Handled before any material work: a
-      // proxy has no Material to initialize shading from.
-      //
-      // No MIS weight is needed here. This branch is reachable only on a camera
-      // ray, which is a delta event (bsdfPdf == +inf), so the balance heuristic
-      // gives weight 1 -- NEE cannot produce the directly visible light.
+      // An area light reached by a ray -- directly by the camera, or by a BSDF
+      // continuation off a reflective surface. Handled before any material
+      // work: a proxy has no Material to initialize shading from.
       if (surfaceHit.foundHit && surfaceHit.isLightProxy()) {
         const auto &proxy =
             frameData.world.lightProxies[surfaceHit.lightProxyIndex];
@@ -700,7 +758,21 @@ VISRTX_GLOBAL void __raygen__()
           sample.albedo = vec3(0.0f);
         }
 
-        sample.color += sampleContribution * rectRadiance(ld.rect, ld.color);
+        // MIS against NEE, mirroring the emissive-surface deposit above. A
+        // camera ray is a delta event (bsdfPdf == +inf) and NEE cannot reach
+        // it, so weight 1. A finite-pdf continuation CAN also be reached by
+        // NEE, so weight the two against each other or the light is counted
+        // twice.
+        float wEmission = 1.0f;
+        if (!isinf(bsdfPdf)) {
+          const float pNee =
+              lightProxyHitPdf(frameData, surfaceHit, lastScatterOrigin);
+          if (pNee > 0.0f)
+            wEmission = bsdfPdf / (bsdfPdf + pNee);
+        }
+
+        sample.color +=
+            wEmission * sampleContribution * rectRadiance(ld.rect, ld.color);
         // A light is opaque for deposit purposes: terminate rather than
         // continuing through it, matching the emissive-hit control flow.
         break;
@@ -789,11 +861,12 @@ VISRTX_GLOBAL void __raygen__()
                 const float pCosine = lightDotNs * kInvPi;
                 const float pSum = pLight + pBsdf + pCosine;
                 wNee = pSum > 0.0f ? pLight / pSum : 0.0f;
-              } else if (lightPick.isGeometry) {
+              } else if (lightPick.isGeometry || lightPick.isHittableArea) {
                 // lightSample.pdf is the exact NEE density (solid-angle × pick
-                // probability); the BSDF continuation can also hit this
-                // Geometry Light, so weight against it. Mirrors
-                // geometryLightHitPdf on the deposit.
+                // probability); the BSDF continuation can also hit this light,
+                // so weight against it. Mirrors geometryLightHitPdf /
+                // lightProxyHitPdf on the deposit -- the SAME density, which is
+                // what makes the two weights sum to 1.
                 const float pBsdf =
                     materialEvalPdf(shadingState, -ray.dir, lightSample.dir);
                 wNee = lightSample.pdf / (lightSample.pdf + pBsdf);

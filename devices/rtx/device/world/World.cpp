@@ -821,6 +821,11 @@ void World::buildLightProxies()
         proxy.xfm = xfm;
         proxies.push_back(proxy);
 
+        // Tell the NEE side this instance is reachable by a BSDF continuation,
+        // so it MIS-weights against the hit deposit. Lights that fell through
+        // the two skips above keep the default false and stay weight 1.
+        m_instanceLightGPUData.dataHost()[slot].hasAreaProxy = true;
+
         const vec3 lo = b.lower;
         const vec3 hi = b.upper;
         const vec3 span = hi - lo;
@@ -871,6 +876,10 @@ void World::buildLightProxies()
 
   if (proxies.empty())
     return;
+
+  // Re-upload: the hasAreaProxy flags were written after
+  // buildInstanceLightGPUData's own upload.
+  m_instanceLightGPUData.upload();
 
   m_lightProxyGPUData.resize(proxies.size());
   std::copy(proxies.begin(), proxies.end(), m_lightProxyGPUData.dataHost());

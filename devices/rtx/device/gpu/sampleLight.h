@@ -181,24 +181,21 @@ VISRTX_DEVICE LightSample sampleRectLight(
   // Uniform sampling on rectangle: uv ∈ [0,1]² maps to rectangle
   auto rectangleSample = ld.rect.edge1 * uv.x + ld.rect.edge2 * uv.y;
   auto worldPos = xfmPoint(xfm, ld.rect.position + rectangleSample);
-  ls.dir = worldPos - origin;
-  ls.dist = length(ls.dir);
-  ls.dir /= ls.dist;
 
-  // Rectangle normal and area from cross product, and Lambert's cosine law with
-  // the front/back/both resolution. Both leaves are shared with the hit-side
-  // deposit so the two paths cannot disagree (ADR 0009).
+  // Direction, distance, emission cosine and solid-angle density all come from
+  // the shared leaf the hit-side deposit calls (ADR 0009). One function, so the
+  // NEE density and the density MIS weights against cannot drift.
   const RectFrame frame = rectFrame(ld.rect, xfm);
-  const float cosTheta =
-      rectEmissionCosTheta(ld.rect, frame.worldNormal, ls.dir);
+  const RectPointRelation rel =
+      rectRelateToPoint(ld.rect, frame, origin, worldPos);
 
-  if (cosTheta > 0.0f) {
+  ls.dir = rel.dir;
+  ls.dist = rel.dist;
+
+  if (rel.cosTheta > 0.0f) {
     // Lambertian radiance. cosTheta is handled through pdf below.
     ls.radiance = rectRadiance(ld.rect, ld.color);
-
-    // Convert area PDF to solid angle PDF for proper Monte Carlo integration
-    // Area PDF = 1 / area, Solid angle PDF = area_pdf * distance² / |cos θ|
-    ls.pdf = rectSolidAnglePdf(frame.area, ls.dist, cosTheta);
+    ls.pdf = rel.solidAnglePdf;
   } else {
     // No emission toward surfaces facing away from the light
     ls.radiance = vec3(0.0f);

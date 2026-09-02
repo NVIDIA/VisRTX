@@ -87,15 +87,9 @@ VISRTX_DEVICE uint32_t primaryRayOptiXFlags(const RendererGPUData &rd)
 // property of the trace, so a renderer that does not deposit proxy hits simply
 // never names them and its rays cannot reach one.
 //
-// The default is geometry-only: every existing call site keeps its exact current
-// behavior, and opting into proxies is explicit.
-
-// Real scene geometry only. Shadow/occlusion rays use this, so a light neither
-// shadows the scene nor self-occludes.
-VISRTX_DEVICE constexpr uint32_t geometryOnlyMask()
-{
-  return VISRTX_MASK_GEOMETRY;
-}
+// The default is VISRTX_MASK_GEOMETRY: every existing call site keeps its exact
+// current behavior, and opting into proxies is explicit. Shadow/occlusion rays
+// keep that default, so a light neither shadows the scene nor self-occludes.
 
 // Camera/primary rays in a renderer that shows lights: geometry plus proxies of
 // lights whose `visible` is true.
