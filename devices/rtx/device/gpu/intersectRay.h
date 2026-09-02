@@ -42,7 +42,8 @@ VISRTX_DEVICE void launchRay(ScreenSample &ss,
     T rayType,
     bool tracingSurfaces,
     void *dataPtr,
-    uint32_t optixFlags)
+    uint32_t optixFlags,
+    uint32_t visibilityMask)
 {
   uint32_t bvhSelection = tracingSurfaces;
 
@@ -62,7 +63,7 @@ VISRTX_DEVICE void launchRay(ScreenSample &ss,
       r.t.lower,
       r.t.upper,
       0.0f,
-      OptixVisibilityMask(255),
+      OptixVisibilityMask(visibilityMask),
       optixFlags,
       static_cast<uint32_t>(rayType) * NUM_SBT_PRIMITIVE_INTERSECTOR_ENTRIES,
       0u,
@@ -82,14 +83,45 @@ VISRTX_DEVICE uint32_t primaryRayOptiXFlags(const RendererGPUData &rd)
                            : OPTIX_RAY_FLAG_NONE;
 }
 
+// Ray-class visibility masks (ADR 0009). Which light proxies a ray may hit is a
+// property of the trace, so a renderer that does not deposit proxy hits simply
+// never names them and its rays cannot reach one.
+//
+// The default is geometry-only: every existing call site keeps its exact current
+// behavior, and opting into proxies is explicit.
+
+// Real scene geometry only. Shadow/occlusion rays use this, so a light neither
+// shadows the scene nor self-occludes.
+VISRTX_DEVICE constexpr uint32_t geometryOnlyMask()
+{
+  return VISRTX_MASK_GEOMETRY;
+}
+
+// Camera/primary rays in a renderer that shows lights: geometry plus proxies of
+// lights whose `visible` is true.
+VISRTX_DEVICE constexpr uint32_t primaryWithVisibleLightsMask()
+{
+  return VISRTX_MASK_GEOMETRY | VISRTX_MASK_LIGHT_PROXY_VISIBLE;
+}
+
+// Reflection/GI continuation rays: geometry plus ALL light proxies, including
+// visible=false ones — hiding a light from the camera must not remove it from
+// indirect illumination.
+VISRTX_DEVICE constexpr uint32_t secondaryWithAllLightsMask()
+{
+  return VISRTX_MASK_GEOMETRY | VISRTX_MASK_LIGHT_PROXY_VISIBLE
+      | VISRTX_MASK_LIGHT_PROXY_HIDDEN;
+}
+
 template <typename T>
 VISRTX_DEVICE void intersectSurface(ScreenSample &ss,
     Ray r,
     T rayType,
     void *dataPtr = nullptr,
-    uint32_t optixFlags = OPTIX_RAY_FLAG_DISABLE_ANYHIT)
+    uint32_t optixFlags = OPTIX_RAY_FLAG_DISABLE_ANYHIT,
+    uint32_t visibilityMask = VISRTX_MASK_GEOMETRY)
 {
-  detail::launchRay(ss, r, rayType, true, dataPtr, optixFlags);
+  detail::launchRay(ss, r, rayType, true, dataPtr, optixFlags, visibilityMask);
 }
 
 template <typename T>
@@ -99,7 +131,9 @@ VISRTX_DEVICE void intersectVolume(ScreenSample &ss,
     void *dataPtr = nullptr,
     uint32_t optixFlags = OPTIX_RAY_FLAG_DISABLE_ANYHIT)
 {
-  detail::launchRay(ss, r, rayType, false, dataPtr, optixFlags);
+  // Volumes live in their own traversable with no light proxies in it.
+  detail::launchRay(
+      ss, r, rayType, false, dataPtr, optixFlags, VISRTX_MASK_GEOMETRY);
 }
 
 // Apply a cutting plane to a ray.

@@ -37,8 +37,12 @@
 
 namespace visrtx {
 
+// Shadow rays name no light-proxy CH: they never set a proxy visibility bit, so
+// a light can neither shadow the scene nor shadow itself (ADR 0009).
 static const std::array<HitgroupFunctionNames, 2> g_qualityHitNames = {
-    HitgroupFunctionNames{"__closesthit__shading", "__anyhit__shading"},
+    HitgroupFunctionNames{"__closesthit__shading",
+        "__anyhit__shading",
+        "__closesthit__lightProxy"},
     HitgroupFunctionNames{"__closesthit__shadow", "__anyhit__shadow"}};
 
 static const auto g_qualityMissNames =

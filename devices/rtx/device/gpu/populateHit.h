@@ -491,5 +491,32 @@ VISRTX_DEVICE void populateHit()
   }
 }
 
+// Analytic area-light proxy hit (ADR 0009).
+//
+// Deliberately NOT populateSurfaceHit: that reads the hit's Surface, Geometry,
+// Material and surface-instance records, and a proxy has none of them. Only the
+// fields a proxy can honestly answer are filled; instance/geometry/material
+// stay null and callers gate on hit.isLightProxy().
+//
+// The ID channels are left at their SurfaceHit defaults (~0u) on purpose, so a
+// visible light never masquerades as a real scene object in a picking or ID
+// pass. A consumer that reads primID/objID/instID off a proxy hit without
+// checking isLightProxy() therefore gets the sentinel, not a real object's id
+// -- wrong, but not a crash, unlike the null instance/geometry/material
+// pointers.
+VISRTX_DEVICE void populateLightProxyHit()
+{
+  auto &hit = ray::rayData<SurfaceHit>();
+
+  hit.foundHit = true;
+  hit.isFrontFace = true; // the intersector already culled the dark side
+  hit.t = ray::t();
+  hit.hitpoint = ray::hitpoint();
+  hit.epsilon = epsilonFrom(ray::hitpoint(), ray::direction(), ray::t());
+  hit.lightProxyUv = vec2(bit_cast<float>(optixGetAttribute_0()),
+      bit_cast<float>(optixGetAttribute_1()));
+  hit.lightProxyIndex = optixGetAttribute_2();
+}
+
 } // namespace ray
 } // namespace visrtx

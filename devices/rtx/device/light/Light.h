@@ -50,6 +50,15 @@ struct Light : public RegisteredObject<LightGPUData>
 
   virtual bool isHDRI() const;
 
+  // Analytic AREA lights (quad, ring) get a traceable proxy so a camera or
+  // BSDF-continuation ray can hit them (ADR 0009). Others have no extent to
+  // show and return false.
+  virtual bool hasAreaProxy() const;
+
+  // World-space bounds of this light's emitting surface under an instance
+  // transform, for the proxy BLAS. Only meaningful when hasAreaProxy().
+  virtual box3 areaProxyBounds(const mat4 &xfm) const;
+
   // Pick Power of this light under an instance transform, for the
   // power-proportional Light Pick. sceneRadius sizes the infinite lights.
   float pickPower(const mat4 &xfm, float sceneRadius) const;
