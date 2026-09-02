@@ -641,6 +641,12 @@ VISRTX_GLOBAL void __raygen__()
     int transparencyDepth = 0;
     while (bounceDepth < qualityParams.maxRayDepth) {
       const bool isFirstBounce = bounceDepth == 0 && transparencyDepth == 0;
+      // A coverage pass-through keeps the camera's direction, so the ray still
+      // shows the viewer what lies along that direction and `visible` still
+      // applies to it. Gate on bounceDepth alone, exactly as the hidden-HDRI
+      // backdrop does at the miss -- spending isFirstBounce here revealed a
+      // hidden light through any partially transparent surface.
+      const bool isCameraRay = bounceDepth == 0;
 
       SurfaceHit surfaceHit = {};
       // Camera rays see proxies of lights whose `visible` is true; continuation
@@ -651,8 +657,8 @@ VISRTX_GLOBAL void __raygen__()
           RayType::PRIMARY,
           &surfaceHit,
           primaryRayOptiXFlags(rendererParams),
-          isFirstBounce ? primaryWithVisibleLightsMask()
-                        : secondaryWithAllLightsMask());
+          isCameraRay ? primaryWithVisibleLightsMask()
+                      : secondaryWithAllLightsMask());
 
       float volumeUpperBound = surfaceHit.foundHit ? surfaceHit.t : ray.t.upper;
       auto volumeRay = Ray{ray.org, ray.dir, {ray.t.lower, volumeUpperBound}};
