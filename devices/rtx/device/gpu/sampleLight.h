@@ -36,6 +36,7 @@
 #include "gpu/gpu_objects.h"
 #include "gpu/gpu_util.h"
 #include "gpu/intersectPrimitives.h" // CapBit (cylinder/cone cap enablement)
+#include "gpu/lightGeometry.h" // rect/ring leaves shared with the hit-side deposit
 
 // glm
 #include <glm/ext/matrix_float3x3.hpp>
@@ -184,32 +185,20 @@ VISRTX_DEVICE LightSample sampleRectLight(
   ls.dist = length(ls.dir);
   ls.dir /= ls.dist;
 
-  // Calculate rectangle normal and area from cross product; the ANARI spec
-  // defines the front side as edge2 x edge1
-  auto normal = cross(ld.rect.edge2, ld.rect.edge1);
-  auto area = length(normal);
-  normal = normalize(xfmVec(xfm, normal));
-
-  // Apply Lambert's cosine law: radiance ∝ cos(θ) where θ is angle to normal
-  auto cosTheta = dot(normal, -ls.dir);
-
-  // Handle front/back face emission based on light configuration
-  if (ld.rect.side.back) {
-    if (ld.rect.side.front)
-      cosTheta = fabsf(cosTheta); // Both sides: always positive
-    else
-      cosTheta = -cosTheta; // Back only: flip to back face
-  }
-  // Front only: use cosTheta as-is (positive for front face)
+  // Rectangle normal and area from cross product, and Lambert's cosine law with
+  // the front/back/both resolution. Both leaves are shared with the hit-side
+  // deposit so the two paths cannot disagree (ADR 0009).
+  const RectFrame frame = rectFrame(ld.rect, xfm);
+  const float cosTheta =
+      rectEmissionCosTheta(ld.rect, frame.worldNormal, ls.dir);
 
   if (cosTheta > 0.0f) {
     // Lambertian radiance. cosTheta is handled through pdf below.
-    ls.radiance = ld.color * ld.rect.intensity;
+    ls.radiance = rectRadiance(ld.rect, ld.color);
 
     // Convert area PDF to solid angle PDF for proper Monte Carlo integration
     // Area PDF = 1 / area, Solid angle PDF = area_pdf * distance² / |cos θ|
-    float areaPdf = 1.0f / area;
-    ls.pdf = areaPdf * pow2(ls.dist) / cosTheta;
+    ls.pdf = rectSolidAnglePdf(frame.area, ls.dist, cosTheta);
   } else {
     // No emission toward surfaces facing away from the light
     ls.radiance = vec3(0.0f);
@@ -252,33 +241,20 @@ VISRTX_DEVICE LightSample sampleRingLight(
 
   auto worldDirection = xfmVec(xfm, direction);
 
-  // Calculate spotlight-like cone attenuation
-  float spot;
-  auto cosTheta = dot(worldDirection, -ls.dir);
-  if (cosTheta < ld.ring.cosOuterAngle) {
-    // Outside cone: no illumination
-    spot = 0.0f;
-  } else if (cosTheta > ld.ring.cosInnerAngle) {
-    // Inside inner cone: full illumination
-    spot = 1.0f;
-  } else {
-    // Falloff region: smooth interpolation using smoothstep function
-    // smoothstep(t) = 3t² - 2t³ provides C¹ continuity
-    spot = (cosTheta - ld.ring.cosOuterAngle)
-        / (ld.ring.cosInnerAngle - ld.ring.cosOuterAngle);
-    spot = spot * spot * (3.0f - 2.0f * spot);
-  }
+  // Spotlight-like cone attenuation. Shared leaf: the visible disk (once the
+  // light proxy exists) must show the same falloff the illumination has.
+  const float cosTheta = dot(worldDirection, -ls.dir);
+  const float spot = ringSpotAttenuation(ld.ring, cosTheta);
 
   if (spot > 0.0f) {
     if (cosTheta > 0.0f) {
       // Lambertian radiance. cosTheta is handled through pdf below.
-      ls.radiance = ld.color * ld.ring.intensity * spot;
+      ls.radiance = ringRadiance(ld.ring, ld.color, spot);
 
       // Convert area PDF to solid angle PDF for proper Monte Carlo integration
       // Ring area = π(R² - r²), so area PDF = 1 / ring_area
       // Solid angle PDF = area_pdf * distance² / |cos θ|
-      float areaPdf = ld.ring.oneOverArea; // This is 1 / ring_area
-      ls.pdf = areaPdf * pow2(ls.dist) / cosTheta;
+      ls.pdf = ringSolidAnglePdf(ld.ring, ls.dist, cosTheta);
     } else {
       ls.radiance = vec3(0.0f);
       ls.pdf = 0.0f;
