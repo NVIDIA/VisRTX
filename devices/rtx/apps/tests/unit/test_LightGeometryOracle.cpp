@@ -722,6 +722,46 @@ int main()
     }
   }
 
+  // --- Sphere: exact under any affine instance transform --------------------
+  // The same round trip as the ring, on the ellipsoid the sampler actually
+  // scatters over. A ray from outside along the line through the centre meets
+  // a convex body first at the near boundary point, i.e. exactly at the
+  // sampled point.
+  {
+    const mat4 xfm = glm::translate(mat4(1.0f), vec3(1.0f, 2.0f, -3.0f))
+        * glm::rotate(mat4(1.0f), glm::radians(31.0f), vec3(0.2f, 1.0f, 0.4f))
+        * glm::scale(mat4(1.0f), vec3(1.0f, 2.5f, 0.4f));
+    const mat4 worldToObject = glm::inverse(xfm);
+    std::mt19937 g(4243);
+    std::uniform_real_distribution<float> unit(0.0f, 1.0f);
+
+    SphereLightGPUData sphere{};
+    sphere.position = vec3(-0.4f, 0.1f, 0.25f);
+    sphere.radius = 1.5f;
+    sphere.intensity = 1.0f;
+    const vec3 centreWorld = xfmPoint(xfm, sphere.position);
+    int sphereRoundTrips = 0;
+    for (int i = 0; i < 256; ++i) {
+      const float z = 1.0f - 2.0f * unit(g);
+      const float rxy = std::sqrt(std::max(0.0f, 1.0f - z * z));
+      const float phi = kTwoPi * unit(g);
+      const vec3 onUnit(rxy * std::cos(phi), rxy * std::sin(phi), z);
+      const vec3 sampledWorld =
+          xfmPoint(xfm, sphere.position + onUnit * sphere.radius);
+      const vec3 outward = sampledWorld - centreWorld;
+      const vec3 origin = sampledWorld + outward * 4.0f;
+      const vec3 dir = normalize(sampledWorld - origin);
+      const SphereIntersection h =
+          intersectSphereLight(sphere, worldToObject, origin, dir);
+      CHECK(h.hit);
+      if (!h.hit)
+        continue;
+      CHECK(length((origin + h.t * dir) - sampledWorld) < 1e-3f);
+      ++sphereRoundTrips;
+    }
+    CHECK(sphereRoundTrips == 256);
+  }
+
   // --- Ring: the MIS identity -----------------------------------------------
   // Same round trip as the rect case: sample a point on the annulus, shoot at
   // it, intersect, and reconstruct the density from the hit.

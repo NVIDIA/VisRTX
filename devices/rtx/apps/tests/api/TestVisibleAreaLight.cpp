@@ -667,6 +667,79 @@ int main()
             + " light is accepted without complaint");
   }
 
+  // 12. A point light with radius > 0 IS a sphere area light, and must reflect
+  //     in a metallic surface like any other area light. This was the gap that
+  //     blocked advertising khr_light_primary_visibility.
+  {
+    auto sphereScene = [&](bool visible, float roughness) {
+      auto light = anari::newObject<anari::Light>(device, "point");
+      anari::setParameter(device, light, "color", vec3{1.f, 1.f, 1.f});
+      anari::setParameter(device, light, "position", vec3{0.f, DOWN_Y, 0.f});
+      anari::setParameter(device, light, "intensity", EMISSIVE_RADIANCE);
+      anari::setParameter(device, light, "radius", 0.4f);
+      if (!visible)
+        anari::setParameter(device, light, "visible", false);
+      anari::commitParameters(device, light);
+
+      auto floor = makeFloor(device, roughness);
+      auto world = anari::newObject<anari::World>(device);
+      anari::setParameterArray1D(device, world, "surface", &floor, 1);
+      anari::setParameterArray1D(device, world, "light", &light, 1);
+      anari::release(device, floor);
+      anari::release(device, light);
+      anari::commitParameters(device, world);
+
+      auto camera = anari::newObject<anari::Camera>(device, "perspective");
+      anari::setParameter(device, camera, "position", vec3{0.f, 1.2f, -2.2f});
+      anari::setParameter(device, camera, "direction", vec3{0.f, -0.5f, 1.f});
+      anari::setParameter(device, camera, "up", vec3{0.f, 1.f, 0.f});
+      anari::setParameter(
+          device, camera, "aspect", IMAGE_SIZE[0] / float(IMAGE_SIZE[1]));
+      anari::commitParameters(device, camera);
+
+      auto renderer = anari::newObject<anari::Renderer>(device, "quality");
+      anari::setParameter(
+          device, renderer, "background", vec4{0.f, 0.f, 0.f, 1.f});
+      anari::setParameter(device, renderer, "ambientRadiance", 0.f);
+      anari::setParameter(device, renderer, "pixelSamples", PIXEL_SAMPLES);
+      anari::setParameter(device, renderer, "fireflyFilterMode", "none");
+      anari::commitParameters(device, renderer);
+
+      auto frame = anari::newObject<anari::Frame>(device);
+      anari::setParameter(device, frame, "size", IMAGE_SIZE);
+      anari::setParameter(device, frame, "channel.color", ANARI_FLOAT32_VEC4);
+      anari::setAndReleaseParameter(device, frame, "world", world);
+      anari::setAndReleaseParameter(device, frame, "camera", camera);
+      anari::setAndReleaseParameter(device, frame, "renderer", renderer);
+      anari::commitParameters(device, frame);
+      anari::render(device, frame);
+      anari::wait(device, frame);
+      auto fb = anari::map<vec4>(device, frame, "channel.color");
+      std::vector<vec4> out(fb.data, fb.data + size_t(fb.width) * fb.height);
+      anari::unmap(device, frame, "channel.color");
+      anari::release(device, frame);
+      return out;
+    };
+
+    const double sphereRefl = floorMean(sphereScene(true, 0.05f));
+    printf("sphere (point radius>0) reflection: %f\n", sphereRefl);
+    check(sphereRefl > 1e-3,
+        "a point light with radius > 0 reflects in a metallic surface");
+
+    // Hiding it removes it from the camera but not from the reflection.
+    const double sphereHidden = floorMean(sphereScene(false, 0.05f));
+    const double sphereRel = sphereRefl > 0.0
+        ? std::abs(sphereHidden - sphereRefl) / sphereRefl
+        : 1.0;
+    check(sphereRel < 0.10,
+        "a hidden sphere light still appears in reflections (relErr="
+            + std::to_string(sphereRel) + ")");
+
+    const double sphereDiffuse = floorMean(sphereScene(true, 1.f));
+    check(sphereDiffuse > 1e-3,
+        "a sphere light still lights a diffuse floor (control)");
+  }
+
   // 10. Ring lights get the same treatment.
   Scene ringScene;
   ringScene.ring = true;

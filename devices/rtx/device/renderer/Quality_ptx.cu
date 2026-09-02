@@ -368,6 +368,10 @@ VISRTX_DEVICE float lightProxyHitPdf(
     const vec3 axis = ringWorldAxis(ld.ring, proxy.xfm);
     solidAnglePdf =
         ringRelateToPoint(ld.ring, axis, origin, hit.hitpoint).solidAnglePdf;
+  } else if (ld.type == LightType::SPHERE) {
+    const vec3 center = xfmPoint(proxy.xfm, ld.sphere.position);
+    solidAnglePdf = sphereRelateToPoint(ld.sphere, center, origin, hit.hitpoint)
+                        .solidAnglePdf;
   } else
     return 0.0f;
 
@@ -802,7 +806,8 @@ VISRTX_GLOBAL void __raygen__()
           const RingPointRelation rel = ringRelateToPoint(
               ld.ring, axis, lastScatterOrigin, surfaceHit.hitpoint);
           proxyRadiance = ringRadiance(ld.ring, ld.color, rel.spot);
-        }
+        } else if (ld.type == LightType::SPHERE)
+          proxyRadiance = sphereRadiance(ld.sphere, ld.color);
 
         sample.color += wEmission * sampleContribution * proxyRadiance;
         // A visible light COVERS the pixel. Without this the alpha channel

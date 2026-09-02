@@ -41,12 +41,20 @@ struct Point : public Light
 
   void commitParameters() override;
 
+  // A point light with radius > 0 is a sphere AREA light, so it gets a proxy
+  // like quad and ring. With radius == 0 it is a true delta light: no extent,
+  // nothing to see, no proxy.
+  bool hasAreaProxy() const override;
+  box3 areaProxyBounds(const mat4 &xfm) const override;
+
  private:
   LightGPUData gpuData() const override;
 
   vec3 m_position{0.f, 0.f, 0.f};
   float m_radius{0.f};
   float m_intensity{1.f};
+  // Camera visibility only; see Rect::m_visible.
+  bool m_visible{true};
 };
 
 } // namespace visrtx

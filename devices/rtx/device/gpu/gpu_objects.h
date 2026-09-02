@@ -710,7 +710,8 @@ struct SphereLightGPUData
   vec3 position;
   float intensity;
   float radius;
-  float oneOverArea;
+  // Camera visibility only; see RectLightGPUData::visible.
+  bool visible;
 };
 
 struct RectLightGPUData
