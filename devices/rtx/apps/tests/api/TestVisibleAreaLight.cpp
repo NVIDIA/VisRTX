@@ -197,7 +197,7 @@ static anari::Surface makeDownEmissiveQuad(ANARIDevice d)
 }
 
 // A diffuse floor at y=0, to measure illumination.
-static anari::Surface makeFloor(ANARIDevice d)
+static anari::Surface makeFloor(ANARIDevice d, float roughness = 1.f)
 {
   const std::array<vec3, 4> pos = {vec3{-6.f, 0.f, -6.f},
       vec3{6.f, 0.f, -6.f},
@@ -212,9 +212,13 @@ static anari::Surface makeFloor(ANARIDevice d)
   anari::commitParameters(d, geom);
 
   auto mat = anari::newObject<anari::Material>(d, "physicallyBased");
-  anari::setParameter(d, mat, "baseColor", vec3{0.6f, 0.6f, 0.6f});
-  anari::setParameter(d, mat, "metallic", 0.f);
-  anari::setParameter(d, mat, "roughness", 1.f);
+  const bool mirror = roughness < 0.5f;
+  anari::setParameter(d,
+      mat,
+      "baseColor",
+      mirror ? vec3{1.f, 1.f, 1.f} : vec3{0.6f, 0.6f, 0.6f});
+  anari::setParameter(d, mat, "metallic", mirror ? 1.f : 0.f);
+  anari::setParameter(d, mat, "roughness", roughness);
   anari::commitParameters(d, mat);
 
   auto surface = anari::newObject<anari::Surface>(d);
@@ -235,6 +239,10 @@ struct Scene
   // Use the downward-facing emitter and a camera aimed at the lit floor.
   bool floorScene = false;
   const char *rendererSubtype = "quality";
+  // Mirror scene: a low-roughness floor with the emitter above it, camera
+  // angled so the emitter's REFLECTION is in frame.
+  bool mirrorScene = false;
+  float floorRoughness = 1.f;
 };
 
 static std::vector<vec4> render(ANARIDevice d, const Scene &sc)
@@ -243,9 +251,9 @@ static std::vector<vec4> render(ANARIDevice d, const Scene &sc)
   std::vector<anari::Light> lights;
 
   if (sc.withFloor)
-    surfaces.push_back(makeFloor(d));
+    surfaces.push_back(makeFloor(d, sc.floorRoughness));
   if (!sc.noLight) {
-    if (sc.floorScene) {
+    if (sc.floorScene || sc.mirrorScene) {
       if (sc.useEmissiveMesh)
         surfaces.push_back(makeDownEmissiveQuad(d));
       else
@@ -271,7 +279,13 @@ static std::vector<vec4> render(ANARIDevice d, const Scene &sc)
   anari::commitParameters(d, world);
 
   auto camera = anari::newObject<anari::Camera>(d, "perspective");
-  if (sc.floorScene) {
+  if (sc.mirrorScene) {
+    // Look down at the mirror floor from in front of the emitter, so the
+    // emitter's reflection lands in the lower half of frame and the emitter
+    // itself stays above the top edge.
+    anari::setParameter(d, camera, "position", vec3{0.f, 1.2f, -2.2f});
+    anari::setParameter(d, camera, "direction", vec3{0.f, -0.5f, 1.f});
+  } else if (sc.floorScene) {
     // Look across the floor. The emitter is above the top of frame, so only its
     // cast pool is measured -- the emitter's own glow never enters the region,
     // which is what makes the light and the emissive-mesh oracle comparable.
@@ -470,6 +484,51 @@ int main()
         std::string(subtype) + " renders a scene with an area light");
     check(allFinite, std::string(subtype) + " produces no NaN/Inf pixels");
   }
+
+  // 6. THE REPORTED BUG: the light appears in the reflection off a
+  //    low-roughness surface. Before this work the reflection region was
+  //    black -- NEE contributes ~0 off a near-mirror BSDF, and there was no
+  //    geometry for the continuation ray to hit.
+  //
+  //    The authored emissive surface is again the oracle: at convergence the
+  //    analytic light and the emissive quad must reflect identically. That
+  //    single comparison pins the radiance conversion AND the MIS weighting,
+  //    since a mis-weighted deposit shows up directly as a brighter or dimmer
+  //    reflection.
+  Scene mirror;
+  mirror.withFloor = true;
+  mirror.mirrorScene = true;
+  mirror.floorRoughness = 0.05f;
+  Scene mirrorMesh = mirror;
+  mirrorMesh.useEmissiveMesh = true;
+
+  const double reflLight = floorMean(render(device, mirror));
+  const double reflMesh = floorMean(render(device, mirrorMesh));
+  printf("reflection: light=%f  emissiveMesh=%f\n", reflLight, reflMesh);
+
+  check(reflLight > 1e-3,
+      "a quad light appears in the reflection off a low-roughness floor");
+  const double reflRel =
+      reflMesh > 0.0 ? std::abs(reflLight - reflMesh) / reflMesh : 1.0;
+  check(reflRel < 0.10,
+      "the reflected light matches the emissive-surface oracle (relErr="
+          + std::to_string(reflRel) + ")");
+
+  // 7. Mean preservation on a DIFFUSE floor now that continuation rays can also
+  //    reach the light. This is the double-count guard: NEE and the BSDF hit
+  //    can both find the light, and only correct MIS weighting keeps the total
+  //    unchanged. Re-measured here because check 3 ran before continuation rays
+  //    could reach a proxy at all.
+  const double floorAfter = floorMean(render(device, litFloor));
+  printf("floor after MIS deposit: light=%f  (oracle %f)\n",
+      floorAfter,
+      floorFromMesh);
+  const double floorAfterRel = floorFromMesh > 0.0
+      ? std::abs(floorAfter - floorFromMesh) / floorFromMesh
+      : 1.0;
+  check(floorAfterRel < 0.05,
+      "diffuse illumination is unchanged once the light is hittable (relErr="
+          + std::to_string(floorAfterRel) + ")");
 
   anari::release(device, device);
 

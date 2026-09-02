@@ -833,6 +833,12 @@ struct InstanceLightGPUData
   // emission against the REAL instance (instance-uniform attributes resolve
   // like the path-hit deposit). -1 for authored/HDRI lights.
   DeviceObjectIndex surfaceInstanceIndex = -1;
+  // Does this instance have an entry in the light-proxy BLAS (ADR 0009)? An
+  // area light can be skipped -- a degenerate rect, a ring whose inner radius
+  // swallows it, an empty AABB -- and then no BSDF continuation can ever hit
+  // it. NEE must not MIS-weight against a technique that cannot reach the
+  // light, or the down-weighting is energy nothing deposits back.
+  bool hasAreaProxy = false;
 };
 
 // One traceable analytic area-light proxy (ADR 0009). Carries ONLY the identity
