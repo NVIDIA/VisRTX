@@ -29,15 +29,15 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-// Power-proportional Light Pick must keep the environment (HDRI) MIS fold
-// unbiased. The HDRI is reached by env-CDF NEE, cosine-hemisphere NEE, and the
-// BSDF escape; power picking multiplies its pick probability into the env light
-// density on every NEE-side weight. Light transport is linear, so a scene lit
-// by an HDRI plus a directional light must equal the sum of the two
-// single-light renders. A second check (matte plane under a uniform HDRI) must
-// match ρL — a broken two-strategy partition (double-count, or cosine omitted
-// from the env-CDF weight) shows up as a mean energy error. Rendered with
-// 'quality' into a linear float buffer, firefly off.
+/*
+ * Quality combines folded env-CDF NEE, unconditional cosine NEE, and BSDF
+ * escape. Only the CDF density carries the per-instance Light Pick mass.
+ * Check linearity with a directional light and analytic Lambertian energy
+ * rho*L for uniform, nonuniform, multiple, hidden, and one-texel HDRIs.
+ * Matte isolates the NEE partition; diffuse PBR also exercises escape MIS.
+ * Hidden lights must illuminate without becoming visible camera backgrounds.
+ * Measurements use a linear float buffer with the firefly filter disabled.
+ */
 
 #define ANARI_EXTENSION_UTILITY_IMPL
 #include <anari/anari_cpp/ext/std.h>
@@ -48,6 +48,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <vector>
 
 using uvec2 = std::array<unsigned int, 2>;
@@ -62,21 +63,33 @@ static void statusFunc(const void *,
     ANARIStatusCode,
     const char *message)
 {
-  if (severity == ANARI_SEVERITY_FATAL_ERROR) {
-    fprintf(stderr, "[FATAL][%p] %s\n", source, message);
-    std::exit(1);
-  } else if (severity == ANARI_SEVERITY_ERROR)
+  if (severity == ANARI_SEVERITY_FATAL_ERROR
+      || severity == ANARI_SEVERITY_ERROR) {
     fprintf(stderr, "[ERROR][%p] %s\n", source, message);
+    std::exit(1);
+  }
 }
 
 static constexpr uvec2 IMAGE_SIZE = {256, 256};
 static constexpr int PIXEL_SAMPLES = 256;
 
-static anari::Light makeHDRI(ANARIDevice device)
+struct HdriMap
 {
-  // A uniform (constant-radiance) environment.
-  constexpr uint32_t W = 8, H = 4;
-  std::vector<vec3> texels(W * H, vec3{0.6f, 0.6f, 0.6f});
+  float upperRadiance{0.6f};
+  float lowerRadiance{0.6f};
+  bool visible{true};
+  uvec2 size{64, 128};
+};
+
+static anari::Light makeHDRI(ANARIDevice device, HdriMap map = {})
+{
+  const uint32_t W = map.size[0], H = map.size[1];
+  std::vector<vec3> texels(W * H);
+  for (uint32_t y = 0; y < H; ++y) {
+    const float value = y < H / 2 ? map.upperRadiance : map.lowerRadiance;
+    for (uint32_t x = 0; x < W; ++x)
+      texels[y * W + x] = vec3{value, value, value};
+  }
   auto radiance = anari::newArray2D(device, ANARI_FLOAT32_VEC3, W, H);
   std::memcpy(anari::map<vec3>(device, radiance),
       texels.data(),
@@ -85,8 +98,10 @@ static anari::Light makeHDRI(ANARIDevice device)
 
   auto light = anari::newObject<anari::Light>(device, "hdri");
   anari::setParameter(device, light, "direction", vec3{0.f, 0.f, 1.f});
-  anari::setParameter(device, light, "up", vec3{0.f, 1.f, 0.f});
+  // HDRI row zero faces -up, so the first half illuminates the +Y plane.
+  anari::setParameter(device, light, "up", vec3{0.f, -1.f, 0.f});
   anari::setParameter(device, light, "scale", 1.f);
+  anari::setParameter(device, light, "visible", map.visible);
   anari::setAndReleaseParameter(device, light, "radiance", radiance);
   anari::commitParameters(device, light);
   return light;
@@ -182,14 +197,17 @@ static double render(ANARIDevice device, bool hdri, bool directional)
 // (double-count, or cosine NEE omitted from the env-CDF weight). `pbr` uses
 // physicallyBased with specular=0 so the continuation lobe has a finite pdf
 // — the miss-side three-way weight is invisible to matte (pdf=0).
-static double renderDiffusePlane(ANARIDevice device, bool pbr)
+static double renderDiffusePlane(ANARIDevice device,
+    bool pbr,
+    const std::vector<HdriMap> &maps = {HdriMap{}},
+    bool backdrop = false)
 {
   const std::array<vec3, 4> pos = {vec3{-20.f, 0.f, -20.f},
       vec3{20.f, 0.f, -20.f},
       vec3{20.f, 0.f, 20.f},
       vec3{-20.f, 0.f, 20.f}};
   // Winding produces +Y geometric normals so the camera above the plane sees
-  // front faces (v0-v1-v2: e1×e2 = +Y).
+  // front faces (v0-v2-v1: e1×e2 = +Y).
   const std::array<std::array<unsigned, 3>, 2> idx = {
       std::array<unsigned, 3>{0, 2, 1}, std::array<unsigned, 3>{0, 3, 2}};
 
@@ -218,18 +236,23 @@ static double renderDiffusePlane(ANARIDevice device, bool pbr)
   anari::setAndReleaseParameter(device, surface, "material", material);
   anari::commitParameters(device, surface);
 
-  auto light = makeHDRI(device);
+  std::vector<anari::Light> lights;
+  for (const auto &map : maps)
+    lights.push_back(makeHDRI(device, map));
 
   auto world = anari::newObject<anari::World>(device);
   anari::setParameterArray1D(device, world, "surface", &surface, 1);
-  anari::setParameterArray1D(device, world, "light", &light, 1);
+  anari::setParameterArray1D(
+      device, world, "light", lights.data(), lights.size());
   anari::release(device, surface);
-  anari::release(device, light);
+  for (auto light : lights)
+    anari::release(device, light);
   anari::commitParameters(device, world);
 
   auto camera = anari::newObject<anari::Camera>(device, "perspective");
   anari::setParameter(device, camera, "position", vec3{0.f, 4.f, 0.f});
-  anari::setParameter(device, camera, "direction", vec3{0.f, -1.f, 0.f});
+  anari::setParameter(
+      device, camera, "direction", vec3{0.f, backdrop ? 1.f : -1.f, 0.f});
   anari::setParameter(device, camera, "up", vec3{0.f, 0.f, 1.f});
   anari::setParameter(
       device, camera, "aspect", IMAGE_SIZE[0] / float(IMAGE_SIZE[1]));
@@ -268,6 +291,17 @@ static double renderDiffusePlane(ANARIDevice device, bool pbr)
   return n ? sum / double(n) : 0.0;
 }
 
+static bool checkEnergy(const char *name, double actual, double expected)
+{
+  printf("%s: actual=%f expected=%f\n", name, actual, expected);
+  const double tolerance = expected > 0.0 ? 0.03 * expected : 1e-4;
+  if (!std::isfinite(actual) || std::abs(actual - expected) > tolerance) {
+    fprintf(stderr, "FAIL: %s (tolerance=%f)\n", name, tolerance);
+    return false;
+  }
+  return true;
+}
+
 int main()
 {
   auto device = makeVisRTXDevice(statusFunc);
@@ -276,7 +310,49 @@ int main()
   const double sun = render(device, false, true);
   const double plane = renderDiffusePlane(device, false);
   const double planePbr = renderDiffusePlane(device, true);
+  // The sum of constant environments is constant: rho * (0.4 + 0.2) = 0.48.
+  // Unequal powers must form a mixture, not a sum of normalized densities.
+  bool passed = true;
+  for (bool pbr : {false, true}) {
+    passed &= checkEnergy(pbr ? "multiple HDRIs PBR" : "multiple HDRIs matte",
+        renderDiffusePlane(device, pbr, {{0.4f, 0.4f}, {0.2f, 0.2f}}),
+        0.48);
+    // Even a one-texel map is a constant environment. Its CDF jitters theta
+    // uniformly, so its solid-angle density is not uniform on the sphere.
+    passed &= checkEnergy(pbr ? "one-texel HDRI PBR" : "one-texel HDRI matte",
+        renderDiffusePlane(device, pbr, {{0.6f, 0.6f, true, {1, 1}}}),
+        0.48);
+    // Only the upper hemisphere illuminates the plane, regardless of how
+    // bright the folded-away hemisphere is. Filtering is confined to a narrow
+    // band at the horizon where the cosine factor vanishes.
+    passed &= checkEnergy(pbr ? "nonuniform HDRI PBR" : "nonuniform HDRI matte",
+        renderDiffusePlane(device, pbr, {{0.6f, 6.f}}),
+        0.48);
+    passed &= checkEnergy(
+        pbr ? "unequal HDRI mixture PBR" : "unequal HDRI mixture matte",
+        renderDiffusePlane(device, pbr, {{0.4f, 0.04f}, {0.2f, 2.f}}),
+        0.48);
+    // Hiding a light's background does not remove its illumination.
+    passed &= checkEnergy(pbr ? "hidden HDRI PBR" : "hidden HDRI matte",
+        renderDiffusePlane(device, pbr, {{0.6f, 0.6f, false}}),
+        0.48);
+    passed &= checkEnergy(
+        pbr ? "visible and hidden HDRIs PBR" : "visible and hidden HDRIs matte",
+        renderDiffusePlane(device, pbr, {{0.4f, 0.4f}, {0.2f, 0.2f, false}}),
+        0.48);
+    passed &= checkEnergy(pbr ? "black HDRI PBR" : "black HDRI matte",
+        renderDiffusePlane(device, pbr, {{0.f, 0.f}}),
+        0.0);
+  }
+  passed &= checkEnergy("visible backdrop",
+      renderDiffusePlane(device, false, {{0.6f, 0.6f}}, true),
+      0.6);
+  passed &= checkEnergy("hidden backdrop",
+      renderDiffusePlane(device, false, {{0.6f, 0.6f, false}}, true),
+      0.0);
   anari::release(device, device);
+  if (!passed)
+    return 1;
 
   const double sum = env + sun;
   const double relErr = sum > 0.0 ? std::abs(both - sum) / sum : 1.0;
