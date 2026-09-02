@@ -53,6 +53,25 @@ target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_17)
 
 add_test(NAME rtx::LightPickPower COMMAND ${PROJECT_NAME})
 
+# The shared rect/ring area-light leaves (ADR 0009). lightGeometry.h is kept
+# CUDA-free precisely so it can be tested here; like lightPickPower it still
+# needs the OptiX/CUDA/nanovdb/anari headers that GPU struct definitions pull in.
+project(rtx_test_LightGeometry LANGUAGES CXX)
+
+add_executable(${PROJECT_NAME} test_LightGeometry.cpp)
+target_include_directories(${PROJECT_NAME} PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}/../../../device
+  ${CMAKE_CURRENT_LIST_DIR}/../../../external/nanovdb/include
+  ${OptiX_ROOT_DIR}/include)
+target_link_libraries(${PROJECT_NAME} PRIVATE
+  visrtx::glm
+  anari::anari_headers
+  CUDA::cudart)
+target_compile_definitions(${PROJECT_NAME} PRIVATE GLM_ENABLE_EXPERIMENTAL)
+target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_17)
+
+add_test(NAME rtx::LightGeometry COMMAND ${PROJECT_NAME})
+
 # classifyEmission lives in libmdl, a standalone static lib with no CUDA/OptiX/GPU
 # (the MDL SDK is dlopen'd at runtime), so the classifier is testable on the host.
 # Gated on MDL support, since libmdl only exists then.
