@@ -196,7 +196,6 @@ VISRTX_DEVICE float envHemiPdf(
   const float totalPower = world.totalLightPower + ambientPower;
   const size_t numStrata =
       world.numLightInstances + (ambientPower > 0.0f ? 1 : 0);
-  const vec3 reflected = reflectAcrossNormal(dir, ns);
   float pdf = 0.0f;
   for (size_t i = 0; i < world.numHdriLightInstances; ++i) {
     const auto &instance = world.hdriLightInstances[i];
@@ -206,9 +205,7 @@ VISRTX_DEVICE float envHemiPdf(
     const float pickProb = totalPower > 0.0f
         ? ((power > 0.0f && isfinite(power)) ? power / totalPower : 0.0f)
         : (numStrata > 0 ? 1.0f / float(numStrata) : 0.0f);
-    pdf += pickProb
-        * (hdriCdfPdf(light, instance.xfm, dir)
-            + hdriCdfPdf(light, instance.xfm, reflected));
+    pdf += pickProb * hdriFoldedPdf(light, instance.xfm, dir, ns);
   }
   return pdf;
 }

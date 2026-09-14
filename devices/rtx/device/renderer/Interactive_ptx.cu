@@ -101,12 +101,16 @@ struct InteractiveShadingPolicy
 
     const vec3 shadowOrigin = shadingHitpoint(hit) + hit.Ng * hit.epsilon;
 
+    // The cosine-hemisphere env stratum below runs whenever the world has an
+    // HDRI, so its density belongs in every env MIS denominator on this hit.
+    const bool haveHdri = world.numHdriLightInstances > 0;
+
     // One light instance's NEE contribution, scaled by `weight`. `weight` is 1
     // when every light is sampled and 1/(K*pPick) when a stochastic subset is
     // drawn, so the accumulated image converges to the full deterministic sum.
     auto addLightContribution = [&](size_t i, float weight) {
       const auto &light = world.lightInstances[i];
-      const auto lightSample = sampleLight(ss,
+      auto lightSample = sampleLight(ss,
           shadowOrigin,
           light.lightIndex,
           light.xfm,
@@ -115,8 +119,28 @@ struct InteractiveShadingPolicy
       if (lightSample.pdf == 0.0f)
         return;
 
-      const LightType lightType =
-          frameData.registry.lights[light.lightIndex].type;
+      const auto &lightData = frameData.registry.lights[light.lightIndex];
+      const LightType lightType = lightData.type;
+
+      // Hemisphere folding: the HDRI CDF samples the whole sphere, so about
+      // half its samples land below the horizon where the BSDF is zero — the
+      // sample and its shadow ray are spent for nothing. Reflect those back
+      // across the shading normal and pay for it in the density (two texels
+      // now map to every visible direction, which hdriFoldedPdf sums). The
+      // estimator denominator also stops being filtered radiance and becomes
+      // the true CDF-cell density, which was biased on coarse maps.
+      float envFoldedPdf = 0.0f;
+      if (lightType == LightType::HDRI) {
+        if (!(dot(lightSample.dir, hit.Ns) > 0.0f))
+          lightSample.dir = reflectAcrossNormal(lightSample.dir, hit.Ns);
+        // Every technique estimates the full environment, so evaluate the sum
+        // over all HDRIs here rather than this one instance's radiance.
+        getEnvironmentLight(frameData, lightSample.dir, lightSample.radiance);
+        envFoldedPdf =
+            hdriFoldedPdf(lightData, light.xfm, lightSample.dir, hit.Ns);
+        if (!(envFoldedPdf > 0.0f))
+          return;
+      }
 
       // A Geometry Light's sampled point is on real emissive geometry; stop the
       // shadow ray short of it or it self-occludes on that surface.
@@ -142,19 +166,37 @@ struct InteractiveShadingPolicy
 
       const vec3 fCos =
           materialEvalBsdf(shadingState, -ray.dir, lightSample.dir);
-      vec3 thisLightContrib = fCos * lightSample.radiance / lightSample.pdf;
+      // Folded env NEE divides by the folded CDF density, not by the sampler's
+      // reported (full-sphere, radiance-based) pdf.
+      const float neePdf =
+          lightType == LightType::HDRI ? envFoldedPdf : lightSample.pdf;
+      vec3 thisLightContrib = fCos * lightSample.radiance / neePdf;
 
       // Environment MIS (balance heuristic): the HDRI is the only light the
-      // indirect bounce's escape can also reach, so combine the NEE and escape
-      // estimators instead of summing them (which double-counted the env).
-      // pLight = envPdf independent of the pick, and the 1/(K*pPick) reweight
-      // keeps E[stochastic] == the all-lights sum, so this stays MIS-consistent
-      // whether we sample all lights or a subset. Non-env lights keep wNee = 1.
+      // indirect bounce's escape can also reach, and the cosine stratum below
+      // reaches it too, so combine the three estimators instead of summing them
+      // (which double-counted the env). p_L is the unweighted sum of the
+      // per-instance folded CDF densities — each instance is sampled as its own
+      // technique here, unlike Quality where one Light Pick makes it a
+      // pick-weighted mixture. The 1/(K*pPick) reweight keeps E[stochastic] ==
+      // the all-lights sum, so this stays MIS-consistent whether we sample all
+      // lights or a subset. Non-env lights keep wNee = 1.
       if (lightType == LightType::HDRI) {
-        const float pLight = envPdf(frameData, lightSample.dir);
+        // This instance is one technique among all of them: the numerator is
+        // its own density (the one the estimator divided by), the denominator
+        // the sum over every technique that could have produced this
+        // direction. They coincide for a single HDRI; with several, using the
+        // sum in the numerator would over-weight each instance by the number
+        // of instances.
+        const float pLightAll =
+            envFoldedHemiPdf(frameData, lightSample.dir, hit.Ns);
         const float pBsdf =
             materialEvalPdf(shadingState, -ray.dir, lightSample.dir);
-        thisLightContrib *= pLight / (pLight + pBsdf);
+        // lightType == HDRI implies the cosine stratum ran on this hit.
+        const float pCosine =
+            fmaxf(0.0f, dot(lightSample.dir, hit.Ns)) * kInvPi;
+        const float pSum = pLightAll + pBsdf + pCosine;
+        thisLightContrib *= pSum > 0.0f ? envFoldedPdf / pSum : 0.0f;
       }
 
       contrib += weight * thisLightContrib * attenuation;
@@ -175,7 +217,8 @@ struct InteractiveShadingPolicy
     } else {
       const int numPicks = maxSampled;
       // A zero total Pick Power (every light dark) leaves the CDF unnormalized;
-      // fall back to a uniform pick to avoid a divide-by-zero, matching Quality.
+      // fall back to a uniform pick to avoid a divide-by-zero, matching
+      // Quality.
       const bool haveCdf = world.totalLightPower > 0.0f;
       for (int s = 0; s < numPicks; s++) {
         const float u = pcg_uniform(&ss.rs);
@@ -194,6 +237,41 @@ struct InteractiveShadingPolicy
         }
         if (pPick > 0.0f)
           addLightContribution(idx, 1.0f / (float(numPicks) * pPick));
+      }
+    }
+
+    // Cosine-hemisphere env NEE. A luminance CDF concentrates on the brightest
+    // texels (the sun), but on a matte surface under a broad sky most of the
+    // irradiance is diffuse — exactly where that CDF is a poor match and the
+    // single CDF sample per hit is noisiest. This second stratum samples
+    // proportional to the cosine instead and MIS-combines with the CDF, so
+    // whichever technique fits the map wins per-direction. Unlike the NEE loop
+    // it is not gated on a Light Pick: it always runs when an HDRI exists, so
+    // p_C carries no pick factor on either side of the weight.
+    if (haveHdri) {
+      const vec3 dirC = sampleHemisphere(ss.rs, hit.Ns);
+      const float cosC = fmaxf(0.0f, dot(dirC, hit.Ns));
+      vec3 envRadiance;
+      if (cosC > 0.0f && getEnvironmentLight(frameData, dirC, envRadiance)) {
+        const float pCosine = cosC * kInvPi;
+        const float pLight = envFoldedHemiPdf(frameData, dirC, hit.Ns);
+        const float pBsdf = materialEvalPdf(shadingState, -ray.dir, dirC);
+        const float pSum = pCosine + pLight + pBsdf;
+        if (pCosine > 0.0f && pSum > 0.0f) {
+          const vec3 fCos = materialEvalBsdf(shadingState, -ray.dir, dirC);
+          const vec3 contribC = (pCosine / pSum) * fCos * envRadiance / pCosine;
+          if (glm::any(
+                  glm::greaterThan(contribC, vec3(MIN_CONTRIBUTION_EPSILON)))) {
+            const Ray shadowRay = {
+                shadowOrigin,
+                dirC,
+                {hit.epsilon, std::numeric_limits<float>::max()},
+            };
+            const vec3 attenuation = surfaceShadowTransmittance(ss, shadowRay)
+                * (1.0f - volumeShadowOpacity(ss, shadowRay));
+            contrib += contribC * attenuation;
+          }
+        }
       }
     }
 
@@ -232,14 +310,28 @@ struct InteractiveShadingPolicy
         contrib += color * nextRay.contributionWeight;
       } else {
         vec3 hdri;
-        if (getBackgroundLight(frameData, bounceRay.dir, hdri)) {
+        // Illumination, not the camera backdrop: an indirect bounce must see
+        // hidden HDRIs, exactly as both NEE strata above do. Using the
+        // visible-only lookup here would drop the w_bsdf share of a hidden
+        // HDRI's energy, since all three techniques share one MIS partition.
+        // (The straight-through backdrop in raygen_helpers.h stays visible-
+        // only.)
+        if (getEnvironmentLight(frameData, bounceRay.dir, hdri)) {
           // Env MIS escape side: weight the BSDF-sampled escape by the same
-          // balance heuristic as the NEE loop (pLight = envPdf, no
-          // 1/numLights). A delta / through-surface lobe reports +inf => wBsdf
-          // = 1; here the bounce is reflection-only so nextRay.pdf is finite.
-          const float pLight = envPdf(frameData, bounceRay.dir);
-          const float wBsdf =
-              isinf(nextRay.pdf) ? 1.0f : nextRay.pdf / (nextRay.pdf + pLight);
+          // balance heuristic, and against the same two NEE densities, as the
+          // loop above — p_L is the folded CDF sum and p_C the cosine stratum,
+          // both evaluated at the surface that spawned this bounce. A delta /
+          // through-surface lobe reports +inf => wBsdf = 1; here the bounce is
+          // reflection-only so nextRay.pdf is finite.
+          const float pLight =
+              envFoldedHemiPdf(frameData, bounceRay.dir, hit.Ns);
+          const float pCosine = haveHdri
+              ? fmaxf(0.0f, dot(bounceRay.dir, hit.Ns)) * kInvPi
+              : 0.0f;
+
+          const float wBsdf = isinf(nextRay.pdf)
+              ? 1.0f
+              : nextRay.pdf / (nextRay.pdf + pLight + pCosine);
           contrib += wBsdf * hdri * nextRay.contributionWeight;
         }
       }

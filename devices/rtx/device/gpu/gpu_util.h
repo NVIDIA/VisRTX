@@ -477,6 +477,37 @@ VISRTX_DEVICE vec3 reflectAcrossNormal(const vec3 &w, const vec3 &n)
   return w - 2.0f * dot(w, n) * n;
 }
 
+// Solid-angle density of ONE HDRI instance's folded CDF technique at `dir`.
+// Folding reflects a sub-horizon CDF sample back across the shading normal, so
+// two texels map to every visible direction and the density is the sum of both
+// preimages. No Light Pick factor: callers that pick one light multiply it in,
+// callers that sample every light (Interactive) must not.
+VISRTX_DEVICE float hdriFoldedPdf(
+    const LightGPUData &light, const mat4 &xfm, const vec3 &dir, const vec3 &ns)
+{
+  if (!(dot(dir, ns) > 0.0f))
+    return 0.0f; // folding maps every sample above the horizon
+  return hdriCdfPdf(light, xfm, dir)
+      + hdriCdfPdf(light, xfm, reflectAcrossNormal(dir, ns));
+}
+
+// Combined folded-CDF density when every HDRI instance is sampled once, as an
+// independent NEE technique each (Interactive). The per-instance estimator
+// divides by its own hdriFoldedPdf; this unweighted sum is the MIS denominator
+// term standing for "some HDRI CDF technique produced `dir`". Quality picks a
+// single light instead and weights by pick probability — see envHemiPdf.
+VISRTX_DEVICE float envFoldedHemiPdf(
+    const FrameGPUData &fd, const vec3 &dir, const vec3 &ns)
+{
+  float pdf = 0.0f;
+  for (size_t i = 0; i < fd.world.numHdriLightInstances; ++i) {
+    const auto &instance = fd.world.hdriLightInstances[i];
+    pdf += hdriFoldedPdf(
+        fd.registry.lights[instance.lightIndex], instance.xfm, dir, ns);
+  }
+  return pdf;
+}
+
 VISRTX_DEVICE uint32_t computeGeometryPrimId(const SurfaceHit &hit)
 {
   if (!hit.foundHit)
