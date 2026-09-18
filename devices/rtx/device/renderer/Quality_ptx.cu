@@ -220,8 +220,13 @@ VISRTX_DEVICE float envHemiPdf(
 // native textured emission; for MDL the dynamic-recipe live mean, or the unit
 // proxy when no recipe resolves), and the hit's own (constant) emission
 // otherwise. `emission` is the surface's evaluated radiance.
+// `origin` is the vertex that SCATTERED the current path segment, not the
+// current ray origin: a coverage pass-through re-origins the ray at the cutout
+// without changing bsdfPdf, and the NEE this density competes against was
+// drawn from the scattering vertex, so distance and cosine must be measured
+// from there or the two MIS weights stop summing to 1.
 VISRTX_DEVICE float geometryLightHitPdf(
-    const FrameGPUData &frameData, const SurfaceHit &hit, const vec3 &rayDir)
+    const FrameGPUData &frameData, const SurfaceHit &hit, const vec3 &origin)
 {
   // Only a sampleable-emissive area-samplable surface is a Geometry Light. The
   // type guard is load-bearing: GeometryGPUData is a union, so reading `.tri`/
@@ -234,7 +239,11 @@ VISRTX_DEVICE float geometryLightHitPdf(
   // sampler uses via xfmVec — or the area Jacobian is wrong under a
   // non-symmetric instance transform (rotation + non-uniform scale).
   const mat3 o2w = transpose(mat3(hit.instance->objectToWorld));
-  const float cosTheta = fabsf(dot(hit.Ng, rayDir));
+  const vec3 toHit = hit.hitpoint - origin;
+  const float dist = length(toHit);
+  if (!(dist > 0.0f))
+    return 0.0f;
+  const float cosTheta = fabsf(dot(hit.Ng, toHit / dist));
   if (cosTheta <= 0.0f)
     return 0.0f;
 
@@ -257,7 +266,7 @@ VISRTX_DEVICE float geometryLightHitPdf(
     if (worldTwice <= 0.0f)
       return 0.0f;
     solidAnglePdf = detail::geometryLightSolidAnglePdf(
-        length(cross(e1o, e2o)), worldTwice, tri.totalArea, hit.t, cosTheta);
+        length(cross(e1o, e2o)), worldTwice, tri.totalArea, dist, cosTheta);
     totalArea = tri.totalArea;
   } else {
     // Sphere/cylinder/cone samplers are SINGLE-sided (outward):
@@ -294,7 +303,7 @@ VISRTX_DEVICE float geometryLightHitPdf(
     if (worldAreaScale <= 0.0f)
       return 0.0f;
     solidAnglePdf = detail::geometryLightSolidAnglePdf(
-        1.0f, worldAreaScale, totalArea, hit.t, cosTheta);
+        1.0f, worldAreaScale, totalArea, dist, cosTheta);
   }
 
   const float totalPower =
@@ -552,6 +561,10 @@ VISRTX_GLOBAL void __raygen__()
     float bsdfPdf = INFINITY;
     vec3 lastScatterNs(0.0f);
     bool lastScatterWasSurface = false;
+    // The vertex that spawned the current segment. Hit-side NEE densities are
+    // measured from HERE, not from ray.org: a coverage pass-through moves
+    // ray.org to the cutout while bsdfPdf still belongs to this vertex.
+    vec3 lastScatterOrigin = ray.org;
 
     // Coverage pass-throughs are not light-transport events, so they track a
     // separate, generous budget instead of spending bounceDepth — a deep stack
@@ -645,6 +658,7 @@ VISRTX_GLOBAL void __raygen__()
 
         const vec3 scatterDir = randomDir(ss.rs);
         ray = Ray{scatterPos + scatterDir * VOLUME_SCATTER_EPSILON, scatterDir};
+        lastScatterOrigin = ray.org;
         // The volume NEE above already sampled the environment at this scatter
         // point, so the continuation ray must not re-deposit it on a miss
         // (bsdfPdf = 0 => w_bsdf = 0). Env MIS for volumes is left as-is.
@@ -685,7 +699,7 @@ VISRTX_GLOBAL void __raygen__()
         float wEmission = 1.0f;
         if (!isinf(bsdfPdf)) {
           const float pNee =
-              geometryLightHitPdf(frameData, surfaceHit, ray.dir);
+              geometryLightHitPdf(frameData, surfaceHit, lastScatterOrigin);
           if (pNee > 0.0f)
             wEmission = bsdfPdf / (bsdfPdf + pNee);
         }
@@ -815,7 +829,9 @@ VISRTX_GLOBAL void __raygen__()
           }
         }
 
-        // Resolve geometric alpha stochastically for the continuation
+        // Resolve geometric alpha stochastically for the continuation. Not a
+        // scattering event: bsdfPdf and lastScatterOrigin stay with the vertex
+        // that produced this direction.
         if (pcg_uniform(&ss.rs) > opacity) {
           if (++transparencyDepth > qualityParams.maxTransparencyDepth)
             break;
@@ -846,6 +862,7 @@ VISRTX_GLOBAL void __raygen__()
         ray =
             Ray{surfaceHit.hitpoint + surfaceHit.Ng * surfaceHit.epsilon * side,
                 normalize(vec3(nextRay.direction))};
+        lastScatterOrigin = ray.org;
       }
 
       if (!surfaceHit.foundHit && !volumeSample.didScatter) {
