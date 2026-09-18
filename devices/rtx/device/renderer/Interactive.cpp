@@ -36,7 +36,7 @@
 namespace visrtx {
 
 static const std::vector<HitgroupFunctionNames> g_interactiveHitNames = {
-    {"__closesthit__shading", "__anyhit__shading"},
+    {"__closesthit__shading", "__anyhit__shading", "__closesthit__lightProxy"},
     {"__closesthit__shadow", "__anyhit__shadow"},
 };
 

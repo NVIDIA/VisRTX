@@ -96,7 +96,14 @@ VISRTX_GLOBAL void __miss__()
 
 struct FastShadingPolicy
 {
-  static VISRTX_DEVICE vec3 shadeSurface(const MaterialShadingState &shadingState,
+  // No proxy deposit here, so camera rays must not be able to reach one.
+  static VISRTX_DEVICE constexpr uint32_t primaryVisibilityMask()
+  {
+    return VISRTX_MASK_GEOMETRY;
+  }
+
+  static VISRTX_DEVICE vec3 shadeSurface(
+      const MaterialShadingState &shadingState,
       ScreenSample &ss,
       const Ray &ray,
       const SurfaceHit &hit)

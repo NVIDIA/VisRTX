@@ -34,6 +34,7 @@
 #include "gpu/evalShading.h"
 #include "gpu/gpu_util.h"
 #include "gpu/intersectRay.h"
+#include "gpu/lightProxyRadiance.h"
 #include "gpu/renderer/common.h"
 #include "gpu/shadingState.h"
 #include "gpu/volumeIntegration.h"
@@ -71,7 +72,12 @@ VISRTX_DEVICE float volumeShadowOpacity(ScreenSample &ss, const Ray &r)
 //       const Ray &ray,
 //       const SurfaceHit &hit)
 // returning a vec3 of reflected + emitted radiance (coverage/transmission are
-// queried by the loop, not returned)
+// queried by the loop, not returned), and
+//   static VISRTX_DEVICE constexpr uint32_t primaryVisibilityMask()
+// naming which light proxies a camera ray may hit (ADR 0009). A policy that
+// does not show lights returns VISRTX_MASK_GEOMETRY and its rays never reach a
+// proxy; one that does gets the proxy branch below, which never touches the
+// Material a proxy does not have.
 template <typename ShadingPolicy>
 VISRTX_DEVICE void renderPixel(FrameGPUData &frameData, ScreenSample ss)
 {
@@ -115,7 +121,8 @@ VISRTX_DEVICE void renderPixel(FrameGPUData &frameData, ScreenSample ss)
           ray,
           RayType::PRIMARY,
           &surfaceHit,
-          primaryRayOptiXFlags(rendererParams));
+          primaryRayOptiXFlags(rendererParams),
+          ShadingPolicy::primaryVisibilityMask());
 
       float hitDist = surfaceHit.foundHit ? surfaceHit.t : ray.t.upper;
 
@@ -154,7 +161,23 @@ VISRTX_DEVICE void renderPixel(FrameGPUData &frameData, ScreenSample ss)
         primID = volObjID;
       }
 
-      if (surfaceHit.foundHit) {
+      // An analytic area-light proxy: an opaque emitter with no Material, so
+      // it must never reach materialInitShading. Deposit its radiance, cover
+      // the pixel and stop compositing. The ID channels are left alone -- a
+      // light is not a pickable scene object -- but depth is recorded so
+      // compositing against it stays sane.
+      if (surfaceHit.foundHit && surfaceHit.isLightProxy()) {
+        // ray.org is the shaded point lightProxyRadiance wants: this loop walks
+        // through surfaces by advancing ray.t.lower and never re-origins the
+        // ray, so the origin stays the camera for the whole traversal.
+        outputColor +=
+            remainingT * lightProxyRadiance(frameData, surfaceHit, ray.org);
+        accumulateNormal(outputNormal, -ray.dir, outputOpacity);
+        accumulateValue(outputOpacity, 1.f, outputOpacity);
+        remainingT = vec3(0.f);
+        if (!volumeHit)
+          depth = surfaceHit.t;
+      } else if (surfaceHit.foundHit) {
         MaterialShadingState shadingState;
         materialInitShading(
             &shadingState, frameData, *surfaceHit.material, surfaceHit);

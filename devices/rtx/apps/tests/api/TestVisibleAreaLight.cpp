@@ -512,13 +512,35 @@ int main()
   printf("floor with no emitter: %f\n", floorUnlit);
   check(floorUnlit < 1e-5, "the floor is black with no emitter (control)");
 
-  // 5. Other renderers are inert to the proxy. They trace with the
-  //    geometry-only visibility mask, so their rays cannot reach a proxy at all
-  //    -- which matters because their closest-hit programs would dereference
-  //    the Material a proxy does not have. Rendering without crashing is the
-  //    substance of this check; a proxy hit would fault the device, not just
-  //    shade oddly.
-  for (const char *subtype : {"interactive", "fast", "debug"}) {
+  // 5a. Interactive shows the light too, at the same radiance as Quality: the
+  //     camera hit deposits through the same leaf, with no MIS involved. And it
+  //     honors `visible=false` the same way.
+  {
+    Scene inter{"both"};
+    inter.rendererSubtype = "interactive";
+    const double interCentre = centreMean(render(device, inter));
+    printf("interactive: light=%f (quality %f)\n", interCentre, lightCentre);
+    check(interCentre > 0.1, "interactive shows a quad light to the camera");
+    const double interRel = lightCentre > 0.0
+        ? std::abs(interCentre - lightCentre) / lightCentre
+        : 1.0;
+    check(interRel < 0.02,
+        "interactive shows the light at Quality's radiance (relErr="
+            + std::to_string(interRel) + ")");
+
+    Scene interHidden = inter;
+    interHidden.visible = false;
+    check(centreMean(render(device, interHidden)) < 1e-4,
+        "interactive honors visible=false");
+  }
+
+  // 5b. Fast and Debug are inert to the proxy. They trace with the
+  //     geometry-only visibility mask, so their rays cannot reach a proxy at
+  //     all -- which matters because their closest-hit programs would
+  //     dereference the Material a proxy does not have. Rendering without
+  //     crashing is the substance of this check; a proxy hit would fault the
+  //     device, not just shade oddly.
+  for (const char *subtype : {"fast", "debug"}) {
     Scene other;
     other.withFloor = true;
     other.floorScene = true;
