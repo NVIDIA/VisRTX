@@ -667,6 +667,116 @@ int main()
             + " light is accepted without complaint");
   }
 
+  // A point light with the DEFAULT radius must be a DELTA light.
+  // KHR_LIGHT_POINT defines `radius` with default 0; VisRTX previously
+  // defaulted it to 1, which silently made every point light a sphere AREA
+  // light with soft shadows and different falloff for applications that never
+  // asked for one.
+  //
+  // Measured via penumbra width rather than asserted: a delta light casts a
+  // hard shadow edge, a radius > 0 sphere casts a soft one. The default must
+  // now match the explicitly-delta case.
+  {
+    auto softness = [&](bool explicitDelta) {
+      auto light = anari::newObject<anari::Light>(device, "point");
+      anari::setParameter(device, light, "color", vec3{1.f, 1.f, 1.f});
+      anari::setParameter(device, light, "position", vec3{0.f, 4.f, 0.f});
+      anari::setParameter(device, light, "intensity", 40.f);
+      if (explicitDelta)
+        anari::setParameter(device, light, "radius", 0.f);
+      anari::commitParameters(device, light);
+
+      // A blocker above the floor, so the shadow's edge is in frame.
+      const std::array<vec3, 4> pos = {vec3{-0.5f, 2.f, -0.5f},
+          vec3{0.5f, 2.f, -0.5f},
+          vec3{0.5f, 2.f, 0.5f},
+          vec3{-0.5f, 2.f, 0.5f}};
+      const std::array<std::array<unsigned, 3>, 2> idx = {
+          std::array<unsigned, 3>{0, 1, 2}, std::array<unsigned, 3>{0, 2, 3}};
+      auto geom = anari::newObject<anari::Geometry>(device, "triangle");
+      anari::setParameterArray1D(
+          device, geom, "vertex.position", pos.data(), 4);
+      anari::setParameterArray1D(
+          device, geom, "primitive.index", idx.data(), 2);
+      anari::commitParameters(device, geom);
+      auto mat = anari::newObject<anari::Material>(device, "matte");
+      anari::commitParameters(device, mat);
+      auto blocker = anari::newObject<anari::Surface>(device);
+      anari::setAndReleaseParameter(device, blocker, "geometry", geom);
+      anari::setAndReleaseParameter(device, blocker, "material", mat);
+      anari::commitParameters(device, blocker);
+
+      std::vector<anari::Surface> surfaces = {makeFloor(device), blocker};
+      auto world = anari::newObject<anari::World>(device);
+      anari::setParameterArray1D(
+          device, world, "surface", surfaces.data(), surfaces.size());
+      anari::setParameterArray1D(device, world, "light", &light, 1);
+      for (auto s : surfaces)
+        anari::release(device, s);
+      anari::release(device, light);
+      anari::commitParameters(device, world);
+
+      auto camera = anari::newObject<anari::Camera>(device, "perspective");
+      anari::setParameter(device, camera, "position", vec3{0.f, 1.2f, -3.f});
+      anari::setParameter(device, camera, "direction", vec3{0.f, -0.3f, 1.f});
+      anari::setParameter(device, camera, "up", vec3{0.f, 1.f, 0.f});
+      anari::setParameter(
+          device, camera, "aspect", IMAGE_SIZE[0] / float(IMAGE_SIZE[1]));
+      anari::commitParameters(device, camera);
+
+      auto renderer = anari::newObject<anari::Renderer>(device, "quality");
+      anari::setParameter(
+          device, renderer, "background", vec4{0.f, 0.f, 0.f, 1.f});
+      anari::setParameter(device, renderer, "ambientRadiance", 0.f);
+      anari::setParameter(device, renderer, "pixelSamples", PIXEL_SAMPLES);
+      anari::setParameter(device, renderer, "fireflyFilterMode", "none");
+      anari::commitParameters(device, renderer);
+
+      auto frame = anari::newObject<anari::Frame>(device);
+      anari::setParameter(device, frame, "size", IMAGE_SIZE);
+      anari::setParameter(device, frame, "channel.color", ANARI_FLOAT32_VEC4);
+      anari::setAndReleaseParameter(device, frame, "world", world);
+      anari::setAndReleaseParameter(device, frame, "camera", camera);
+      anari::setAndReleaseParameter(device, frame, "renderer", renderer);
+      anari::commitParameters(device, frame);
+      anari::render(device, frame);
+      anari::wait(device, frame);
+      auto fb = anari::map<vec4>(device, frame, "channel.color");
+      std::vector<vec4> out(fb.data, fb.data + size_t(fb.width) * fb.height);
+      anari::unmap(device, frame, "channel.color");
+      anari::release(device, frame);
+
+      // Count pixels at intermediate brightness along a scanline crossing the
+      // shadow edge. A hard shadow steps from lit to dark; a soft one lingers
+      // in between, so the partial count is the penumbra width.
+      double lo = 1e30, hi = -1e30;
+      const uint32_t y = 3 * IMAGE_SIZE[1] / 5;
+      for (uint32_t x = 0; x < IMAGE_SIZE[0]; ++x) {
+        const double l = luminanceAt(out, x, y);
+        lo = std::min(lo, l);
+        hi = std::max(hi, l);
+      }
+      int partial = 0;
+      if (hi - lo > 1e-6) {
+        for (uint32_t x = 0; x < IMAGE_SIZE[0]; ++x) {
+          const double t = (luminanceAt(out, x, y) - lo) / (hi - lo);
+          if (t > 0.15 && t < 0.85)
+            ++partial;
+        }
+      }
+      return partial;
+    };
+
+    const int defaultPixels = softness(false); // radius unset
+    const int deltaPixels = softness(true); // radius = 0, explicitly delta
+    printf("point light penumbra: default=%d px  radius=0=%d px\n",
+        defaultPixels,
+        deltaPixels);
+    check(defaultPixels == deltaPixels,
+        "a point light DEFAULTS to radius 0, a delta light, per"
+        " KHR_LIGHT_POINT");
+  }
+
   // 12. A point light with radius > 0 IS a sphere area light, and must reflect
   //     in a metallic surface like any other area light. This was the gap that
   //     blocked advertising khr_light_primary_visibility.
