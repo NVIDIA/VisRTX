@@ -43,7 +43,11 @@ void Point::commitParameters()
       std::clamp(getParam<float>("intensity", getParam<float>("power", 1.f)),
           0.f,
           std::numeric_limits<float>::max());
-  m_radius = std::max(getParam<float>("radius", 1.f), 0.f);
+  // KHR_LIGHT_POINT defines radius with default 0, i.e. a true delta light
+  // unless the application asks for an extended one. Defaulting to 1 made every
+  // point light a sphere AREA light, changing shadows (soft instead of hard)
+  // and falloff for applications that never opted in.
+  m_radius = std::max(getParam<float>("radius", 0.f), 0.f);
   // Camera visibility only; meaningful only when radius > 0 makes this an area
   // light with something to see.
   m_visible = getParam<bool>("visible", true);
