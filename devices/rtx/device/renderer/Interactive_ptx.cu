@@ -67,6 +67,13 @@ static VISRTX_DEVICE float surfaceShadowOcclusion(
 
 struct InteractiveShadingPolicy
 {
+  // Camera rays see the proxies of lights whose `visible` is true (ADR 0009);
+  // renderPixel deposits them.
+  static VISRTX_DEVICE constexpr uint32_t primaryVisibilityMask()
+  {
+    return primaryWithVisibleLightsMask();
+  }
+
   static VISRTX_DEVICE vec3 shadeSurface(
       const MaterialShadingState &shadingState,
       ScreenSample &ss,
@@ -287,9 +294,25 @@ struct InteractiveShadingPolicy
 
       SurfaceHit bounceHit;
       bounceHit.foundHit = false;
-      intersectSurface(ss, bounceRay, RayType::PRIMARY, &bounceHit);
+      // The bounce sees every light proxy, visible or not: a light is opaque to
+      // continuation rays, so the reflection must stop at it rather than show
+      // what lies behind.
+      intersectSurface(ss,
+          bounceRay,
+          RayType::PRIMARY,
+          &bounceHit,
+          OPTIX_RAY_FLAG_DISABLE_ANYHIT,
+          secondaryWithAllLightsMask());
 
-      if (bounceHit.foundHit) {
+      if (bounceHit.foundHit && bounceHit.isLightProxy()) {
+        // Deposit nothing. An area light is a registered, NEE-sampled emitter
+        // and the loop above already counted its full contribution -- the same
+        // rule that keeps a sampleable emissive surface out of the deposit
+        // below. Weighting the two against each other would need Interactive's
+        // NEE density here; until then the reflection of the light itself is
+        // owed to NEE, and stays absent off a mirror exactly as an emissive
+        // surface's does.
+      } else if (bounceHit.foundHit) {
         MaterialShadingState bounceShadingState;
         materialInitShading(
             &bounceShadingState, frameData, *bounceHit.material, bounceHit);
@@ -408,6 +431,13 @@ VISRTX_GLOBAL void __anyhit__shading()
 VISRTX_GLOBAL void __closesthit__shading()
 {
   ray::populateHit();
+}
+
+// Analytic area-light proxy closest-hit (ADR 0009). Separate from
+// __closesthit__shading because a proxy carries no Surface/Material/Geometry.
+VISRTX_GLOBAL void __closesthit__lightProxy()
+{
+  ray::populateLightProxyHit();
 }
 
 VISRTX_GLOBAL void __miss__shading()

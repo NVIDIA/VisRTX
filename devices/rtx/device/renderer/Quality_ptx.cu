@@ -38,6 +38,7 @@
 #include "gpu/gpu_util.h"
 #include "gpu/intersectRay.h"
 #include "gpu/lightPickPower.h"
+#include "gpu/lightProxyRadiance.h"
 #include "gpu/populateHit.h"
 #include "gpu/renderer/common.h"
 #include "gpu/renderer/shadowTransmittance.h"
@@ -760,10 +761,6 @@ VISRTX_GLOBAL void __raygen__()
       // continuation off a reflective surface. Handled before any material
       // work: a proxy has no Material to initialize shading from.
       if (surfaceHit.foundHit && surfaceHit.isLightProxy()) {
-        const auto &proxy =
-            frameData.world.lightProxies[surfaceHit.lightProxyIndex];
-        const auto &ld = frameData.registry.lights[proxy.lightIndex];
-
         if (isFirstBounce) {
           // Depth so compositing stays sane, but deliberately NOT the ID
           // channels: a light is not a scene object and must not be pickable as
@@ -786,30 +783,13 @@ VISRTX_GLOBAL void __raygen__()
             wEmission = bsdfPdf / (bsdfPdf + pNee);
         }
 
-        // A ring's radiance carries its cone falloff, which varies ACROSS the
-        // disk: each emitting point has its own angle to the shaded point. NEE
-        // evaluates it per sampled point, so the deposit must evaluate it at
-        // the point the ray actually hit -- via the same leaf. Using the ray
-        // direction as a stand-in collapses the whole disk to one angle and
-        // under-reads a narrow cone badly (measured ~6x).
-        //
         // Measured from lastScatterOrigin, the SAME vertex the MIS pdf above
         // uses, not from ray.org: a coverage pass-through re-origins the ray at
         // the cutout without it being a scattering event, which would otherwise
         // have the weight and the radiance it scales disagree about which point
         // is being shaded.
-        vec3 proxyRadiance(0.0f);
-        if (ld.type == LightType::RECT)
-          proxyRadiance = rectRadiance(ld.rect, ld.color);
-        else if (ld.type == LightType::RING) {
-          const vec3 axis = ringWorldAxis(ld.ring, proxy.xfm);
-          const RingPointRelation rel = ringRelateToPoint(
-              ld.ring, axis, lastScatterOrigin, surfaceHit.hitpoint);
-          proxyRadiance = ringRadiance(ld.ring, ld.color, rel.spot);
-        } else if (ld.type == LightType::SPHERE)
-          proxyRadiance = sphereRadiance(ld.sphere, ld.color);
-
-        sample.color += wEmission * sampleContribution * proxyRadiance;
+        sample.color += wEmission * sampleContribution
+            * lightProxyRadiance(frameData, surfaceHit, lastScatterOrigin);
         // A visible light COVERS the pixel. Without this the alpha channel
         // reports the pixel as empty while carrying the light's radiance, and
         // the background gets composited in behind it -- a visibly wrong,

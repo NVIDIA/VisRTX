@@ -155,9 +155,14 @@ intersector through a type cascade just to read it.
   additionally emit a proxy AABB tagged with the existing `lightIndex`. The NEE
   path is untouched. Double-counting is therefore structurally impossible rather
   than something tests must catch.
-- Once the proxy BLAS exists, *every* renderer's rays can hit it. Renderers that
-  do not deposit proxy hits (Interactive, Debug, Fast) must **pass through**
-  safely. Only Quality deposits.
+- Once the proxy BLAS exists, *every* renderer's rays can hit it. A renderer
+  opts in through its shading policy's `primaryVisibilityMask()`: Debug and
+  Fast stay geometry-only and **pass through** safely, Quality and Interactive
+  deposit camera hits through one shared `lightProxyRadiance` leaf.
+  Interactive's single reflection bounce sees proxies as opaque but deposits
+  nothing — its deterministic all-lights NEE already counts them, the same rule
+  it applies to sampleable emissive surfaces — so the light's own reflection
+  off a mirror is owed to NEE there until that bounce is MIS-weighted.
 - **A proxy is opaque to continuation rays but invisible to shadow rays**, and
   that asymmetry is deliberate rather than an oversight. It reproduces what an
   authored emissive surface does *in the cases that matter*, without the
