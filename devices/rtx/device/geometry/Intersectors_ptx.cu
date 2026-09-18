@@ -1192,10 +1192,7 @@ VISRTX_GLOBAL void __intersection__lightProxy()
   // `visible` gates CAMERA rays only. Resolved here, per primitive, so toggling
   // it never rebuilds an acceleration structure. Reflection/GI rays carry the
   // hidden bit too and are unaffected.
-  const bool visible = ld.type == LightType::RECT ? ld.rect.visible
-      : ld.type == LightType::RING                ? ld.ring.visible
-                                                  : ld.sphere.visible;
-  if (!visible
+  if (!ld.visible
       && (optixGetRayVisibilityMask() & VISRTX_MASK_LIGHT_PROXY_HIDDEN) == 0) {
     return;
   }

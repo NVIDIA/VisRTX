@@ -51,6 +51,7 @@ Light::Light(DeviceGlobalState *s)
 void Light::commitParameters()
 {
   m_color = getParam<vec3>("color", vec3(1.f));
+  m_visible = getParam<bool>("visible", true);
 }
 
 void Light::markFinalized()
@@ -63,6 +64,7 @@ LightGPUData Light::gpuData() const
 {
   LightGPUData retval;
   retval.color = m_color;
+  retval.visible = m_visible;
   return retval;
 }
 

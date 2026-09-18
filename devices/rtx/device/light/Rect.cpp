@@ -44,9 +44,6 @@ void Rect::commitParameters()
   m_intensity = std::max(
       getParam<float>("intensity", getParam<float>("power", 1.f)), 0.f);
 
-  // khr_light_primary_visibility. Default true, per the extension schema.
-  m_visible = getParam<bool>("visible", true);
-
   auto side = getParamString("side", "front");
   if (side == "front")
     m_side = Side::FRONT;
@@ -72,7 +69,6 @@ LightGPUData Rect::gpuData() const
   retval.rect.side.front = (m_side == Side::FRONT || m_side == Side::BOTH) ? 1 : 0;
   auto area = length(cross(m_edge1, m_edge2));
   retval.rect.oneOverArea = area > 0.f ? 1.f / area : 1.f;
-  retval.rect.visible = m_visible;
 
   return retval;
 }

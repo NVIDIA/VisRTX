@@ -48,9 +48,6 @@ void Point::commitParameters()
   // point light a sphere AREA light, changing shadows (soft instead of hard)
   // and falloff for applications that never opted in.
   m_radius = std::max(getParam<float>("radius", 0.f), 0.f);
-  // Camera visibility only; meaningful only when radius > 0 makes this an area
-  // light with something to see.
-  m_visible = getParam<bool>("visible", true);
 }
 
 LightGPUData Point::gpuData() const
@@ -65,7 +62,6 @@ LightGPUData Point::gpuData() const
     retval.sphere.position = m_position;
     retval.sphere.intensity = m_intensity;
     retval.sphere.radius = m_radius;
-    retval.sphere.visible = m_visible;
   }
   return retval;
 }

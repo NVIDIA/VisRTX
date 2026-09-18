@@ -63,7 +63,6 @@ struct HDRI : public Light
   vec3 m_up{0.f, 0.f, 1.f};
   vec3 m_direction{1.f, 0.f, 0.f};
   float m_scale{1.f};
-  bool m_visible{true};
   uvec2 m_size{0, 0};
   helium::ChangeObserverPtr<Array2D> m_radiance;
   helium::TimeStamp m_radianceLastUpdated{};

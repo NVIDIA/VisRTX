@@ -67,6 +67,9 @@ struct Light : public RegisteredObject<LightGPUData>
   virtual LightGPUData gpuData() const override = 0;
 
   vec3 m_color{1.f};
+  // See LightGPUData::visible. Read for every subtype; the delta lights simply
+  // have nothing to show.
+  bool m_visible{true};
 };
 
 // World bounds of an object-space box, from its transformed corners. Corners

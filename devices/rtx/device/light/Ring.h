@@ -54,8 +54,6 @@ struct Ring : public Light
   float m_radius = 0.f;
   float m_innerRadius = 0.f;
   float m_intensity = 1.f;
-  // Camera visibility only; see Rect::m_visible.
-  bool m_visible = true;
 };
 
 } // namespace visrtx
