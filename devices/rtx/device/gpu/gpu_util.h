@@ -401,7 +401,7 @@ VISRTX_DEVICE bool getEnvironmentLight(const FrameGPUData &fd,
   for (size_t i = 0; i < fd.world.numHdriLightInstances; i++) {
     const auto &hdriLight = fd.world.hdriLightInstances[i];
     const auto &light = fd.registry.lights[hdriLight.lightIndex];
-    if (!visibleOnly || light.hdri.visible) {
+    if (!visibleOnly || light.visible) {
       // Transform ray direction from world space to HDRI local space
       // For orthonormal matrices, inverse = transpose
       const mat3 xfmInv = glm::transpose(mat3(hdriLight.xfm));
@@ -460,7 +460,7 @@ VISRTX_DEVICE float envPdf(const FrameGPUData &fd, const vec3 &rayDir)
   for (size_t i = 0; i < fd.world.numHdriLightInstances; i++) {
     const auto &hdriLight = fd.world.hdriLightInstances[i];
     const auto &light = fd.registry.lights[hdriLight.lightIndex];
-    if (!light.hdri.visible)
+    if (!light.visible)
       continue;
     const vec3 localRayDir = glm::transpose(mat3(hdriLight.xfm)) * rayDir;
     const vec3 d = light.hdri.xfm * localRayDir;

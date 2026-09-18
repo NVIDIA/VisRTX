@@ -71,7 +71,6 @@ void HDRI::commitParameters()
   m_direction = getParam<vec3>("direction", vec3(1.f, 0.f, 0.f));
   m_up = getParam<vec3>("up", vec3(0.f, 0.f, 1.f));
   m_scale = getParam<float>("scale", 1.f);
-  m_visible = getParam<bool>("visible", true);
   auto *oldRadiance = m_radiance.get();
   m_radiance = getParamObject<Array2D>("radiance");
   if (oldRadiance != m_radiance.get())
@@ -146,7 +145,6 @@ LightGPUData HDRI::gpuData() const
   retval.hdri.scale = m_scale;
   retval.hdri.size = m_size;
   retval.hdri.radiance = m_radianceTex;
-  retval.hdri.visible = m_visible;
   retval.hdri.marginalCDF = m_marginalCDF.ptrAs<const float>();
   retval.hdri.conditionalCDF = m_conditionalCDF.ptrAs<const float>();
   retval.hdri.pdfWeight = m_pdfWeight;

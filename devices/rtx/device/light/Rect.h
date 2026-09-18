@@ -58,9 +58,6 @@ struct Rect : public Light
     BACK,
     BOTH
   } m_side = Side::FRONT;
-  // khr_light_primary_visibility `visible`: camera visibility only. Never
-  // affects illumination, NEE, or appearance in reflections/GI.
-  bool m_visible = true;
 };
 
 } // namespace visrtx

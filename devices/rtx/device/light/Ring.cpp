@@ -47,9 +47,6 @@ void Ring::commitParameters()
   m_intensity = std::clamp(getParam<float>("intensity", 1.f),
       0.f,
       std::numeric_limits<float>::max());
-  // Camera visibility only; never affects illumination, NEE, or reflections.
-  m_visible = getParam<bool>("visible", true);
-
   // Validate parameters
   if (m_innerRadius >= m_radius && m_radius > 0.f) {
     reportMessage(ANARI_SEVERITY_WARNING,
@@ -78,7 +75,6 @@ LightGPUData Ring::gpuData() const
   retval.ring.innerRadius = m_innerRadius;
   retval.ring.intensity = m_intensity;
   retval.ring.oneOverArea = m_radius > m_innerRadius ? 1.0f / (M_PI * (m_radius * m_radius - m_innerRadius * m_innerRadius)) : 1.0f;
-  retval.ring.visible = m_visible;
   return retval;
 }
 
