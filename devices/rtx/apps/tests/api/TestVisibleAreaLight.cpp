@@ -175,7 +175,8 @@ static constexpr float DOWN_Y = 1.5f;
 
 // The front side (edge2 x edge1) must point at -Y (down): edge1=+Z, edge2=+X
 // gives +X x +Z = -Y.
-static anari::Light makeDownLight(ANARIDevice d, bool visible = true)
+static anari::Light makeDownLight(
+    ANARIDevice d, bool visible = true, const char *side = "front")
 {
   auto light = anari::newObject<anari::Light>(d, "quad");
   anari::setParameter(d, light, "color", vec3{1.f, 1.f, 1.f});
@@ -184,7 +185,7 @@ static anari::Light makeDownLight(ANARIDevice d, bool visible = true)
   anari::setParameter(d, light, "edge1", vec3{0.f, 0.f, 2.f * QUAD_HALF});
   anari::setParameter(d, light, "edge2", vec3{2.f * QUAD_HALF, 0.f, 0.f});
   anari::setParameter(d, light, "intensity", EMISSIVE_RADIANCE);
-  anari::setParameter(d, light, "side", "front");
+  anari::setParameter(d, light, "side", side);
   if (!visible)
     anari::setParameter(d, light, "visible", false);
   anari::commitParameters(d, light);
@@ -254,6 +255,44 @@ static anari::Surface makeFloor(ANARIDevice d, float roughness = 1.f)
   return surface;
 }
 
+// A plain diffuse ceiling above the downward emitter, for the occlusion-parity
+// check. Deliberately NOT emissive: an emissive ceiling would be a light, and
+// NEE shadow rays skip light proxies while an authored emissive surface blocks
+// them, so the analytic light and the mesh oracle would diverge for a reason
+// that has nothing to do with the proxy's opacity. A passive surface is only
+// reachable by a continuation ray, which is exactly the path under test.
+static constexpr float CEILING_Y = 3.f;
+
+static anari::Surface makeCeiling(ANARIDevice d)
+{
+  const std::array<vec3, 4> pos = {vec3{-6.f, CEILING_Y, -6.f},
+      vec3{6.f, CEILING_Y, -6.f},
+      vec3{6.f, CEILING_Y, 6.f},
+      vec3{-6.f, CEILING_Y, 6.f}};
+  const std::array<std::array<unsigned, 3>, 2> idx = {
+      std::array<unsigned, 3>{0, 1, 2}, std::array<unsigned, 3>{0, 2, 3}};
+
+  auto geom = anari::newObject<anari::Geometry>(d, "triangle");
+  anari::setParameterArray1D(d, geom, "vertex.position", pos.data(), 4);
+  anari::setParameterArray1D(d, geom, "primitive.index", idx.data(), 2);
+  anari::commitParameters(d, geom);
+
+  // White and fully diffuse, so whatever reaches it comes back as brightly as
+  // a passive surface can manage: if a continuation ray wrongly passes through
+  // the emitter, the extra bounce has to be visible on the floor below.
+  auto mat = anari::newObject<anari::Material>(d, "physicallyBased");
+  anari::setParameter(d, mat, "baseColor", vec3{1.f, 1.f, 1.f});
+  anari::setParameter(d, mat, "metallic", 0.f);
+  anari::setParameter(d, mat, "roughness", 1.f);
+  anari::commitParameters(d, mat);
+
+  auto surface = anari::newObject<anari::Surface>(d);
+  anari::setAndReleaseParameter(d, surface, "geometry", geom);
+  anari::setAndReleaseParameter(d, surface, "material", mat);
+  anari::commitParameters(d, surface);
+  return surface;
+}
+
 // A ring light facing the camera, at the same place as the quad emitter, with
 // the same emitted radiance. Its disk area differs from the quad's, so the two
 // are NOT expected to match in illumination -- only the ring's own consistency
@@ -293,6 +332,13 @@ struct Scene
   // Use a ring light instead of a quad.
   bool ring = false;
   float ringInnerRadius = 0.f;
+  // Add a passive ceiling above the emitter, so there is something for a
+  // continuation ray to reach if it fails to stop at the light.
+  bool withCeiling = false;
+  // `side` for the downward emitter. The emissive-mesh oracle radiates from
+  // BOTH faces, so any scene that puts geometry where back-side emission can
+  // land must use "both" or the two differ for a reason unrelated to the proxy.
+  const char *downSide = "front";
 };
 
 static std::vector<vec4> render(ANARIDevice d, const Scene &sc)
@@ -302,12 +348,14 @@ static std::vector<vec4> render(ANARIDevice d, const Scene &sc)
 
   if (sc.withFloor)
     surfaces.push_back(makeFloor(d, sc.floorRoughness));
+  if (sc.withCeiling)
+    surfaces.push_back(makeCeiling(d));
   if (!sc.noLight) {
     if (sc.floorScene || sc.mirrorScene) {
       if (sc.useEmissiveMesh)
         surfaces.push_back(makeDownEmissiveQuad(d));
       else
-        lights.push_back(makeDownLight(d, sc.visible));
+        lights.push_back(makeDownLight(d, sc.visible, sc.downSide));
     } else if (sc.ring)
       lights.push_back(makeRingLight(d, sc.visible, sc.ringInnerRadius));
     else if (sc.useEmissiveMesh)
@@ -670,13 +718,8 @@ int main()
     // before it is ever finalized, so the subtype never inspects its parameters
     // and the check below could not fail however the device behaved.
     int valid = 0;
-    anariGetProperty(device,
-        probe,
-        "valid",
-        ANARI_INT32,
-        &valid,
-        sizeof(valid),
-        ANARI_WAIT);
+    anariGetProperty(
+        device, probe, "valid", ANARI_INT32, &valid, sizeof(valid), ANARI_WAIT);
     anari::release(device, probe);
     // The device must stay SILENT about this light. "Accepted" is a claim about
     // the status callback, so it is read from the callback: the parameter has
@@ -929,11 +972,27 @@ int main()
   //     continuation ray that terminates at the proxy can no longer reach what
   //     is behind it. If the proxy's opacity were wrong, the analytic light and
   //     the emissive mesh would disagree here even though they agree elsewhere.
+  //
+  //     The two guards after the comparison are what make it mean something:
+  //     without them the scenes could agree because the added geometry is
+  //     unlit, or because it is not reachable at all.
   {
-    // Reuse the floor scene and add a second, higher floor above the emitter,
-    // so there is something for a continuation ray to reach past the light.
+    // Reuse the floor scene and add a passive ceiling above the emitter, so
+    // there is something for a continuation ray to reach past the light. The
+    // emitter sits at DOWN_Y between the floor and CEILING_Y, so a floor
+    // bounce aimed upward meets the light first and the ceiling only if it
+    // survives.
     Scene occ = litFloor;
+    occ.withCeiling = true;
+    // Both emitters must radiate the same way once there is geometry above
+    // them: the authored emissive quad lights the ceiling from its back face,
+    // so the analytic light has to as well. With the default front-only light
+    // the two disagree by 23% on the ceiling bounce alone, which has nothing to
+    // do with the opacity this check is about.
+    occ.downSide = "both";
     Scene occMesh = litFloorMesh;
+    occMesh.withCeiling = true;
+    occMesh.downSide = "both";
 
     const double occLight = floorMean(render(device, occ));
     const double occMeshVal = floorMean(render(device, occMesh));
@@ -946,6 +1005,27 @@ int main()
     check(occRel < 0.05,
         "proxy occlusion matches an opaque emissive surface (relErr="
             + std::to_string(occRel) + ")");
+
+    // The ceiling must actually be REACHABLE, or the comparison above is
+    // vacuous: two scenes can agree simply because nothing ever gets past the
+    // emitter's plane in either. Removing the light entirely leaves the same
+    // geometry unlit, so any difference from the lit render is light transport
+    // that traversed the scene.
+    Scene occDark = occ;
+    occDark.noLight = true;
+    const double occDarkVal = floorMean(render(device, occDark));
+    check(occLight > occDarkVal + 1e-3,
+        "the occlusion scene is actually lit (light=" + std::to_string(occLight)
+            + " dark=" + std::to_string(occDarkVal) + ")");
+
+    // And the ceiling must CHANGE the image, otherwise "geometry behind the
+    // light" is not in the scene in any way a continuation ray could notice.
+    Scene occNoCeiling = occ;
+    occNoCeiling.withCeiling = false;
+    const double noCeiling = floorMean(render(device, occNoCeiling));
+    check(std::abs(occLight - noCeiling) > 1e-3,
+        "the ceiling contributes to the floor (with=" + std::to_string(occLight)
+            + " without=" + std::to_string(noCeiling) + ")");
   }
 
   anari::release(device, device);
