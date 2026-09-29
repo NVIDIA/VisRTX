@@ -1,0 +1,33 @@
+{
+  "info": {
+    "name": "VISRTX_SPATIAL_FIELD_REGION_OF_INTEREST",
+    "type": "extension",
+    "dependencies": []
+  },
+  "objects": [
+    {
+      "type": "ANARI_SPATIAL_FIELD",
+      "name": "structuredRegular",
+      "parameters": [
+        {
+          "name": "roi",
+          "types": ["ANARI_FLOAT32_BOX3"],
+          "tags": [],
+          "description": "object-space box the field is clipped to (default: unbounded)"
+        }
+      ]
+    },
+    {
+      "type": "ANARI_SPATIAL_FIELD",
+      "name": "nanovdb",
+      "parameters": [
+        {
+          "name": "roi",
+          "types": ["ANARI_FLOAT32_BOX3"],
+          "tags": [],
+          "description": "object-space box the field is clipped to (default: unbounded)"
+        }
+      ]
+    }
+  ]
+}
