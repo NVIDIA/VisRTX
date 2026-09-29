@@ -1,0 +1,37 @@
+{
+  "info": {
+    "name": "VISRTX_SPATIAL_FIELD_DATA_CENTERING",
+    "type": "extension",
+    "dependencies": []
+  },
+  "objects": [
+    {
+      "type": "ANARI_SPATIAL_FIELD",
+      "name": "structuredRegular",
+      "parameters": [
+        {
+          "name": "dataCentering",
+          "types": ["ANARI_STRING"],
+          "tags": [],
+          "default": "node",
+          "values": ["node", "cell"],
+          "description": "whether data values sit on grid vertices (node) or at cell centers (cell)"
+        }
+      ]
+    },
+    {
+      "type": "ANARI_SPATIAL_FIELD",
+      "name": "nanovdb",
+      "parameters": [
+        {
+          "name": "dataCentering",
+          "types": ["ANARI_STRING"],
+          "tags": [],
+          "default": "cell",
+          "values": ["node", "cell"],
+          "description": "whether data values sit on grid vertices (node) or at cell centers (cell)"
+        }
+      ]
+    }
+  ]
+}

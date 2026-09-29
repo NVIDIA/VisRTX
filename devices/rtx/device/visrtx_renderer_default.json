@@ -2,12 +2,7 @@
   "info" : {
     "name" : "VISRTX_RENDERER_DEFAULT",
     "type" : "extension",
-    "dependencies" : ["anari_core_1_0"],
-    "implements" : [
-      "khr_renderer_background_color",
-      "khr_renderer_background_image",
-      "khr_renderer_ambient_light"
-    ]
+    "dependencies" : ["anari_core_1_0"]
   },
   "objects" : [
     {

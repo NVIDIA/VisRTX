@@ -1,0 +1,72 @@
+{
+  "info": {
+    "name": "VISRTX_SPATIAL_FIELD_NANOVDB_RECTILINEAR",
+    "type": "extension",
+    "dependencies": []
+  },
+  "objects": [
+    {
+      "type": "ANARI_SPATIAL_FIELD",
+      "name": "nanovdbRectilinear",
+      "description": "NanoVDB grid mapped through per-axis (non-uniform) coordinates",
+      "parameters": [
+        {
+          "name": "name",
+          "types": ["ANARI_STRING"],
+          "tags": [],
+          "description": "optional object name"
+        },
+        {
+          "name": "data",
+          "types": ["ANARI_ARRAY1D"],
+          "elementType": ["ANARI_UINT8"],
+          "tags": ["required"],
+          "description": "nanovdb binary blob"
+        },
+        {
+          "name": "coordsX",
+          "types": ["ANARI_ARRAY1D"],
+          "elementType": ["ANARI_FLOAT32"],
+          "tags": ["required"],
+          "description": "object-space coordinates along the X axis"
+        },
+        {
+          "name": "coordsY",
+          "types": ["ANARI_ARRAY1D"],
+          "elementType": ["ANARI_FLOAT32"],
+          "tags": ["required"],
+          "description": "object-space coordinates along the Y axis"
+        },
+        {
+          "name": "coordsZ",
+          "types": ["ANARI_ARRAY1D"],
+          "elementType": ["ANARI_FLOAT32"],
+          "tags": ["required"],
+          "description": "object-space coordinates along the Z axis"
+        },
+        {
+          "name": "filter",
+          "types": ["ANARI_STRING"],
+          "tags": [],
+          "default": "linear",
+          "values": ["nearest", "linear"],
+          "description": "filter mode used to interpolate the grid"
+        },
+        {
+          "name": "dataCentering",
+          "types": ["ANARI_STRING"],
+          "tags": [],
+          "default": "cell",
+          "values": ["node", "cell"],
+          "description": "whether data values sit on grid vertices (node) or at cell centers (cell)"
+        },
+        {
+          "name": "roi",
+          "types": ["ANARI_FLOAT32_BOX3"],
+          "tags": [],
+          "description": "object-space box the field is clipped to (default: unbounded)"
+        }
+      ]
+    }
+  ]
+}
