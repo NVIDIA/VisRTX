@@ -86,6 +86,10 @@ struct Frame : public helium::BaseFrame, public DeviceObject<FrameGPUData>
   bool checkerboarding() const;
   void checkAccumulationReset();
   void newFrame();
+  void resolveVec3Buffer(const DeviceBuffer &accum,
+      HostDeviceArray<uint8_t> &out,
+      ANARIDataType type,
+      bool isNormal);
   size_t numPixels() const;
 
   //// Data ////
@@ -112,8 +116,9 @@ struct Frame : public helium::BaseFrame, public DeviceObject<FrameGPUData>
 
   HostDeviceArray<uint8_t> m_pixelBuffer;
   HostDeviceArray<float> m_depthBuffer;
-  HostDeviceArray<vec3> m_normalBuffer;
-  HostDeviceArray<vec3> m_albedoBuffer;
+  // Mapped normal/albedo, packed as m_normalType / m_albedoType.
+  HostDeviceArray<uint8_t> m_normalBuffer;
+  HostDeviceArray<uint8_t> m_albedoBuffer;
   HostDeviceArray<uint32_t> m_primIDBuffer;
   HostDeviceArray<uint32_t> m_objIDBuffer;
   HostDeviceArray<uint32_t> m_instIDBuffer;

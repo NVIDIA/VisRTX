@@ -36,12 +36,12 @@
 // std
 #include <algorithm>
 #include <glm/ext/vector_float4.hpp>
+#include <glm/gtc/packing.hpp>
 #include <random>
 // thrust
 #include <cuda_runtime_api.h>
 #include <thrust/device_ptr.h>
 #include <thrust/fill.h>
-#include <thrust/transform.h>
 
 namespace visrtx {
 
@@ -73,12 +73,13 @@ __device__ bool resolveSample(uint32_t idx,
   return divisor > 0;
 }
 
-// One-sided (upper) trimmed mean -- the TRIM mode. A robust per-pixel estimator:
-// a trimmed mean (Tukey 1962; Huber 1981) whose outlier set is chosen by a
-// Grubbs / generalized-ESD test (Grubbs 1969; Rosner 1983), accumulated online
-// with Welford (Welford 1962); an a-posteriori per-pixel sample-outlier rejector
-// in the DeCoro et al. 2010 lineage. See the commit message for the full mapping
-// and the two deliberate deviations from textbook ESD.
+// One-sided (upper) trimmed mean -- the TRIM mode. A robust per-pixel
+// estimator: a trimmed mean (Tukey 1962; Huber 1981) whose outlier set is
+// chosen by a Grubbs / generalized-ESD test (Grubbs 1969; Rosner 1983),
+// accumulated online with Welford (Welford 1962); an a-posteriori per-pixel
+// sample-outlier rejector in the DeCoro et al. 2010 lineage. See the commit
+// message for the full mapping and the two deliberate deviations from textbook
+// ESD.
 //
 // `sum` is the running total of all `n` samples (the colorAccumulation value,
 // undivided); `topK` holds the `trim` brightest samples the pixel saw (rgb in
@@ -96,16 +97,20 @@ __device__ bool resolveSample(uint32_t idx,
 // drawback of the plain version, where with few samples the tracked brightest
 // are a large fraction, the base mean collapses below the true level, and even
 // legitimate bright samples get dropped:
-//   * the threshold is centred on the FULL mean, not the base mean, so it cannot
-//     fall below the true level when the base excludes the bright fraction;
-//   * the number of samples actually dropped is capped at ~n/4, so at low spp at
-//     most the single most extreme spike is removed (it ramps to the full trim
-//     as samples accumulate) -- a large trim fraction can no longer gut the
-//     estimate. The brightest tracked samples are dropped first.
+//   * the threshold is centred on the FULL mean, not the base mean, so it
+//     cannot fall below the true level when the base excludes the bright
+//     fraction;
+//   * the number of samples actually dropped is capped at ~n/4, so at low
+//     spp at most the single most extreme spike is removed (it ramps to the
+//     full trim as samples accumulate) -- a large trim fraction can no longer
+//     gut the estimate. The brightest tracked samples are dropped first.
 // Clean pixels have nothing above the threshold and resolve to the exact mean;
 // the dropped fraction -> 0 with spp (consistent estimator).
-__device__ vec3 resolveTrimmed(
-    const vec4 *topK, vec3 sum, const PixelLumStats &lum, int trim, float kSigma)
+__device__ vec3 resolveTrimmed(const vec4 *topK,
+    vec3 sum,
+    const PixelLumStats &lum,
+    int trim,
+    float kSigma)
 {
   constexpr int MAX_TRIM = 8;
   if (trim > MAX_TRIM)
@@ -298,12 +303,12 @@ __global__ void compositeBackground(vec4 *__restrict__ accumColor,
       rendered = detail::inverseTonemap(rendered);
     } else if (renderer.fireflyFilterMode == FireflyFilterMode::TRIM
         && trimTopK) {
-      rendered = vec4(
-          resolveTrimmed(trimTopK + size_t(sourceIdx) * renderer.fireflyFilterTrim,
-              vec3(accumColor[sourceIdx]),
-              lumStats[sourceIdx],
-              renderer.fireflyFilterTrim,
-              renderer.fireflyFilterSigma),
+      rendered = vec4(resolveTrimmed(trimTopK
+                              + size_t(sourceIdx) * renderer.fireflyFilterTrim,
+                          vec3(accumColor[sourceIdx]),
+                          lumStats[sourceIdx],
+                          renderer.fireflyFilterTrim,
+                          renderer.fireflyFilterSigma),
           rendered.a);
     }
   }
@@ -366,6 +371,61 @@ void launchCompositeBackground(vec4 *accumColor,
       lumStats);
 }
 
+bool isValidAlbedoType(ANARIDataType t)
+{
+  return t == ANARI_FLOAT32_VEC3 || t == ANARI_UFIXED8_VEC3
+      || t == ANARI_UFIXED8_RGB_SRGB;
+}
+
+bool isValidNormalType(ANARIDataType t)
+{
+  return t == ANARI_FLOAT32_VEC3 || t == ANARI_FIXED16_VEC3;
+}
+
+// Resolve accumulated albedo (sum over samples) or normal (unnormalized sum)
+// into the channel's mapped representation. `out` is tightly packed with
+// `anari::sizeOf(type)` bytes per pixel.
+__global__ void resolveVec3Channel(const vec3 *__restrict__ accum,
+    uint8_t *__restrict__ out,
+    uint32_t numPixels,
+    ANARIDataType type,
+    bool isNormal,
+    float invFrameID)
+{
+  const uint32_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx >= numPixels)
+    return;
+
+  vec3 v = accum[idx];
+  if (isNormal) {
+    const float len = glm::length(v);
+    v = len > 0.f ? v / len : vec3(0.f);
+  } else {
+    v *= invFrameID;
+  }
+
+  switch (type) {
+  case ANARI_FIXED16_VEC3: {
+    auto *o = reinterpret_cast<int16_t *>(out) + 3 * size_t(idx);
+    for (int c = 0; c < 3; c++)
+      o[c] = int16_t(glm::packSnorm1x16(v[c]));
+    break;
+  }
+  case ANARI_UFIXED8_RGB_SRGB:
+    v = glm::convertLinearToSRGB(glm::clamp(v, vec3(0.f), vec3(1.f)));
+    [[fallthrough]];
+  case ANARI_UFIXED8_VEC3: {
+    auto *o = out + 3 * size_t(idx);
+    for (int c = 0; c < 3; c++)
+      o[c] = glm::packUnorm1x8(v[c]);
+    break;
+  }
+  default: // ANARI_FLOAT32_VEC3
+    reinterpret_cast<vec3 *>(out)[idx] = v;
+    break;
+  }
+}
+
 } // anonymous namespace
 
 Frame::Frame(DeviceGlobalState *d) : helium::BaseFrame(d), m_denoiser(d)
@@ -414,7 +474,19 @@ void Frame::commitParameters()
   m_objIDType = getParam<ANARIDataType>("channel.objectId", ANARI_UNKNOWN);
   m_instIDType = getParam<ANARIDataType>("channel.instanceId", ANARI_UNKNOWN);
   m_albedoType = getParam<ANARIDataType>("channel.albedo", ANARI_UNKNOWN);
+  if (m_albedoType != ANARI_UNKNOWN && !isValidAlbedoType(m_albedoType)) {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "unsupported channel.albedo type %s, channel disabled",
+        anari::toString(m_albedoType));
+    m_albedoType = ANARI_UNKNOWN;
+  }
   m_normalType = getParam<ANARIDataType>("channel.normal", ANARI_UNKNOWN);
+  if (m_normalType != ANARI_UNKNOWN && !isValidNormalType(m_normalType)) {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "unsupported channel.normal type %s, channel disabled",
+        anari::toString(m_normalType));
+    m_normalType = ANARI_UNKNOWN;
+  }
   m_manualAccumulationRestart = getParam(
       "accumulationVersion", ANARI_UINT64, &m_applicationAccumulationVersion);
 }
@@ -444,9 +516,9 @@ void Frame::finalize()
   const bool channelObjID = m_objIDType == ANARI_UINT32;
   const bool channelInstID = m_instIDType == ANARI_UINT32;
   const bool channelAlbedo =
-      m_denoiseUsingAlbedo || (m_albedoType == ANARI_FLOAT32_VEC3);
+      m_denoiseUsingAlbedo || (m_albedoType != ANARI_UNKNOWN);
   const bool channelNormal =
-      m_denoiseUsingNormal || (m_normalType == ANARI_FLOAT32_VEC3);
+      m_denoiseUsingNormal || (m_normalType != ANARI_UNKNOWN);
 
   const bool channelDepth = m_depthType == ANARI_FLOAT32 || channelPrimID
       || channelObjID || channelInstID;
@@ -457,8 +529,14 @@ void Frame::finalize()
 
   m_pixelBuffer.resize(numPixels() * m_perPixelBytes);
   m_depthBuffer.resize(channelDepth ? numPixels() : 0);
-  m_normalBuffer.resize(channelNormal ? numPixels() : 0);
-  m_albedoBuffer.resize(channelAlbedo ? numPixels() : 0);
+  // Mapped buffers only exist when the application asked for the channel; the
+  // denoiser reads the float accumulators directly.
+  m_normalBuffer.resize(m_normalType != ANARI_UNKNOWN
+          ? numPixels() * anari::sizeOf(m_normalType)
+          : 0);
+  m_albedoBuffer.resize(m_albedoType != ANARI_UNKNOWN
+          ? numPixels() * anari::sizeOf(m_albedoType)
+          : 0);
   m_primIDBuffer.resize(channelPrimID ? numPixels() : 0);
   m_objIDBuffer.resize(channelObjID ? numPixels() : 0);
   m_instIDBuffer.resize(channelInstID ? numPixels() : 0);
@@ -780,8 +858,8 @@ void *Frame::map(std::string_view channel,
   const bool channelPrimID = m_primIDType == ANARI_UINT32;
   const bool channelObjID = m_objIDType == ANARI_UINT32;
   const bool channelInstID = m_instIDType == ANARI_UINT32;
-  const bool channelAlbedo = m_albedoType == ANARI_FLOAT32_VEC3;
-  const bool channelNormal = m_normalType == ANARI_FLOAT32_VEC3;
+  const bool channelAlbedo = m_albedoType != ANARI_UNKNOWN;
+  const bool channelNormal = m_normalType != ANARI_UNKNOWN;
 
   if (channel == "channel.colorCUDA") {
     type = m_colorType;
@@ -799,10 +877,10 @@ void *Frame::map(std::string_view channel,
     type = ANARI_UINT32;
     retval = mapInstIDBuffer(true);
   } else if (channelNormal && channel == "channel.normalCUDA") {
-    type = ANARI_FLOAT32_VEC3;
+    type = m_normalType;
     retval = mapNormalBuffer(true);
   } else if (channelAlbedo && channel == "channel.albedoCUDA") {
-    type = ANARI_FLOAT32_VEC3;
+    type = m_albedoType;
     retval = mapAlbedoBuffer(true);
   } else if (channel == "channel.color") {
     type = m_colorType;
@@ -820,10 +898,10 @@ void *Frame::map(std::string_view channel,
     type = ANARI_UINT32;
     retval = mapInstIDBuffer(false);
   } else if (channelNormal && channel == "channel.normal") {
-    type = ANARI_FLOAT32_VEC3;
+    type = m_normalType;
     retval = mapNormalBuffer(false);
   } else if (channelAlbedo && channel == "channel.albedo") {
-    type = ANARI_FLOAT32_VEC3;
+    type = m_albedoType;
     retval = mapAlbedoBuffer(false);
   } else if (channel == "channel.colorGPU") {
     reportMessage(ANARI_SEVERITY_WARNING,
@@ -857,13 +935,13 @@ void *Frame::map(std::string_view channel,
     reportMessage(ANARI_SEVERITY_WARNING,
         "channel.normalGPU is deprecated, please use "
         "channel.normalCUDA instead");
-    type = ANARI_FLOAT32_VEC3;
+    type = m_normalType;
     retval = mapNormalBuffer(true);
   } else if (channelAlbedo && channel == "channel.albedoGPU") {
     reportMessage(ANARI_SEVERITY_WARNING,
         "channel.albedoGPU is deprecated, please use "
         "channel.albedoCUDA instead");
-    type = ANARI_FLOAT32_VEC3;
+    type = m_albedoType;
     retval = mapAlbedoBuffer(true);
   }
 
@@ -975,17 +1053,27 @@ void *Frame::mapInstIDBuffer(bool gpu)
   }
 }
 
-void *Frame::mapAlbedoBuffer(bool gpu)
+void Frame::resolveVec3Buffer(const DeviceBuffer &accum,
+    HostDeviceArray<uint8_t> &out,
+    ANARIDataType type,
+    bool isNormal)
 {
   auto &state = *deviceState();
-  const float invFrameID = m_invFrameID;
-  auto begin = thrust::device_pointer_cast<vec3>((vec3 *)m_accumAlbedo.ptr());
-  auto end = begin + numPixels();
-  thrust::transform(thrust::cuda::par.on(state.stream),
-      begin,
-      end,
-      thrust::device_pointer_cast<vec3>(m_albedoBuffer.dataDevice()),
-      [=] __device__(const vec3 &in) { return in * invFrameID; });
+  const uint32_t nPixels = uint32_t(numPixels());
+  const uint32_t blockSize = 256;
+  const uint32_t gridSize = (nPixels + blockSize - 1) / blockSize;
+  resolveVec3Channel<<<gridSize, blockSize, 0, state.stream>>>(
+      accum.ptrAs<vec3>(),
+      out.dataDevice(),
+      nPixels,
+      type,
+      isNormal,
+      m_invFrameID);
+}
+
+void *Frame::mapAlbedoBuffer(bool gpu)
+{
+  resolveVec3Buffer(m_accumAlbedo, m_albedoBuffer, m_albedoType, false);
   if (gpu)
     return m_albedoBuffer.dataDevice();
   else {
@@ -996,14 +1084,7 @@ void *Frame::mapAlbedoBuffer(bool gpu)
 
 void *Frame::mapNormalBuffer(bool gpu)
 {
-  auto &state = *deviceState();
-  auto begin = thrust::device_pointer_cast<vec3>((vec3 *)m_accumNormal.ptr());
-  auto end = begin + numPixels();
-  thrust::transform(thrust::cuda::par.on(state.stream),
-      begin,
-      end,
-      thrust::device_pointer_cast<vec3>(m_normalBuffer.dataDevice()),
-      [=] __device__(const vec3 &in) { return normalize(in); });
+  resolveVec3Buffer(m_accumNormal, m_normalBuffer, m_normalType, true);
   if (gpu)
     return m_normalBuffer.dataDevice();
   else {
@@ -1063,9 +1144,9 @@ void Frame::newFrame()
     const bool channelObjID = m_objIDType == ANARI_UINT32;
     const bool channelInstID = m_instIDType == ANARI_UINT32;
     const bool channelAlbedo =
-        m_denoiseUsingAlbedo || (m_albedoType == ANARI_FLOAT32_VEC3);
+        m_denoiseUsingAlbedo || (m_albedoType != ANARI_UNKNOWN);
     const bool channelNormal =
-        m_denoiseUsingNormal || (m_normalType == ANARI_FLOAT32_VEC3);
+        m_denoiseUsingNormal || (m_normalType != ANARI_UNKNOWN);
 
     const bool channelDepth = m_depthType == ANARI_FLOAT32 || channelPrimID
         || channelObjID || channelInstID;
@@ -1074,7 +1155,8 @@ void Frame::newFrame()
     thrust::fill_n(thrust::device_pointer_cast(m_accumColor.ptrAs<vec4>()),
         numPixels(),
         vec4(0.0f));
-    thrust::fill_n(thrust::device_pointer_cast(m_lumStats.ptrAs<PixelLumStats>()),
+    thrust::fill_n(
+        thrust::device_pointer_cast(m_lumStats.ptrAs<PixelLumStats>()),
         numPixels(),
         PixelLumStats{vec3(0.0f), vec3(0.0f), 0.0f});
     if (hd.renderer.fireflyFilterMode == FireflyFilterMode::TRIM
