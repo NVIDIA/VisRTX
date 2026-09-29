@@ -67,15 +67,20 @@ rules for shared and captured array data still apply.
 #### "ANARI_NV_FRAME_BUFFERS_CUDA"
 
 This extension indicates that raw CUDA GPU buffers from frame objects can be
-mapped for applications which are already using CUDA. The following additional
-channels can be mapped:
+mapped for applications which are already using CUDA. Each enabled frame
+channel has a `CUDA` counterpart that can be mapped:
 
-- `"colorCUDA"`
-- `"depthCUDA"`
+- `"channel.colorCUDA"`
+- `"channel.depthCUDA"`
+- `"channel.albedoCUDA"`
+- `"channel.normalCUDA"`
+- `"channel.primitiveIdCUDA"`
+- `"channel.objectIdCUDA"`
+- `"channel.instanceIdCUDA"`
 
 GPU pointers returned by `anariMapFrame()` are device pointers intended to be
 kept on the device. Applications which desire to copy data from the device back
-to the host should instead map the ordinary `color` and `depth` channels.
+to the host should instead map the ordinary (non-`CUDA`) channels.
 
 #### VISRTX_SPATIAL_FIELD_DATA_CENTERING
 
@@ -129,7 +134,7 @@ rectilinear grids.  It supports all NanoVDB grid types (Fp4, Fp8, Fp16, FpN,
 Float) with rectilinear coordinate transforms.
 
 **Parameters:**
-- `gridData` (ARRAY1D): Serialized NanoVDB grid data
+- `data` (ARRAY1D): Serialized NanoVDB grid data
 - `coordsX` (ARRAY1D): X-axis coordinates (required)
 - `coordsY` (ARRAY1D): Y-axis coordinates (required)
 - `coordsZ` (ARRAY1D): Z-axis coordinates (required)
@@ -222,13 +227,16 @@ The following extensions are either partially or fully implemented by VisRTX:
 - `KHR_CAMERA_PERSPECTIVE`
 - `KHR_DEVICE_SYNCHRONIZATION`
 - `KHR_FRAME_ACCUMULATION`
-- `KHR_FRAME_CHANNEL_PRIMITIVE_ID`
-- `KHR_FRAME_CHANNEL_OBJECT_ID`
+- `KHR_FRAME_CHANNEL_ALBEDO`
 - `KHR_FRAME_CHANNEL_INSTANCE_ID`
+- `KHR_FRAME_CHANNEL_NORMAL`
+- `KHR_FRAME_CHANNEL_OBJECT_ID`
+- `KHR_FRAME_CHANNEL_PRIMITIVE_ID`
 - `KHR_FRAME_COMPLETION_CALLBACK`
 - `KHR_GEOMETRY_CONE`
 - `KHR_GEOMETRY_CURVE`
 - `KHR_GEOMETRY_CYLINDER`
+- `KHR_GEOMETRY_ISOSURFACE`
 - `KHR_GEOMETRY_QUAD`
 - `KHR_GEOMETRY_SPHERE`
 - `KHR_GEOMETRY_TRIANGLE`
@@ -237,15 +245,19 @@ The following extensions are either partially or fully implemented by VisRTX:
 - `KHR_LIGHT_DIRECTIONAL`
 - `KHR_LIGHT_HDRI`
 - `KHR_LIGHT_POINT`
+- `KHR_LIGHT_QUAD`
+- `KHR_LIGHT_RING`
 - `KHR_LIGHT_SPOT`
 - `KHR_MATERIAL_MATTE`
 - `KHR_MATERIAL_PHYSICALLY_BASED`
 - `KHR_RENDERER_AMBIENT_LIGHT`
 - `KHR_RENDERER_BACKGROUND_COLOR`
 - `KHR_RENDERER_BACKGROUND_IMAGE`
+- `KHR_RENDERER_DENOISE`
 - `KHR_SAMPLER_IMAGE1D`
 - `KHR_SAMPLER_IMAGE2D`
 - `KHR_SAMPLER_IMAGE3D`
+- `KHR_SAMPLER_IMAGExD_CLAMP_TO_BORDER`
 - `KHR_SAMPLER_PRIMITIVE`
 - `KHR_SAMPLER_TRANSFORM`
 - `KHR_SPATIAL_FIELD_NANOVDB`
@@ -254,14 +266,23 @@ The following extensions are either partially or fully implemented by VisRTX:
 - `EXT_SAMPLER_COMPRESSED_IMAGE2D`
 - `EXT_SAMPLER_COMPRESSED_FORMAT_BC123`
 - `EXT_SAMPLER_COMPRESSED_FORMAT_BC45`
+- `EXT_SAMPLER_COMPRESSED_FORMAT_BC67`
 - `NV_ARRAY_CUDA`
 - `NV_FRAME_BUFFERS_CUDA`
-- `VISRTX_MATERIAL_MDL`
-- `VISRTX_TRIANGLE_BACK_FACE_CULLING`
+- `VISRTX_GEOMETRY_NEURAL` (requires `VISRTX_ENABLE_NEURAL`)
+- `VISRTX_GEOMETRY_SDF`
+- `VISRTX_MATERIAL_MATERIALX` (requires `VISRTX_ENABLE_MATERIALX_SUPPORT`)
+- `VISRTX_MATERIAL_MDL` (requires `VISRTX_ENABLE_MDL_SUPPORT`)
+- `VISRTX_RENDERER_DEBUG`
+- `VISRTX_RENDERER_DEFAULT`
+- `VISRTX_RENDERER_FAST`
+- `VISRTX_RENDERER_INTERACTIVE`
+- `VISRTX_RENDERER_QUALITY`
 - `VISRTX_SPATIAL_FIELD_DATA_CENTERING`
+- `VISRTX_SPATIAL_FIELD_NANOVDB_RECTILINEAR`
 - `VISRTX_SPATIAL_FIELD_REGION_OF_INTEREST`
 - `VISRTX_SPATIAL_FIELD_STRUCTURED_RECTILINEAR`
-- `VISRTX_SPATIAL_FIELD_NANOVDB_RECTILINEAR`
+- `VISRTX_TRIANGLE_BACK_FACE_CULLING`
 
 For any found bugs in extensions that are implemented, please [open an
 issue](https://github.com/NVIDIA/VisRTX/issues/new)!
