@@ -206,7 +206,7 @@ float ResolveAlphaInput(AlphaMode alphaMode, float alphaCutoff, float alpha)
     switch (alphaMode) {
         case AlphaMode_Opaque: return 1.0f;
         case AlphaMode_Blend: return alpha;
-        case AlphaMode_Mask: return float(alpha > alphaCutoff);
+        case AlphaMode_Mask: return float(alpha >= alphaCutoff);
     }
 }
 

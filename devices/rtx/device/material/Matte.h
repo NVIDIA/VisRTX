@@ -56,7 +56,7 @@ struct Matte : public Material
   std::string m_opacityAttribute;
 
   float m_cutoff{0.5f};
-  AlphaMode m_mode{AlphaMode::OPAQUE};
+  AlphaMode m_mode{AlphaMode::BLEND};
 };
 
 } // namespace visrtx

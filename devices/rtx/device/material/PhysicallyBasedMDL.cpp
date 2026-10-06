@@ -144,12 +144,10 @@ void PhysicallyBasedMDL::commitParameters()
   // attenuationColor: color
   // iridescenceIor: float
 
-  // Translate alphaMode to its matching integer value
-  if (auto alphaModeAny = getParamDirect("alphaMode");
-      alphaModeAny.type() == ANARI_STRING) {
-    auto alphaMode = alphaModeFromString(alphaModeAny.getString());
-    setParam("alphaMode", static_cast<int>(alphaMode));
-  }
+  // Resolve alphaMode (explicit legacy string, else derived from alphaCutoff)
+  // to its matching integer value
+  m_parameterOverrides["alphaMode"] =
+      helium::AnariAny(static_cast<int>(alphaModeFromParams()));
 
   MDL::commitParameters();
   // The light-set refresh runs from MDL::finalize (after the emission

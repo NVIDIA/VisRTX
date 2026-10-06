@@ -144,7 +144,7 @@ void PBR::commitParameters()
   m_iridescenceThicknessAttribute = getParamString("iridescenceThickness", "");
 
   m_cutoff = getParam<float>("alphaCutoff", 0.5f);
-  m_mode = alphaModeFromString(getParamString("alphaMode", "opaque"));
+  m_mode = alphaModeFromParams();
 
   refreshEmissionLightSet();
 }

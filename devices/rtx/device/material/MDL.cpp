@@ -157,6 +157,8 @@ void MDL::commitParameters()
   for (auto param = params_begin(); param != params_end(); ++param) {
     m_parameterMap[param->first] = param->second;
   }
+  for (const auto &[name, value] : m_parameterOverrides)
+    m_parameterMap[name] = value;
   Material::commitParameters();
 }
 
