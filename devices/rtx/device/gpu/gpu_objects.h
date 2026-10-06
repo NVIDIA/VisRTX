@@ -86,6 +86,7 @@ enum class CameraType
 {
   PERSPECTIVE,
   ORTHOGRAPHIC,
+  RAY_BUFFER,
   UNKNOWN
 };
 
@@ -105,6 +106,18 @@ struct OrthographicCameraGPUData
   vec3 pos_00;
 };
 
+// Per-pixel ray components; a null pointer means use the fallback (camera
+// position/direction, or the default t-range).
+struct RayBufferCameraGPUData
+{
+  const vec3 *org;
+  const vec3 *dir;
+  const float *tmin;
+  const float *tmax;
+  uvec2 size;
+  bool valid; // buffer dims match the frame size
+};
+
 struct CameraGPUData
 {
   CameraType type;
@@ -116,6 +129,7 @@ struct CameraGPUData
   {
     PerspectiveCameraGPUData perspective;
     OrthographicCameraGPUData orthographic;
+    RayBufferCameraGPUData rayBuffer;
   };
 };
 

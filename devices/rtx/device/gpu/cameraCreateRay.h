@@ -72,6 +72,29 @@ VISRTX_DEVICE Ray cameraCreateRay(const CameraGPUData &c, vec2 screen, vec2 r)
   return ray;
 }
 
+VISRTX_DEVICE Ray rayBufferCreateRay(const CameraGPUData &c, uvec2 pixel)
+{
+  const auto &rb = c.rayBuffer;
+  Ray ray;
+
+  if (!rb.valid) {
+    ray.org = c.pos;
+    ray.dir = c.dir;
+    ray.t = {0.f, 0.f}; // zero-length interval: every ray misses
+    return ray;
+  }
+
+  const size_t i = size_t(pixel.y) * rb.size.x + pixel.x;
+  ray.org = rb.org ? rb.org[i] : c.pos;
+  ray.dir = normalize(rb.dir ? rb.dir[i] : c.dir);
+  if (rb.tmin)
+    ray.t.lower = rb.tmin[i];
+  if (rb.tmax)
+    ray.t.upper = rb.tmax[i];
+  ray.t.upper = fmaxf(ray.t.upper, ray.t.lower); // OptiX requires tmin <= tmax
+  return ray;
+}
+
 // sampleIdx is a (frame-counter × spp_loop) ordinal advancing once per
 // camera sample within the frame's accumulation; combined with a
 // per-pixel hash offset it indexes a Halton 4D point used for
@@ -81,6 +104,11 @@ VISRTX_DEVICE Ray cameraCreateRay(const CameraGPUData &c, vec2 screen, vec2 r)
 VISRTX_DEVICE Ray makePrimaryRay(
     ScreenSample &ss, uint32_t sampleIdx, bool centerPixel = false)
 {
+  if (ss.frameData->camera.type == CameraType::RAY_BUFFER) {
+    ss.screen = (vec2(ss.pixel) + 0.5f) * ss.frameData->fb.invSize;
+    return rayBufferCreateRay(ss.frameData->camera, ss.pixel);
+  }
+
   const uint32_t haltonIdx =
       sampleIdx + haltonPixelHash(ss.pixel.x, ss.pixel.y);
   const ::float4 r = halton4D(haltonIdx);

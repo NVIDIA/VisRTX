@@ -29,71 +29,29 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "Camera.h"
-// specific types
-#include "Orthographic.h"
-#include "Perspective.h"
-#include "RayBuffer.h"
-#include "UnknownCamera.h"
-// std
-#include <atomic>
+#pragma once
+
+#include "array/Array2D.h"
+#include "camera/Camera.h"
 
 namespace visrtx {
 
-Camera::Camera(DeviceGlobalState *s) : Object(ANARI_CAMERA, s)
+// Camera whose primary rays are supplied per pixel by the application.
+struct RayBuffer : public Camera
 {
-  helium::BaseObject::markParameterChanged();
-  s->commitBuffer.addObjectToCommit(this);
-}
+  RayBuffer(DeviceGlobalState *d);
+  void commitParameters() override;
+  void finalize() override;
+  void populateFrameData(CameraGPUData &fd, uvec2 frameSize) const override;
 
-void Camera::commitParameters()
-{
-  m_region = vec4(0.f, 0.f, 1.f, 1.f);
-  getParam("imageRegion", ANARI_FLOAT32_BOX2, &m_region);
-  m_pos = getParam<vec3>("position", vec3(0.f));
-  m_dir = normalize(getParam<vec3>("direction", vec3(0.f, 0.f, 1.f)));
-  m_up = normalize(getParam<vec3>("up", vec3(0.f, 1.f, 0.f)));
+ private:
+  helium::ChangeObserverPtr<Array2D> m_org;
+  helium::ChangeObserverPtr<Array2D> m_dir;
+  helium::ChangeObserverPtr<Array2D> m_tmin;
+  helium::ChangeObserverPtr<Array2D> m_tmax;
 
-  m_aspect.reset();
-  float aspect = 1.f;
-  if (getParam("aspect", ANARI_FLOAT32, &aspect))
-    m_aspect = aspect;
-}
-
-void Camera::populateFrameData(CameraGPUData &fd, uvec2 /*frameSize*/) const
-{
-  populateBaseFrameData(fd);
-  fd.type = CameraType::UNKNOWN;
-}
-
-Camera *Camera::createInstance(std::string_view subtype, DeviceGlobalState *d)
-{
-  if (subtype == "perspective")
-    return new Perspective(d);
-  else if (subtype == "orthographic")
-    return new Orthographic(d);
-  else if (subtype == "rayBuffer")
-    return new RayBuffer(d);
-  else
-    return new UnknownCamera(subtype, d);
-}
-
-void Camera::populateBaseFrameData(CameraGPUData &fd) const
-{
-  fd.region = m_region;
-  fd.pos = m_pos;
-  fd.dir = m_dir;
-  fd.up = m_up;
-}
-
-float Camera::effectiveAspect(uvec2 frameSize) const
-{
-  if (m_aspect)
-    return *m_aspect;
-
-  return frameSize.y == 0 ? 1.f : float(frameSize.x) / float(frameSize.y);
-}
+  RayBufferCameraGPUData m_gpuData{};
+  mutable uvec2 m_lastWarnedFrameSize{0u};
+};
 
 } // namespace visrtx
-
-VISRTX_ANARI_TYPEFOR_DEFINITION(visrtx::Camera *);

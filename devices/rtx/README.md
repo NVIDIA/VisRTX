@@ -82,6 +82,23 @@ GPU pointers returned by `anariMapFrame()` are device pointers intended to be
 kept on the device. Applications which desire to copy data from the device back
 to the host should instead map the ordinary (non-`CUDA`) channels.
 
+#### VISRTX_CAMERA_RAY_BUFFER
+
+Adds a `rayBuffer` camera whose primary rays are supplied per pixel by the
+application. Each component is an optional `ANARI_ARRAY2D` whose dimensions
+must match the frame `size`, indexed like the frame channels:
+
+**Parameters:**
+- `ray.org` (`FLOAT32_VEC3`): ray origins (default: camera `position`).
+- `ray.dir` (`FLOAT32_VEC3`): ray directions, normalized by the device
+  (default: camera `direction`).
+- `ray.tmin` (`FLOAT32`): start of the ray interval (default: `0`).
+- `ray.tmax` (`FLOAT32`): end of the ray interval (default: `FLT_MAX`).
+
+Rays are not jittered and depth of field does not apply; `imageRegion`,
+`aspect`, and `up` are ignored. If the buffer dimensions do not match the
+frame size, a warning is issued and every ray misses.
+
 #### VISRTX_SPATIAL_FIELD_DATA_CENTERING
 
 The `dataCentering` parameter controls how spatial field data is interpreted
@@ -269,6 +286,7 @@ The following extensions are either partially or fully implemented by VisRTX:
 - `EXT_SAMPLER_COMPRESSED_FORMAT_BC67`
 - `NV_ARRAY_CUDA`
 - `NV_FRAME_BUFFERS_CUDA`
+- `VISRTX_CAMERA_RAY_BUFFER`
 - `VISRTX_GEOMETRY_NEURAL` (requires `VISRTX_ENABLE_NEURAL`)
 - `VISRTX_GEOMETRY_SDF`
 - `VISRTX_MATERIAL_MATERIALX` (requires `VISRTX_ENABLE_MATERIALX_SUPPORT`)

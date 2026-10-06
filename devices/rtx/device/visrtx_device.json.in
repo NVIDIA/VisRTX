@@ -53,6 +53,7 @@
       "khr_volume_transfer_function1d",
       "nv_array_cuda",
       "nv_frame_buffers_cuda",
+      "visrtx_camera_ray_buffer",
       "visrtx_geometry_sdf",
       "visrtx_renderer_interactive",
       "visrtx_renderer_fast",
