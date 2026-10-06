@@ -1,0 +1,59 @@
+{
+    "info" : {
+        "name" : "VISRTX_CAMERA_RAY_BUFFER",
+        "type" : "extension",
+        "dependencies" : []
+    },
+
+    "objects" : [
+        {
+            "type" : "ANARI_CAMERA",
+            "name" : "rayBuffer",
+            "description" : "Camera whose primary rays are supplied per pixel by the application",
+            "parameters" : [
+                {
+                    "name": "position",
+                    "types": ["ANARI_FLOAT32_VEC3"],
+                    "tags": [],
+                    "default": [0.0, 0.0, 0.0],
+                    "description": "ray origin used for every pixel when 'ray.org' is absent"
+                },
+                {
+                    "name": "direction",
+                    "types": ["ANARI_FLOAT32_VEC3"],
+                    "tags": ["direction"],
+                    "default": [0.0, 0.0, 1.0],
+                    "description": "ray direction used for every pixel when 'ray.dir' is absent"
+                },
+                {
+                    "name": "ray.org",
+                    "types": ["ANARI_ARRAY2D"],
+                    "elementType": ["ANARI_FLOAT32_VEC3"],
+                    "tags": [],
+                    "description": "per-pixel ray origins, dimensions must match the frame size"
+                },
+                {
+                    "name": "ray.dir",
+                    "types": ["ANARI_ARRAY2D"],
+                    "elementType": ["ANARI_FLOAT32_VEC3"],
+                    "tags": [],
+                    "description": "per-pixel ray directions (normalized by the device), dimensions must match the frame size"
+                },
+                {
+                    "name": "ray.tmin",
+                    "types": ["ANARI_ARRAY2D"],
+                    "elementType": ["ANARI_FLOAT32"],
+                    "tags": [],
+                    "description": "per-pixel ray interval start (default 0), dimensions must match the frame size"
+                },
+                {
+                    "name": "ray.tmax",
+                    "types": ["ANARI_ARRAY2D"],
+                    "elementType": ["ANARI_FLOAT32"],
+                    "tags": [],
+                    "description": "per-pixel ray interval end (default FLT_MAX), dimensions must match the frame size"
+                }
+            ]
+        }
+    ]
+}

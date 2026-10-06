@@ -128,6 +128,7 @@ set(SOURCES
   camera/Camera.cpp
   camera/Orthographic.cpp
   camera/Perspective.cpp
+  camera/RayBuffer.cpp
   camera/UnknownCamera.cpp
 
   frame/Denoiser.cu
