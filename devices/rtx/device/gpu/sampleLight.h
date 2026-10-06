@@ -184,8 +184,9 @@ VISRTX_DEVICE LightSample sampleRectLight(
   ls.dist = length(ls.dir);
   ls.dir /= ls.dist;
 
-  // Calculate rectangle normal and area from cross product
-  auto normal = cross(ld.rect.edge1, ld.rect.edge2);
+  // Calculate rectangle normal and area from cross product; the ANARI spec
+  // defines the front side as edge2 x edge1
+  auto normal = cross(ld.rect.edge2, ld.rect.edge1);
   auto area = length(normal);
   normal = normalize(xfmVec(xfm, normal));
 
