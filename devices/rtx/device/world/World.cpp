@@ -61,13 +61,15 @@ ptx_blob intersection_ptx()
 
 // Helper functions ///////////////////////////////////////////////////////////
 
+// Build input over the first `numInstances` entries of the array. A prefix
+// rather than a separate buffer: the light-proxy instance is appended LAST by
+// populateOptixInstances, so dropping it is a count, not a copy.
 static std::vector<OptixBuildInput> createOBI(
-    HostDeviceArray<OptixInstance> &optixInstances)
+    HostDeviceArray<OptixInstance> &optixInstances, size_t numInstances)
 {
   auto optixInstancesDevice = optixInstances.deviceSpan();
-  auto numInstances = optixInstancesDevice.size();
 
-  if (numInstances == 0)
+  if (numInstances == 0 || optixInstancesDevice.size() == 0)
     return {};
 
   OptixBuildInput buildInput{};
@@ -77,6 +79,12 @@ static std::vector<OptixBuildInput> createOBI(
   buildInput.instanceArray.numInstances = numInstances;
 
   return {buildInput};
+}
+
+static std::vector<OptixBuildInput> createOBI(
+    HostDeviceArray<OptixInstance> &optixInstances)
+{
+  return createOBI(optixInstances, optixInstances.deviceSpan().size());
 }
 
 // World definitions //////////////////////////////////////////////////////////
@@ -255,11 +263,14 @@ void World::rebuildWorld()
   if (m_objectUpdates.lastTLASBuild <= state.objectUpdates.lastTLASChange) {
     m_surfaceBounds = box3();
     m_volumeBounds = box3();
+    m_illuminatedBounds = box3();
     m_traversableSurfaces = {};
     m_traversableVolumes = {};
 
     // Light instances and their proxies must exist BEFORE the surfaces TLAS is
-    // populated: the proxy BLAS is instanced into that TLAS.
+    // populated: the proxy BLAS is instanced into that TLAS. Their Pick Power
+    // is deliberately NOT computed here -- it is scaled by the scene radius,
+    // which only exists once the TLAS has been built. See buildLightPickCdf().
     buildInstanceLightGPUData();
     buildLightProxies();
 
@@ -287,6 +298,11 @@ void World::rebuildWorld()
     reportMessage(
         ANARI_SEVERITY_DEBUG, "visrtx::World building volume gpu data");
     buildInstanceVolumeGPUData();
+
+    // Both TLASs have reported their bounds, so the extent of the illuminated
+    // scene can be resolved and the infinite lights weighted against it.
+    buildIlluminatedBounds();
+    buildLightPickCdf();
 
     reportMessage(ANARI_SEVERITY_DEBUG,
         "visrtx::World finished building world over %zu instances",
@@ -322,8 +338,11 @@ void World::populateOptixInstances()
   // exactly as they were.
   const bool hasLightProxies = m_traversableLightProxies != 0;
 
-  m_optixSurfaceInstances.resize(m_numTriangleInstances + m_numCurveInstances
-      + m_numUserInstances + (hasLightProxies ? 1 : 0));
+  m_numGeometrySurfaceInstances =
+      m_numTriangleInstances + m_numCurveInstances + m_numUserInstances;
+
+  m_optixSurfaceInstances.resize(
+      m_numGeometrySurfaceInstances + (hasLightProxies ? 1 : 0));
   m_optixVolumeInstances.resize(m_numVolumeInstances);
 
   auto prepInstance = [](auto &i,
@@ -643,23 +662,8 @@ void World::buildInstanceLightGPUData()
   m_lightPickCdf.resize(totalLights);
   m_lightPickDelta.resize(totalLights);
 
-  // Bounding-sphere radius over the committed scene, sizing the infinite
-  // lights' Pick Power. Fall back to unit radius so an empty scene still
-  // weights them nonzero.
-  box3 sceneBounds = m_surfaceBounds;
-  if (!empty(m_volumeBounds)) {
-    if (empty(sceneBounds))
-      sceneBounds = m_volumeBounds;
-    else {
-      sceneBounds.lower = glm::min(sceneBounds.lower, m_volumeBounds.lower);
-      sceneBounds.upper = glm::max(sceneBounds.upper, m_volumeBounds.upper);
-    }
-  }
-  m_sceneRadius = empty(sceneBounds)
-      ? 1.0f
-      : 0.5f * glm::length(sceneBounds.upper - sceneBounds.lower);
-  if (m_sceneRadius <= 0.0f)
-    m_sceneRadius = 1.0f;
+  m_lightInstanceObjects.clear();
+  m_lightInstanceObjects.resize(totalLights, nullptr);
 
   size_t lightIndex = 0;
   size_t hdriIndex = 0;
@@ -668,13 +672,6 @@ void World::buildInstanceLightGPUData()
   // cursor here recovers each Geometry Light's surface-instance index without a
   // side table.
   size_t surfaceInstanceCursor = 0;
-
-  // Filled with each instance's raw Pick Power, then normalized into the
-  // cumulative CDF in place once the total is known.
-  auto *pickCdf = m_lightPickCdf.dataHost();
-  auto *pickDelta = m_lightPickDelta.dataHost();
-  m_totalLightPower = 0.0f;
-  m_hdriPower = 0.0f;
 
   std::for_each(m_instances.begin(), m_instances.end(), [&](auto *inst) {
     auto *group = inst->group();
@@ -686,16 +683,12 @@ void World::buildInstanceLightGPUData()
     auto appendLight = [&](Light *light,
                            const mat4 &xfm,
                            DeviceObjectIndex surfaceInstanceIndex) {
-      // Sanitize: a NaN/Inf/negative Pick Power (bad param, degenerate xfm)
-      // would corrupt the cumulative CDF and make cub::LowerBound undefined.
-      // Clamp to 0 so the light is simply never picked. `!(power > 0)` catches
-      // NaN.
-      const float raw = light->pickPower(xfm, m_sceneRadius);
-      const float power = (raw > 0.0f && std::isfinite(raw)) ? raw : 0.0f;
-      pickCdf[lightIndex] = power;
-      m_totalLightPower += power;
+      // Pick Power is NOT computed here: it needs the scene radius, which the
+      // TLAS this array feeds has not produced yet. buildLightPickCdf() fills
+      // it in once the bounds exist, reading the light back out of
+      // m_lightInstanceObjects.
+      m_lightInstanceObjects[lightIndex] = light;
       lights[lightIndex++] = {light->index(), xfm, surfaceInstanceIndex};
-      return power;
     };
 
     for (size_t t = 0; t < inst->numTransforms(); t++) {
@@ -712,12 +705,10 @@ void World::buildInstanceLightGPUData()
         userSI = DeviceObjectIndex(surfaceInstanceCursor++);
 
       for (auto *light : group->lights()) {
-        const float power = appendLight(light, xfm, -1);
+        appendLight(light, xfm, -1);
         // HDRI lights also go into hdriLights
-        if (light->isHDRI()) {
-          m_hdriPower += power;
+        if (light->isHDRI())
           hdris[hdriIndex++] = {light->index(), xfm, -1};
-        }
       }
 
       // Synthesized Geometry Lights, instanced exactly like authored lights but
@@ -738,6 +729,104 @@ void World::buildInstanceLightGPUData()
   // two ever drift, a Geometry Light would index the wrong (or an out-of-range)
   // surface instance and emit silently wrong radiance — catch it here.
   assert(surfaceInstanceCursor == m_instanceSurfaceGPUData.size());
+
+  m_instanceLightGPUData.upload();
+  m_instanceHdriLightGPUData.upload();
+}
+
+void World::buildIlluminatedBounds()
+{
+  // What a DIRECTIONAL or HDRI light shines on. Both estimate their Pick Power
+  // as irradiance times the cross-section of the scene, so the extent they are
+  // measured against must be the lit scene -- a light is not part of what it
+  // lights. Letting a proxy in means one light's placement changes another
+  // light's sampling weight, and its own.
+  //
+  // m_surfaceBounds cannot answer this: it comes back from optixAccelBuild as
+  // ONE AABB over every instance in the surfaces TLAS, proxy included, with no
+  // per-instance breakdown to remove. Subtracting the proxies' own AABBs is
+  // not an option either -- box subtraction is only well defined when the
+  // boxes are disjoint along an axis, so it silently returns garbage for a
+  // light inside or overlapping the geometry.
+  //
+  // So the geometry extent is measured the one way OptiX will report it: by
+  // building over the geometry instances alone and keeping only the bounds.
+  // The proxy instance is appended LAST (populateOptixInstances), so this is a
+  // prefix of the array the real build already uses -- no second buffer, no
+  // reordering, and no BLAS refit, since the inputs are instances whose
+  // acceleration structures are already built.
+  if (m_numGeometrySurfaceInstances == m_optixSurfaceInstances.size()) {
+    // No proxy instance: the TLAS already covers geometry only.
+    m_illuminatedBounds = m_surfaceBounds;
+    m_illuminatedBounds.extend(m_volumeBounds);
+    return;
+  }
+
+  reportMessage(ANARI_SEVERITY_DEBUG,
+      "visrtx::World measuring illuminated bounds over %zu geometry instances",
+      m_numGeometrySurfaceInstances);
+
+  // Discarded immediately; only `bounds` is wanted. Scoped so the scratch BVH
+  // is released as soon as it has been measured.
+  DeviceBuffer geometryBvh;
+  OptixTraversableHandle geometryTraversable{};
+  box3 geometryBounds;
+  buildOptixBVH(
+      createOBI(m_optixSurfaceInstances, m_numGeometrySurfaceInstances),
+      geometryBvh,
+      geometryTraversable,
+      geometryBounds,
+      this);
+
+  m_illuminatedBounds = geometryBounds;
+  m_illuminatedBounds.extend(m_volumeBounds);
+}
+
+void World::buildLightPickCdf()
+{
+  const size_t totalLights = m_instanceLightGPUData.size();
+
+  // Bounding-sphere radius over the illuminated scene, sizing the infinite
+  // lights' Pick Power. This runs after the BVH builds rather than alongside
+  // the light instances because the surfaces TLAS now contains the light-proxy
+  // BLAS: the instance array has to be built BEFORE it, while the bounds come
+  // OUT of it.
+  //
+  // Measured over geometry and volumes only (buildIlluminatedBounds), never
+  // over the light proxies, so an area light placed far from the geometry
+  // cannot inflate the cross-section every infinite light is scaled by.
+  //
+  // Fall back to unit radius so an empty scene still weights the infinite
+  // lights nonzero.
+  m_sceneRadius = empty(m_illuminatedBounds)
+      ? 1.0f
+      : 0.5f
+          * glm::length(m_illuminatedBounds.upper - m_illuminatedBounds.lower);
+  if (!(m_sceneRadius > 0.0f) || !std::isfinite(m_sceneRadius))
+    m_sceneRadius = 1.0f;
+
+  // Filled with each instance's raw Pick Power, then normalized into the
+  // cumulative CDF in place once the total is known.
+  auto *pickCdf = m_lightPickCdf.dataHost();
+  auto *pickDelta = m_lightPickDelta.dataHost();
+  const auto *lights = m_instanceLightGPUData.dataHost();
+  m_totalLightPower = 0.0f;
+  m_hdriPower = 0.0f;
+
+  for (size_t i = 0; i < totalLights; ++i) {
+    Light *light = m_lightInstanceObjects[i];
+    // Sanitize: a NaN/Inf/negative Pick Power (bad param, degenerate xfm)
+    // would corrupt the cumulative CDF and make cub::LowerBound undefined.
+    // Clamp to 0 so the light is simply never picked. `!(power > 0)` catches
+    // NaN.
+    const float raw =
+        light ? light->pickPower(lights[i].xfm, m_sceneRadius) : 0.0f;
+    const float power = (raw > 0.0f && std::isfinite(raw)) ? raw : 0.0f;
+    pickCdf[i] = power;
+    m_totalLightPower += power;
+    if (light && light->isHDRI())
+      m_hdriPower += power;
+  }
 
   // Turn the per-instance Pick Powers into a normalized cumulative CDF in
   // place. Accumulate and normalize in double, dividing by the DOUBLE
@@ -766,8 +855,6 @@ void World::buildInstanceLightGPUData()
     }
   }
 
-  m_instanceLightGPUData.upload();
-  m_instanceHdriLightGPUData.upload();
   m_lightPickCdf.upload();
   m_lightPickDelta.upload();
 }
