@@ -155,6 +155,27 @@ intersector through a type cascade just to read it.
   additionally emit a proxy AABB tagged with the existing `lightIndex`. The NEE
   path is untouched. Double-counting is therefore structurally impossible rather
   than something tests must catch.
+- **A light is not part of the scene it lights, and the build order has to say
+  so twice.** Putting the proxy BLAS in the surfaces TLAS entangles it with the
+  scene radius that sizes `DIRECTIONAL` and `HDRI` Pick Power, in two separate
+  ways. First in *ordering*: the light instances are an input to that TLAS, so
+  they must be built before it, while the radius is an output of it. Computing
+  Pick Power alongside the instance layout therefore reads bounds that
+  `rebuildWorld` has just reset, pinning every scene to the unit fallback — so
+  the pick CDF is split into its own `buildLightPickCdf()` that runs after the
+  BVHs. Second in *content*: the TLAS bounds now enclose the proxies, so a
+  distant quad light would inflate the cross-section every infinite light is
+  scaled by, letting one light change another's sampling weight and its own.
+  `buildIlluminatedBounds()` therefore measures geometry and volumes alone, by
+  building over the geometry prefix of the instance array (the proxy instance is
+  appended last) and keeping only the AABB. It is a second instance-array build
+  rather than a subtraction because OptiX reports one AABB over all instances
+  with no per-instance breakdown, and box subtraction is undefined unless the
+  boxes are disjoint along an axis — which a light inside the geometry is not.
+  Both are variance effects, not bias: Pick Power is a heuristic, and the same
+  pick probability is used by the sampler and by the hit-side density it is
+  MIS-weighted against. "Illuminated" here excludes analytic area lights, not
+  all emitters — an emissive *surface* is real geometry and stays in the bounds.
 - Once the proxy BLAS exists, *every* renderer's rays can hit it. A renderer
   opts in through its shading policy's `primaryVisibilityMask()`: Debug and
   Fast stay geometry-only and **pass through** safely, Quality and Interactive

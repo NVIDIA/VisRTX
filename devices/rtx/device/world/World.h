@@ -65,6 +65,16 @@ struct World : public Object
   void buildInstanceSurfaceGPUData();
   void buildInstanceVolumeGPUData();
   void buildInstanceLightGPUData();
+  // Power-proportional Light Pick over the light instances buildInstanceLight-
+  // GPUData laid out. Split from it because the Pick Power of an infinite light
+  // is scaled by the scene radius, which is an OUTPUT of the TLAS build, while
+  // the light instances are an INPUT to it (the proxy BLAS is instanced into
+  // that TLAS). Only this half has to wait for the bounds.
+  void buildLightPickCdf();
+  // World bounds of the ILLUMINATED scene: geometry and volumes, with the
+  // light-proxy instance excluded. See the definition for why this is a second
+  // acceleration-structure build rather than a subtraction.
+  void buildIlluminatedBounds();
   // Builds the analytic area-light proxy records, their AABBs and their BLAS
   // (ADR 0009). Must run after buildInstanceLightGPUData: proxies reference
   // light-instance slots by index.
@@ -90,6 +100,10 @@ struct World : public Object
 
   box3 m_surfaceBounds;
   box3 m_volumeBounds;
+  // m_surfaceBounds minus the light-proxy instance, unioned with the volumes.
+  // This -- not m_surfaceBounds -- is what sizes the infinite lights, so that a
+  // light cannot grow the scene it illuminates. See buildIlluminatedBounds().
+  box3 m_illuminatedBounds;
 
   struct ObjectUpdates
   {
@@ -102,6 +116,9 @@ struct World : public Object
   OptixTraversableHandle m_traversableSurfaces{};
   DeviceBuffer m_bvhSurfaces;
   HostDeviceArray<OptixInstance> m_optixSurfaceInstances;
+  // How many leading entries of m_optixSurfaceInstances are real geometry. The
+  // light-proxy instance, when there is one, is the single entry past this.
+  size_t m_numGeometrySurfaceInstances{0};
 
   HostDeviceArray<InstanceSurfaceGPUData> m_instanceSurfaceGPUData;
 
@@ -117,6 +134,10 @@ struct World : public Object
 
   HostDeviceArray<InstanceLightGPUData> m_instanceLightGPUData;
   HostDeviceArray<InstanceLightGPUData> m_instanceHdriLightGPUData;
+  // The Light behind each m_instanceLightGPUData slot, parallel to it. Lets the
+  // deferred Pick Power pass read each light's parameters without re-walking
+  // the instance tree and re-deriving the slot order a second time.
+  std::vector<Light *> m_lightInstanceObjects;
 
   // Analytic area-light proxies (ADR 0009): traceable stand-ins for the rect
   // and ring entries of m_instanceLightGPUData, in their own BLAS instanced
