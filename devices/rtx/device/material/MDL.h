@@ -90,6 +90,11 @@ struct MDL : public Material
   };
   std::optional<SourceHandoff> m_sourceHandoff;
 
+  // Argument values a subclass derives from its app params, applied over the
+  // app's params when building the argument block. Like m_sourceHandoff, this
+  // leaves the app's params untouched; subclasses re-populate it every commit.
+  std::map<std::string, helium::AnariAny> m_parameterOverrides;
+
  private:
   MaterialGPUData gpuData() const override;
   std::map<std::string, helium::AnariAny> m_parameterMap;

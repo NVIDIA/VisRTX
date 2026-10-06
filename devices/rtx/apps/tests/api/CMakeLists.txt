@@ -74,6 +74,7 @@ if (NOT VISRTX_USE_MDL_FOR_PHYSICALLY_BASED)
 endif()
 make_test(TestPbrSpecularDefault)
 make_test(TestSamplerAlphaFill)
+make_test(TestAlphaCutoffMode)
 make_test(TestEmissionRadianceScale)
 make_test(TestEmissiveRecommit)
 # The raw `mdl` material type and the `physicallyBasedMDL` subtype only exist

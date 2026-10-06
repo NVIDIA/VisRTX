@@ -67,6 +67,11 @@ struct Material : public RegisteredObject<MaterialGPUData>
   // finalize(), where the compile-time emission classification is known.
   void refreshEmissionLightSet();
 
+  // Resolve the alpha mode per ANARI 1.2: an unset "alphaCutoff" means blend,
+  // a cutoff >= 1 means opaque, and anything lower means mask. An explicitly
+  // set "alphaMode" string (ANARI <= 1.1) takes precedence for compatibility.
+  AlphaMode alphaModeFromParams() const;
+
  private:
   bool m_emissionWasSampleable{false};
   vec3 m_lastEmissionAverage{0.f};

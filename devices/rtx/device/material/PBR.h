@@ -52,7 +52,7 @@ struct PBR : public Material
   MaterialGPUData gpuData() const override;
 
   float m_cutoff{0.5f};
-  AlphaMode m_mode{AlphaMode::OPAQUE};
+  AlphaMode m_mode{AlphaMode::BLEND};
 
   vec4 m_color{1.f, 1.f, 1.f, 1.f};
   helium::ChangeObserverPtr<Sampler> m_colorSampler;

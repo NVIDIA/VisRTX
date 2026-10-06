@@ -51,7 +51,7 @@ void Matte::commitParameters()
   m_colorAttribute = getParamString("color", "");
 
   m_cutoff = getParam<float>("alphaCutoff", 0.5f);
-  m_mode = alphaModeFromString(getParamString("alphaMode", "opaque"));
+  m_mode = alphaModeFromParams();
 }
 
 MaterialGPUData Matte::gpuData() const

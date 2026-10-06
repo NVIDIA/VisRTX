@@ -70,6 +70,17 @@ vec3 Material::emissionAverage() const
   return vec3(0.f);
 }
 
+AlphaMode Material::alphaModeFromParams() const
+{
+  if (hasParam("alphaMode", ANARI_STRING))
+    return alphaModeFromString(getParamString("alphaMode", "opaque"));
+
+  float cutoff = 0.f;
+  if (!getParam("alphaCutoff", ANARI_FLOAT32, &cutoff))
+    return AlphaMode::BLEND;
+  return cutoff >= 1.f ? AlphaMode::OPAQUE : AlphaMode::MASK;
+}
+
 void Material::refreshEmissionLightSet()
 {
   const bool nowSampleable = emissionIsSampleable();
