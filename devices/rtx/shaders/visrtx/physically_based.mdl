@@ -215,13 +215,26 @@ float3 ResolveNormalInput(Float3Input normalInput)
     if (!::tex::texture_isvalid(normalInput.texture))
         return normalInput.value;
 
-    return ::base::tangent_space_normal_texture(
-        texture: normalInput.texture,
-        uvw: base::texture_coordinate_info(
-                position: state::texture_coordinate(normalInput.textureSpace),
-                tangent_u: state::texture_tangent_u(normalInput.textureSpace),
-                tangent_v: state::texture_tangent_v(normalInput.textureSpace),
-        ));
+    // Per the ANARI spec the sampler already returns the tangent-space normal
+    // (the lookup applies its outTransform/outOffset), so don't use
+    // base::tangent_space_normal_texture, which would decode it again.
+    int textureSpace = normalInput.textureSpace;
+    float3 ts = ::tex::lookup_float3(
+        tex: normalInput.texture,
+        coord: float2(state::texture_coordinate(textureSpace).x, state::texture_coordinate(textureSpace).y)
+    );
+
+    // Gram-Schmidt to build an orthonormal frame tied to the shading normal.
+    float3 n = state::normal();
+    float3 t = ::math::normalize(state::texture_tangent_u(textureSpace)
+        - ::math::dot(state::texture_tangent_u(textureSpace), n) * n);
+    float3 b = state::texture_tangent_v(textureSpace);
+    b = ::math::normalize(b - ::math::dot(b, n) * n - ::math::dot(b, t) * t);
+
+    float3 mapped = t * ts.x + b * ts.y + n * ts.z;
+    // Fall back to the geometric normal for zero-valued samples or tangents.
+    float len = ::math::length(mapped);
+    return len > 1.0e-6f ? mapped / len : state::geometry_normal();
 }
 
 export material physically_based_material(
