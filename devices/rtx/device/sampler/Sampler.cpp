@@ -110,6 +110,11 @@ SamplerGPUData Sampler::gpuData() const
   return retval;
 }
 
+const std::string &Sampler::inAttribute() const
+{
+  return m_inAttribute;
+}
+
 MaterialAttribute attributeFromString(const std::string &str)
 {
   if (str == "attribute0")

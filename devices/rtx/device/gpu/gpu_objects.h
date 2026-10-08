@@ -231,6 +231,7 @@ struct QuadGeometryData
   const vec3 *vertices;
   AttributeDataSet vertexAttr;
   const vec3 *vertexNormals;
+  const vec4 *vertexTangents;
   bool cullBackfaces;
 };
 

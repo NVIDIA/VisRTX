@@ -72,6 +72,11 @@ struct Material : public RegisteredObject<MaterialGPUData>
   // set "alphaMode" string (ANARI <= 1.1) takes precedence for compatibility.
   AlphaMode alphaModeFromParams() const;
 
+  // Normal maps are applied in the geometry's tangent frame, which follows
+  // attribute0. Warn when a normal-map sampler reads other coordinates.
+  void warnIfNormalMapNotOnAttribute0(
+      const Sampler *sampler, const char *paramName) const;
+
  private:
   bool m_emissionWasSampleable{false};
   vec3 m_lastEmissionAverage{0.f};

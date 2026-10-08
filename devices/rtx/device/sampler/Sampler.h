@@ -51,6 +51,8 @@ struct Sampler : public RegisteredObject<SamplerGPUData>
   // un-averaged sampler is still picked; Image2D overrides with the mean texel.
   virtual vec4 averageValue() const;
 
+  const std::string &inAttribute() const;
+
 #if defined(USE_MDL)
   // Per-channel texel reduction consumed by the MDL emission classifier's value
   // source (maxAbs for the zero proof, meanPositive for the magnitude proxy,

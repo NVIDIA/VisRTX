@@ -30,6 +30,7 @@
  */
 
 #include "Quad.h"
+#include "geometry/ComputeTangent.h"
 
 namespace visrtx {
 
@@ -43,6 +44,7 @@ void Quad::commitParameters()
   m_index = getParamObject<Array1D>("primitive.index");
   m_vertex = getParamObject<Array1D>("vertex.position");
   m_vertexNormal = getParamObject<Array1D>("vertex.normal");
+  m_vertexTangent = getParamObject<Array1D>("vertex.tangent");
   m_cullBackfaces = getParam<bool>("cullBackfaces", false);
   commitAttributes("vertex.", m_vertexAttributes);
 }
@@ -67,6 +69,18 @@ void Quad::finalize()
       m_index ? "indexed" : "soup");
 
   generateIndices();
+
+  if (m_vertexTangent && m_vertex->size() != m_vertexTangent->size()) {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "'vertex.tangent' on quad geometry not the same size as "
+        "'vertex.position' (%zu) vs. (%zu)",
+        m_vertexTangent->size(),
+        m_vertex->size());
+  }
+  if (!prepareTangentArray(
+          this, m_vertexTangent, m_vertexTangentFinalized, "vertex.tangent"))
+    generateTangents();
+
   m_vertexBufferPtr = (CUdeviceptr)m_vertex->beginAs<vec3>(AddressSpace::GPU);
 
   upload();
@@ -113,6 +127,8 @@ GeometryGPUData Quad::gpuData() const
   quad.vertexNormals = m_vertexNormal
       ? m_vertexNormal->beginAs<vec3>(AddressSpace::GPU)
       : nullptr;
+  quad.vertexTangents =
+      resolveTangentPtr(m_vertexTangent, m_vertexTangentFinalized);
   quad.cullBackfaces = m_cullBackfaces;
   populateAttributeDataSet(m_vertexAttributes, quad.vertexAttr);
 
@@ -142,6 +158,25 @@ void Quad::generateIndices()
   }
 
   m_indices.upload();
+}
+
+void Quad::generateTangents()
+{
+  auto uvs = getParamObject<Array1D>("vertex.attribute0");
+
+  // Quads are intersected and interpolated as their two-triangle split, so
+  // generate over that split. Quads have no face-varying data, so the result
+  // is always per vertex.
+  TangentGenerationInput input;
+  input.positions = m_vertex.get();
+  input.indices = m_indices.dataDevice();
+  input.numTriangles = m_indices.size();
+  input.normals = m_vertexNormal.ptr;
+  input.uvs = uvs;
+
+  DeviceBuffer unusedPerCorner;
+  visrtx::generateTangents(
+      this, input, m_vertexTangentFinalized, unusedPerCorner);
 }
 
 } // namespace visrtx

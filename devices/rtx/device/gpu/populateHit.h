@@ -300,9 +300,36 @@ VISRTX_DEVICE void computeTangentSpace(
       hit.Ng = -hit.Ng;
     hit.Ns = hit.Ng;
 
-    auto tangentSpace = computeOrthonormalBasis(hit.Ng);
-    hit.tU = tangentSpace[0];
-    hit.tV = tangentSpace[1];
+    if (ggd.quad.vertexTangents != nullptr) {
+      // Interpolate bilinearly over the quad, like its attributes (see
+      // readAttributeValue), building each corner's bitangent from its own
+      // sign and normal as the triangle path does.
+      // The quad's corners, ordered like v0..v3 in readAttributeValue.
+      const uvec3 i0 = ggd.quad.indices[primID & ~0x1u];
+      const uvec3 i1 = ggd.quad.indices[(primID & ~0x1u) + 1];
+      const uint32_t corner[4] = {i0.x, i0.y, i1.x, i0.z};
+      vec3 T[4], B[4];
+      for (int i = 0; i < 4; i++) {
+        const vec4 t = ggd.quad.vertexTangents[corner[i]];
+        const vec3 N =
+            ggd.quad.vertexNormals ? ggd.quad.vertexNormals[corner[i]] : hit.Ng;
+        T[i] = vec3(t);
+        B[i] = t.w * cross(N, vec3(t));
+      }
+      const float u = primID & 0x1 ? b.y : 1.f - b.y;
+      const float v = primID & 0x1 ? b.z : 1.f - b.z;
+      const auto bilerp = [&](const vec3 *c) {
+        const vec3 l0 = c[1] + (c[0] - c[1]) * u;
+        const vec3 l1 = c[2] + (c[3] - c[2]) * u;
+        return l1 + (l0 - l1) * v;
+      };
+      hit.tU = normalize(bilerp(T));
+      hit.tV = normalize(bilerp(B));
+    } else {
+      auto tangentSpace = computeOrthonormalBasis(hit.Ng);
+      hit.tU = tangentSpace[0];
+      hit.tV = tangentSpace[1];
+    }
     break;
   }
   case GeometryType::SPHERE:

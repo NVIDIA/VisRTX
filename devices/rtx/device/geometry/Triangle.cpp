@@ -35,90 +35,29 @@
 
 namespace visrtx {
 
-// Resolve the device pointer the GPU reads tangents from. A non-empty staging
-// buffer means a VEC3 array was padded to vec4; otherwise a non-empty VEC4
-// array is read zero-copy from its own storage. Anything else -- absent,
-// empty, or an unsupported/failed-to-convert type -- yields no tangents, so
-// the shader falls back to a geometric basis.
-static const vec4 *resolveTangentPtr(
-    const helium::IntrusivePtr<Array1D> &tangents,
-    const DeviceBuffer &converted)
-{
-  if (converted)
-    return converted.ptrAs<vec4>();
-  if (tangents && tangents->size() > 0
-      && tangents->elementType() == ANARI_FLOAT32_VEC4)
-    return tangents->beginAs<vec4>(AddressSpace::GPU);
-  return nullptr;
-}
-
 Triangle::Triangle(DeviceGlobalState *d)
     : Geometry(d), m_index(this), m_vertex(this)
 {}
 
 Triangle::~Triangle() = default;
 
-bool Triangle::prepareTangentArray(
-    const helium::IntrusivePtr<Array1D> &tangents,
-    DeviceBuffer &converted,
-    const char *paramName)
+void Triangle::generateTangents()
 {
-  // Only the staging buffer is rebuilt here; the array member is left untouched
-  // so it keeps faithfully reflecting the committed parameter.
-  converted.reset();
+  auto uvs = getParamObject<Array1D>("vertex.attribute0");
+  auto uvsFV = getParamObject<Array1D>("faceVarying.attribute0");
 
-  if (!tangents)
-    return false;
+  TangentGenerationInput input;
+  input.positions = m_vertex.get();
+  input.indices =
+      m_index ? m_index->beginAs<uvec3>(AddressSpace::GPU) : nullptr;
+  input.numTriangles = m_index ? m_index->size() : m_vertex->size() / 3;
+  input.normals = m_vertexNormal.ptr;
+  input.normalsFV = m_vertexNormalFV.ptr;
+  input.uvs = uvs;
+  input.uvsFV = uvsFV;
 
-  const auto type = tangents->elementType();
-
-  // Already in the internal layout: read zero-copy in gpuData().
-  if (type == ANARI_FLOAT32_VEC4)
-    return true;
-
-  // Spec-allowed VEC3 tangents: pad to vec4 with a default +1 handedness.
-  if (type == ANARI_FLOAT32_VEC3) {
-    const auto count = tangents->size();
-    if (count == 0)
-      return false;
-    converted.reserve(count * sizeof(vec4));
-    // On allocation (empty buffer) or conversion failure, leave 'converted'
-    // empty; gpuData() then emits no tangents (resolveTangentPtr zero-copies
-    // VEC4 only) rather than reading an uninitialized buffer.
-    if (!converted
-        || !convertTangentsVec3ToVec4(this,
-            tangents->beginAs<vec3>(AddressSpace::GPU),
-            converted.ptrAs<vec4>(),
-            count)) {
-      converted.reset();
-    }
-    return converted;
-  }
-
-  // Anything else (e.g. the FIXED16 variants) is advertised by the query
-  // metadata but not yet handled here. Report it; gpuData() emits no tangents
-  // rather than throwing on a VEC4 read of a non-VEC4 array.
-  reportMessage(ANARI_SEVERITY_WARNING,
-      "'%s' on triangle geometry has unsupported element type '%s'; "
-      "expected ANARI_FLOAT32_VEC3 or ANARI_FLOAT32_VEC4 -- ignoring tangents",
-      paramName,
-      anari::toString(type));
-
-  return false;
-}
-
-void Triangle::generateVertexTangents(DeviceBuffer &generated)
-{
-  const auto count = m_vertex ? m_vertex->size() : 0;
-  if (count == 0)
-    return;
-
-  generated.reserve(count * sizeof(vec4));
-  if (!generated)
-    return;
-
-  if (!computeGeometryVertexTangent(this, generated.ptrAs<vec4>()))
-    generated.reset();
+  visrtx::generateTangents(
+      this, input, m_vertexTangentFinalized, m_vertexTangentFVFinalized);
 }
 
 void Triangle::commitParameters()
@@ -185,11 +124,13 @@ void Triangle::finalize()
   }
 
   bool hasTangent = prepareTangentArray(
-      m_vertexTangent, m_vertexTangentFinalized, "vertex.tangent");
-  hasTangent |= prepareTangentArray(
-      m_vertexTangentFV, m_vertexTangentFVFinalized, "faceVarying.tangent");
+      this, m_vertexTangent, m_vertexTangentFinalized, "vertex.tangent");
+  hasTangent |= prepareTangentArray(this,
+      m_vertexTangentFV,
+      m_vertexTangentFVFinalized,
+      "faceVarying.tangent");
   if (!hasTangent)
-    generateVertexTangents(m_vertexTangentFinalized);
+    generateTangents();
 
   reportMessage(ANARI_SEVERITY_DEBUG,
       "finalizing %s triangle geometry",
