@@ -450,6 +450,7 @@ VISRTX_DEVICE void populateSurfaceHit(SurfaceHit &hit)
   hit.material = &md;
   hit.t = ray::t();
   hit.hitpoint = ray::hitpoint();
+  hit.V = -normalize(ray::direction());
   hit.uvw = ray::uvw(gd.type);
   hit.primID = ray::primID();
   if (gd.type == GeometryType::ISOSURFACE)

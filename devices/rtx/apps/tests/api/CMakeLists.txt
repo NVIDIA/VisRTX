@@ -77,6 +77,12 @@ endif()
 make_test(TestPbrSpecularDefault)
 make_test(TestNormalMapDecode)
 make_test(TestGeneratedTangents)
+make_test(TestShadingNormalGrazing)
+if (VISRTX_USE_MDL_FOR_PHYSICALLY_BASED)
+  # Its closed-form reference models the backend's diffuse lobe.
+  target_compile_definitions(
+    TestShadingNormalGrazing PRIVATE VISRTX_TEST_PHYSICALLY_BASED_IS_MDL)
+endif()
 make_test(TestSamplerAlphaFill)
 make_test(TestAlphaCutoffMode)
 make_test(TestEmissionRadianceScale)
@@ -94,6 +100,8 @@ if (VISRTX_ENABLE_MDL_SUPPORT)
     TestNormalMapDecode PRIVATE VISRTX_TEST_MDL_WRAPPER)
   target_compile_definitions(
     TestGeneratedTangents PRIVATE VISRTX_TEST_MDL_WRAPPER)
+  target_compile_definitions(
+    TestShadingNormalGrazing PRIVATE VISRTX_TEST_MDL_WRAPPER)
   make_test(TestEmissiveMdlLight)
   make_test(TestEmissionDescriptorPolicy)
   make_test(TestMdlPipelineRebuild)

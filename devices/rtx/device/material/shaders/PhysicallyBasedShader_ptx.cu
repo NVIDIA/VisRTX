@@ -35,6 +35,7 @@
 #include "gpu/sampleLight.h"
 #include "gpu/shadingState.h"
 #include "gpu/shading_api.h"
+#include "gpu/validShadingNormal.h"
 
 using namespace visrtx;
 
@@ -280,7 +281,8 @@ VISRTX_CALLABLE void __direct_callable__init(
   shadingState->baseColor = vec3(color);
 
   const vec3 N = sampleNormalMap(*fd, md->normalSampler, *hit, hit->Ns);
-  shadingState->normal = N;
+  shadingState->unadjustedNormal = N;
+  shadingState->normal = validShadingNormal(hit->Ng, hit->V, N);
 
   shadingState->opacity =
       adjustedMaterialOpacity(color.w * opacity, md->alphaMode, md->cutoff);
@@ -303,8 +305,9 @@ VISRTX_CALLABLE void __direct_callable__init(
   shadingState->clearcoat = getMaterialParameter(*fd, md->clearcoat, *hit).x;
   shadingState->clearcoatRoughness =
       getMaterialParameter(*fd, md->clearcoatRoughness, *hit).x;
-  shadingState->clearcoatNormal =
+  const vec3 Nc =
       sampleNormalMap(*fd, md->clearcoatNormalSampler, *hit, hit->Ns);
+  shadingState->clearcoatNormal = validShadingNormal(hit->Ng, hit->V, Nc);
 
   shadingState->thickness = getMaterialParameter(*fd, md->thickness, *hit).x;
   shadingState->attenuationDistance = md->attenuationDistance;
@@ -353,7 +356,7 @@ VISRTX_CALLABLE vec3 __direct_callable__evaluateTransmission(
 VISRTX_CALLABLE vec3 __direct_callable__evaluateNormal(
     const PhysicallyBasedShadingState *shadingState)
 {
-  return shadingState->normal;
+  return shadingState->unadjustedNormal;
 }
 
 //-----------------------------------------------------------------------------
