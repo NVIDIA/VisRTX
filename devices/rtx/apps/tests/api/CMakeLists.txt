@@ -75,6 +75,7 @@ if (NOT VISRTX_USE_MDL_FOR_PHYSICALLY_BASED)
   make_test(TestEmissiveInstanceAttribute)
 endif()
 make_test(TestPbrSpecularDefault)
+make_test(TestNormalMapDecode)
 make_test(TestSamplerAlphaFill)
 make_test(TestAlphaCutoffMode)
 make_test(TestEmissionRadianceScale)
@@ -88,6 +89,8 @@ if (VISRTX_ENABLE_MDL_SUPPORT)
   # exercised even when the physicallyBased backend is native CUDA.
   target_compile_definitions(
     TestPbrSpecularDefault PRIVATE VISRTX_TEST_MDL_WRAPPER)
+  target_compile_definitions(
+    TestNormalMapDecode PRIVATE VISRTX_TEST_MDL_WRAPPER)
   make_test(TestEmissiveMdlLight)
   make_test(TestEmissionDescriptorPolicy)
   make_test(TestMdlPipelineRebuild)

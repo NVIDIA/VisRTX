@@ -64,9 +64,12 @@ VISRTX_DEVICE vec3 sampleNormalMap(const FrameGPUData &fd,
 {
   if (samplerIdx == ~visrtx::DeviceObjectIndex{0})
     return fallback;
-  const vec3 ts = normalize(evaluateSampler(fd, samplerIdx, hit) * 2.0f - 1.0f);
+  // Per the ANARI spec the sampler already returns the tangent-space normal;
+  // decoding texels (2 * texel - 1) is the app's job, via outTransform and
+  // outOffset.
+  const vec3 ts = normalize(vec3(evaluateSampler(fd, samplerIdx, hit)));
   const vec3 N = applyNormalMap(ts, hit, hit.Ns);
-  // Negated comparison catches NaN (zero-decoded texels, zero-summed tangents)
+  // Negated comparison catches NaN (zero-valued samples, zero-summed tangents)
   // as well as zero-length results — fall back to the geometric normal so the
   // shading frame is always usable.
   return (dot(N, N) > 1e-12f) ? N : hit.Ng;
