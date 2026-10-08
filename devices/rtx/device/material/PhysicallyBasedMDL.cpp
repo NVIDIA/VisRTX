@@ -80,6 +80,10 @@ void PhysicallyBasedMDL::commitParameters()
 
   // Translate all supported parameters to their matching .value or .texture if they are
   // variant inputs.
+  warnIfNormalMapNotOnAttribute0(getParamObject<Sampler>("normal"), "normal");
+  warnIfNormalMapNotOnAttribute0(
+      getParamObject<Sampler>("clearcoatNormal"), "clearcoatNormal");
+
   translateAndRemoveParameter("opacity"sv);
   translateAndRemoveParameter("baseColor"sv);
   translateAndRemoveParameter("metallic"sv);

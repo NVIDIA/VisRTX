@@ -30,13 +30,8 @@
  */
 
 #include "ComputeTangent.h"
-#include "array/Array.h"
-#include "geometry/Triangle.h"
 
 #include <cuda_runtime.h>
-#include <cuda_runtime_api.h>
-#include <device_types.h>
-#include <vector_types.h>
 
 #include <glm/common.hpp>
 #include <glm/ext/vector_float2.hpp>
@@ -45,8 +40,8 @@
 #include <glm/ext/vector_uint3.hpp>
 #include <glm/geometric.hpp>
 
-#include <cstdio>
-#include <glm/vector_relational.hpp>
+#include <thrust/execution_policy.h>
+#include <thrust/scan.h>
 
 namespace {
 
@@ -77,11 +72,6 @@ __device__ glm::vec3 computeGeometricNormal(
   return safeNormalize(glm::cross(e1, e2), glm::vec3(0.f, 0.f, 1.f));
 }
 
-// Each face-vertex's contribution to its vertex's accumulated tangent frame
-// is weighted by the triangle's interior angle at that corner — same scheme
-// MikkTSpace uses to average across incident faces. Angle weighting (over
-// uniform or area) keeps thin sliver triangles from dominating shared
-// vertices.
 __device__ float cornerAngle(
     const glm::vec3 &a, const glm::vec3 &b, const glm::vec3 &c)
 {
@@ -95,226 +85,203 @@ __device__ float cornerAngle(
   return acosf(cosT);
 }
 
-__device__ void atomicAddVec3(glm::vec3 &dst, const glm::vec3 &v)
+__device__ bool sameBits(const glm::vec2 &a, const glm::vec2 &b)
 {
-  atomicAdd(&dst.x, v.x);
-  atomicAdd(&dst.y, v.y);
-  atomicAdd(&dst.z, v.z);
+  return __float_as_uint(a.x) == __float_as_uint(b.x)
+      && __float_as_uint(a.y) == __float_as_uint(b.y);
+}
+
+__device__ bool sameBits(const glm::vec3 &a, const glm::vec3 &b)
+{
+  return __float_as_uint(a.x) == __float_as_uint(b.x)
+      && __float_as_uint(a.y) == __float_as_uint(b.y)
+      && __float_as_uint(a.z) == __float_as_uint(b.z);
 }
 
 bool reportCudaError(
-    visrtx::Triangle *triangle, cudaError_t error, const char *operation)
+    visrtx::Geometry *geometry, cudaError_t error, const char *operation)
 {
   if (error == cudaSuccess)
     return false;
 
-  triangle->reportMessage(ANARI_SEVERITY_ERROR,
-      "CUDA error while computing tangents for Triangle %p during %s: %s",
-      triangle,
+  geometry->reportMessage(ANARI_SEVERITY_ERROR,
+      "CUDA error while computing tangents for geometry %p during %s: %s",
+      geometry,
       operation,
       cudaGetErrorString(error));
   return true;
 }
 
-} // namespace
-
-namespace visrtx {
-
-__device__ void __computeTangentAndBitangent(
-    glm::vec3 *tangent, // Output tangent vectors with handedness (w component)
-    glm::vec3 *bitangent, // Output bitangent vectors
-    glm::vec3 p0, // Input vertex positions
-    glm::vec3 p1,
-    glm::vec3 p2,
-    glm::vec2 uv0, // Input texture coordinates
-    glm::vec2 uv1,
-    glm::vec2 uv2)
+// The mesh as the kernels see it. Corner c is corner c % 3 of triangle c / 3.
+template <typename TexCoord>
+struct MeshView
 {
-  // Compute edges of the triangle
-  glm::vec3 e1 = p1 - p0;
-  glm::vec3 e2 = p2 - p0;
-  const auto normal = computeGeometricNormal(e1, e2);
+  const glm::uvec3 *indices; // null = triangle soup
+  const glm::vec3 *positions;
+  const glm::vec3 *normals; // null = no normals
+  bool normalsFV;
+  const TexCoord *uvs;
+  bool uvsFV;
 
-  if (glm::dot(e1, e1) < eps || glm::dot(e2, e2) < eps) {
-    makeTangentFrame(normal, tangent, bitangent);
-    return;
+  __device__ glm::uvec3 triangle(uint32_t t) const
+  {
+    return indices ? indices[t] : glm::uvec3(3 * t) + glm::uvec3(0, 1, 2);
   }
 
-  // Compute differences in texture coordinates
-  auto s = uv1 - uv0;
-  auto t = uv2 - uv0;
-
-  // Match glTF normal maps definition, as expected by the physicallyBased
-  // material. Equivalent to the importer's flipTexCoordY=true on the MikkTSpace
-  // path.
-  s.y = -s.y;
-  t.y = -t.y;
-
-  auto det = s.x * t.y - s.y * t.x;
-
-  if (glm::abs(det) < eps) {
-    makeTangentFrame(normal, tangent, bitangent);
-    return;
+  __device__ uint32_t vertex(uint32_t c) const
+  {
+    return triangle(c / 3)[c % 3];
   }
 
-  float invdet = 1.0f / det;
-  *tangent = (t.y * e1 - s.y * e2) * invdet;
-  *bitangent = (s.x * e2 - t.x * e1) * invdet;
-}
+  __device__ glm::vec2 uv(uint32_t c) const
+  {
+    const TexCoord &st = uvs[uvsFV ? c : vertex(c)];
+    return glm::vec2(st.x, st.y);
+  }
 
-// Pass 1 (one thread per triangle): compute the per-triangle T/B from the UV
-// gradient, then atomicAdd those vectors into per-vertex accumulators —
-// weighted by the triangle's interior angle at each corner. Per-vertex
-// normals are accumulated the same way so Pass 2 has a coordinate frame to
-// orthogonalize against, regardless of whether input normals are vertex,
-// face-varying, or absent.
-template <bool VerticesIndexed,
-    bool NormalsIndexed,
-    bool UVsIndexed,
-    typename TexCoord>
-__global__ void __doAccumulateTangents(glm::vec3 *tangentAccum,
-    glm::vec3 *bitangentAccum,
-    glm::vec3 *normalAccum,
-    const glm::uvec3 *indices,
-    const glm::vec3 *positions,
-    const glm::vec3 *normals,
-    const TexCoord *uvs,
-    unsigned int numTriangles)
+  __device__ glm::vec3 normal(uint32_t c) const
+  {
+    return normals[normalsFV ? c : vertex(c)];
+  }
+
+  // The corner's angle, which weights its face's contribution to the frame.
+  __device__ float weight(uint32_t c) const
+  {
+    const glm::uvec3 idx = triangle(c / 3);
+    const uint32_t k = c % 3;
+    return cornerAngle(positions[idx[k]],
+        positions[idx[(k + 1) % 3]],
+        positions[idx[(k + 2) % 3]]);
+  }
+};
+
+// Pass 1 (one thread per triangle): the face's +dP/du and +dP/dv, and a count
+// of each vertex's corners.
+template <typename TexCoord>
+__global__ void computeFaceFrames(MeshView<TexCoord> mesh,
+    uint32_t numTriangles,
+    glm::vec3 *faceT,
+    glm::vec3 *faceB,
+    uint32_t *cornerCounts)
 {
-  unsigned int tri = blockIdx.x * blockDim.x + threadIdx.x;
-
-  if (tri >= numTriangles)
+  const uint32_t t = blockIdx.x * blockDim.x + threadIdx.x;
+  if (t >= numTriangles)
     return;
 
-  auto perFaceBaseIdx = tri * 3 + glm::uvec3(0, 1, 2);
-  auto indexedIdx = (VerticesIndexed || NormalsIndexed || UVsIndexed)
-      ? indices[tri]
-      : glm::uvec3(0);
+  const glm::uvec3 idx = mesh.triangle(t);
+  for (int k = 0; k < 3; k++)
+    atomicAdd(&cornerCounts[idx[k]], 1u);
 
-  vec3 p0, p1, p2;
-  if constexpr (VerticesIndexed) {
-    p0 = positions[indexedIdx.x];
-    p1 = positions[indexedIdx.y];
-    p2 = positions[indexedIdx.z];
+  const glm::vec3 e1 = mesh.positions[idx.y] - mesh.positions[idx.x];
+  const glm::vec3 e2 = mesh.positions[idx.z] - mesh.positions[idx.x];
+  const glm::vec2 s = mesh.uv(3 * t + 1) - mesh.uv(3 * t);
+  const glm::vec2 r = mesh.uv(3 * t + 2) - mesh.uv(3 * t);
+  const float det = s.x * r.y - s.y * r.x;
+
+  glm::vec3 T, B;
+  if (glm::dot(e1, e1) < eps || glm::dot(e2, e2) < eps || glm::abs(det) < eps) {
+    makeTangentFrame(computeGeometricNormal(e1, e2), &T, &B);
   } else {
-    p0 = positions[perFaceBaseIdx.x];
-    p1 = positions[perFaceBaseIdx.y];
-    p2 = positions[perFaceBaseIdx.z];
+    // Bitangent along +dP/dv, matching halcyon (ADR 0010).
+    const float invdet = 1.0f / det;
+    T = (r.y * e1 - s.y * e2) * invdet;
+    B = (s.x * e2 - r.x * e1) * invdet;
   }
-
-  vec2 uv0, uv1, uv2;
-  if constexpr (UVsIndexed) {
-    uv0 = uvs[indexedIdx.x];
-    uv1 = uvs[indexedIdx.y];
-    uv2 = uvs[indexedIdx.z];
-  } else {
-    uv0 = uvs[perFaceBaseIdx.x];
-    uv1 = uvs[perFaceBaseIdx.y];
-    uv2 = uvs[perFaceBaseIdx.z];
-  }
-
-  vec3 tangent, bitangent;
-  __computeTangentAndBitangent(&tangent, &bitangent, p0, p1, p2, uv0, uv1, uv2);
-
-  const vec3 geometricNormal = computeGeometricNormal(p1 - p0, p2 - p0);
-  vec3 n0 = geometricNormal;
-  vec3 n1 = geometricNormal;
-  vec3 n2 = geometricNormal;
-  if (normals) {
-    if constexpr (NormalsIndexed) {
-      n0 = normals[indexedIdx.x];
-      n1 = normals[indexedIdx.y];
-      n2 = normals[indexedIdx.z];
-    } else {
-      n0 = normals[perFaceBaseIdx.x];
-      n1 = normals[perFaceBaseIdx.y];
-      n2 = normals[perFaceBaseIdx.z];
-    }
-    n0 = safeNormalize(n0, geometricNormal);
-    n1 = safeNormalize(n1, geometricNormal);
-    n2 = safeNormalize(n2, geometricNormal);
-  }
-
-  // For indexed meshes, accumulate at the shared vertex slot so adjacent
-  // triangles average their contributions. For triangle-soup each face-vertex
-  // already has a unique slot.
-  const glm::uvec3 outIdx = VerticesIndexed ? indexedIdx : perFaceBaseIdx;
-
-  const float w0 = cornerAngle(p0, p1, p2);
-  const float w1 = cornerAngle(p1, p0, p2);
-  const float w2 = cornerAngle(p2, p0, p1);
-
-  atomicAddVec3(tangentAccum[outIdx.x], tangent * w0);
-  atomicAddVec3(tangentAccum[outIdx.y], tangent * w1);
-  atomicAddVec3(tangentAccum[outIdx.z], tangent * w2);
-
-  atomicAddVec3(bitangentAccum[outIdx.x], bitangent * w0);
-  atomicAddVec3(bitangentAccum[outIdx.y], bitangent * w1);
-  atomicAddVec3(bitangentAccum[outIdx.z], bitangent * w2);
-
-  atomicAddVec3(normalAccum[outIdx.x], n0 * w0);
-  atomicAddVec3(normalAccum[outIdx.y], n1 * w1);
-  atomicAddVec3(normalAccum[outIdx.z], n2 * w2);
+  faceT[t] = T;
+  faceB[t] = B;
 }
 
-template <bool VerticesIndexed,
-    bool NormalsIndexed,
-    bool UVsIndexed,
-    typename TexCoord>
-void __computeTangents(glm::vec3 *tangentAccum,
-    glm::vec3 *bitangentAccum,
-    glm::vec3 *normalAccum,
-    const glm::uvec3 *indices,
-    const glm::vec3 *positions,
-    const glm::vec3 *normals,
-    const TexCoord *uvs,
-    unsigned int numTriangles)
+// Pass 2 (one thread per corner): bucket corners by vertex.
+template <typename TexCoord>
+__global__ void bucketCorners(MeshView<TexCoord> mesh,
+    uint32_t numCorners,
+    uint32_t *cursors,
+    uint32_t *corners)
 {
-  __doAccumulateTangents<VerticesIndexed, NormalsIndexed, UVsIndexed, TexCoord>
-      <<<(numTriangles + 63) / 64, 64>>>(tangentAccum,
-          bitangentAccum,
-          normalAccum,
-          indices,
-          positions,
-          normals,
-          uvs,
-          numTriangles);
+  const uint32_t c = blockIdx.x * blockDim.x + threadIdx.x;
+  if (c >= numCorners)
+    return;
+  corners[atomicAdd(&cursors[mesh.vertex(c)], 1u)] = c;
 }
 
-// Pass 2 (one thread per vertex): normalize the accumulated frame and write
-// vec4(T_orthog, sign). The accumulated normal is used as the orthogonalization
-// basis; for vertex-indexed input it averages back to each vertex's authored
-// normal, and for face-varying or missing normals it gives the angle-weighted
-// average across incident faces.
-__global__ void __doFinalizeTangents(glm::vec4 *tangents,
-    const glm::vec3 *tangentAccum,
-    const glm::vec3 *bitangentAccum,
-    const glm::vec3 *normalAccum,
-    unsigned int numVertices)
+// Pass 3 (one thread per vertex): each corner sums the angle-weighted face
+// frames of the vertex's corners that share its normal and texture coordinate,
+// then writes vec4(T orthogonalized against its normal, handedness).
+template <typename TexCoord>
+__global__ void finalizeTangents(MeshView<TexCoord> mesh,
+    uint32_t numVertices,
+    const uint32_t *offsets,
+    uint32_t *corners,
+    const glm::vec3 *faceT,
+    const glm::vec3 *faceB,
+    bool perCorner,
+    glm::vec4 *tangents)
 {
-  unsigned int v = blockIdx.x * blockDim.x + threadIdx.x;
-
+  const uint32_t v = blockIdx.x * blockDim.x + threadIdx.x;
   if (v >= numVertices)
     return;
 
-  const vec3 T_in = tangentAccum[v];
-  const vec3 B_in = bitangentAccum[v];
-  const vec3 N_in = normalAccum[v];
+  const uint32_t begin = offsets[v];
+  const uint32_t end = offsets[v + 1];
 
-  const vec3 n = safeNormalize(N_in, vec3(0.0f, 0.0f, 1.0f));
+  if (begin == end) {
+    if (!perCorner)
+      tangents[v] = glm::vec4(1.f, 0.f, 0.f, 1.f);
+    return;
+  }
 
-  vec3 fallbackT, fallbackB;
-  makeTangentFrame(n, &fallbackT, &fallbackB);
+  // Corners were bucketed in arbitrary order; sort them so the sums below
+  // don't depend on scheduling.
+  for (uint32_t i = begin + 1; i < end; i++) {
+    const uint32_t c = corners[i];
+    uint32_t j = i;
+    for (; j > begin && corners[j - 1] > c; j--)
+      corners[j] = corners[j - 1];
+    corners[j] = c;
+  }
 
-  const vec3 T_orth = safeNormalize(T_in - n * glm::dot(n, T_in), fallbackT);
+  for (uint32_t i = begin; i < end; i++) {
+    const uint32_t c = corners[i];
+    const glm::vec2 uv = mesh.uv(c);
+    const glm::vec3 n = mesh.normals ? mesh.normal(c) : glm::vec3(0.f);
 
-  const float bitangentSign = glm::dot(glm::cross(n, T_orth), B_in);
-  const float sign = bitangentSign < 0.0f ? -1.0f : 1.0f;
+    glm::vec3 T(0.f), B(0.f), N(0.f);
+    for (uint32_t j = begin; j < end; j++) {
+      const uint32_t o = corners[j];
+      if (!sameBits(mesh.uv(o), uv)
+          || (mesh.normals && !sameBits(mesh.normal(o), n)))
+        continue;
+      const float w = mesh.weight(o);
+      T += faceT[o / 3] * w;
+      B += faceB[o / 3] * w;
+      if (!mesh.normals) {
+        const glm::uvec3 idx = mesh.triangle(o / 3);
+        N += computeGeometricNormal(
+                 mesh.positions[idx.y] - mesh.positions[idx.x],
+                 mesh.positions[idx.z] - mesh.positions[idx.x])
+            * w;
+      }
+    }
 
-  tangents[v] = glm::vec4(T_orth, sign);
+    const glm::vec3 normal =
+        safeNormalize(mesh.normals ? n : N, glm::vec3(0.f, 0.f, 1.f));
+    glm::vec3 fallbackT, fallbackB;
+    makeTangentFrame(normal, &fallbackT, &fallbackB);
+    const glm::vec3 Torth =
+        safeNormalize(T - normal * glm::dot(normal, T), fallbackT);
+    const float sign =
+        glm::dot(glm::cross(normal, Torth), B) < 0.f ? -1.f : 1.f;
+
+    if (!perCorner) {
+      // Without face-varying data all of a vertex's corners match.
+      tangents[v] = glm::vec4(Torth, sign);
+      break;
+    }
+    tangents[c] = glm::vec4(Torth, sign);
+  }
 }
 
-__global__ void __padTangentsVec3ToVec4(
+__global__ void padTangentsVec3ToVec4(
     glm::vec4 *dst, const glm::vec3 *src, unsigned int count)
 {
   unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -324,292 +291,247 @@ __global__ void __padTangentsVec3ToVec4(
   dst[i] = glm::vec4(src[i], 1.0f);
 }
 
-bool convertTangentsVec3ToVec4(
-    Triangle *triangle, const glm::vec3 *src, glm::vec4 *dst, size_t count)
+bool isTexCoordType(ANARIDataType type)
 {
-  if (count == 0)
-    return true;
+  return type == ANARI_FLOAT32_VEC2 || type == ANARI_FLOAT32_VEC3;
+}
 
-  const auto n = static_cast<unsigned int>(count);
-  __padTangentsVec3ToVec4<<<(n + 63) / 64, 64>>>(dst, src, n);
-  if (reportCudaError(
-          triangle, cudaGetLastError(), "launching tangent vec3->vec4 padding"))
+template <typename TexCoord>
+bool runGenerator(visrtx::Geometry *geometry,
+    const MeshView<TexCoord> &mesh,
+    uint32_t numVertices,
+    uint32_t numTriangles,
+    bool perCorner,
+    glm::vec4 *dst)
+{
+  const uint32_t numCorners = 3 * numTriangles;
+
+  glm::vec3 *faceT = nullptr;
+  glm::vec3 *faceB = nullptr;
+  uint32_t *offsets = nullptr; // numVertices + 1
+  uint32_t *cursors = nullptr; // numVertices
+  uint32_t *corners = nullptr; // numCorners
+
+  auto cleanup = [&] {
+    cudaFree(faceT);
+    cudaFree(faceB);
+    cudaFree(offsets);
+    cudaFree(cursors);
+    cudaFree(corners);
+  };
+  auto failed = [&](cudaError_t status, const char *operation) {
+    if (!reportCudaError(geometry, status, operation))
+      return false;
+    cleanup();
+    return true;
+  };
+
+  if (failed(cudaMalloc(&faceT, sizeof(glm::vec3) * numTriangles),
+          "allocating face tangents")
+      || failed(cudaMalloc(&faceB, sizeof(glm::vec3) * numTriangles),
+          "allocating face bitangents")
+      || failed(cudaMalloc(&offsets, sizeof(uint32_t) * (numVertices + 1)),
+          "allocating corner offsets")
+      || failed(cudaMalloc(&cursors, sizeof(uint32_t) * numVertices),
+          "allocating corner cursors")
+      || failed(cudaMalloc(&corners, sizeof(uint32_t) * numCorners),
+          "allocating corner lists")
+      || failed(cudaMemset(offsets, 0, sizeof(uint32_t) * (numVertices + 1)),
+          "clearing corner counts"))
     return false;
-  if (reportCudaError(
-          triangle, cudaDeviceSynchronize(), "padding vec3 tangents to vec4"))
+
+  computeFaceFrames<<<(numTriangles + 63) / 64, 64>>>(
+      mesh, numTriangles, faceT, faceB, offsets);
+  if (failed(cudaGetLastError(), "launching face frame kernel"))
     return false;
+
+  // Counts (with a trailing zero) become each vertex's corner range.
+  thrust::exclusive_scan(
+      thrust::device, offsets, offsets + numVertices + 1, offsets);
+  if (failed(cudaMemcpy(cursors,
+                 offsets,
+                 sizeof(uint32_t) * numVertices,
+                 cudaMemcpyDeviceToDevice),
+          "copying corner offsets"))
+    return false;
+
+  bucketCorners<<<(numCorners + 63) / 64, 64>>>(
+      mesh, numCorners, cursors, corners);
+  if (failed(cudaGetLastError(), "launching corner bucketing kernel"))
+    return false;
+
+  finalizeTangents<<<(numVertices + 63) / 64, 64>>>(
+      mesh, numVertices, offsets, corners, faceT, faceB, perCorner, dst);
+  if (failed(cudaGetLastError(), "launching finalize kernel")
+      || failed(cudaDeviceSynchronize(), "computing tangents"))
+    return false;
+
+  cleanup();
   return true;
 }
 
-bool computeGeometryVertexTangent(Triangle *triangle, glm::vec4 *dst)
+} // namespace
+
+namespace visrtx {
+
+TangentLayout generateTangents(Geometry *geometry,
+    const TangentGenerationInput &in,
+    DeviceBuffer &perVertex,
+    DeviceBuffer &perCornerOut)
 {
-  auto indices = triangle->getParamObject<Array1D>("primitive.index");
-  auto positions = triangle->getParamObject<Array1D>("vertex.position");
-  auto normals = triangle->getParamObject<Array1D>("vertex.normal");
-  auto uvs = triangle->getParamObject<Array1D>("vertex.attribute0");
-  auto normalsFV = triangle->getParamObject<Array1D>("faceVarying.normal");
-  auto uvsFV = triangle->getParamObject<Array1D>("faceVarying.attribute0");
+  perVertex.reset();
+  perCornerOut.reset();
 
-  if (!positions) {
-    triangle->reportMessage(ANARI_SEVERITY_INFO,
-        "Triangle %p has no positions, cannot compute tangents",
-        triangle);
-    return false;
+  if (!in.positions || in.positions->size() == 0 || in.numTriangles == 0)
+    return TangentLayout::NONE;
+
+  const size_t numVertices = in.positions->size();
+  const size_t numCorners = 3 * in.numTriangles;
+
+  // Face-varying arrays of the wrong size are reported at finalize; skip them.
+  const Array1D *uvsFV =
+      in.uvsFV && in.uvsFV->size() >= numCorners ? in.uvsFV : nullptr;
+  const Array1D *uvs =
+      in.uvs && in.uvs->size() >= numVertices ? in.uvs : nullptr;
+  const Array1D *uvArray = uvsFV ? uvsFV : uvs;
+  if (!uvArray) {
+    geometry->reportMessage(ANARI_SEVERITY_INFO,
+        "geometry %p has no usable attribute0, cannot generate tangents",
+        geometry);
+    return TangentLayout::NONE;
   }
-
-  if (!uvs && !uvsFV) {
-    triangle->reportMessage(ANARI_SEVERITY_INFO,
-        "Triangle %p has no texture coordinates, cannot compute tangents",
-        triangle);
-    return false;
-  }
-
-  if (uvsFV && uvsFV->elementType() != ANARI_FLOAT32_VEC2
-      && uvsFV->elementType() != ANARI_FLOAT32_VEC3) {
-    triangle->reportMessage(ANARI_SEVERITY_INFO,
-        "Can only compute tangents for face varying UVs of type ANARI_FLOAT32_VEC2 or ANARI_FLOAT32_VEC3",
-        triangle);
-    return false;
-  }
-
-  if (uvs && uvs->elementType() != ANARI_FLOAT32_VEC2
-      && uvs->elementType() != ANARI_FLOAT32_VEC3) {
-    triangle->reportMessage(ANARI_SEVERITY_INFO,
-        "Can only compute tangents for vertex UVs of type ANARI_FLOAT32_VEC2 or ANARI_FLOAT32_VEC3",
-        triangle);
-    return false;
+  if (!isTexCoordType(uvArray->elementType())) {
+    geometry->reportMessage(ANARI_SEVERITY_INFO,
+        "can only generate tangents from attribute0 of type "
+        "ANARI_FLOAT32_VEC2 or ANARI_FLOAT32_VEC3, not '%s'",
+        anari::toString(uvArray->elementType()));
+    return TangentLayout::NONE;
   }
 
-  // Output is per-vertex (vertex.tangent). For indexed meshes the per-vertex
-  // buffer is what lets adjacent triangles share tangent data at common
-  // vertices — that sharing is what eliminates the per-triangle facets a
-  // face-varying buffer would produce. For triangle-soup input each face-vertex
-  // is its own slot, so the same layout works without changes.
-  const auto numVertices = static_cast<unsigned int>(positions->size());
-  const auto trianglesCount = static_cast<unsigned int>(
-      indices ? indices->size() : positions->size() / 3);
-  if (trianglesCount == 0 || numVertices == 0) {
-    triangle->reportMessage(ANARI_SEVERITY_INFO,
-        "Triangle %p has no triangles, cannot compute tangents",
-        triangle);
-    return false;
-  }
+  const Array1D *normalsFV = in.normalsFV && in.normalsFV->size() >= numCorners
+      ? in.normalsFV
+      : nullptr;
+  const Array1D *normals =
+      in.normals && in.normals->size() >= numVertices ? in.normals : nullptr;
+  const Array1D *normalArray = normalsFV ? normalsFV : normals;
 
-  glm::vec3 *tangentAccum = nullptr;
-  glm::vec3 *bitangentAccum = nullptr;
-  glm::vec3 *normalAccum = nullptr;
+  // Without indices every corner has its own vertex, so per-vertex output is
+  // already per corner.
+  const bool perCorner = in.indices && (normalsFV || uvsFV);
+  DeviceBuffer &dst = perCorner ? perCornerOut : perVertex;
+  const size_t count = perCorner ? numCorners : numVertices;
+  dst.reserve(count * sizeof(glm::vec4));
+  if (!dst)
+    return TangentLayout::NONE;
 
-  auto cleanup = [&] {
-    cudaFree(tangentAccum);
-    cudaFree(bitangentAccum);
-    cudaFree(normalAccum);
-  };
+  const auto *positions = in.positions->beginAs<glm::vec3>(AddressSpace::GPU);
+  const auto *normalsPtr = normalArray
+      ? normalArray->beginAs<glm::vec3>(AddressSpace::GPU)
+      : nullptr;
 
-  auto status = cudaMalloc(reinterpret_cast<void **>(&tangentAccum),
-      sizeof(glm::vec3) * numVertices);
-  if (reportCudaError(triangle, status, "allocating tangent accumulator")) {
-    cleanup();
-    return false;
-  }
-  status = cudaMalloc(reinterpret_cast<void **>(&bitangentAccum),
-      sizeof(glm::vec3) * numVertices);
-  if (reportCudaError(triangle, status, "allocating bitangent accumulator")) {
-    cleanup();
-    return false;
-  }
-  status = cudaMalloc(
-      reinterpret_cast<void **>(&normalAccum), sizeof(glm::vec3) * numVertices);
-  if (reportCudaError(triangle, status, "allocating normal accumulator")) {
-    cleanup();
-    return false;
-  }
-
-  status = cudaMemset(tangentAccum, 0, sizeof(glm::vec3) * numVertices);
-  if (reportCudaError(triangle, status, "clearing tangent accumulator")) {
-    cleanup();
-    return false;
-  }
-  status = cudaMemset(bitangentAccum, 0, sizeof(glm::vec3) * numVertices);
-  if (reportCudaError(triangle, status, "clearing bitangent accumulator")) {
-    cleanup();
-    return false;
-  }
-  status = cudaMemset(normalAccum, 0, sizeof(glm::vec3) * numVertices);
-  if (reportCudaError(triangle, status, "clearing normal accumulator")) {
-    cleanup();
-    return false;
-  }
-
-  auto positionsPtr = positions->dataAs<const glm::vec3>(AddressSpace::GPU);
-  if (indices) {
-    auto indicesPtr = indices->dataAs<const glm::uvec3>(AddressSpace::GPU);
-    if (normalsFV) {
-      auto normalsPtr = normalsFV->dataAs<const glm::vec3>(AddressSpace::GPU);
-      if (uvsFV) {
-        if (uvsFV->elementType() == ANARI_FLOAT32_VEC2) {
-          auto uvsPtr = uvsFV->dataAs<const glm::vec2>(AddressSpace::GPU);
-          // Vertex indexed, face varying normals and face varyings vec2 UVs.
-          __computeTangents<true, false, false>(tangentAccum,
-              bitangentAccum,
-              normalAccum,
-              indicesPtr,
-              positionsPtr,
-              normalsPtr,
-              uvsPtr,
-              trianglesCount);
-        } else {
-          auto uvsPtr = uvsFV->dataAs<const glm::vec3>(AddressSpace::GPU);
-          // Vertex indexed, face varying normals and face varyings vec3 UVs.
-          __computeTangents<true, false, false>(tangentAccum,
-              bitangentAccum,
-              normalAccum,
-              indicesPtr,
-              positionsPtr,
-              normalsPtr,
-              uvsPtr,
-              trianglesCount);
-        }
-      } else {
-        if (uvs->elementType() == ANARI_FLOAT32_VEC2) {
-          // Vertex indexed,  face varying normals and indexed vec2 UVs.
-          auto uvsPtr = uvs->dataAs<const glm::vec2>(AddressSpace::GPU);
-          __computeTangents<true, false, true>(tangentAccum,
-              bitangentAccum,
-              normalAccum,
-              indicesPtr,
-              positionsPtr,
-              normalsPtr,
-              uvsPtr,
-              trianglesCount);
-        } else {
-          // Vertex indexed,  face varying normals and indexed vec3 UVs.
-          auto uvsPtr = uvs->dataAs<const glm::vec3>(AddressSpace::GPU);
-          __computeTangents<true, false, true>(tangentAccum,
-              bitangentAccum,
-              normalAccum,
-              indicesPtr,
-              positionsPtr,
-              normalsPtr,
-              uvsPtr,
-              trianglesCount);
-        }
-      }
-    } else {
-      const auto *normalsPtr = normals
-          ? normals->dataAs<const glm::vec3>(AddressSpace::GPU)
-          : nullptr;
-      if (uvsFV) {
-        if (uvsFV->elementType() == ANARI_FLOAT32_VEC2) {
-          auto uvsPtr = uvsFV->dataAs<const glm::vec2>(AddressSpace::GPU);
-          // Vertex indexed, index normals and face varyings vec2 UVs.
-          __computeTangents<true, true, false>(tangentAccum,
-              bitangentAccum,
-              normalAccum,
-              indicesPtr,
-              positionsPtr,
-              normalsPtr,
-              uvsPtr,
-              trianglesCount);
-        } else {
-          auto uvsPtr = uvsFV->dataAs<const glm::vec3>(AddressSpace::GPU);
-          // Vertex indexed, indexed normals and face varyings vec3 UVs.
-          __computeTangents<true, true, false>(tangentAccum,
-              bitangentAccum,
-              normalAccum,
-              indicesPtr,
-              positionsPtr,
-              normalsPtr,
-              uvsPtr,
-              trianglesCount);
-        }
-      } else {
-        if (uvs->elementType() == ANARI_FLOAT32_VEC2) {
-          // Vertex indexed, indexed normals and indexed vec2 UVs.
-          auto uvsPtr = uvs->dataAs<const glm::vec2>(AddressSpace::GPU);
-          __computeTangents<true, true, true>(tangentAccum,
-              bitangentAccum,
-              normalAccum,
-              indicesPtr,
-              positionsPtr,
-              normalsPtr,
-              uvsPtr,
-              trianglesCount);
-        } else {
-          // Vertex indexed, indexed normals and indexed vec3 UVs.
-          auto uvsPtr = uvs->dataAs<const glm::vec3>(AddressSpace::GPU);
-          __computeTangents<true, true, true>(tangentAccum,
-              bitangentAccum,
-              normalAccum,
-              indicesPtr,
-              positionsPtr,
-              normalsPtr,
-              uvsPtr,
-              trianglesCount);
-        }
-      }
-    }
+  bool ok = false;
+  if (uvArray->elementType() == ANARI_FLOAT32_VEC2) {
+    const MeshView<glm::vec2> mesh{in.indices,
+        positions,
+        normalsPtr,
+        normalsFV != nullptr,
+        uvArray->beginAs<glm::vec2>(AddressSpace::GPU),
+        uvsFV != nullptr};
+    ok = runGenerator(geometry,
+        mesh,
+        uint32_t(numVertices),
+        uint32_t(in.numTriangles),
+        perCorner,
+        dst.ptrAs<glm::vec4>());
   } else {
-    const glm::uvec3 *indicesPtr = nullptr;
-    auto effectiveNormals = normalsFV ? normalsFV : normals;
-    auto effectiveUvs = uvsFV ? uvsFV : uvs;
+    const MeshView<glm::vec3> mesh{in.indices,
+        positions,
+        normalsPtr,
+        normalsFV != nullptr,
+        uvArray->beginAs<glm::vec3>(AddressSpace::GPU),
+        uvsFV != nullptr};
+    ok = runGenerator(geometry,
+        mesh,
+        uint32_t(numVertices),
+        uint32_t(in.numTriangles),
+        perCorner,
+        dst.ptrAs<glm::vec4>());
+  }
 
-    const auto *normalsPtr = effectiveNormals
-        ? effectiveNormals->dataAs<const glm::vec3>(AddressSpace::GPU)
-        : nullptr;
+  if (!ok) {
+    dst.reset();
+    return TangentLayout::NONE;
+  }
+  return perCorner ? TangentLayout::PER_CORNER : TangentLayout::PER_VERTEX;
+}
 
-    if (effectiveUvs->elementType() == ANARI_FLOAT32_VEC2) {
-      // Non indexed vertices, face varying normals and face varyings vec2 UVs.
-      auto uvsPtr = effectiveUvs->dataAs<const glm::vec2>(AddressSpace::GPU);
-      __computeTangents<false, false, false>(tangentAccum,
-          bitangentAccum,
-          normalAccum,
-          indicesPtr,
-          positionsPtr,
-          normalsPtr,
-          uvsPtr,
-          trianglesCount);
-    } else {
-      // Non indexed vertices, face varying normals and face varyings vec3 UVs.
-      auto uvsPtr = effectiveUvs->dataAs<const glm::vec3>(AddressSpace::GPU);
-      __computeTangents<false, false, false>(tangentAccum,
-          bitangentAccum,
-          normalAccum,
-          indicesPtr,
-          positionsPtr,
-          normalsPtr,
-          uvsPtr,
-          trianglesCount);
+bool prepareTangentArray(Geometry *geometry,
+    const helium::IntrusivePtr<Array1D> &tangents,
+    DeviceBuffer &converted,
+    const char *paramName)
+{
+  // Only the staging buffer is rebuilt here; the array member is left untouched
+  // so it keeps faithfully reflecting the committed parameter.
+  converted.reset();
+
+  if (!tangents)
+    return false;
+
+  const auto type = tangents->elementType();
+
+  // Already in the internal layout: read zero-copy in gpuData().
+  if (type == ANARI_FLOAT32_VEC4)
+    return true;
+
+  // Spec-allowed VEC3 tangents: pad to vec4 with a default +1 handedness.
+  if (type == ANARI_FLOAT32_VEC3) {
+    const auto count = tangents->size();
+    if (count == 0)
+      return false;
+    converted.reserve(count * sizeof(glm::vec4));
+    // On allocation (empty buffer) or conversion failure, leave 'converted'
+    // empty; gpuData() then emits no tangents (resolveTangentPtr zero-copies
+    // VEC4 only) rather than reading an uninitialized buffer.
+    if (!converted)
+      return false;
+    const auto n = static_cast<unsigned int>(count);
+    padTangentsVec3ToVec4<<<(n + 63) / 64, 64>>>(converted.ptrAs<glm::vec4>(),
+        tangents->beginAs<glm::vec3>(AddressSpace::GPU),
+        n);
+    if (reportCudaError(geometry,
+            cudaGetLastError(),
+            "launching tangent vec3->vec4 padding")
+        || reportCudaError(geometry,
+            cudaDeviceSynchronize(),
+            "padding vec3 tangents to vec4")) {
+      converted.reset();
+      return false;
     }
+    return true;
   }
 
-  status = cudaGetLastError();
-  if (reportCudaError(triangle, status, "launching accumulate kernel")) {
-    cleanup();
-    return false;
-  }
+  // Anything else (e.g. the FIXED16 variants) is advertised by the query
+  // metadata but not yet handled here. Report it; gpuData() emits no tangents
+  // rather than throwing on a VEC4 read of a non-VEC4 array.
+  geometry->reportMessage(ANARI_SEVERITY_WARNING,
+      "'%s' has unsupported element type '%s'; expected ANARI_FLOAT32_VEC3 or "
+      "ANARI_FLOAT32_VEC4 -- ignoring tangents",
+      paramName,
+      anari::toString(type));
 
-  __doFinalizeTangents<<<(numVertices + 63) / 64, 64>>>(
-      dst, tangentAccum, bitangentAccum, normalAccum, numVertices);
+  return false;
+}
 
-  status = cudaGetLastError();
-  if (reportCudaError(triangle, status, "launching finalize kernel")) {
-    cleanup();
-    return false;
-  }
-
-  status = cudaDeviceSynchronize();
-  cudaFree(tangentAccum);
-  cudaFree(bitangentAccum);
-  cudaFree(normalAccum);
-  tangentAccum = nullptr;
-  bitangentAccum = nullptr;
-  normalAccum = nullptr;
-  if (reportCudaError(triangle, status, "computing tangents")) {
-    cleanup();
-    return false;
-  }
-
-  return true;
+const glm::vec4 *resolveTangentPtr(
+    const helium::IntrusivePtr<Array1D> &tangents,
+    const DeviceBuffer &converted)
+{
+  if (converted)
+    return converted.ptrAs<glm::vec4>();
+  if (tangents && tangents->size() > 0
+      && tangents->elementType() == ANARI_FLOAT32_VEC4)
+    return tangents->beginAs<glm::vec4>(AddressSpace::GPU);
+  return nullptr;
 }
 
 } // namespace visrtx

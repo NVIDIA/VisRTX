@@ -107,6 +107,9 @@ void PBR::commitParameters()
   m_clearcoatRoughnessAttribute = getParamString("clearcoatRoughness", "");
 
   m_clearcoatNormalSampler = getParamObject<Sampler>("clearcoatNormal");
+  warnIfNormalMapNotOnAttribute0(m_normalSampler.get(), "normal");
+  warnIfNormalMapNotOnAttribute0(
+      m_clearcoatNormalSampler.get(), "clearcoatNormal");
 
   m_transmission = getParam<float>("transmission", 0.f);
   m_transmissionSampler = getParamObject<Sampler>("transmission");

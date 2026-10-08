@@ -31,25 +31,64 @@
 
 #pragma once
 
-#include "geometry/Triangle.h"
-// anari
-#include <anari/anari_cpp.hpp>
+#include "array/Array1D.h"
+#include "geometry/Geometry.h"
+#include "utility/DeviceBuffer.h"
 // glm
 #include <glm/fwd.hpp>
 
 namespace visrtx {
 
-// Compute per vertex tangent for the given triangle geometry
-// Returns true on success
-bool computeGeometryVertexTangent(Triangle *triangle, glm::vec4 *dst);
+// Where generated tangents live: one per vertex (`vertex.tangent` layout) or
+// one per triangle corner (`faceVarying.tangent` layout, 3 per triangle).
+enum class TangentLayout
+{
+  NONE,
+  PER_VERTEX,
+  PER_CORNER
+};
 
-// Pad a VEC3 tangent array into the internal vec4(T, sign) layout the shader
-// expects. The ANARI spec allows authoring tangents as plain VEC3 (no
-// handedness), so the missing w component is defaulted to +1 (right-handed).
-// Both pointers are device memory; count is the number of tangents. Returns
-// false (and reports the error) if the conversion fails, so the caller can
-// drop the tangents rather than read an uninitialized buffer.
-bool convertTangentsVec3ToVec4(
-    Triangle *triangle, const glm::vec3 *src, glm::vec4 *dst, size_t count);
+// A triangle mesh to generate tangents for. Quads pass their two-triangle
+// split. Arrays left null are absent; face-varying arrays hold 3 elements per
+// triangle.
+struct TangentGenerationInput
+{
+  const Array1D *positions{nullptr};
+  // Device triangle indices into `positions`; null means triangle soup.
+  const glm::uvec3 *indices{nullptr};
+  size_t numTriangles{0};
+  const Array1D *normals{nullptr};
+  const Array1D *normalsFV{nullptr};
+  const Array1D *uvs{nullptr}; // attribute0
+  const Array1D *uvsFV{nullptr}; // attribute0
+};
+
+// Generate vec4(T, w) tangents that follow attribute0: T along +dP/du, and w
+// such that w * cross(N, T) follows +dP/dv (ADR 0010). Corners that share a
+// vertex share a tangent only when their normals and texture coordinates both
+// match, so frames are smooth within a UV island but never blend across a
+// crease or a UV seam. Writes `perCorner` when normals or attribute0 are
+// face-varying on an indexed mesh, else `perVertex`, and empties the other.
+// Returns NONE (both empty) when there is nothing to follow or generation
+// fails.
+TangentLayout generateTangents(Geometry *geometry,
+    const TangentGenerationInput &input,
+    DeviceBuffer &perVertex,
+    DeviceBuffer &perCorner);
+
+// Stage an authored tangent array in the internal vec4(T, sign) layout the
+// shader reads. VEC4 is read zero-copy (leaves `converted` empty); the
+// spec-allowed VEC3 is padded into `converted` with a default +1 handedness.
+// Returns false if there are no usable tangents.
+bool prepareTangentArray(Geometry *geometry,
+    const helium::IntrusivePtr<Array1D> &tangents,
+    DeviceBuffer &converted,
+    const char *paramName);
+
+// The device pointer the GPU reads tangents from: `converted` if non-empty,
+// else a non-empty VEC4 `tangents` array, else null.
+const glm::vec4 *resolveTangentPtr(
+    const helium::IntrusivePtr<Array1D> &tangents,
+    const DeviceBuffer &converted);
 
 } // namespace visrtx

@@ -70,6 +70,18 @@ vec3 Material::emissionAverage() const
   return vec3(0.f);
 }
 
+void Material::warnIfNormalMapNotOnAttribute0(
+    const Sampler *sampler, const char *paramName) const
+{
+  if (sampler && sampler->inAttribute() != "attribute0") {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "'%s' sampler reads '%s', but normal maps are applied in a tangent "
+        "frame that follows 'attribute0'",
+        paramName,
+        sampler->inAttribute().c_str());
+  }
+}
+
 AlphaMode Material::alphaModeFromParams() const
 {
   if (hasParam("alphaMode", ANARI_STRING))

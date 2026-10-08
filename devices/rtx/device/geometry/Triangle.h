@@ -64,17 +64,9 @@ struct Triangle : public Geometry
   void cleanup();
   void buildAreaData();
 
-  // Build the GPU-side staging for one authored tangent array into 'converted':
-  // VEC4 input is read zero-copy (buffer left empty); VEC3 input is padded to
-  // vec4 (sign defaulted to +1); unsupported element types are reported and
-  // leave the buffer empty so resolveTangentPtr() emits no tangents. Called per
-  // array during finalize().
-  // Returns true if a valid tangent is useable, either directly, or converted
-  bool prepareTangentArray(const helium::IntrusivePtr<Array1D> &tangents,
-      DeviceBuffer &converted,
-      const char *paramName);
-
-  void generateVertexTangents(DeviceBuffer &generated);
+  // Generate tangents that follow attribute0 when none were authored, into
+  // the per-vertex or per-corner finalized buffer (see ComputeTangent.h).
+  void generateTangents();
 
   helium::ChangeObserverPtr<Array1D> m_index;
   helium::ChangeObserverPtr<Array1D> m_vertex;
@@ -87,11 +79,12 @@ struct Triangle : public Geometry
 
   // Finalized per-vertex tangents (vec4). Empty when vertex.tangent is VEC4
   // (read zero-copy), or when it is absent/unusable and a usable
-  // faceVarying.tangent took priority, or when auto-generation was attempted
-  // but failed. Non-empty when holding VEC3->vec4 padded tangents, or
-  // auto-generated tangents produced because no tangents were authored.
+  // faceVarying.tangent took priority, or when generation was attempted but
+  // failed or produced per-corner tangents. Non-empty when holding VEC3->vec4
+  // padded tangents, or per-vertex generated tangents.
   DeviceBuffer m_vertexTangentFinalized;
-  // Finalized faceVarying tangents. Empty if input is already VEC4
+  // Finalized faceVarying tangents: VEC3->vec4 padded authored tangents, or
+  // per-corner generated tangents. Empty if the input is already VEC4.
   DeviceBuffer m_vertexTangentFVFinalized;
 
   CUdeviceptr m_vertexBufferPtr{};

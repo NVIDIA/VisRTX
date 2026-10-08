@@ -33,6 +33,7 @@
 
 #include "Geometry.h"
 #include "array/Array1D.h"
+#include "utility/DeviceBuffer.h"
 
 namespace visrtx {
 
@@ -52,13 +53,20 @@ struct Quad : public Geometry
  private:
   GeometryGPUData gpuData() const override;
   void generateIndices();
+  void generateTangents();
 
   HostDeviceArray<uvec3> m_indices;
 
   helium::ChangeObserverPtr<Array1D> m_index;
   helium::ChangeObserverPtr<Array1D> m_vertex;
   helium::IntrusivePtr<Array1D> m_vertexNormal;
+  helium::IntrusivePtr<Array1D> m_vertexTangent;
   GeometryAttributes m_vertexAttributes;
+
+  // Finalized per-vertex tangents (vec4): VEC3->vec4 padded authored tangents,
+  // or tangents generated over the two-triangle split. Empty when
+  // vertex.tangent is VEC4 (read zero-copy) or none could be made.
+  DeviceBuffer m_vertexTangentFinalized;
 
   CUdeviceptr m_vertexBufferPtr{};
 
