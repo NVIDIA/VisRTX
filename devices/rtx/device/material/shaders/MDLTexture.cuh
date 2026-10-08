@@ -126,6 +126,13 @@ VISRTX_CALLABLE void tex_resolution_3d(int (&result)[3],
     mi::Uint32 textureIdx,
     float frame);
 
+// Renderer normal adaptation (backend option use_renderer_adapt_normal)
+
+VISRTX_CALLABLE void adapt_normal(float result[3],
+    TextureHandler const *self_base,
+    ShadingStateMaterial *state,
+    float const normal[3]);
+
 // Scene data lookup
 
 VISRTX_CALLABLE bool scene_data_isvalid(TextureHandler const *self_base,

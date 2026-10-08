@@ -33,6 +33,7 @@
 #include "gpu/gpu_decl.h"
 #include "gpu/gpu_objects.h"
 #include "gpu/shadingState.h"
+#include "gpu/validShadingNormal.h"
 
 #include <anari/anari_cpp/ext/linalg.h>
 #include <mi/neuraylib/target_code_types.h>
@@ -143,6 +144,8 @@ VISRTX_CALLABLE void __direct_callable__init(MDLShadingState *shadingState,
   shadingState->textureHandler.fd = fd;
   shadingState->textureHandler.samplers = md->samplers;
   shadingState->textureHandler.numSamplers = md->numSamplers;
+  shadingState->textureHandler.V = hit->V;
+  shadingState->textureHandler.normalAdapted = false;
   shadingState->resData = {nullptr, &shadingState->textureHandler};
 
   // Front facing for transmission
@@ -153,6 +156,17 @@ VISRTX_CALLABLE void __direct_callable__init(MDLShadingState *shadingState,
 
   // Init
   mdlInit(&shadingState->state, &shadingState->resData, shadingState->argBlock);
+
+  // adapt_normal only runs on a geometry.normal that differs from
+  // state::normal(); keep the plain shading normal valid for the viewer too.
+  // Done after init so normal maps still build on the unadjusted normal.
+  auto &textureHandler = shadingState->textureHandler;
+  if (!textureHandler.normalAdapted) {
+    textureHandler.unadjustedNormal = Ns;
+    textureHandler.normalAdapted = true;
+    shadingState->state.normal =
+        bit_cast<float3>(validShadingNormal(Ng, hit->V, Ns));
+  }
 }
 
 // f(wo, wi) * cos, world space. MDL's bsdf_diffuse/bsdf_glossy already carry
@@ -300,7 +314,7 @@ vec3 __direct_callable__evaluateTransmission(
 VISRTX_CALLABLE
 vec3 __direct_callable__evaluateNormal(const MDLShadingState *shadingState)
 {
-  return make_vec3(shadingState->state.normal);
+  return shadingState->textureHandler.unadjustedNormal;
 }
 
 // Env-MIS BSDF density at `wi` given outgoing `wo` (both world space): the

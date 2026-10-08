@@ -139,6 +139,9 @@ struct SurfaceHit
   vec3 tV;
   bool isFrontFace : 1;
   bool foundHit : 1;
+  // Unit direction from the hitpoint back toward the ray origin, so materials
+  // can keep their shading normal valid for the viewer (validShadingNormal.h).
+  vec3 V;
 
   const InstanceSurfaceGPUData *instance{nullptr};
   const GeometryGPUData *geometry{nullptr};

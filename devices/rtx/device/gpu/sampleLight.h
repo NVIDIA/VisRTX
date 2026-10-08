@@ -362,6 +362,7 @@ VISRTX_DEVICE vec3 evalGeometryLightEmission(ScreenSample &ss,
   // (material/EmissionPolicy.h). Enriching this hit is what grows that set.
   const vec3 ns = dot(nsWorld, outgoingDir) < 0.0f ? -nsWorld : nsWorld;
   hit.Ng = hit.Ns = ns;
+  hit.V = outgoingDir;
   const mat3 basis = computeOrthonormalBasis(ns);
   hit.tU = basis[0];
   hit.tV = basis[1];

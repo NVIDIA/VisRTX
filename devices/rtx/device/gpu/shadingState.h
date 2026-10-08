@@ -82,7 +82,11 @@ struct MatteShadingState
 struct PhysicallyBasedShadingState
 {
   vec3 baseColor;
+  // Shading normal kept valid for the viewer (validShadingNormal.h); the BSDF
+  // uses it. The normal AOV reports unadjustedNormal, which describes the
+  // surface.
   vec3 normal;
+  vec3 unadjustedNormal;
   float opacity;
   float metallic;
   float roughness;
@@ -119,6 +123,12 @@ struct TextureHandler : mi::neuraylib::Texture_handler_base
   const visrtx::FrameGPUData *fd;
   const visrtx::DeviceObjectIndex *samplers;
   unsigned int numSamplers;
+
+  // adapt_normal (MDLTexture_ptx.cu) keeps the shading normal valid for the
+  // viewer V, and records the first normal it adapts for the normal AOV.
+  visrtx::vec3 V;
+  visrtx::vec3 unadjustedNormal;
+  bool normalAdapted;
 };
 
 using ShadingStateMaterial = mi::neuraylib::Shading_state_material;

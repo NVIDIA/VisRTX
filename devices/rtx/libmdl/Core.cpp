@@ -511,6 +511,10 @@ const mi::neuraylib::ITarget_code *Core::getPtxTargetCode(
   // denoiser guide reads a faithful diffuse+glossy albedo straight from the
   // compiled material, instead of distilling to a `diffuse` proxy.
   ptxBackend->set_option("enable_auxiliary", "on");
+  // Keep shading normals valid for the viewer through the renderer's
+  // adapt_normal (MDLTexture_ptx.cu), as the native physicallyBased shader
+  // does.
+  ptxBackend->set_option("use_renderer_adapt_normal", "on");
 
   // Generate init, surface scattering, surface emission
   // (emission/intensity/mode), volume scattering and cutout opacity.
