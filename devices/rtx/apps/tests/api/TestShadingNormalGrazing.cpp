@@ -508,6 +508,13 @@ int main()
 #endif
       true};
   std::array<double, 2> grazing = {0.0, 0.0};
+  // Clearcoat, per backend: mapped and unmapped, under both lights. The coat
+  // lobe is compared across backends directly — see the cross-backend block
+  // after the loop for why the in-loop checks cannot carry that on their own.
+  std::array<double, 2> coatDir = {0.0, 0.0};
+  std::array<double, 2> coatMapDir = {0.0, 0.0};
+  std::array<double, 2> coatEmit = {0.0, 0.0};
+  std::array<double, 2> coatMapEmit = {0.0, 0.0};
   for (size_t s = 0; s < subtypes.size(); s++) {
     const char *subtype = subtypes[s];
     if (!subtype)
@@ -563,20 +570,35 @@ int main()
         && ok;
 
     // The clearcoat's own normal leans away; the base stays flat.
-    const double coat =
+    coatDir[s] =
         run(Shading::CLEARCOAT, View::GRAZING, Light::DIRECTIONAL).luminance;
+    coatMapDir[s] =
+        run(Shading::CLEARCOAT_MAP, View::GRAZING, Light::DIRECTIONAL)
+            .luminance;
+    // The unmapped coat is asserted against the floor in its own right. Only
+    // checking the mapped case against the unmapped one lets an error shared
+    // by both cancel, which is exactly how a wrong coat Fresnel hid here.
+    snprintf(label, sizeof(label), "%s/clearcoat/grazing", subtype);
+    ok = checkLit(label, coatDir[s], flat.luminance) && ok;
     snprintf(label, sizeof(label), "%s/clearcoat-map/grazing", subtype);
-    ok = checkLit(label,
-             run(Shading::CLEARCOAT_MAP, View::GRAZING, Light::DIRECTIONAL)
-                 .luminance,
-             coat)
-        && ok;
+    ok = checkLit(label, coatMapDir[s], coatDir[s]) && ok;
 
     // Emissive quad: no closed form, but lit like the unmapped floor. Not with
     // vertex normals: their shadow-terminator offset (shadingHitpoint) lifts
     // this huge, uniformly tilted floor toward the quad and brightens it.
     const double flatEmitter =
         run(Shading::FLAT, View::GRAZING, Light::EMITTER).luminance;
+
+    // Same two coat cases under the area light. An area light samples the
+    // coat lobe over a spread of half-vectors instead of the single one a
+    // directional gives, so a half-vector-angle error shows up far more
+    // strongly here than under the directional light.
+    coatEmit[s] =
+        run(Shading::CLEARCOAT, View::GRAZING, Light::EMITTER).luminance;
+    coatMapEmit[s] =
+        run(Shading::CLEARCOAT_MAP, View::GRAZING, Light::EMITTER).luminance;
+    snprintf(label, sizeof(label), "%s/clearcoat/grazing/emitter", subtype);
+    ok = checkLit(label, coatEmit[s], flatEmitter) && ok;
     snprintf(label, sizeof(label), "%s/normal-map/grazing/emitter", subtype);
     ok = checkLit(label,
              run(Shading::NORMAL_MAP, View::GRAZING, Light::EMITTER).luminance,
@@ -584,12 +606,48 @@ int main()
         && ok;
   }
 
-  if (subtypes[1])
+  if (subtypes[1]) {
     ok = checkNear("physicallyBasedMDL vs physicallyBased/normal-map/grazing",
              grazing[1],
              grazing[0],
              0.05)
         && ok;
+
+    // The clearcoat lobe itself, across backends. MDL's custom_curve_layer
+    // evaluates its layer Fresnel at the half-vector, as a microfacet BRDF
+    // must; these fail unless the CUDA lobe does the same. The unmapped
+    // emitter case is the load-bearing one: no coat normal map is needed to
+    // make the backends disagree, and an area light spreads the half-vector
+    // enough for the error to clear the tolerance. The directional pair is a
+    // regression guard, not a discriminating check — its gap is only ~5.6%,
+    // which no tolerance separates from the few-percent residual that remains
+    // once the lobes agree.
+    const double coatTol = 0.06;
+    ok = checkNear("physicallyBasedMDL vs physicallyBased/clearcoat/grazing",
+             coatDir[1],
+             coatDir[0],
+             coatTol)
+        && ok;
+    ok = checkNear(
+             "physicallyBasedMDL vs physicallyBased/clearcoat/grazing/emitter",
+             coatEmit[1],
+             coatEmit[0],
+             coatTol)
+        && ok;
+    ok = checkNear(
+             "physicallyBasedMDL vs physicallyBased/clearcoat-map/grazing",
+             coatMapDir[1],
+             coatMapDir[0],
+             coatTol)
+        && ok;
+    ok = checkNear(
+             "physicallyBasedMDL vs "
+             "physicallyBased/clearcoat-map/grazing/emitter",
+             coatMapEmit[1],
+             coatMapEmit[0],
+             coatTol)
+        && ok;
+  }
 
   anari::release(device, device);
 
