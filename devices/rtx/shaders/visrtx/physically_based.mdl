@@ -526,7 +526,11 @@ export material physically_based_material(
         weight: resolvedClearcoat,
         normal_reflectivity: 0.04,
         normal: resolvedClearcoatNormal,
-        layer: ::df::microfacet_ggx_vcavities_bsdf(
+        // Smith, to match the CUDA backend's coat lobe (smithG2GGX). This is
+        // a model-parity change, not an accuracy one: measured against CUDA
+        // it improves the unmapped area-light case and slightly worsens the
+        // other three, all within a few percent either way.
+        layer: ::df::microfacet_ggx_smith_bsdf(
             mode: ::df::scatter_reflect,
             roughness_u: resolvedClearcoatRoughness * resolvedClearcoatRoughness,
         ),
