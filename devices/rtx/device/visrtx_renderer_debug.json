@@ -13,12 +13,6 @@
     {
       "type" : "ANARI_RENDERER",
       "name" : "debug",
-      "extension" : [
-        "VISRTX_RENDERER_DEBUG",
-        "KHR_RENDERER_BACKGROUND_COLOR",
-        "KHR_RENDERER_BACKGROUND_IMAGE",
-        "KHR_RENDERER_AMBIENT_LIGHT"
-      ],
       "parameters": [
         {
           "name": "method",
