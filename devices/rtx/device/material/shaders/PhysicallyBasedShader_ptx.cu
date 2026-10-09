@@ -461,8 +461,19 @@ VISRTX_CALLABLE vec3 __direct_callable__evalBsdf(
     const float alphaC2 = alphaC * alphaC;
     const float Dc = ggxD(NcDotH, alphaC2);
     const float Gc = smithG2GGX(NcDotV, fmaxf(NcDotL, 1e-6f), alphaC2);
+    // The lobe's Fresnel belongs at the half-vector: H is the facet that
+    // actually mirrors V into L, so F(V.H) is what that facet reflects. H
+    // depends only on L and V, so the shared base-layer VdotH is the right
+    // angle here even though the coat tilts on its own normal Nc, which
+    // enters only through Dc(Nc.H) and Gc(Nc.V, Nc.L). The macro-normal
+    // FcV/FcL are the *layer* terms — right for attnV/attnL below and for
+    // the lobe-pick probability (ccProb in pbrBsdfPdf, clearcoatPick in
+    // __direct_callable__nextRay, both on F(Nc.V)), wrong here. This is also
+    // what MDL's custom_curve_layer evaluates, and what the sampled weight in
+    // __direct_callable__nextRay already used.
+    const float FcH = CLEARCOAT_F0 + (1.0f - CLEARCOAT_F0) * pow5(1.0f - VdotH);
     const float clearcoatLobe =
-        (FcV * Dc * Gc) / (4.0f * NcDotV * fmaxf(NcDotL, 1e-6f));
+        (FcH * Dc * Gc) / (4.0f * NcDotV * fmaxf(NcDotL, 1e-6f));
 
     const float attnV = 1.0f - state->clearcoat * FcV;
     const float attnL = 1.0f - state->clearcoat * FcL;
