@@ -128,6 +128,9 @@ struct TextureHandler : mi::neuraylib::Texture_handler_base
   visrtx::vec3 V;
   visrtx::vec3 shadingNormal;
   bool normalAdapted;
+  const visrtx::SurfaceHit *hit;
+  const visrtx::MDLSceneDataBinding *sceneData;
+  unsigned int numSceneData;
 };
 
 using ShadingStateMaterial = mi::neuraylib::Shading_state_material;

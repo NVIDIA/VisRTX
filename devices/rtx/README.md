@@ -215,6 +215,44 @@ MDL texture inputs accept two forms:
 - `ANARI_SAMPLER`: an existing ANARI sampler object, bound directly to the MDL
   texture input.
 
+#### VISRTX_MDL_SCENE_DATA
+
+With native MDL enabled, `mdl` materials accept dynamic metadata parameters:
+
+- `sceneData.<name>` (`ANARI_STRING`): bind an MDL `scene::data_lookup_*`
+  name to `attribute0`, `attribute1`, `attribute2`, `attribute3`, or `color`.
+
+Uniform eligibility is inferred from the effective attribute source. Geometry
+and instance constants, including the element selected from an instance array,
+are uniform within the rendered instance. Overriding vertex, face-varying or
+primitive data makes a uniform lookup invalid. Array contents are not scanned
+to infer constancy. No additional uniform metadata parameter is required.
+
+Float, float2/3/4 and color lookups use the existing ANARI attribute interpolation
+and padding rules. Geometry constants use `ANARI_FLOAT32_VEC4`; arrays can use
+supported scalar/vector attribute types. No geometry array is copied for these
+bindings. Names are case-sensitive, material-local and may be chosen by the MDL
+author. For example, `sceneData.temperature = "attribute1"` supplies
+`scene::data_lookup_float("temperature", default_value)`.
+
+Missing names, absent attributes, invalid slots and nonfinite values return the
+shader's default. `scene::data_isvalid` tests only binding and data existence;
+it does not read or interpolate values and ignores their numeric validity.
+Integer and matrix lookups continue to return their defaults.
+These dynamic metadata names are reserved and are not matched to shader inputs;
+they are not enumerated as literal parameter names by the query API. Binding and
+argument edits retain the material and compiled code; changing the source builds
+a table for that source's string IDs.
+
+#### VISRTX_MDL_ANIMATION_TIME
+
+With native MDL enabled, frame `mdl.animationTime` (`ANARI_FLOAT32`, default
+`0`) supplies seconds to `state::animation_time()`. Time is local to each frame.
+Changing it resets that frame's accumulation, including when the application uses
+manual `accumulationVersion`; no material recompilation or geometry upload is
+needed. Nonfinite times produce a warning and use zero. Negative finite times
+are allowed for callers that need a signed timeline.
+
 ## Additional ANARI Parameter and Property Extensions
 
 The following section describes what additional parameters and properties can be
@@ -304,6 +342,8 @@ The following extensions are either partially or fully implemented by VisRTX:
 - `VISRTX_GEOMETRY_SDF`
 - `VISRTX_MATERIAL_MATERIALX` (requires `VISRTX_ENABLE_MATERIALX_SUPPORT`)
 - `VISRTX_MATERIAL_MDL` (requires `VISRTX_ENABLE_MDL_SUPPORT`)
+- `VISRTX_MDL_SCENE_DATA` (requires `VISRTX_ENABLE_MDL_SUPPORT`)
+- `VISRTX_MDL_ANIMATION_TIME` (requires `VISRTX_ENABLE_MDL_SUPPORT`)
 - `VISRTX_RENDERER_DEBUG`
 - `VISRTX_RENDERER_DEFAULT`
 - `VISRTX_RENDERER_FAST`

@@ -167,6 +167,7 @@ void MDL::finalize()
   syncSource();
   syncImplementationIndex();
   syncParameters();
+  syncSceneData();
 
   if (m_argumentBlockInstance.has_value()) {
     if (const auto &argBlockData =
@@ -377,6 +378,9 @@ void MDL::syncParameters()
         continue;
       }
 
+      if (name.rfind("sceneData.", 0) == 0)
+        continue;
+
       if (libmdl::endsWith(name, ".colorspace"sv)) {
         // Skip colorspace parameters, they are meta parameters for textures
         continue;
@@ -579,6 +583,43 @@ void MDL::syncImplementationIndex()
           m_uuid);
 }
 
+void MDL::syncSceneData()
+{
+  const auto *target =
+      m_argumentBlockInstance ? m_argumentBlockInstance->targetCode() : nullptr;
+  m_numSceneData = target ? uint32_t(target->get_string_constant_count()) : 0;
+  if (!m_numSceneData) {
+    m_sceneDataBuffer.reset();
+    m_sceneDataBindings.clear();
+    return;
+  }
+  std::vector<MDLSceneDataBinding> bindings(m_numSceneData);
+  for (uint32_t id = 0; id < m_numSceneData; ++id) {
+    const char *name = target->get_string_constant(id);
+    if (!name || !*name)
+      continue;
+    const std::string parameter = "sceneData." + std::string(name);
+    const std::string slot = getParamString(parameter, "");
+    if (slot == "color")
+      bindings[id].attribute = MaterialAttribute::COLOR;
+    else if (slot.size() == 10 && slot.compare(0, 9, "attribute") == 0
+        && slot[9] >= '0' && slot[9] <= '3')
+      bindings[id].attribute = MaterialAttribute(slot[9] - '0');
+  }
+  const bool unchanged = bindings.size() == m_sceneDataBindings.size()
+      && std::equal(bindings.begin(),
+          bindings.end(),
+          m_sceneDataBindings.begin(),
+          [](const auto &a, const auto &b) {
+            return a.attribute == b.attribute;
+          });
+  if (!unchanged) {
+    m_sceneDataBuffer.upload(
+        bindings.data(), bindings.size() * sizeof(bindings[0]));
+    m_sceneDataBindings = std::move(bindings);
+  }
+}
+
 MaterialGPUData MDL::gpuData() const
 {
   MaterialGPUData retval = {};
@@ -593,6 +634,9 @@ MaterialGPUData MDL::gpuData() const
       : uint32_t(SbtCallableEntryPoints::Last)
           + m_implementationIndex * uint32_t(SurfaceShaderEntryPoints::Count);
 
+  retval.materialData.mdl.sceneData =
+      m_sceneDataBuffer.ptrAs<const MDLSceneDataBinding>();
+  retval.materialData.mdl.numSceneData = m_numSceneData;
   if (m_argumentBlockInstance.has_value()) {
     retval.materialData.mdl.numSamplers =
         std::min(std::size(retval.materialData.mdl.samplers), size(m_samplers));

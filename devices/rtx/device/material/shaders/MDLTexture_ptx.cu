@@ -408,13 +408,34 @@ VISRTX_CALLABLE void adapt_normal(float result[3],
   result[2] = adapted.z;
 }
 
-// Scene data lookup
+// Scene-data existence and scope use the same resolution as value reads.
+VISRTX_DEVICE ResolvedAttribute sceneDataSource(
+    TextureHandler const *self, unsigned id)
+{
+  if (!self->hit || !self->sceneData || id >= self->numSceneData)
+    return {};
+  const auto attribute = self->sceneData[id].attribute;
+  if (attribute == MaterialAttribute::UNKNOWN)
+    return {};
+  return resolveAttribute(attribute, *self->hit);
+}
 
-VISRTX_DEVICE bool scene_data_isvalid(TextureHandler const *self_base,
+VISRTX_DEVICE bool sceneDataValue(
+    TextureHandler const *self, unsigned id, bool uniformLookup, vec4 &value)
+{
+  const auto attribute = sceneDataSource(self, id);
+  if (!attribute.isPresent() || (uniformLookup && !attribute.isUniform()))
+    return false;
+  value = readAttributeValue(attribute, *self->hit);
+  return isfinite(value.x) && isfinite(value.y) && isfinite(value.z)
+      && isfinite(value.w);
+}
+
+VISRTX_CALLABLE bool scene_data_isvalid(TextureHandler const *self_base,
     ShadingStateMaterial *state,
     unsigned scene_data_id)
 {
-  return false;
+  return sceneDataSource(self_base, scene_data_id).isPresent();
 }
 
 VISRTX_CALLABLE void scene_data_lookup_float4(float result[4],
@@ -424,11 +445,11 @@ VISRTX_CALLABLE void scene_data_lookup_float4(float result[4],
     float const default_value[4],
     bool uniform_lookup)
 {
-  // just return default value
-  result[0] = default_value[0];
-  result[1] = default_value[1];
-  result[2] = default_value[2];
-  result[3] = default_value[3];
+  vec4 value;
+  const bool valid =
+      sceneDataValue(self_base, scene_data_id, uniform_lookup, value);
+  for (int i = 0; i < 4; ++i)
+    result[i] = valid ? value[i] : default_value[i];
 }
 
 VISRTX_CALLABLE void scene_data_lookup_float3(float result[3],
@@ -438,10 +459,11 @@ VISRTX_CALLABLE void scene_data_lookup_float3(float result[3],
     float const default_value[3],
     bool uniform_lookup)
 {
-  // just return default value
-  result[0] = default_value[0];
-  result[1] = default_value[1];
-  result[2] = default_value[2];
+  vec4 value;
+  const bool valid =
+      sceneDataValue(self_base, scene_data_id, uniform_lookup, value);
+  for (int i = 0; i < 3; ++i)
+    result[i] = valid ? value[i] : default_value[i];
 }
 
 VISRTX_CALLABLE void scene_data_lookup_color(float result[3],
@@ -451,10 +473,11 @@ VISRTX_CALLABLE void scene_data_lookup_color(float result[3],
     float const default_value[3],
     bool uniform_lookup)
 {
-  // just return default value
-  result[0] = default_value[0];
-  result[1] = default_value[1];
-  result[2] = default_value[2];
+  vec4 value;
+  const bool valid =
+      sceneDataValue(self_base, scene_data_id, uniform_lookup, value);
+  for (int i = 0; i < 3; ++i)
+    result[i] = valid ? value[i] : default_value[i];
 }
 
 VISRTX_CALLABLE void scene_data_lookup_float2(float result[2],
@@ -464,9 +487,11 @@ VISRTX_CALLABLE void scene_data_lookup_float2(float result[2],
     float const default_value[2],
     bool uniform_lookup)
 {
-  // just return default value
-  result[0] = default_value[0];
-  result[1] = default_value[1];
+  vec4 value;
+  const bool valid =
+      sceneDataValue(self_base, scene_data_id, uniform_lookup, value);
+  for (int i = 0; i < 2; ++i)
+    result[i] = valid ? value[i] : default_value[i];
 }
 
 VISRTX_CALLABLE float scene_data_lookup_float(TextureHandler const *self_base,
@@ -475,8 +500,10 @@ VISRTX_CALLABLE float scene_data_lookup_float(TextureHandler const *self_base,
     float const default_value,
     bool uniform_lookup)
 {
-  // just return default value
-  return default_value;
+  vec4 value;
+  return sceneDataValue(self_base, scene_data_id, uniform_lookup, value)
+      ? value.x
+      : default_value;
 }
 
 VISRTX_CALLABLE void scene_data_lookup_int4(int result[4],

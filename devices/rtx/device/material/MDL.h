@@ -101,6 +101,10 @@ struct MDL : public Material
 
   void clearSamplers();
 
+  std::vector<MDLSceneDataBinding> m_sceneDataBindings;
+  DeviceBuffer m_sceneDataBuffer;
+  uint32_t m_numSceneData{0};
+  void syncSceneData();
   DeviceBuffer m_argBlockBuffer;
 
   std::string m_source;
