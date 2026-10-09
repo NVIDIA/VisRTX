@@ -88,7 +88,6 @@ void ObjectArray::commitParameters()
 void ObjectArray::finalize()
 {
   markDataModified();
-  notifyChangeObservers();
 }
 
 void ObjectArray::unmap()
