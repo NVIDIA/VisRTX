@@ -29,11 +29,11 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "gpu/adjustNormalForView.h"
 #include "gpu/evalMaterialParameters.h"
 #include "gpu/gpu_decl.h"
 #include "gpu/gpu_objects.h"
 #include "gpu/shadingState.h"
-#include "gpu/validShadingNormal.h"
 
 #include <anari/anari_cpp/ext/linalg.h>
 #include <mi/neuraylib/target_code_types.h>
@@ -162,10 +162,10 @@ VISRTX_CALLABLE void __direct_callable__init(MDLShadingState *shadingState,
   // Done after init so normal maps still build on the unadjusted normal.
   auto &textureHandler = shadingState->textureHandler;
   if (!textureHandler.normalAdapted) {
-    textureHandler.unadjustedNormal = Ns;
+    textureHandler.shadingNormal = Ns;
     textureHandler.normalAdapted = true;
     shadingState->state.normal =
-        bit_cast<float3>(validShadingNormal(Ng, hit->V, Ns));
+        bit_cast<float3>(adjustNormalForView(Ng, hit->V, Ns));
   }
 }
 
@@ -314,7 +314,7 @@ vec3 __direct_callable__evaluateTransmission(
 VISRTX_CALLABLE
 vec3 __direct_callable__evaluateNormal(const MDLShadingState *shadingState)
 {
-  return shadingState->textureHandler.unadjustedNormal;
+  return shadingState->textureHandler.shadingNormal;
 }
 
 // Env-MIS BSDF density at `wi` given outgoing `wo` (both world space): the

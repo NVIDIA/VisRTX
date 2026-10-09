@@ -175,7 +175,7 @@ static bool inRegion(View view, uint32_t x, uint32_t y)
 ///////////////////////////////////////////////////////////////////////////////
 
 // Cycles' ensure_valid_specular_reflection, as ported to the device.
-static vec3 validShadingNormal(const vec3 &Ng, const vec3 &V, const vec3 &N)
+static vec3 adjustNormalForView(const vec3 &Ng, const vec3 &V, const vec3 &N)
 {
   const float NdotV = dot(N, V);
   const vec3 R = {2.f * NdotV * N[0] - V[0],
@@ -231,7 +231,7 @@ static double expectedDirectional(View view, bool tilted, bool mdl)
             d[k] = dir[k] + sx * h * aspect * du0[k] + sy * h * dv0[k];
           d = normalize(d);
           const vec3 V = {-d[0], -d[1], -d[2]};
-          const vec3 Na = validShadingNormal(Ng, V, N);
+          const vec3 Na = adjustNormalForView(Ng, V, N);
           const float scale = mdl ? 2.f / (1.f + std::max(Na[1], 0.f)) : 1.f;
           sum += ALBEDO / PI * IRRADIANCE * std::max(Na[1], 0.f) * scale;
           n++;

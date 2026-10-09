@@ -30,10 +30,10 @@
  */
 
 #include "MDLTexture.cuh"
+#include "gpu/adjustNormalForView.h"
 #include "gpu/evalMaterialParameters.h"
 #include "gpu/gpu_decl.h"
 #include "gpu/gpu_objects.h"
-#include "gpu/validShadingNormal.h"
 #include "mi/neuraylib/target_code_types.h"
 
 #include <texture_types.h>
@@ -398,11 +398,11 @@ VISRTX_CALLABLE void adapt_normal(float result[3],
   auto *textureHandler = const_cast<TextureHandler *>(self_base);
   const vec3 N(normal[0], normal[1], normal[2]);
   if (!textureHandler->normalAdapted) {
-    textureHandler->unadjustedNormal = N;
+    textureHandler->shadingNormal = N;
     textureHandler->normalAdapted = true;
   }
   const vec3 adapted =
-      validShadingNormal(make_vec3(state->geom_normal), textureHandler->V, N);
+      adjustNormalForView(make_vec3(state->geom_normal), textureHandler->V, N);
   result[0] = adapted.x;
   result[1] = adapted.y;
   result[2] = adapted.z;
