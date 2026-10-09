@@ -82,6 +82,19 @@ GPU pointers returned by `anariMapFrame()` are device pointers intended to be
 kept on the device. Applications which desire to copy data from the device back
 to the host should instead map the ordinary (non-`CUDA`) channels.
 
+#### ANARI_VISRTX_RENDERER_FOG
+
+Renderer-level camera-surface depth cueing on `fast`, `interactive`/`default`,
+and `quality`, disabled by default. Supports linear, exponential, and
+exponential-squared curves in world units, view-depth or camera-ray distance,
+and constant linear RGB or the visible backdrop as the fog color. Coverage
+alpha, misses, lighting transport, and geometric channels keep their existing
+semantics. Debug/test Renderers and VisGL are outside this vendor extension.
+
+See the [fog contract and examples](docs/renderer-fog.md) for discovery,
+parameters, validation, Commit behavior, and compatibility limits, and the
+[conformance matrix](docs/renderer-fog-conformance.md) for executable coverage.
+
 #### VISRTX_CAMERA_RAY_BUFFER
 
 Adds a `rayBuffer` camera whose primary rays are supplied per pixel by the
