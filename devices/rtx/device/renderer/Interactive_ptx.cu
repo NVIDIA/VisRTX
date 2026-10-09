@@ -74,6 +74,12 @@ struct InteractiveShadingPolicy
     return primaryWithVisibleLightsMask();
   }
 
+  // Appearance renderer: camera-visible surfaces are depth-cued.
+  static VISRTX_DEVICE constexpr bool appliesFog()
+  {
+    return true;
+  }
+
   static VISRTX_DEVICE vec3 shadeSurface(
       const MaterialShadingState &shadingState,
       ScreenSample &ss,

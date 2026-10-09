@@ -47,8 +47,10 @@
 
 // std
 #include <optix_types.h>
-#include <cassert>
 #include <stdlib.h>
+#include <cassert>
+#include <cmath>
+#include <optional>
 #include <string_view>
 // this include may only appear in a single source file:
 #include <optix_function_table_definition.h>
@@ -194,8 +196,7 @@ void Renderer::commitParameters()
   // TRIM tracks this many of the brightest samples per pixel and trims the ones
   // a base-excluding threshold flags as outliers. Small: per-pixel memory is
   // trim*vec4 and a handful covers the firefly count of any one pixel.
-  m_fireflyFilterTrim =
-      std::clamp(getParam<int>("fireflyFilterTrim", 4), 1, 8);
+  m_fireflyFilterTrim = std::clamp(getParam<int>("fireflyFilterTrim", 4), 1, 8);
   m_sampleLimit = getParam<int>("sampleLimit", 128);
   m_cullTriangleBF = getParam<bool>("cullTriangleBackfaces", false);
   m_volumeSamplingRate =
@@ -204,6 +205,153 @@ void Renderer::commitParameters()
   m_cutPlane = getParam<vec4>("cutPlane", vec4(0.f));
   if (m_checkerboard)
     m_spp = 1;
+}
+
+// Defaults mirror visrtx_renderer_fog.json, the object-info source of truth;
+// the generated schema is not loadable at runtime, so they are restated here.
+static const vec3 kDefaultFogColor{1.f};
+static constexpr float kDefaultFogStart = 0.f;
+static constexpr float kDefaultFogEnd = 1.f;
+static constexpr float kDefaultFogDensity = 1.f;
+
+void Renderer::reportInvalidFog(const char *name)
+{
+  reportMessage(ANARI_SEVERITY_WARNING,
+      "invalid %s; disabling fog for this committed configuration",
+      name);
+}
+
+bool Renderer::hasValidFogType(const char *name, ANARIDataType type)
+{
+  if (!hasParam(name) || hasParam(name, type))
+    return true;
+  reportInvalidFog(name);
+  return false;
+}
+
+std::optional<FogMode> Renderer::parseFogMode()
+{
+  if (!hasValidFogType("fogMode", ANARI_STRING))
+    return std::nullopt;
+  const auto mode = getParamString("fogMode", "none");
+  if (mode == "none")
+    return FogMode::NONE;
+  if (mode == "linear")
+    return FogMode::LINEAR;
+  if (mode == "exp")
+    return FogMode::EXP;
+  if (mode == "exp2")
+    return FogMode::EXP2;
+  reportInvalidFog("fogMode");
+  return std::nullopt;
+}
+
+std::optional<FogDistanceMetric> Renderer::parseFogDistanceMetric()
+{
+  if (!hasValidFogType("fogDistanceMetric", ANARI_STRING))
+    return std::nullopt;
+  const auto metric = getParamString("fogDistanceMetric", "viewDepth");
+  if (metric == "viewDepth")
+    return FogDistanceMetric::VIEW_DEPTH;
+  if (metric == "rayDistance")
+    return FogDistanceMetric::RAY_DISTANCE;
+  reportInvalidFog("fogDistanceMetric");
+  return std::nullopt;
+}
+
+std::optional<FogColorSource> Renderer::parseFogColorSource()
+{
+  if (!hasValidFogType("fogColorSource", ANARI_STRING))
+    return std::nullopt;
+  const auto source = getParamString("fogColorSource", "constant");
+  if (source == "constant")
+    return FogColorSource::CONSTANT;
+  if (source == "background")
+    return FogColorSource::BACKGROUND;
+  reportInvalidFog("fogColorSource");
+  return std::nullopt;
+}
+
+std::optional<vec3> Renderer::parseFogColor()
+{
+  if (!hasValidFogType("fogColor", ANARI_FLOAT32_VEC3))
+    return std::nullopt;
+  const auto color = getParam<vec3>("fogColor", kDefaultFogColor);
+  for (int i = 0; i < 3; ++i) {
+    if (!std::isfinite(color[i]) || color[i] < 0.f) {
+      reportInvalidFog("fogColor");
+      return std::nullopt;
+    }
+  }
+  return color;
+}
+
+bool Renderer::parseFogLinearRange(FogGPUData &fog)
+{
+  if (!hasValidFogType("fogStart", ANARI_FLOAT32)
+      || !hasValidFogType("fogEnd", ANARI_FLOAT32))
+    return false;
+  const float start = getParam<float>("fogStart", kDefaultFogStart);
+  const float end = getParam<float>("fogEnd", kDefaultFogEnd);
+  if (!std::isfinite(start) || start < 0.f) {
+    reportInvalidFog("fogStart");
+    return false;
+  }
+  if (!std::isfinite(end) || end <= start) {
+    reportInvalidFog("fogEnd");
+    return false;
+  }
+  fog.start = start;
+  fog.end = end;
+  return true;
+}
+
+bool Renderer::parseFogDensity(FogGPUData &fog)
+{
+  if (!hasValidFogType("fogDensity", ANARI_FLOAT32))
+    return false;
+  const float density = getParam<float>("fogDensity", kDefaultFogDensity);
+  if (!std::isfinite(density) || density < 0.f) {
+    reportInvalidFog("fogDensity");
+    return false;
+  }
+  fog.density = density;
+  return true;
+}
+
+// nullopt means "no effective fog this Commit": either mode none, or an
+// invalid active setting that was warned about. Inactive settings are not
+// validated, and an invalid Commit never keeps a previously effective fog.
+std::optional<FogGPUData> Renderer::parseFogParameters()
+{
+  const auto mode = parseFogMode();
+  if (!mode || *mode == FogMode::NONE)
+    return std::nullopt;
+
+  FogGPUData fog{};
+  fog.mode = *mode;
+
+  const auto metric = parseFogDistanceMetric();
+  if (!metric)
+    return std::nullopt;
+  fog.distanceMetric = *metric;
+
+  const auto source = parseFogColorSource();
+  if (!source)
+    return std::nullopt;
+  fog.colorSource = *source;
+  if (fog.colorSource == FogColorSource::CONSTANT) {
+    const auto color = parseFogColor();
+    if (!color)
+      return std::nullopt;
+    fog.color = *color;
+  }
+
+  const bool rangeOk = fog.mode == FogMode::LINEAR ? parseFogLinearRange(fog)
+                                                   : parseFogDensity(fog);
+  if (!rangeOk)
+    return std::nullopt;
+  return fog;
 }
 
 void Renderer::finalize()
@@ -248,6 +396,7 @@ void Renderer::populateFrameData(FrameGPUData &fd) const
     fd.renderer.backgroundMode = BackgroundMode::COLOR;
     fd.renderer.background.color = m_bgColor;
   }
+  fd.renderer.fog = m_fog;
   fd.renderer.ambientColor = m_ambientColor;
   fd.renderer.ambientIntensity = m_ambientIntensity;
   fd.renderer.occlusionDistance = m_occlusionDistance;
@@ -594,8 +743,7 @@ void Renderer::initOptixPipeline()
     callableDescs[SBT_CALLABLE_MATTE_OFFSET
         + int(SurfaceShaderEntryPoints::EvaluateNormal)] = callableDesc;
 
-    callableDesc.callables.entryFunctionNameDC =
-        "__direct_callable__evalBsdf";
+    callableDesc.callables.entryFunctionNameDC = "__direct_callable__evalBsdf";
 
     callableDescs[SBT_CALLABLE_MATTE_OFFSET
         + int(SurfaceShaderEntryPoints::EvalBsdf)] = callableDesc;
@@ -642,8 +790,7 @@ void Renderer::initOptixPipeline()
     callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET
         + int(SurfaceShaderEntryPoints::EvaluateNormal)] = callableDesc;
 
-    callableDesc.callables.entryFunctionNameDC =
-        "__direct_callable__evalBsdf";
+    callableDesc.callables.entryFunctionNameDC = "__direct_callable__evalBsdf";
     callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET
         + int(SurfaceShaderEntryPoints::EvalBsdf)] = callableDesc;
 

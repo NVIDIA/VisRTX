@@ -36,6 +36,7 @@
 #include "gpu/intersectRay.h"
 #include "gpu/lightProxyRadiance.h"
 #include "gpu/renderer/common.h"
+#include "gpu/renderer/fog.h"
 #include "gpu/shadingState.h"
 #include "gpu/volumeIntegration.h"
 
@@ -77,7 +78,10 @@ VISRTX_DEVICE float volumeShadowOpacity(ScreenSample &ss, const Ray &r)
 // naming which light proxies a camera ray may hit (ADR 0009). A policy that
 // does not show lights returns VISRTX_MASK_GEOMETRY and its rays never reach a
 // proxy; one that does gets the proxy branch below, which never touches the
-// Material a proxy does not have.
+// Material a proxy does not have, and
+//   static VISRTX_DEVICE constexpr bool appliesFog()
+// saying whether camera-visible surfaces are depth-cued (VISRTX_RENDERER_FOG).
+// Diagnostic policies return false and compile the fog lookups out.
 template <typename ShadingPolicy>
 VISRTX_DEVICE void renderPixel(FrameGPUData &frameData, ScreenSample ss)
 {
@@ -89,6 +93,19 @@ VISRTX_DEVICE void renderPixel(FrameGPUData &frameData, ScreenSample ss)
             * uint32_t(rendererParams.numIterations)
         + uint32_t(i);
     auto ray = makePrimaryRay(ss, sampleIdx, isVeryFirstRay);
+    // Visibility clipping may re-origin the traversal ray, but fog measures
+    // from the original camera sample (including its sampled lens position).
+    const vec3 cameraOrigin = ray.org;
+    const vec3 cameraFogColor = ShadingPolicy::appliesFog()
+        ? fogColor(frameData, ss.pixel, ray.dir)
+        : vec3(0.f);
+    auto depthCue = [&](const vec3 &hitpoint, const vec3 &radiance) {
+      if constexpr (ShadingPolicy::appliesFog())
+        return fogSurface(
+            frameData, hitpoint, cameraOrigin, radiance, cameraFogColor);
+      else
+        return radiance;
+    };
     applyCuttingPlane(rendererParams.cutPlane, ray);
     float tmax = ray.t.upper;
 
@@ -170,8 +187,9 @@ VISRTX_DEVICE void renderPixel(FrameGPUData &frameData, ScreenSample ss)
         // ray.org is the shaded point lightProxyRadiance wants: this loop walks
         // through surfaces by advancing ray.t.lower and never re-origins the
         // ray, so the origin stays the camera for the whole traversal.
-        outputColor +=
-            remainingT * lightProxyRadiance(frameData, surfaceHit, ray.org);
+        const vec3 radiance =
+            lightProxyRadiance(frameData, surfaceHit, ray.org);
+        outputColor += remainingT * depthCue(surfaceHit.hitpoint, radiance);
         accumulateNormal(outputNormal, -ray.dir, outputOpacity);
         accumulateValue(outputOpacity, 1.f, outputOpacity);
         remainingT = vec3(0.f);
@@ -189,7 +207,8 @@ VISRTX_DEVICE void renderPixel(FrameGPUData &frameData, ScreenSample ss)
         const vec3 refl =
             ShadingPolicy::shadeSurface(shadingState, ss, ray, surfaceHit);
 
-        outputColor += remainingT * (alpha * refl);
+        outputColor +=
+            remainingT * (alpha * depthCue(surfaceHit.hitpoint, refl));
         // AOVs stay on the scalar coverage track (not the colored remainingT).
         accumulateValue(outputAlbedo,
             materialEvaluateTint(shadingState) * alpha,

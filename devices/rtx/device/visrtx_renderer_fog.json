@@ -1,0 +1,61 @@
+{
+  "info": {
+    "name": "VISRTX_RENDERER_FOG",
+    "type": "extension",
+    "dependencies": ["anari_core_1_0"]
+  },
+  "objects": [
+    {
+      "type": "ANARI_RENDERER",
+      "name": "fast",
+      "parameters": [
+        {"name": "fogMode", "types": ["ANARI_STRING"], "tags": [], "default": "none", "values": ["none", "linear", "exp", "exp2"], "description": "camera-visible surface depth cueing; none disables fog and ignores inactive inputs"},
+        {"name": "fogDistanceMetric", "types": ["ANARI_STRING"], "tags": [], "default": "viewDepth", "values": ["viewDepth", "rayDistance"], "description": "world distance: viewDepth is nonnegative depth along committed camera forward from camera position; rayDistance is distance from the original camera-sample ray origin"},
+        {"name": "fogColorSource", "types": ["ANARI_STRING"], "tags": [], "default": "constant", "values": ["constant", "background"], "description": "constant uses fogColor; background uses the unfogged visible backdrop RGB at the original camera sample and ignores fogColor"},
+        {"name": "fogColor", "types": ["ANARI_FLOAT32_VEC3"], "tags": ["color"], "default": [1, 1, 1], "minimum": [0, 0, 0], "description": "finite nonnegative linear RGB, including HDR values above one; used only by constant color source"},
+        {"name": "fogStart", "types": ["ANARI_FLOAT32"], "tags": [], "default": 0, "minimum": 0, "description": "finite nonnegative world distance; used only by linear mode, ignored by exp and exp2"},
+        {"name": "fogEnd", "types": ["ANARI_FLOAT32"], "tags": [], "default": 1, "minimum": 0, "description": "finite world distance strictly greater than fogStart; used only by linear mode, ignored by exp and exp2"},
+        {"name": "fogDensity", "types": ["ANARI_FLOAT32"], "tags": [], "default": 1, "minimum": 0, "description": "finite nonnegative inverse-world-distance curve coefficient; used only by exp and exp2, ignored by linear; not a physical medium coefficient"}
+      ]
+    },
+    {
+      "type": "ANARI_RENDERER",
+      "name": "interactive",
+      "parameters": [
+        {"name": "fogMode", "types": ["ANARI_STRING"], "tags": [], "default": "none", "values": ["none", "linear", "exp", "exp2"], "description": "camera-visible surface depth cueing; none disables fog and ignores inactive inputs"},
+        {"name": "fogDistanceMetric", "types": ["ANARI_STRING"], "tags": [], "default": "viewDepth", "values": ["viewDepth", "rayDistance"], "description": "world distance: viewDepth is nonnegative depth along committed camera forward from camera position; rayDistance is distance from the original camera-sample ray origin"},
+        {"name": "fogColorSource", "types": ["ANARI_STRING"], "tags": [], "default": "constant", "values": ["constant", "background"], "description": "constant uses fogColor; background uses the unfogged visible backdrop RGB at the original camera sample and ignores fogColor"},
+        {"name": "fogColor", "types": ["ANARI_FLOAT32_VEC3"], "tags": ["color"], "default": [1, 1, 1], "minimum": [0, 0, 0], "description": "finite nonnegative linear RGB, including HDR values above one; used only by constant color source"},
+        {"name": "fogStart", "types": ["ANARI_FLOAT32"], "tags": [], "default": 0, "minimum": 0, "description": "finite nonnegative world distance; used only by linear mode, ignored by exp and exp2"},
+        {"name": "fogEnd", "types": ["ANARI_FLOAT32"], "tags": [], "default": 1, "minimum": 0, "description": "finite world distance strictly greater than fogStart; used only by linear mode, ignored by exp and exp2"},
+        {"name": "fogDensity", "types": ["ANARI_FLOAT32"], "tags": [], "default": 1, "minimum": 0, "description": "finite nonnegative inverse-world-distance curve coefficient; used only by exp and exp2, ignored by linear; not a physical medium coefficient"}
+      ]
+    },
+    {
+      "type": "ANARI_RENDERER",
+      "name": "default",
+      "parameters": [
+        {"name": "fogMode", "types": ["ANARI_STRING"], "tags": [], "default": "none", "values": ["none", "linear", "exp", "exp2"], "description": "camera-visible surface depth cueing; none disables fog and ignores inactive inputs"},
+        {"name": "fogDistanceMetric", "types": ["ANARI_STRING"], "tags": [], "default": "viewDepth", "values": ["viewDepth", "rayDistance"], "description": "world distance: viewDepth is nonnegative depth along committed camera forward from camera position; rayDistance is distance from the original camera-sample ray origin"},
+        {"name": "fogColorSource", "types": ["ANARI_STRING"], "tags": [], "default": "constant", "values": ["constant", "background"], "description": "constant uses fogColor; background uses the unfogged visible backdrop RGB at the original camera sample and ignores fogColor"},
+        {"name": "fogColor", "types": ["ANARI_FLOAT32_VEC3"], "tags": ["color"], "default": [1, 1, 1], "minimum": [0, 0, 0], "description": "finite nonnegative linear RGB, including HDR values above one; used only by constant color source"},
+        {"name": "fogStart", "types": ["ANARI_FLOAT32"], "tags": [], "default": 0, "minimum": 0, "description": "finite nonnegative world distance; used only by linear mode, ignored by exp and exp2"},
+        {"name": "fogEnd", "types": ["ANARI_FLOAT32"], "tags": [], "default": 1, "minimum": 0, "description": "finite world distance strictly greater than fogStart; used only by linear mode, ignored by exp and exp2"},
+        {"name": "fogDensity", "types": ["ANARI_FLOAT32"], "tags": [], "default": 1, "minimum": 0, "description": "finite nonnegative inverse-world-distance curve coefficient; used only by exp and exp2, ignored by linear; not a physical medium coefficient"}
+      ]
+    },
+    {
+      "type": "ANARI_RENDERER",
+      "name": "quality",
+      "parameters": [
+        {"name": "fogMode", "types": ["ANARI_STRING"], "tags": [], "default": "none", "values": ["none", "linear", "exp", "exp2"], "description": "camera-visible surface depth cueing; none disables fog and ignores inactive inputs"},
+        {"name": "fogDistanceMetric", "types": ["ANARI_STRING"], "tags": [], "default": "viewDepth", "values": ["viewDepth", "rayDistance"], "description": "world distance: viewDepth is nonnegative depth along committed camera forward from camera position; rayDistance is distance from the original camera-sample ray origin"},
+        {"name": "fogColorSource", "types": ["ANARI_STRING"], "tags": [], "default": "constant", "values": ["constant", "background"], "description": "constant uses fogColor; background uses the unfogged visible backdrop RGB at the original camera sample and ignores fogColor"},
+        {"name": "fogColor", "types": ["ANARI_FLOAT32_VEC3"], "tags": ["color"], "default": [1, 1, 1], "minimum": [0, 0, 0], "description": "finite nonnegative linear RGB, including HDR values above one; used only by constant color source"},
+        {"name": "fogStart", "types": ["ANARI_FLOAT32"], "tags": [], "default": 0, "minimum": 0, "description": "finite nonnegative world distance; used only by linear mode, ignored by exp and exp2"},
+        {"name": "fogEnd", "types": ["ANARI_FLOAT32"], "tags": [], "default": 1, "minimum": 0, "description": "finite world distance strictly greater than fogStart; used only by linear mode, ignored by exp and exp2"},
+        {"name": "fogDensity", "types": ["ANARI_FLOAT32"], "tags": [], "default": 1, "minimum": 0, "description": "finite nonnegative inverse-world-distance curve coefficient; used only by exp and exp2, ignored by linear; not a physical medium coefficient"}
+      ]
+    }
+  ]
+}
