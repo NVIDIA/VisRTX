@@ -29,6 +29,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <cmath>
 #include "Frame.h"
 #include "gpu/gpu_tonemap.h"
 #include "gpu/gpu_util.h"
@@ -424,6 +425,7 @@ __global__ void resolveVec3Channel(const vec3 *__restrict__ accum,
 
 Frame::Frame(DeviceGlobalState *d) : helium::BaseFrame(d), m_denoiser(d)
 {
+  data().mdlAnimationTime = 0.f;
   cudaEventCreate(&m_eventStart);
   cudaEventCreate(&m_eventEnd);
 
@@ -462,6 +464,15 @@ void Frame::commitParameters()
   m_colorType =
       getParam<ANARIDataType>("channel.color", ANARI_UFIXED8_RGBA_SRGB);
   auto &hd = data();
+  const float animationTime = getParam<float>("mdl.animationTime", 0.f);
+  if (!std::isfinite(animationTime)) {
+    reportMessage(
+        ANARI_SEVERITY_WARNING, "mdl.animationTime must be finite; using zero");
+  }
+  const float finiteTime = std::isfinite(animationTime) ? animationTime : 0.f;
+  if (hd.mdlAnimationTime != finiteTime)
+    m_mdlAnimationTimeChanged = true;
+  hd.mdlAnimationTime = finiteTime;
   hd.fb.size = getParam<uvec2>("size", uvec2(10));
   m_depthType = getParam<ANARIDataType>("channel.depth", ANARI_UNKNOWN);
   m_primIDType = getParam<ANARIDataType>("channel.primitiveId", ANARI_UNKNOWN);
@@ -1117,12 +1128,14 @@ void Frame::checkAccumulationReset()
       m_nextFrameReset = true;
     }
   }
+  m_nextFrameReset |= m_mdlAnimationTimeChanged;
 }
 
 void Frame::newFrame()
 {
   auto &hd = data();
   if (m_nextFrameReset) {
+    m_mdlAnimationTimeChanged = false;
     hd.fb.frameID = 0;
     hd.fb.checkerboardID = checkerboarding() ? 0 : -1;
     m_nextFrameReset = false;

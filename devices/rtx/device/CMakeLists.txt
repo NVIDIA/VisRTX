@@ -413,7 +413,8 @@ endif()
 # Leading-comma fragment appended after the last static entry; empty list -> empty fragment.
 set(VISRTX_OPTIONAL_DEVICE_DEPENDENCIES_LIST "")
 if(VISRTX_ENABLE_MDL_SUPPORT)
-  list(APPEND VISRTX_OPTIONAL_DEVICE_DEPENDENCIES_LIST visrtx_material_mdl)
+  list(APPEND VISRTX_OPTIONAL_DEVICE_DEPENDENCIES_LIST visrtx_material_mdl
+    visrtx_mdl_scene_data visrtx_mdl_animation_time)
 endif()
 if(VISRTX_ENABLE_MATERIALX_SUPPORT)
   list(APPEND VISRTX_OPTIONAL_DEVICE_DEPENDENCIES_LIST visrtx_material_materialx)

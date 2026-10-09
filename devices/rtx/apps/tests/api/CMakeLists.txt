@@ -27,10 +27,6 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-if (WIN32)
-  return()
-endif()
-
 macro(make_test TEST_NAME)
   project(${TEST_NAME} LANGUAGES CXX)
   project_add_executable(${PROJECT_NAME}.cpp)
@@ -42,6 +38,14 @@ macro(make_test TEST_NAME)
   )
   add_test(NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME})
 endmacro()
+
+if (VISRTX_ENABLE_MDL_SUPPORT)
+  make_test(TestMdlSceneData)
+endif()
+
+if (WIN32)
+  return()
+endif()
 
 make_test(TestDeviceInit)
 make_test(TestEvictGPUArray)

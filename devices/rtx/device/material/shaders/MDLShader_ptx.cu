@@ -116,7 +116,7 @@ VISRTX_CALLABLE void __direct_callable__init(MDLShadingState *shadingState,
   shadingState->textureTangentsV[2] = tV;
   shadingState->textureTangentsV[3] = tV;
 
-  shadingState->state.animation_time = 0.0f;
+  shadingState->state.animation_time = fd->mdlAnimationTime;
   shadingState->state.geom_normal = bit_cast<float3>(Ng);
   shadingState->state.normal = bit_cast<float3>(Ns);
   shadingState->state.position = bit_cast<float3>(position);
@@ -146,6 +146,9 @@ VISRTX_CALLABLE void __direct_callable__init(MDLShadingState *shadingState,
   shadingState->textureHandler.numSamplers = md->numSamplers;
   shadingState->textureHandler.V = hit->V;
   shadingState->textureHandler.normalAdapted = false;
+  shadingState->textureHandler.hit = hit;
+  shadingState->textureHandler.sceneData = md->sceneData;
+  shadingState->textureHandler.numSceneData = md->numSceneData;
   shadingState->resData = {nullptr, &shadingState->textureHandler};
 
   // Front facing for transmission

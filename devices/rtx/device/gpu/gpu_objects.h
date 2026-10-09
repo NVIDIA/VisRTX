@@ -331,6 +331,7 @@ struct GeometryGPUData
   GeometryType type{GeometryType::UNKNOWN};
   AttributeDataSet attr;
   AttributeDataSetUniform attrUniform;
+  bool attrUniformPresent[5];
   const uint32_t *primitiveId;
   // Object-space coordinate magnitude the analytic intersectors' arithmetic
   // runs at (max |AABB corner| over the geometry's primitives); 0 when unused.
@@ -463,6 +464,11 @@ enum class MaterialType
   MDL,
 };
 
+struct MDLSceneDataBinding
+{
+  MaterialAttribute attribute{MaterialAttribute::UNKNOWN};
+};
+
 struct MaterialGPUData
 {
   struct Matte
@@ -506,6 +512,8 @@ struct MaterialGPUData
 
   struct MDL
   {
+    const MDLSceneDataBinding *sceneData;
+    uint32_t numSceneData;
     const char *argBlock;
     uint32_t numSamplers;
     // Should be sized according to MDL's execution context
@@ -1074,6 +1082,7 @@ struct FramebufferGPUData
 
 struct FrameGPUData
 {
+  float mdlAnimationTime;
   FramebufferGPUData fb;
   RendererGPUData renderer;
   WorldGPUData world;

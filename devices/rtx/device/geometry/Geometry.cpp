@@ -160,6 +160,11 @@ GeometryGPUData Geometry::gpuData() const
   retval.attrUniform[2] = m_uniformAttributes.attribute2.value_or(defaultAttr);
   retval.attrUniform[3] = m_uniformAttributes.attribute3.value_or(defaultAttr);
   retval.attrUniform[4] = m_uniformAttributes.color.value_or(defaultAttr);
+  retval.attrUniformPresent[0] = m_uniformAttributes.attribute0.has_value();
+  retval.attrUniformPresent[1] = m_uniformAttributes.attribute1.has_value();
+  retval.attrUniformPresent[2] = m_uniformAttributes.attribute2.has_value();
+  retval.attrUniformPresent[3] = m_uniformAttributes.attribute3.has_value();
+  retval.attrUniformPresent[4] = m_uniformAttributes.color.has_value();
   populateAttributeDataSet(m_primitiveAttributes, retval.attr);
   retval.primitiveId =
       (const uint32_t *)(m_primitiveId ? m_primitiveId->dataGPU() : nullptr);

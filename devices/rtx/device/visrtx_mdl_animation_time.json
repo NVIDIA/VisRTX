@@ -1,0 +1,26 @@
+{
+    "info": {
+        "name": "VISRTX_MDL_ANIMATION_TIME",
+        "type": "extension",
+        "dependencies": [
+            "visrtx_material_mdl"
+        ]
+    },
+    "objects": [
+        {
+            "type": "ANARI_FRAME",
+            "description": "Native MDL execution state",
+            "parameters": [
+                {
+                    "name": "mdl.animationTime",
+                    "types": [
+                        "ANARI_FLOAT32"
+                    ],
+                    "tags": [],
+                    "default": 0,
+                    "description": "Time in seconds for state::animation_time(); changing this resets frame accumulation without recompiling materials."
+                }
+            ]
+        }
+    ]
+}
