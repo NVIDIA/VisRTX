@@ -29,13 +29,13 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "gpu/adjustNormalForView.h"
 #include "gpu/gpu_decl.h"
 #include "gpu/gpu_math.h"
 #include "gpu/gpu_objects.h"
 #include "gpu/sampleLight.h"
 #include "gpu/shadingState.h"
 #include "gpu/shading_api.h"
-#include "gpu/validShadingNormal.h"
 
 using namespace visrtx;
 
@@ -281,8 +281,8 @@ VISRTX_CALLABLE void __direct_callable__init(
   shadingState->baseColor = vec3(color);
 
   const vec3 N = sampleNormalMap(*fd, md->normalSampler, *hit, hit->Ns);
-  shadingState->unadjustedNormal = N;
-  shadingState->normal = validShadingNormal(hit->Ng, hit->V, N);
+  shadingState->shadingNormal = N;
+  shadingState->viewAdjustedNormal = adjustNormalForView(hit->Ng, hit->V, N);
 
   shadingState->opacity =
       adjustedMaterialOpacity(color.w * opacity, md->alphaMode, md->cutoff);
@@ -307,7 +307,8 @@ VISRTX_CALLABLE void __direct_callable__init(
       getMaterialParameter(*fd, md->clearcoatRoughness, *hit).x;
   const vec3 Nc =
       sampleNormalMap(*fd, md->clearcoatNormalSampler, *hit, hit->Ns);
-  shadingState->clearcoatNormal = validShadingNormal(hit->Ng, hit->V, Nc);
+  shadingState->viewAdjustedClearcoatNormal =
+      adjustNormalForView(hit->Ng, hit->V, Nc);
 
   shadingState->thickness = getMaterialParameter(*fd, md->thickness, *hit).x;
   shadingState->attenuationDistance = md->attenuationDistance;
@@ -356,7 +357,7 @@ VISRTX_CALLABLE vec3 __direct_callable__evaluateTransmission(
 VISRTX_CALLABLE vec3 __direct_callable__evaluateNormal(
     const PhysicallyBasedShadingState *shadingState)
 {
-  return shadingState->unadjustedNormal;
+  return shadingState->shadingNormal;
 }
 
 //-----------------------------------------------------------------------------
@@ -406,7 +407,7 @@ VISRTX_DEVICE vec3 evalFresnelWithIridescence(
 VISRTX_CALLABLE vec3 __direct_callable__evalBsdf(
     const PhysicallyBasedShadingState *state, const vec3 *wo, const vec3 *wi)
 {
-  const vec3 N = state->normal;
+  const vec3 N = state->viewAdjustedNormal;
   const vec3 V = *wo;
   const vec3 L = *wi;
 
@@ -448,7 +449,7 @@ VISRTX_CALLABLE vec3 __direct_callable__evalBsdf(
   // Clearcoat: a second GGX lobe with its own normal and roughness, Fresnel-
   // attenuating the base layer at both view and light angles.
   if (state->clearcoat > 0.0f) {
-    const vec3 Nc = state->clearcoatNormal;
+    const vec3 Nc = state->viewAdjustedClearcoatNormal;
     const float NcDotV = fmaxf(dot(Nc, V), 1e-6f);
     const float NcDotL = fmaxf(dot(Nc, L), 0.0f);
     const float NcDotH = fmaxf(dot(Nc, H), 0.0f);
@@ -499,7 +500,7 @@ VISRTX_CALLABLE vec3 __direct_callable__evalBsdf(
 VISRTX_DEVICE float pbrBsdfPdf(
     const PhysicallyBasedShadingState *state, const vec3 &V, const vec3 &L)
 {
-  const vec3 N = state->normal;
+  const vec3 N = state->viewAdjustedNormal;
   const float NdotV = dot(N, V);
   const float NdotL = dot(N, L);
   if (!(NdotV > 0.0f) || !(NdotL > 0.0f))
@@ -552,7 +553,7 @@ VISRTX_DEVICE float pbrBsdfPdf(
 
   // Clearcoat is a top-level pick with probability ccProb; the base mixture
   // above is reached with the complementary (1 - ccProb).
-  const vec3 Nc = state->clearcoatNormal;
+  const vec3 Nc = state->viewAdjustedClearcoatNormal;
   const float NcDotV = fmaxf(dot(Nc, V), 0.0f);
   const float FcV = CLEARCOAT_F0 + (1.0f - CLEARCOAT_F0) * pow5(1.0f - NcDotV);
   const float ccProb = glm::clamp(state->clearcoat * FcV, 0.0f, 1.0f);
@@ -590,7 +591,7 @@ VISRTX_CALLABLE NextRay __direct_callable__nextRay(
   // exact weight makes the entry-side attenuation `1 - clearcoat·FcV` cancel
   // the `1/(1-pick)` lobe-pick divisor in the base path below, so the base
   // returns only need the exit-side `1 - clearcoat·FcL` multiplier.
-  const vec3 Nc = state->clearcoatNormal;
+  const vec3 Nc = state->viewAdjustedClearcoatNormal;
   const float NcDotV_world = fmaxf(dot(Nc, V), 0.0f);
   const float FcV_world =
       CLEARCOAT_F0 + (1.0f - CLEARCOAT_F0) * pow5(1.0f - NcDotV_world);
@@ -632,7 +633,7 @@ VISRTX_CALLABLE NextRay __direct_callable__nextRay(
     return glm::clamp(1.0f - state->clearcoat * FcL, 0.0f, 1.0f);
   };
 
-  const vec3 N = state->normal;
+  const vec3 N = state->viewAdjustedNormal;
   const mat3 toWorld = computeOrthonormalBasis(N);
   const mat3 toLocal = glm::transpose(toWorld);
   const vec3 Vlocal = toLocal * V;

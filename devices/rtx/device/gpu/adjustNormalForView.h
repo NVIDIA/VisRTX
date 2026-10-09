@@ -31,7 +31,7 @@
 
 #pragma once
 
-// Valid shading normal: a shading normal (mapped or interpolated) that leans
+// View-adjusted shading normal: a mapped or interpolated normal that leans
 // away from the viewer is raised toward the geometric normal until the view's
 // mirror direction clears the geometric surface. Port of Cycles'
 // ensure_valid_specular_reflection, as halcyon's PathPbm_validSpecularNormal.
@@ -46,7 +46,7 @@ namespace visrtx {
 // Ng: geometric normal facing the viewer. V: unit direction from the hit back
 // toward the viewer. N: unit shading normal. Returns N itself when it is Ng,
 // when it is already valid, or when there is no (N, Ng) plane to rotate it in.
-VISRTX_DEVICE vec3 validShadingNormal(
+VISRTX_DEVICE vec3 adjustNormalForView(
     const vec3 &Ng, const vec3 &V, const vec3 &N)
 {
   if (N == Ng)
