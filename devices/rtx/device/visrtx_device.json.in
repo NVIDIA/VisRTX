@@ -61,6 +61,7 @@
       "visrtx_renderer_quality",
       "visrtx_renderer_debug",
       "visrtx_renderer_default",
+      "visrtx_renderer_fog",
       "visrtx_triangle_back_face_culling",
       "visrtx_spatial_field_data_centering",
       "visrtx_spatial_field_region_of_interest",

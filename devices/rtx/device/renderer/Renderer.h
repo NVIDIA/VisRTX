@@ -38,6 +38,7 @@
 // optix
 #include <helium/utility/TimeStamp.h>
 #include <optix.h>
+#include <optional>
 // std
 #include <vector>
 // anari
@@ -87,6 +88,9 @@ struct Renderer : public Object
       std::string_view subtype, DeviceGlobalState *d);
 
  protected:
+  std::optional<FogGPUData> parseFogParameters();
+  FogGPUData m_fog{};
+
   vec4 m_bgColor{0.f, 0.f, 0.f, 1.f};
   int m_spp{1};
   vec3 m_ambientColor{1.f};
@@ -100,7 +104,8 @@ struct Renderer : public Object
   FireflyFilterMode m_fireflyFilterMode{FireflyFilterMode::TONEMAP};
   float m_fireflyFilterSigma{8.f}; // CLAMP mode: k in cap = mean + k*stddev
   int m_fireflyFilterWarmup{4}; // CLAMP mode: samples before the Welford cap
-  int m_fireflyFilterTrim{4}; // TRIM mode: brightest samples tracked/tested (ESD bound)
+  int m_fireflyFilterTrim{
+      4}; // TRIM mode: brightest samples tracked/tested (ESD bound)
   int m_sampleLimit{0};
   bool m_cullTriangleBF{false};
   bool m_premultiplyBackground{false};
@@ -135,6 +140,16 @@ struct Renderer : public Object
   // the old driver objects.
   void releasePipeline();
   void cleanup();
+
+  // Fog parameter parsing. nullopt disables fog for the committed state.
+  void reportInvalidFog(const char *name);
+  bool hasValidFogType(const char *name, ANARIDataType type);
+  std::optional<FogMode> parseFogMode();
+  std::optional<FogDistanceMetric> parseFogDistanceMetric();
+  std::optional<FogColorSource> parseFogColorSource();
+  std::optional<vec3> parseFogColor();
+  bool parseFogLinearRange(FogGPUData &fog);
+  bool parseFogDensity(FogGPUData &fog);
 
   HitgroupFunctionNames m_defaultHitgroupNames;
   std::string m_defaultMissName{"__miss__"};

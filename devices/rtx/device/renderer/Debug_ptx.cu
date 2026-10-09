@@ -59,6 +59,12 @@ struct BaseColorShadingPolicy
     return VISRTX_MASK_GEOMETRY;
   }
 
+  // Diagnostic output never commits fog; keep the lookups out of the pipeline.
+  static VISRTX_DEVICE constexpr bool appliesFog()
+  {
+    return false;
+  }
+
   static VISRTX_DEVICE vec3 shadeSurface(
       const MaterialShadingState &shadingState,
       ScreenSample &ss,

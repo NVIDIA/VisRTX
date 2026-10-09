@@ -41,6 +41,7 @@
 #include "gpu/lightProxyRadiance.h"
 #include "gpu/populateHit.h"
 #include "gpu/renderer/common.h"
+#include "gpu/renderer/fog.h"
 #include "gpu/renderer/shadowTransmittance.h"
 #include "gpu/sampleLight.h"
 #include "gpu/shadingState.h"
@@ -620,6 +621,12 @@ VISRTX_GLOBAL void __raygen__()
             * uint32_t(rendererParams.numIterations)
         + uint32_t(i);
     auto ray = makePrimaryRay(ss, sampleIdx, isVeryFirstRay);
+    const vec3 cameraOrigin = ray.org;
+    const vec3 cameraFogColor = fogColor(frameData, ss.pixel, ray.dir);
+    // RGB appearance of the first accepted camera surface. Never fold this
+    // into transport throughput: sampling, shadow work, RR and AOVs must still
+    // run when the shaded RGB is completely replaced by fog.
+    double appearanceWeight = 1.0;
 
     applyCuttingPlane(rendererParams.cutPlane, ray);
 
@@ -707,7 +714,8 @@ VISRTX_GLOBAL void __raygen__()
               const auto attenuation = surfaceShadowTransmittance(ss, shadowRay)
                   * volumeShadowTransmittance(ss, shadowRay);
               ss.shadowContribWeight = 1.0f;
-              sample.color += contribUpper * attenuation;
+              sample.color += applyFogVisibility(
+                  contribUpper * attenuation, appearanceWeight);
             }
           }
         }
@@ -788,8 +796,19 @@ VISRTX_GLOBAL void __raygen__()
         // the cutout without it being a scattering event, which would otherwise
         // have the weight and the radiance it scales disagree about which point
         // is being shaded.
-        sample.color += wEmission * sampleContribution
-            * lightProxyRadiance(frameData, surfaceHit, lastScatterOrigin);
+        const vec3 radiance =
+            lightProxyRadiance(frameData, surfaceHit, lastScatterOrigin);
+        // Coverage pass-through is still camera visibility. Once either a
+        // surface or volume scatters, the proxy is indirect radiance owned by
+        // the first visible surface (if any), not another fog event.
+        const vec3 visibleRadiance = isCameraRay ? fogSurface(frameData,
+                                                       surfaceHit.hitpoint,
+                                                       cameraOrigin,
+                                                       radiance,
+                                                       cameraFogColor)
+                                                 : radiance;
+        sample.color += applyFogVisibility(
+            wEmission * sampleContribution * visibleRadiance, appearanceWeight);
         // A visible light COVERS the pixel. Without this the alpha channel
         // reports the pixel as empty while carrying the light's radiance, and
         // the background gets composited in behind it -- a visibly wrong,
@@ -810,6 +829,18 @@ VISRTX_GLOBAL void __raygen__()
             materialEvaluateEmission(shadingState, -ray.dir);
         const vec3 materialTint = materialEvaluateTint(shadingState);
         const float opacity = materialEvaluateOpacity(shadingState);
+
+        double surfaceAppearanceWeight = appearanceWeight;
+        if (isCameraRay) {
+          const auto appearance =
+              fogAppearance(frameData, surfaceHit.hitpoint, cameraOrigin);
+          surfaceAppearanceWeight = appearance.visibility;
+          // Like local emission/NEE, the additive term uses analytic opacity.
+          // A coverage rejection below leaves the camera appearance weight
+          // unchanged, so the next directly visible layer uses its own depth.
+          sample.color += sampleContribution * opacity
+              * fogInscatter(appearance, cameraFogColor);
+        }
 
         if (isFirstBounce) {
           setPixelIds(frameData.fb,
@@ -836,8 +867,9 @@ VISRTX_GLOBAL void __raygen__()
           if (pNee > 0.0f)
             wEmission = bsdfPdf / (bsdfPdf + pNee);
         }
-        sample.color +=
-            wEmission * sampleContribution * opacity * materialEmission;
+        sample.color += applyFogVisibility(
+            wEmission * sampleContribution * opacity * materialEmission,
+            surfaceAppearanceWeight);
         // Sample around the shading normal so the cosine-weighted hemisphere's
         // pdf matches the BRDF's NdotL (which uses Ns). Sampling around Ng
         // would bias the Lambertian estimator by cos_Ns/cos_Ng on smooth or
@@ -917,7 +949,8 @@ VISRTX_GLOBAL void __raygen__()
                     surfaceShadowTransmittance(ss, shadowRay)
                     * volumeShadowTransmittance(ss, shadowRay);
                 ss.shadowContribWeight = 1.0f;
-                sample.color += contribUpper * attenuation;
+                sample.color += applyFogVisibility(
+                    contribUpper * attenuation, surfaceAppearanceWeight);
               }
             }
           }
@@ -957,7 +990,8 @@ VISRTX_GLOBAL void __raygen__()
                     surfaceShadowTransmittance(ss, shadowRay)
                     * volumeShadowTransmittance(ss, shadowRay);
                 ss.shadowContribWeight = 1.0f;
-                sample.color += contribUpper * attenuation;
+                sample.color += applyFogVisibility(
+                    contribUpper * attenuation, surfaceAppearanceWeight);
               }
             }
           }
@@ -974,6 +1008,10 @@ VISRTX_GLOBAL void __raygen__()
           continue;
         }
 
+        // All radiance returned by reflection/refraction belongs to this
+        // accepted surface. Subsequent transport must not apply another fog
+        // operation, even if it crosses more coverage layers.
+        appearanceWeight = surfaceAppearanceWeight;
         auto nextRay = materialNextRay(shadingState, ray, ss.rs);
         sampleContribution *= nextRay.contributionWeight;
 
@@ -1016,7 +1054,8 @@ VISRTX_GLOBAL void __raygen__()
           const float wBsdf = isinf(bsdfPdf) ? 1.0f
               : bsdfPdf > 0.0f ? bsdfPdf / (bsdfPdf + pLight + pCosine)
                                : 0.0f;
-          sample.color += wBsdf * sampleContribution * hdri;
+          sample.color += applyFogVisibility(
+              wBsdf * sampleContribution * hdri, appearanceWeight);
           accumulateValue(sample.opacity, 1.f, sample.opacity);
         }
 

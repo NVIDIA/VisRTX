@@ -53,6 +53,7 @@ struct VisRTXExtensions
   int VISRTX_SPATIAL_FIELD_NANOVDB_RECTILINEAR;
   int VISRTX_TRIANGLE_BACK_FACE_CULLING;
   int VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES;
+  int VISRTX_RENDERER_FOG;
 };
 
 int visrtxGetInstanceExtensions(
@@ -73,21 +74,41 @@ VisRTXExtensions getInstanceExtensions(anari::Device, anari::Object);
 // Definitions ////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
+static inline int visrtxListHasExtension(
+    const char *const *list, const char *name)
+{
+  for (; *list; ++list) {
+    if (std::strcmp(*list, name) == 0)
+      return 1;
+  }
+  return 0;
+}
+
 inline int visrtxGetObjectExtensions(VisRTXExtensions *extensions,
     ANARIDevice device,
-    ANARIDataType /*objectType*/,
-    const char * /*objectSubtype*/)
+    ANARIDataType objectType,
+    const char *objectSubtype)
 {
-  // The VisRTX extension flags live in the device extension list; per-subtype
-  // extension queries are not populated in the generated query tables.
+  // Retain device-wide discovery for the legacy utility flags. Fog is scoped
+  // to the requested subtype; a device capability is not a renderer promise.
   const char *const *list = (const char *const *)anariGetObjectInfo(
       device, ANARI_DEVICE, NULL, "extension", ANARI_STRING_LIST);
-  if (list) {
-    visrtx::fillExtensionStruct(extensions, list);
-    return 1;
-  } else {
+  if (!list)
     return 0;
+  visrtx::fillExtensionStruct(extensions, list);
+  if (objectType == ANARI_DEVICE)
+    return 1;
+
+  extensions->VISRTX_RENDERER_FOG = 0;
+  if (objectType != ANARI_RENDERER || !objectSubtype)
+    return 1;
+  const char *const *subtypeList = (const char *const *)anariGetObjectInfo(
+      device, objectType, objectSubtype, "extension", ANARI_STRING_LIST);
+  if (subtypeList) {
+    extensions->VISRTX_RENDERER_FOG =
+        visrtxListHasExtension(subtypeList, "ANARI_VISRTX_RENDERER_FOG");
   }
+  return 1;
 }
 
 inline int visrtxGetInstanceExtensions(
@@ -137,6 +158,8 @@ inline void fillExtensionStruct(
       extensions->VISRTX_TRIANGLE_BACK_FACE_CULLING = 1;
     else if (feature == "ANARI_VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES")
       extensions->VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES = 1;
+    else if (feature == "ANARI_VISRTX_RENDERER_FOG")
+      extensions->VISRTX_RENDERER_FOG = 1;
     else if (feature == "ANARI_VISRTX_MATERIAL_MDL")
 #ifdef USE_MDL
       extensions->VISRTX_MATERIAL_MDL = 1;

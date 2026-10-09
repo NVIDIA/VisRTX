@@ -32,6 +32,7 @@
 #include "Frame.h"
 #include "gpu/gpu_tonemap.h"
 #include "gpu/gpu_util.h"
+#include "gpu/renderer/background.h"
 #include "utility/instrument.h"
 // std
 #include <algorithm>
@@ -315,19 +316,12 @@ __global__ void compositeBackground(vec4 *__restrict__ accumColor,
 
   const vec2 uv = (vec2(px, py) + 0.5f) * invSize;
 
-  vec4 bg;
-  if (renderer.backgroundMode == BackgroundMode::COLOR) {
-    bg = renderer.background.color;
-  } else {
-    const auto s = tex2D<float4>(renderer.background.texobj, uv.x, uv.y);
-    bg = vec4(s.x, s.y, s.z, s.w);
-  }
+  const vec4 bg = screenBackground(renderer, uv);
 
   vec3 rgb = vec3(rendered);
   float alpha = rendered.a;
 
-  const bool premultiplyBg = renderer.premultiplyBackground;
-  accumulateValue(rgb, premultiplyBg ? vec3(bg) * bg.a : vec3(bg), alpha);
+  accumulateValue(rgb, vec3(bg), alpha);
   accumulateValue(alpha, bg.a, alpha);
 
   vec4 rgba = vec4(rgb, alpha);

@@ -49,6 +49,7 @@ Interactive::Interactive(DeviceGlobalState *s) : Renderer(s, 0.f) {}
 void Interactive::commitParameters()
 {
   Renderer::commitParameters();
+  m_fog = parseFogParameters().value_or(FogGPUData{});
   m_lightFalloff = std::clamp(getParam<float>("lightFalloff", 1.f), 0.f, 1.f);
   m_aoSamples = std::clamp(getParam<int>("ambientSamples", 1), 0, 256);
   m_volumeSamplingRateShadows = std::clamp(

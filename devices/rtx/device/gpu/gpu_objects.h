@@ -966,9 +966,42 @@ union RendererBackgroundGPUData
   cudaTextureObject_t texobj;
 };
 
+enum class FogMode
+{
+  NONE,
+  LINEAR,
+  EXP,
+  EXP2
+};
+
+enum class FogDistanceMetric
+{
+  VIEW_DEPTH,
+  RAY_DISTANCE
+};
+
+enum class FogColorSource
+{
+  CONSTANT,
+  BACKGROUND
+};
+
+struct FogGPUData
+{
+  FogMode mode;
+  FogDistanceMetric distanceMetric;
+  FogColorSource colorSource;
+  vec3 color;
+  // Preserve accepted subnormal FLOAT32 parameters under GPU fast-math FTZ.
+  double start;
+  double end;
+  double density;
+};
+
 struct RendererGPUData
 {
   RendererParametersGPUData params;
+  FogGPUData fog;
   BackgroundMode backgroundMode;
   RendererBackgroundGPUData background;
   glm::vec3 ambientColor;
