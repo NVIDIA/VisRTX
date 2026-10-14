@@ -31,18 +31,19 @@
 
 #pragma once
 
-#include <driver_types.h>
-#include <glm/fwd.hpp>
 #include "Sampler.h"
 #include "array/Array1D.h"
 #include "utility/CudaImageTexture.h"
 
 namespace visrtx {
 
+/* Block-compressed (BC1-BC7) 2D texture over an Array1D of blocks. Owns its
+ * own cudaArray, since NumericArray only stores uncompressed elements.
+ */
 struct CompressedImage2D : public Sampler
 {
   CompressedImage2D(DeviceGlobalState *d);
-  ~CompressedImage2D();
+  ~CompressedImage2D() override;
 
   void commitParameters() override;
   void finalize() override;
@@ -53,15 +54,21 @@ struct CompressedImage2D : public Sampler
  private:
   SamplerGPUData gpuData() const override;
 
-  void cleanup();
+  void cleanupTextureObjects();
+  void cleanupCudaArray();
 
   std::string m_filter;
   std::string m_wrap1;
   std::string m_wrap2;
   std::string m_format;
-  uvec2 m_size;
+  uvec2 m_size{0};
   helium::ChangeObserverPtr<Array1D> m_image;
-  helium::TimeStamp m_imageLastUpdated{};
+
+  // Source of the current cudaArray contents; a change in any re-uploads it.
+  helium::TimeStamp m_cuArrayUploaded{0};
+  std::string m_cuArrayFormat;
+  uvec2 m_cuArraySize{0};
+  helium::TimeStamp m_cuArrayFailure{0};
 
   cudaArray_t m_cuArray{};
   cudaTextureObject_t m_texture{};

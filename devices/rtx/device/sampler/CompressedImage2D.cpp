@@ -30,10 +30,13 @@
  */
 
 #include "CompressedImage2D.h"
+
 #include <anari/frontend/anari_enums.h>
 #include <cuda_runtime_api.h>
 #include <driver_types.h>
-#include "utility/CudaImageTexture.h"
+
+#include <optional>
+#include <string_view>
 
 // Texture size is specified as a uint64_2 in the specifications.
 // Let's make sure we can process that.
@@ -43,13 +46,61 @@ ANARI_TYPEFOR_SPECIALIZATION(glm::u64vec2, ANARI_UINT64_VEC2);
 
 namespace visrtx {
 
+namespace {
+
+struct CompressedFormat
+{
+  cudaChannelFormatKind kind;
+  int numChannels;
+};
+
+std::optional<CompressedFormat> parseFormat(std::string_view format)
+{
+  if (format == "BC1_RGB" || format == "BC1_RGBA")
+    return CompressedFormat{cudaChannelFormatKindUnsignedBlockCompressed1, 4};
+  if (format == "BC1_RGB_SRGB" || format == "BC1_RGBA_SRGB")
+    return CompressedFormat{
+        cudaChannelFormatKindUnsignedBlockCompressed1SRGB, 4};
+  if (format == "BC2")
+    return CompressedFormat{cudaChannelFormatKindUnsignedBlockCompressed2, 4};
+  if (format == "BC2_SRGB")
+    return CompressedFormat{
+        cudaChannelFormatKindUnsignedBlockCompressed2SRGB, 4};
+  if (format == "BC3")
+    return CompressedFormat{cudaChannelFormatKindUnsignedBlockCompressed3, 4};
+  if (format == "BC3_SRGB")
+    return CompressedFormat{
+        cudaChannelFormatKindUnsignedBlockCompressed3SRGB, 4};
+  if (format == "BC4")
+    return CompressedFormat{cudaChannelFormatKindUnsignedBlockCompressed4, 1};
+  if (format == "BC4_SNORM")
+    return CompressedFormat{cudaChannelFormatKindSignedBlockCompressed4, 1};
+  if (format == "BC5")
+    return CompressedFormat{cudaChannelFormatKindUnsignedBlockCompressed5, 2};
+  if (format == "BC5_SNORM")
+    return CompressedFormat{cudaChannelFormatKindSignedBlockCompressed5, 2};
+  if (format == "BC6H_UFLOAT")
+    return CompressedFormat{cudaChannelFormatKindUnsignedBlockCompressed6H, 4};
+  if (format == "BC6H_SFLOAT")
+    return CompressedFormat{cudaChannelFormatKindSignedBlockCompressed6H, 4};
+  if (format == "BC7")
+    return CompressedFormat{cudaChannelFormatKindUnsignedBlockCompressed7, 4};
+  if (format == "BC7_SRGB")
+    return CompressedFormat{
+        cudaChannelFormatKindUnsignedBlockCompressed7SRGB, 4};
+  return std::nullopt;
+}
+
+} // namespace
+
 CompressedImage2D::CompressedImage2D(DeviceGlobalState *d)
     : Sampler(d), m_image(this)
 {}
 
 CompressedImage2D::~CompressedImage2D()
 {
-  cleanup();
+  cleanupTextureObjects();
+  cleanupCudaArray();
 }
 
 void CompressedImage2D::commitParameters()
@@ -58,144 +109,143 @@ void CompressedImage2D::commitParameters()
   m_filter = getParamString("filter", "linear");
   m_wrap1 = getParamString("wrapMode1", "clampToEdge");
   m_wrap2 = getParamString("wrapMode2", "clampToEdge");
-  auto size64 = getParam("size", glm::u64vec2(0, 0));
-  m_size = {size64.x, size64.y};
+  const auto size64 = getParam("size", glm::u64vec2(0, 0));
+  m_size = {uint32_t(size64.x), uint32_t(size64.y)};
+  if (size64.x > UINT32_MAX || size64.y > UINT32_MAX)
+    m_size = {};
   m_format = getParamString("format", "");
-  auto *oldImage = m_image.get();
   m_image = getParamObject<Array1D>("image");
-  if (oldImage != m_image.get())
-    m_imageLastUpdated = {};
 }
 
 void CompressedImage2D::finalize()
 {
+  // Texture objects carry filter/wrap/border state: always rebuild them.
+  cleanupTextureObjects();
+
   if (!m_image) {
+    cleanupCudaArray();
+    upload();
     reportMessage(ANARI_SEVERITY_WARNING,
-        "missing required parameter 'image' on CompressedImage2D sampler");
+        "missing required parameter 'image' on compressedImage2D sampler");
     return;
   }
 
-  const ANARIDataType format = m_image->elementType();
-  if (format != ANARI_UINT8 && format != ANARI_INT8) {
+  const ANARIDataType elementType = m_image->elementType();
+  if (elementType != ANARI_UINT8 && elementType != ANARI_INT8) {
+    cleanupCudaArray();
+    upload();
     reportMessage(ANARI_SEVERITY_WARNING,
-        "invalid texture type encountered in CompressedImage2D sampler (%s). Must be ANARI_UINT8 or ANARI_INT8.",
-        anari::toString(format));
+        "invalid image element type on compressedImage2D sampler (%s); "
+        "must be ANARI_UINT8 or ANARI_INT8",
+        anari::toString(elementType));
     return;
   }
 
-  auto imageDataModified = m_image->lastDataModified();
-  if (m_imageLastUpdated != imageDataModified) {
-    m_imageLastUpdated = imageDataModified;
+  const auto format = parseFormat(m_format);
+  if (!format) {
+    cleanupCudaArray();
+    upload();
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "invalid format '%s' on compressedImage2D sampler",
+        m_format.c_str());
+    return;
+  }
 
-    cleanup();
-    // Zero the handle only when actually rebuilding: an equal-stamp
-    // re-finalize (buffered re-commit) must keep the live array — zeroing it
-    // here used to leak it (cleanup() would later free a null handle).
-    m_cuArray = {};
+  if (m_size.x == 0 || m_size.y == 0) {
+    cleanupCudaArray();
+    upload();
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "missing or invalid 'size' on compressedImage2D sampler");
+    return;
+  }
 
-    cudaChannelFormatKind channelFormatKind;
-
-    if (m_format == "BC1_RGB" || m_format == "BC1_RGBA") {
-      channelFormatKind = cudaChannelFormatKindUnsignedBlockCompressed1;
-    } else if (m_format == "BC1_RGB_SRGB" || m_format == "BC1_RGBA_SRGB") {
-      channelFormatKind = cudaChannelFormatKindUnsignedBlockCompressed1SRGB;
-    } else if (m_format == "BC2") {
-      channelFormatKind = cudaChannelFormatKindUnsignedBlockCompressed2;
-    } else if (m_format == "BC2_SRGB") {
-      channelFormatKind = cudaChannelFormatKindUnsignedBlockCompressed2SRGB;
-    } else if (m_format == "BC3") {
-      channelFormatKind = cudaChannelFormatKindUnsignedBlockCompressed3;
-    } else if (m_format == "BC3_SRGB") {
-      channelFormatKind = cudaChannelFormatKindUnsignedBlockCompressed3SRGB;
-    } else if (m_format == "BC4") {
-      channelFormatKind = cudaChannelFormatKindUnsignedBlockCompressed4;
-    } else if (m_format == "BC4_SNORM") {
-      channelFormatKind = cudaChannelFormatKindSignedBlockCompressed4;
-    } else if (m_format == "BC5") {
-      channelFormatKind = cudaChannelFormatKindUnsignedBlockCompressed5;
-    } else if (m_format == "BC5_SNORM") {
-      channelFormatKind = cudaChannelFormatKindUnsignedBlockCompressed5;
-    } else if (m_format == "BC6H_UFLOAT") {
-      channelFormatKind = cudaChannelFormatKindUnsignedBlockCompressed6H;
-    } else if (m_format == "BC6H_SFLOAT") {
-      channelFormatKind = cudaChannelFormatKindSignedBlockCompressed6H;
-    } else if (m_format == "BC7") {
-      channelFormatKind = cudaChannelFormatKindUnsignedBlockCompressed7;
-    } else if (m_format == "BC7_SRGB") {
-      channelFormatKind = cudaChannelFormatKindUnsignedBlockCompressed7SRGB;
-    } else {
-      reportMessage(ANARI_SEVERITY_WARNING,
-          "invalid texture format encountered in CompressedImage2D sampler (%s)",
-          m_format);
+  const auto modified = m_image->lastDataModified();
+  if (!m_cuArray || m_cuArrayUploaded < modified || m_cuArrayFormat != m_format
+      || m_cuArraySize != m_size) {
+    cleanupCudaArray();
+    const auto error = makeCudaCompressedTextureArray(m_cuArray,
+        m_size,
+        m_image->begin(AddressSpace::HOST) ? m_image->begin(AddressSpace::HOST)
+                                           : m_image->begin(AddressSpace::GPU),
+        m_image->size() * anari::sizeOf(elementType),
+        format->kind);
+    if (error != cudaSuccess) {
+      // Handled here; do not leave it for a later CUDA call to pick up.
+      cudaGetLastError();
+      if (m_cuArrayFailure != modified) {
+        m_cuArrayFailure = modified;
+        reportMessage(ANARI_SEVERITY_ERROR,
+            "compressedImage2D upload failed (%s %ux%u, %zu bytes): %s",
+            m_format.c_str(),
+            m_size.x,
+            m_size.y,
+            m_image->size() * anari::sizeOf(elementType),
+            cudaGetErrorString(error));
+      }
+      upload();
       return;
     }
-    makeCudaCompressedTextureArray(
-        m_cuArray, m_size, *m_image.get(), channelFormatKind);
-
-    m_texture = makeCudaCompressedTextureObject2D(m_cuArray,
-        channelFormatKind,
-        m_filter,
-        m_wrap1,
-        m_wrap2,
-        m_borderColor);
-    m_texels = makeCudaCompressedTexelObject2D(m_cuArray,
-        channelFormatKind,
-        "nearest",
-        m_wrap1,
-        m_wrap2,
-        m_borderColor);
+    m_cuArrayUploaded = modified;
+    m_cuArrayFormat = m_format;
+    m_cuArraySize = m_size;
   }
+
+  m_texture = makeCudaCompressedTextureObject2D(
+      m_cuArray, format->kind, m_filter, m_wrap1, m_wrap2, m_borderColor);
+  m_texels = makeCudaCompressedTexelObject2D(
+      m_cuArray, format->kind, "nearest", m_wrap1, m_wrap2, m_borderColor);
+  if (!m_texture || !m_texels)
+    cleanupTextureObjects();
 
   upload();
 }
 
 bool CompressedImage2D::isValid() const
 {
-  return m_image;
+  return m_texture && m_texels;
 }
 
 int CompressedImage2D::numChannels() const
 {
-  if (m_format == "BC1_RGB" || m_format == "BC1_RGBA") {
-    return 4;
-  } else if (m_format == "BC1_RGB_SRGB" || m_format == "BC1_RGBA_SRGB") {
-    return 4;
-  } else if (m_format == "BC2" || m_format == "BC2_SRGB") {
-    return 4;
-  } else if (m_format == "BC3" || m_format == "BC3_SRGB") {
-    return 4;
-  } else if (m_format == "BC4" || m_format == "BC4_SNORM") {
-    return 1;
-  } else if (m_format == "BC5" || m_format == "BC5_SNORM") {
-    return 2;
-  } else if (m_format == "BC6H_UFLOAT" || m_format == "BC6H_SFLOAT") {
-    return 4;
-  } else if (m_format == "BC7" || m_format == "BC7_SRGB") {
-    return 4;
-  } else {
-    return 0;
-  }
+  const auto format = parseFormat(m_format);
+  return format ? format->numChannels : 0;
 }
 
 SamplerGPUData CompressedImage2D::gpuData() const
 {
   SamplerGPUData retval = Sampler::gpuData();
+  if (!isValid())
+    return retval;
   retval.type = SamplerType::TEXTURE2D;
   retval.image2D.texobj = m_texture;
   retval.image2D.texelTexobj = m_texels;
-  retval.image2D.size = m_size;
-  retval.image2D.invSize = glm::vec2(1.0f / m_size.x, 1.0f / m_size.y);
+  retval.image2D.size = m_cuArraySize;
+  retval.image2D.invSize =
+      glm::vec2(1.0f / m_cuArraySize.x, 1.0f / m_cuArraySize.y);
 
   return retval;
 }
 
-void CompressedImage2D::cleanup()
+void CompressedImage2D::cleanupTextureObjects()
 {
-  if (m_image && m_texture) {
+  if (m_texels)
     cudaDestroyTextureObject(m_texels);
+  if (m_texture)
     cudaDestroyTextureObject(m_texture);
+  m_texels = {};
+  m_texture = {};
+}
+
+void CompressedImage2D::cleanupCudaArray()
+{
+  // Texture objects must be gone before their storage.
+  cleanupTextureObjects();
+  if (m_cuArray)
     cudaFreeArray(m_cuArray);
-  }
+  m_cuArray = {};
+  m_cuArrayUploaded = {};
+  m_cuArrayFormat.clear();
+  m_cuArraySize = {};
 }
 
 } // namespace visrtx
