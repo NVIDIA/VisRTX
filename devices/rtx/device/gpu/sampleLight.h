@@ -187,7 +187,7 @@ VISRTX_DEVICE LightSample sampleRectLight(
 
   if (rel.cosTheta > 0.0f) {
     // Lambertian radiance. cosTheta is handled through pdf below.
-    ls.radiance = rectRadiance(ld.rect, ld.color);
+    ls.radiance = rectRadiance(ld.rect, ld.color, rel.cosTheta);
     ls.pdf = rel.solidAnglePdf;
   } else {
     // No emission toward surfaces facing away from the light

@@ -1,0 +1,40 @@
+{
+  "info": {
+    "name": "VISRTX_LIGHT_QUAD_FOCUS",
+    "type": "extension",
+    "dependencies": [
+      "khr_light_quad"
+    ]
+  },
+  "objects": [
+    {
+      "type": "ANARI_LIGHT",
+      "name": "quad",
+      "parameters": [
+        {
+          "name": "focus",
+          "types": [
+            "ANARI_FLOAT32"
+          ],
+          "tags": [],
+          "default": 0,
+          "minimum": 0,
+          "description": "USD Lux cosine-power emission focus; zero is unfocused. No power renormalization."
+        },
+        {
+          "name": "focusTint",
+          "types": [
+            "ANARI_FLOAT32_VEC3"
+          ],
+          "tags": [],
+          "default": [
+            0,
+            0,
+            0
+          ],
+          "description": "Off-axis linear RGB tint, interpolated toward white by abs(axis dot emissionDirection)^focus. White disables focus."
+        }
+      ]
+    }
+  ]
+}

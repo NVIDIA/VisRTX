@@ -715,6 +715,12 @@ struct RectLightGPUData
     unsigned int back : 1;
   } side;
   float oneOverArea;
+  float coneAngle;
+  float innerAngle;
+  float cosOuterAngle;
+  float cosInnerAngle;
+  float focus;
+  vec3 focusTint;
 };
 
 struct SpotLightGPUData
