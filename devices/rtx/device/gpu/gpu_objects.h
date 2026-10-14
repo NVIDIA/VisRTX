@@ -705,6 +705,8 @@ struct SphereLightGPUData
 
 struct RectLightGPUData
 {
+  cudaTextureObject_t colorMap;
+  vec3 colorMapMean;
   vec3 position;
   vec3 edge1;
   vec3 edge2;
