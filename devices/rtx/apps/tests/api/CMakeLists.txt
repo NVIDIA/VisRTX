@@ -44,6 +44,7 @@ if (VISRTX_ENABLE_MDL_SUPPORT)
 endif()
 make_test(TestQuadLightShaping)
 make_test(TestQuadLightFocus)
+make_test(TestQuadLightTexture)
 
 if (WIN32)
   return()

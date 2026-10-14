@@ -23,7 +23,7 @@ static int g_failures = 0;
 #define CHECK(cond)                                                            \
   do {                                                                         \
     if (!(cond)) {                                                             \
-      std::printf("FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);             \
+      std::printf("FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);              \
       ++g_failures;                                                            \
     }                                                                          \
   } while (0)
@@ -37,7 +37,8 @@ static LightGPUData pointLight(float intensity, const vec3 &color = vec3(1.f))
   return ld;
 }
 
-static LightGPUData rectLight(float intensity, float oneOverArea, bool front, bool back)
+static LightGPUData rectLight(
+    float intensity, float oneOverArea, bool front, bool back)
 {
   LightGPUData ld{};
   ld.type = LightType::RECT;
@@ -89,15 +90,32 @@ int main()
         lightPickPower(rectLight(1.f, 0.25f, true, false), identity, radius);
     const float bothSides =
         lightPickPower(rectLight(1.f, 0.25f, true, true), identity, radius);
-    CHECK(bothSides > 2.f * oneSide - 1e-3f
-        && bothSides < 2.f * oneSide + 1e-3f);
+    CHECK(
+        bothSides > 2.f * oneSide - 1e-3f && bothSides < 2.f * oneSide + 1e-3f);
     // Larger area (smaller oneOverArea) => more power.
     const float bigger =
         lightPickPower(rectLight(1.f, 0.1f, true, false), identity, radius);
     CHECK(bigger > oneSide);
   }
 
-  // Non-uniform instance scale enlarges an area light's Pick Power (area grows).
+  // Texture means modulate power after multiplication by the light color.
+  {
+    auto rect = rectLight(1.f, .25f, true, false);
+    const float white = lightPickPower(rect, identity, radius);
+    rect.rect.colorMap =
+        1; // nonzero marker; this CPU test does not sample CUDA
+    rect.rect.colorMapMean = vec3(.25f);
+    CHECK(std::abs(lightPickPower(rect, identity, radius) - .25f * white)
+        < 1e-5f * white);
+    rect.rect.colorMapMean = vec3(0.f);
+    CHECK(lightPickPower(rect, identity, radius) == 0.f);
+    rect.color = vec3(1.f, 0.f, 0.f);
+    rect.rect.colorMapMean = vec3(0.f, 1.f, 0.f);
+    CHECK(lightPickPower(rect, identity, radius) == 0.f);
+  }
+
+  // Non-uniform instance scale enlarges an area light's Pick Power (area
+  // grows).
   {
     const auto rect = rectLight(1.f, 0.25f, true, false);
     const float base = lightPickPower(rect, identity, radius);
@@ -113,7 +131,8 @@ int main()
     CHECK(big > 3.9f * small && big < 4.1f * small); // 2^2 = 4x
   }
 
-  // Sphere (a point light with radius > 0): power grows with intensity and area.
+  // Sphere (a point light with radius > 0): power grows with intensity and
+  // area.
   {
     LightGPUData dim{}, bright{}, bigger{};
     dim.type = bright.type = bigger.type = LightType::SPHERE;
@@ -189,7 +208,8 @@ int main()
     CHECK(lightPickPower(higherMean, identity, radius)
         > lightPickPower(env, identity, radius));
     CHECK(lightPickPower(black, identity, radius) == 0.f);
-    CHECK(lightPickPower(env, identity, 2.f) > lightPickPower(env, identity, 1.f));
+    CHECK(lightPickPower(env, identity, 2.f)
+        > lightPickPower(env, identity, 1.f));
   }
 
   if (g_failures) {

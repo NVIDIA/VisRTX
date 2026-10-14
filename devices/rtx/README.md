@@ -372,3 +372,17 @@ For any found bugs in extensions that are implemented, please [open an
 issue](https://github.com/NVIDIA/VisRTX/issues/new)!
 
 The `ANARI_VISRTX_LIGHT_QUAD_FOCUS` extension adds quad `focus` (nonnegative exponent, default 0) and `focusTint` (linear RGB, default black). Radiance is multiplied by `mix(focusTint, white, abs(axis dot emissionDirection)^focus)` and the cone cutoff/softness. White tint disables focus. Sampling density stays unchanged, with shared NEE/proxy radiance; no emission power renormalization is applied. `TestQuadLightFocus` covers retained edits, tint/default restoration, illumination and visible proxies in interactive and quality modes.
+
+### Textured quad emission
+
+`ANARI_VISRTX_LIGHT_QUAD_TEXTURE` adds an optional `colorMap` ARRAY2D of
+FLOAT32_VEC3 to quad lights. Finite nonnegative linear RGB values multiply
+`color * intensity`; their average is not normalized. Array dimensions map
+along `edge1` and `edge2` in [0,1]. Bilinear filtering clamps at edges.
+Unsetting the map restores untextured emission. Direct and visible/reflected
+emission use the same map, retaining sidedness and primary visibility.
+When cone/focus extensions are available, their modulation is retained.
+Uniform area sampling is retained; small bright features may need more samples.
+Image edits refresh resident texels and power-based light selection. Invalid
+formats or values warn and use untextured emission. This spatial image is
+distinct from angular photometric intensity distributions.

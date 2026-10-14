@@ -58,6 +58,7 @@ struct VisRTXExtensions
   int VISRTX_MDL_ANIMATION_TIME;
   int VISRTX_LIGHT_QUAD_SHAPING;
   int VISRTX_LIGHT_QUAD_FOCUS;
+  int VISRTX_LIGHT_QUAD_TEXTURE;
 };
 
 int visrtxGetInstanceExtensions(
@@ -172,6 +173,8 @@ inline void fillExtensionStruct(
       extensions->VISRTX_LIGHT_QUAD_SHAPING = 1;
     else if (feature == "ANARI_VISRTX_LIGHT_QUAD_FOCUS")
       extensions->VISRTX_LIGHT_QUAD_FOCUS = 1;
+    else if (feature == "ANARI_VISRTX_LIGHT_QUAD_TEXTURE")
+      extensions->VISRTX_LIGHT_QUAD_TEXTURE = 1;
     else if (feature == "ANARI_VISRTX_MATERIAL_MDL")
 #ifdef USE_MDL
       extensions->VISRTX_MATERIAL_MDL = 1;

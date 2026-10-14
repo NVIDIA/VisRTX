@@ -30,17 +30,74 @@
  */
 
 #include "Rect.h"
+#include <cuda_runtime.h>
+#include "sampler/TextureStats.h"
+#include "utility/CudaImageTexture.h"
 
 #include <algorithm>
 #include <cmath>
 
 namespace visrtx {
 
-Rect::Rect(DeviceGlobalState *d) : Light(d) {}
+Rect::Rect(DeviceGlobalState *d) : Light(d), m_colorMap(this) {}
+
+Rect::~Rect()
+{
+  cleanupColorMap();
+}
+
+void Rect::cleanupColorMap()
+{
+  if (m_colorTexture) {
+    cudaDestroyTextureObject(m_colorTexture);
+    m_colorTexture = {};
+  }
+  m_colorMapMean = vec3(1.f);
+}
+
+void Rect::finalize()
+{
+  if (m_colorMap && m_colorMap->elementType() != ANARI_FLOAT32_VEC3) {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "quad colorMap requires a FLOAT32_VEC3 image; using untextured emission");
+    cleanupColorMap();
+    m_colorMap = nullptr;
+  }
+  if (m_colorMap && m_colorMapStamp != m_colorMap->lastDataModified()) {
+    cleanupColorMap();
+    m_colorMapStamp = m_colorMap->lastDataModified();
+    const size_t count = size_t(m_colorMap->size(0)) * m_colorMap->size(1);
+    DeviceBuffer staging;
+    const void *data = m_colorMap->stagedDataGPU(staging);
+    const auto stats = data && count
+        ? reduceTexelsDevice(data, TexelFormat::Float32, 3, 3, count)
+        : TexelAccum{};
+    if (data && count && stats.finite && stats.minValue[0] >= 0.f
+        && stats.minValue[1] >= 0.f && stats.minValue[2] >= 0.f) {
+      if (auto array = m_colorMap->cudaArray()) {
+        m_colorTexture = makeCudaTextureObject2D(
+            array, false, "linear", "clampToEdge", "clampToEdge");
+        m_colorMapMean = vec3(float(stats.posSum[0] / count),
+            float(stats.posSum[1] / count),
+            float(stats.posSum[2] / count));
+      }
+    } else {
+      reportMessage(ANARI_SEVERITY_WARNING,
+          "quad colorMap requires finite nonnegative RGB; using untextured emission");
+    }
+  }
+  upload();
+}
 
 void Rect::commitParameters()
 {
   Light::commitParameters();
+  auto *image = getParamObject<Array2D>("colorMap");
+  if (image != m_colorMap.get()) {
+    cleanupColorMap();
+    m_colorMap = image;
+    m_colorMapStamp = {};
+  }
   m_position = getParam<vec3>("position", vec3(0.f, 0.f, 0.f));
   m_edge1 = getParam<vec3>("edge1", vec3(1.f, 0.f, 0.f));
   m_edge2 = getParam<vec3>("edge2", vec3(0.f, 1.f, 0.f));
@@ -77,7 +134,8 @@ void Rect::commitParameters()
   else if (side == "both")
     m_side = Side::BOTH;
   else {
-    reportMessage(ANARI_SEVERITY_WARNING, "Invalid 'side' parameter on rect light");
+    reportMessage(
+        ANARI_SEVERITY_WARNING, "Invalid 'side' parameter on rect light");
     m_side = Side::FRONT;
   }
 }
@@ -90,6 +148,8 @@ LightGPUData Rect::gpuData() const
   retval.rect.edge1 = m_edge1;
   retval.rect.edge2 = m_edge2;
   retval.rect.intensity = m_intensity;
+  retval.rect.colorMap = m_colorTexture;
+  retval.rect.colorMapMean = m_colorMapMean;
   retval.rect.focus = m_focus;
   retval.rect.focusTint = m_focusTint;
   retval.rect.coneAngle = m_coneAngle;

@@ -33,6 +33,7 @@
 
 #include "gpu/gpu_objects.h"
 #include "gpu/lightGeometry.h"
+#include "gpu/quadLightTexture.h"
 
 namespace visrtx {
 
@@ -57,11 +58,13 @@ VISRTX_DEVICE vec3 lightProxyRadiance(
   case LightType::RECT: {
     // Preserve the existing constant-radiance path for unshaped emitters.
     if (!rectHasShaping(ld.rect))
-      return rectRadiance(ld.rect, ld.color);
+      return rectRadiance(ld.rect, ld.color)
+          * quadLightTexture(ld.rect, hit.lightProxyUv);
     const RectFrame rect = rectFrame(ld.rect, proxy.xfm);
     const RectPointRelation rel =
         rectRelateToPoint(ld.rect, rect, origin, hit.hitpoint);
-    return rectRadiance(ld.rect, ld.color, rel.cosTheta);
+    return rectRadiance(ld.rect, ld.color, rel.cosTheta)
+        * quadLightTexture(ld.rect, hit.lightProxyUv);
   }
   case LightType::RING: {
     const vec3 axis = ringWorldAxis(ld.ring, proxy.xfm);

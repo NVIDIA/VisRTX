@@ -37,6 +37,7 @@
       "khr_light_quad",
       "visrtx_light_quad_shaping",
       "visrtx_light_quad_focus",
+      "visrtx_light_quad_texture",
       "khr_light_ring",
       "khr_light_spot",
       "khr_material_matte",
