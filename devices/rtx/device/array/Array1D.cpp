@@ -37,7 +37,7 @@
 namespace visrtx {
 
 Array1D::Array1D(DeviceGlobalState *state, const Array1DMemoryDescriptor &d)
-    : Array(ANARI_ARRAY1D, state, d, d.numItems), m_end(d.numItems)
+    : NumericArray(ANARI_ARRAY1D, state, d, d.numItems), m_end(d.numItems)
 {}
 
 void Array1D::commitParameters()
@@ -90,31 +90,11 @@ const void *Array1D::end(AddressSpace as) const
   return p + (s * m_end);
 }
 
-cudaArray_t Array1D::acquireCUDAArray()
+cudaError_t Array1D::makeCUDAArray(cudaArray_t &array) const
 {
-  if (!m_cuArray)
-    makeCudaArray(m_cuArray, *this, {totalSize(), 1});
-  m_arrayRefCount++;
-  return m_cuArray;
-}
-
-void Array1D::releaseCUDAArray()
-{
-  if (m_arrayRefCount == 0)
-    return;
-
-  m_arrayRefCount--;
-  if (m_arrayRefCount == 0) {
-    cudaFreeArray(m_cuArray);
-    m_cuArray = {};
-  }
-}
-
-void Array1D::uploadArrayData() const
-{
-  Array::uploadArrayData();
-  if (m_cuArray)
-    makeCudaArray(m_cuArray, *this, {totalSize(), 1});
+  if (totalSize() > UINT32_MAX)
+    return cudaErrorInvalidValue;
+  return makeCudaArray(array, *this, {uint32_t(totalSize()), 1, 1}, m_begin);
 }
 
 } // namespace visrtx

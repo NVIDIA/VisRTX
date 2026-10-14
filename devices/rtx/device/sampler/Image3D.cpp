@@ -37,13 +37,7 @@
 
 namespace visrtx {
 
-Image3D::Image3D(DeviceGlobalState *d) : Sampler(d), m_image(this) {}
-
-Image3D::~Image3D()
-{
-  cleanupImageTextureObjects();
-  cleanupImageCudaArray();
-}
+Image3D::Image3D(DeviceGlobalState *d) : ImageSampler(d, "image3D") {}
 
 void Image3D::commitParameters()
 {
@@ -52,68 +46,31 @@ void Image3D::commitParameters()
   m_wrap1 = getParamString("wrapMode1", "clampToEdge");
   m_wrap2 = getParamString("wrapMode2", "clampToEdge");
   m_wrap3 = getParamString("wrapMode3", "clampToEdge");
-  auto *oldImage = m_image.get();
-  auto *newImage = getParamObject<Array3D>("image");
-  if (oldImage != newImage)
-    cleanupImageCudaArray();
-  m_image = newImage;
+  setImage(getParamObject<Array3D>("image"));
 }
 
-void Image3D::finalize()
+Array3D *Image3D::image() const
 {
-  if (!m_image) {
-    reportMessage(ANARI_SEVERITY_WARNING,
-        "missing required parameter 'image' on image3D sampler");
-    return;
-  }
+  return static_cast<Array3D *>(imageArray());
+}
 
-  const bool isFp = isFloat(m_image->elementType());
-  cudaArray_t cuArray = m_image->acquireCUDAArray();
-
-  cleanupImageTextureObjects();
-
-  const ANARIDataType format = m_image->elementType();
-  auto nc = numANARIChannels(format);
-  if (nc == 0) {
-    reportMessage(ANARI_SEVERITY_WARNING,
-        "invalid texture type encountered in image3D sampler (%s)",
-        anari::toString(format));
-    return;
-  }
-
+void Image3D::makeTextureObjects(cudaArray_t cuArray, ANARIDataType format)
+{
+  const bool isFp = isFloat(format);
   // sRGB data is kept as raw bytes; the sampler does sRGB->linear in hardware.
   const bool sRGB = isSrgb8(format);
-  m_texture = makeCudaTextureObject3D(cuArray,
-      !isFp,
-      m_filter,
-      m_wrap1,
-      m_wrap2,
-      m_wrap3,
-      m_borderColor,
-      sRGB);
+  m_texture = makeCudaTextureObject3D(
+      cuArray, !isFp, m_filter, m_wrap1, m_wrap2, m_wrap3, m_borderColor, sRGB);
   m_texels = makeCudaTexelObject3D(
       cuArray, !isFp, "nearest", m_wrap1, m_wrap2, m_wrap3, m_borderColor);
-
-  upload();
-}
-
-bool Image3D::isValid() const
-{
-  return m_image;
 }
 
 uvec3 Image3D::imageSize() const
 {
-  if (!m_image)
+  if (!image())
     return uvec3(0);
-  auto sz = m_image->size();
+  auto sz = image()->size();
   return uvec3(sz.x, sz.y, sz.z);
-}
-
-int Image3D::numChannels() const
-{
-  ANARIDataType format = m_image->elementType();
-  return numANARIChannels(format);
 }
 
 cudaTextureObject_t Image3D::textureObject() const
@@ -121,39 +78,20 @@ cudaTextureObject_t Image3D::textureObject() const
   return m_texture;
 }
 
-Array3D *Image3D::image() const
-{
-  return m_image.get();
-}
-
 SamplerGPUData Image3D::gpuData() const
 {
   SamplerGPUData retval = Sampler::gpuData();
+  if (!m_texture || !m_texels)
+    return retval;
   retval.type = SamplerType::TEXTURE3D;
   retval.image3D.texobj = m_texture;
   retval.image3D.texelTexobj = m_texels;
   retval.image3D.size =
-      glm::uvec3(m_image->size().x, m_image->size().y, m_image->size().z);
-  retval.image3D.invSize = glm::vec3(1.0f / m_image->size().x,
-      1.0f / m_image->size().y,
-      1.0f / m_image->size().z);
+      glm::uvec3(image()->size().x, image()->size().y, image()->size().z);
+  retval.image3D.invSize = glm::vec3(1.0f / image()->size().x,
+      1.0f / image()->size().y,
+      1.0f / image()->size().z);
   return retval;
-}
-
-void Image3D::cleanupImageCudaArray()
-{
-  if (!m_image)
-    return;
-
-  m_image->releaseCUDAArray();
-}
-
-void Image3D::cleanupImageTextureObjects()
-{
-  cudaDestroyTextureObject(m_texels);
-  cudaDestroyTextureObject(m_texture);
-  m_texels = {};
-  m_texture = {};
 }
 
 } // namespace visrtx

@@ -104,11 +104,9 @@ struct Array : public UploadableArray
   template <typename T>
   void throwIfDifferentElementType() const;
 
-  mutable cudaArray_t m_cuArray{};
-  size_t m_arrayRefCount{0};
+  void on_NoInternalReferences() override;
 
  private:
-  void on_NoInternalReferences() override;
   void on_NoPublicReferences() override;
 
   struct AnariArrayData

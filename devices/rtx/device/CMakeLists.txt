@@ -122,6 +122,7 @@ set(SOURCES
   array/Array1D.cpp
   array/Array2D.cpp
   array/Array3D.cpp
+  array/NumericArray.cpp
   array/ObjectArray.cpp
   array/UploadableArray.cpp
 
@@ -178,6 +179,7 @@ set(SOURCES
   sampler/Image1D.cpp
   sampler/Image2D.cpp
   sampler/Image3D.cpp
+  sampler/ImageSampler.cpp
   sampler/PrimitiveSampler.cpp
   sampler/Sampler.cpp
   sampler/TextureStats.cu

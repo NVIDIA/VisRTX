@@ -35,7 +35,7 @@
 namespace visrtx {
 
 Array2D::Array2D(DeviceGlobalState *state, const Array2DMemoryDescriptor &d)
-    : Array(ANARI_ARRAY2D, state, d, d.numItems1 * d.numItems2)
+    : NumericArray(ANARI_ARRAY2D, state, d, d.numItems1 * d.numItems2)
 {
   m_size[0] = d.numItems1;
   m_size[1] = d.numItems2;
@@ -51,28 +51,9 @@ anari::math::uint2 Array2D::size() const
   return anari::math::uint2(uint32_t(size(0)), uint32_t(size(1)));
 }
 
-cudaArray_t Array2D::acquireCUDAArray()
+cudaError_t Array2D::makeCUDAArray(cudaArray_t &array) const
 {
-  if (!m_cuArray)
-    makeCudaArray(m_cuArray, *this, uvec2(size().x, size().y));
-  m_arrayRefCount++;
-  return m_cuArray;
-}
-
-void Array2D::releaseCUDAArray()
-{
-  m_arrayRefCount--;
-  if (m_arrayRefCount == 0) {
-    cudaFreeArray(m_cuArray);
-    m_cuArray = {};
-  }
-}
-
-void Array2D::uploadArrayData() const
-{
-  Array::uploadArrayData();
-  if (m_cuArray)
-    makeCudaArray(m_cuArray, *this, uvec2(size().x, size().y));
+  return makeCudaArray(array, *this, {size().x, size().y, 1});
 }
 
 } // namespace visrtx

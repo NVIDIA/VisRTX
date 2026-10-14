@@ -92,16 +92,6 @@ void makeCudaArrayFloat(
   cudaMemcpy3D(&p);
 }
 
-void makeCudaArray(cudaArray_t &cuArray, const Array &array, uint32_t size)
-{
-  makeCudaArray(cuArray, array, uvec3(size, 1, 1));
-}
-
-void makeCudaArray(cudaArray_t &cuArray, const Array &array, uvec2 size)
-{
-  makeCudaArray(cuArray, array, uvec3(size, 1));
-}
-
 namespace {
 
 // IEEE-754 half-precision encoding of 1.0 (FLOAT16 is stored as raw uint16_t).
@@ -111,11 +101,11 @@ constexpr uint16_t kHalfOne = 0x3C00;
 // padding the added alpha so it samples as opaque/1.0. This is the only data
 // transform applied to a texture; every other format is copied verbatim.
 template <typename T>
-static void expandRGBtoRGBA(const Array &array, void *dstRaw, T pad)
+static void expandRGBtoRGBA(
+    const void *srcRaw, size_t texels, void *dstRaw, T pad)
 {
-  const T *src = static_cast<const T *>(array.data());
+  const T *src = static_cast<const T *>(srcRaw);
   T *dst = static_cast<T *>(dstRaw);
-  const size_t texels = array.totalSize();
   for (size_t i = 0; i < texels; ++i) {
     dst[4 * i + 0] = src[3 * i + 0];
     dst[4 * i + 1] = src[3 * i + 1];
@@ -130,8 +120,8 @@ static void expandRGBtoRGBA(const Array &array, void *dstRaw, T pad)
 // does sRGB->linear). The sole transform is 3->4 channel expansion, which CUDA
 // forces. Integer arrays are read back with normalized read mode, so keeping
 // them at native depth (not promoted to float) is both correct and compact.
-static void buildNativeCudaArray(
-    cudaArray_t &cuArray, const Array &array, uvec3 size)
+static cudaError_t buildNativeCudaArray(
+    cudaArray_t &cuArray, const Array &array, uvec3 size, size_t offset)
 {
   const ANARIDataType format = array.elementType();
   const int nc = numANARIChannels(format);
@@ -141,6 +131,8 @@ static void buildNativeCudaArray(
       ? cudaChannelFormatKindFloat
       : cudaChannelFormatKindUnsigned;
   const int storedNc = (nc == 3) ? 4 : nc;
+  if (!array.data() || nc == 0 || size.x == 0 || size.y == 0 || size.z == 0)
+    return cudaErrorInvalidValue;
 
   if (!cuArray) {
     auto desc = cudaCreateChannelDesc(storedNc >= 1 ? bits : 0,
@@ -148,30 +140,40 @@ static void buildNativeCudaArray(
         storedNc >= 3 ? bits : 0,
         storedNc >= 4 ? bits : 0,
         kind);
-    cudaMalloc3DArray(&cuArray,
+    const auto error = cudaMalloc3DArray(&cuArray,
         &desc,
         make_cudaExtent(size.x, size.y, size.z <= 1 ? 0 : size.z));
+    if (error != cudaSuccess)
+      return error;
   }
 
   // Expand RGB->RGBA when needed; otherwise copy the host data straight in.
   std::vector<uint8_t> staging;
-  const void *src = array.data();
+  const void *src = static_cast<const uint8_t *>(array.data())
+      + offset * anari::sizeOf(format);
   size_t srcChannels = size_t(nc);
   if (nc == 3) {
     staging.resize(array.totalSize() * 4 * compBytes);
     if (isFloat32(format))
-      expandRGBtoRGBA<float>(array, staging.data(), 1.0f);
+      expandRGBtoRGBA<float>(src, array.totalSize(), staging.data(), 1.0f);
     else if (isFloat16(format))
-      expandRGBtoRGBA<uint16_t>(array, staging.data(), kHalfOne);
-    else if (compBytes == 4)
-      expandRGBtoRGBA<uint32_t>(
-          array, staging.data(), std::numeric_limits<uint32_t>::max());
-    else if (compBytes == 2)
       expandRGBtoRGBA<uint16_t>(
-          array, staging.data(), std::numeric_limits<uint16_t>::max());
+          src, array.totalSize(), staging.data(), kHalfOne);
+    else if (compBytes == 4)
+      expandRGBtoRGBA<uint32_t>(src,
+          array.totalSize(),
+          staging.data(),
+          std::numeric_limits<uint32_t>::max());
+    else if (compBytes == 2)
+      expandRGBtoRGBA<uint16_t>(src,
+          array.totalSize(),
+          staging.data(),
+          std::numeric_limits<uint16_t>::max());
     else
-      expandRGBtoRGBA<uint8_t>(
-          array, staging.data(), std::numeric_limits<uint8_t>::max());
+      expandRGBtoRGBA<uint8_t>(src,
+          array.totalSize(),
+          staging.data(),
+          std::numeric_limits<uint8_t>::max());
     src = staging.data();
     srcChannels = 4;
   }
@@ -185,14 +187,15 @@ static void buildNativeCudaArray(
       size.y);
   p.extent = make_cudaExtent(size.x, size.y, size.z < 1 ? 1 : size.z);
   p.kind = cudaMemcpyHostToDevice;
-  cudaMemcpy3D(&p);
+  return cudaMemcpy3D(&p);
 }
 
 } // namespace
 
-void makeCudaArray(cudaArray_t &cuArray, const Array &array, uvec3 size)
+cudaError_t makeCudaArray(
+    cudaArray_t &cuArray, const Array &array, uvec3 size, size_t offset)
 {
-  buildNativeCudaArray(cuArray, array, size);
+  return buildNativeCudaArray(cuArray, array, size, offset);
 }
 
 cudaTextureObject_t makeCudaTextureObject(cudaArray_t cuArray,

@@ -31,7 +31,7 @@
 
 #pragma once
 
-#include "Array.h"
+#include "NumericArray.h"
 // helium
 #include <helium/array/Array3D.h>
 
@@ -39,17 +39,15 @@ namespace visrtx {
 
 using Array3DMemoryDescriptor = helium::Array3DMemoryDescriptor;
 
-struct Array3D : public Array
+struct Array3D : public NumericArray
 {
   Array3D(DeviceGlobalState *state, const Array3DMemoryDescriptor &d);
 
   size_t size(int dim) const;
   anari::math::uint3 size() const;
 
-  cudaArray_t acquireCUDAArray();
-  void releaseCUDAArray();
-
-  void uploadArrayData() const override;
+ protected:
+  cudaError_t makeCUDAArray(cudaArray_t &array) const override;
 
  private:
   size_t m_size[3] = {0, 0, 0};

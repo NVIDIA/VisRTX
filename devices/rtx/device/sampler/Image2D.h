@@ -31,7 +31,7 @@
 
 #pragma once
 
-#include "Sampler.h"
+#include "ImageSampler.h"
 #include "array/Array2D.h"
 #include "utility/CudaImageTexture.h"
 
@@ -39,16 +39,12 @@
 
 namespace visrtx {
 
-struct Image2D : public Sampler
+struct Image2D : public ImageSampler
 {
   Image2D(DeviceGlobalState *d);
-  ~Image2D();
 
   void commitParameters() override;
-  void finalize() override;
-  bool isValid() const override;
 
-  int numChannels() const override;
   vec4 averageValue() const override;
 #if defined(USE_MDL)
   libmdl::ResourceStats emissionStats() const override;
@@ -56,8 +52,12 @@ struct Image2D : public Sampler
 
   cudaTextureObject_t textureObject() const;
 
+ protected:
+  void makeTextureObjects(cudaArray_t array, ANARIDataType format) override;
+
  private:
   SamplerGPUData gpuData() const override;
+  Array2D *image() const;
 
   // Single-pass texel reduction feeding both the emissive Pick Power and the
   // MDL emission classifier from one scan (replacing the former separate
@@ -81,16 +81,9 @@ struct Image2D : public Sampler
   const TextureReduction &textureReduction() const;
   TextureReduction computeTextureReduction() const;
 
-  void cleanupImageCudaArray();
-  void cleanupImageTextureObjects();
-
   std::string m_filter;
   std::string m_wrap1;
   std::string m_wrap2;
-  helium::ChangeObserverPtr<Array2D> m_image;
-
-  cudaTextureObject_t m_texture{};
-  cudaTextureObject_t m_texels{};
 
   // Memoized reduction, filled lazily from the const query and guarded on the
   // image's lastDataModified stamp: a no-op recommit (filter/wrap change, scene

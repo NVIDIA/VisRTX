@@ -47,13 +47,7 @@ static TexelFormat texelFormat(ANARIDataType t)
   return TexelFormat::Unsupported;
 }
 
-Image2D::Image2D(DeviceGlobalState *d) : Sampler(d), m_image(this) {}
-
-Image2D::~Image2D()
-{
-  cleanupImageTextureObjects();
-  cleanupImageCudaArray();
-}
+Image2D::Image2D(DeviceGlobalState *d) : ImageSampler(d, "image2D") {}
 
 void Image2D::commitParameters()
 {
@@ -61,52 +55,23 @@ void Image2D::commitParameters()
   m_filter = getParamString("filter", "linear");
   m_wrap1 = getParamString("wrapMode1", "clampToEdge");
   m_wrap2 = getParamString("wrapMode2", "clampToEdge");
-  auto *oldImage = m_image.get();
-  auto *newImage = getParamObject<Array2D>("image");
-  if (oldImage != newImage)
-    cleanupImageCudaArray();
-  m_image = newImage;
+  setImage(getParamObject<Array2D>("image"));
 }
 
-void Image2D::finalize()
+Array2D *Image2D::image() const
 {
-  if (!m_image) {
-    reportMessage(ANARI_SEVERITY_WARNING,
-        "missing required parameter 'image' on image2D sampler");
-    return;
-  }
+  return static_cast<Array2D *>(imageArray());
+}
 
-  const ANARIDataType format = m_image->elementType();
-  auto nc = numANARIChannels(format);
-  if (nc == 0) {
-    reportMessage(ANARI_SEVERITY_WARNING,
-        "invalid texture type encountered in image2D sampler (%s)",
-        anari::toString(format));
-    return;
-  }
-
-  const bool isFp = isFloat(m_image->elementType());
-  cudaArray_t cuArray = m_image->acquireCUDAArray();
-
-  cleanupImageTextureObjects();
-
+void Image2D::makeTextureObjects(cudaArray_t cuArray, ANARIDataType format)
+{
+  const bool isFp = isFloat(format);
   // sRGB data is kept as raw bytes; the sampler does sRGB->linear in hardware.
-  const bool sRGB = isSrgb8(m_image->elementType());
+  const bool sRGB = isSrgb8(format);
   m_texture = makeCudaTextureObject2D(
       cuArray, !isFp, m_filter, m_wrap1, m_wrap2, m_borderColor, sRGB);
   m_texels = makeCudaTexelObject2D(
       cuArray, !isFp, "nearest", m_wrap1, m_wrap2, m_borderColor);
-
-  // The reduction is NOT computed here: it is only needed by the emissive
-  // Pick-Power / classifier path, so it scans lazily on first query and
-  // memoizes against the image stamp (see textureReduction() / m_reduction).
-
-  upload();
-}
-
-bool Image2D::isValid() const
-{
-  return m_image;
 }
 
 vec4 Image2D::averageValue() const
@@ -143,7 +108,7 @@ libmdl::ResourceStats Image2D::emissionStats() const
 const Image2D::TextureReduction &Image2D::textureReduction() const
 {
   const helium::TimeStamp stamp =
-      m_image ? m_image->lastDataModified() : helium::TimeStamp{0};
+      image() ? image()->lastDataModified() : helium::TimeStamp{0};
   if (stamp != m_reductionStamp) {
     m_reduction = computeTextureReduction();
     m_reductionStamp = stamp;
@@ -162,12 +127,12 @@ const Image2D::TextureReduction &Image2D::textureReduction() const
 Image2D::TextureReduction Image2D::computeTextureReduction() const
 {
   TextureReduction r;
-  if (!m_image)
+  if (!image())
     return r; // valid=false, magnitude stays unit
 
-  const ANARIDataType t = m_image->elementType();
+  const ANARIDataType t = image()->elementType();
   const int nc = numANARIChannels(t);
-  const size_t count = size_t(m_image->size().x) * m_image->size().y;
+  const size_t count = size_t(image()->size().x) * image()->size().y;
   const TexelFormat fmt = texelFormat(t);
   if (nc == 0 || count == 0 || fmt == TexelFormat::Unsupported)
     return r;
@@ -178,7 +143,7 @@ Image2D::TextureReduction Image2D::computeTextureReduction() const
   const int colorChannels =
       (fmt == TexelFormat::Srgb8 && (nc == 2 || nc == 4)) ? nc - 1 : nc;
 
-  const void *dev = m_image->data(AddressSpace::GPU);
+  const void *dev = image()->data(AddressSpace::GPU);
   if (!dev)
     return r; // no device residency ⇒ Unknown
 
@@ -204,12 +169,6 @@ Image2D::TextureReduction Image2D::computeTextureReduction() const
   return r;
 }
 
-int Image2D::numChannels() const
-{
-  ANARIDataType format = m_image->elementType();
-  return numANARIChannels(format);
-}
-
 cudaTextureObject_t Image2D::textureObject() const
 {
   return m_texture;
@@ -218,30 +177,16 @@ cudaTextureObject_t Image2D::textureObject() const
 SamplerGPUData Image2D::gpuData() const
 {
   SamplerGPUData retval = Sampler::gpuData();
+  if (!m_texture || !m_texels)
+    return retval;
   retval.type = SamplerType::TEXTURE2D;
   retval.image2D.texobj = m_texture;
   retval.image2D.texelTexobj = m_texels;
-  retval.image2D.size = glm::uvec2(m_image->size().x, m_image->size().y);
+  retval.image2D.size = glm::uvec2(image()->size().x, image()->size().y);
   retval.image2D.invSize =
-      glm::vec2(1.0f / m_image->size().x, 1.0f / m_image->size().y);
+      glm::vec2(1.0f / image()->size().x, 1.0f / image()->size().y);
 
   return retval;
-}
-
-void Image2D::cleanupImageCudaArray()
-{
-  if (!m_image)
-    return;
-
-  m_image->releaseCUDAArray();
-}
-
-void Image2D::cleanupImageTextureObjects()
-{
-  cudaDestroyTextureObject(m_texels);
-  cudaDestroyTextureObject(m_texture);
-  m_texels = {};
-  m_texture = {};
 }
 
 } // namespace visrtx

@@ -64,9 +64,9 @@ void makeCudaArrayFloat(
 // Build a cudaArray that mirrors the ANARI element type natively (channel kind,
 // bit depth), copying the data verbatim; the only transform is 3->4 channel
 // expansion, which CUDA forces. sRGB stays raw (sampler does sRGB->linear).
-void makeCudaArray(cudaArray_t &cuArray, const Array &array, uint32_t size);
-void makeCudaArray(cudaArray_t &cuArray, const Array &array, uvec2 size);
-void makeCudaArray(cudaArray_t &cuArray, const Array &array, uvec3 size);
+// Offset is in source elements. An existing allocation must match size.
+cudaError_t makeCudaArray(
+    cudaArray_t &cuArray, const Array &array, uvec3 size, size_t offset = 0);
 
 void makeCudaCompressedTextureArray(cudaArray_t &cuArray,
     const uvec2 &size,

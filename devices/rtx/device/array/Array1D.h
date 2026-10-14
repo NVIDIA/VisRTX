@@ -31,7 +31,7 @@
 
 #pragma once
 
-#include "Array.h"
+#include "NumericArray.h"
 // helium
 #include <helium/array/Array1D.h>
 // std
@@ -41,7 +41,7 @@ namespace visrtx {
 
 using Array1DMemoryDescriptor = helium::Array1DMemoryDescriptor;
 
-struct Array1D : public Array
+struct Array1D : public NumericArray
 {
   Array1D(DeviceGlobalState *state, const Array1DMemoryDescriptor &d);
 
@@ -62,10 +62,8 @@ struct Array1D : public Array
   template <typename T>
   const T *valueAt(size_t i) const;
 
-  cudaArray_t acquireCUDAArray();
-  void releaseCUDAArray();
-
-  void uploadArrayData() const override;
+ protected:
+  cudaError_t makeCUDAArray(cudaArray_t &array) const override;
 
  private:
   size_t m_begin{0};
