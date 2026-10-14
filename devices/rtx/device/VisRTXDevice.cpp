@@ -427,7 +427,6 @@ VisRTXDevice::~VisRTXDevice()
   // teardown below must come after (also what empties the registry before its
   // "not empty on destruction" check).
   state.commitBuffer.clear();
-  state.uploadBuffer.clear();
 
 #ifdef USE_MDL
   if (m_mdlInitStatus == DeviceInitStatus::SUCCESS) {

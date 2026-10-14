@@ -150,7 +150,6 @@ struct Frame : public helium::BaseFrame, public DeviceObject<FrameGPUData>
   helium::TimeStamp m_rendererLastChanged{0};
   helium::TimeStamp m_worldLastChanged{0};
   helium::TimeStamp m_lastCommitFlushOccured{0};
-  helium::TimeStamp m_lastUploadFlushOccured{0};
 
   Denoiser m_denoiser;
 
