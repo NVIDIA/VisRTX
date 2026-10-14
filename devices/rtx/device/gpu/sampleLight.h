@@ -36,6 +36,7 @@
 #include "gpu/gpu_objects.h"
 #include "gpu/gpu_util.h"
 #include "gpu/intersectPrimitives.h" // CapBit (cylinder/cone cap enablement)
+#include "gpu/quadLightTexture.h"
 #include "gpu/lightGeometry.h" // rect/ring leaves shared with the hit-side deposit
 
 // glm
@@ -187,7 +188,8 @@ VISRTX_DEVICE LightSample sampleRectLight(
 
   if (rel.cosTheta > 0.0f) {
     // Lambertian radiance. cosTheta is handled through pdf below.
-    ls.radiance = rectRadiance(ld.rect, ld.color);
+    ls.radiance = rectRadiance(ld.rect, ld.color)
+        * quadLightTexture(ld.rect, uv);
     ls.pdf = rel.solidAnglePdf;
   } else {
     // No emission toward surfaces facing away from the light

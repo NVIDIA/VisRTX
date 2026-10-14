@@ -33,6 +33,7 @@
 
 #include "gpu/gpu_objects.h"
 #include "gpu/lightGeometry.h"
+#include "gpu/quadLightTexture.h"
 
 namespace visrtx {
 
@@ -55,7 +56,8 @@ VISRTX_DEVICE vec3 lightProxyRadiance(
   const auto &ld = frameData.registry.lights[proxy.lightIndex];
   switch (ld.type) {
   case LightType::RECT:
-    return rectRadiance(ld.rect, ld.color);
+    return rectRadiance(ld.rect, ld.color)
+        * quadLightTexture(ld.rect, hit.lightProxyUv);
   case LightType::RING: {
     const vec3 axis = ringWorldAxis(ld.ring, proxy.xfm);
     const RingPointRelation rel =

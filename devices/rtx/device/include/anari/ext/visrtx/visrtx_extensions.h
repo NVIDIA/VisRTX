@@ -54,6 +54,7 @@ struct VisRTXExtensions
   int VISRTX_TRIANGLE_BACK_FACE_CULLING;
   int VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES;
   int VISRTX_RENDERER_FOG;
+  int VISRTX_LIGHT_QUAD_TEXTURE;
 };
 
 int visrtxGetInstanceExtensions(
@@ -160,6 +161,8 @@ inline void fillExtensionStruct(
       extensions->VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES = 1;
     else if (feature == "ANARI_VISRTX_RENDERER_FOG")
       extensions->VISRTX_RENDERER_FOG = 1;
+    else if (feature == "ANARI_VISRTX_LIGHT_QUAD_TEXTURE")
+      extensions->VISRTX_LIGHT_QUAD_TEXTURE = 1;
     else if (feature == "ANARI_VISRTX_MATERIAL_MDL")
 #ifdef USE_MDL
       extensions->VISRTX_MATERIAL_MDL = 1;
