@@ -238,15 +238,15 @@ cudaTextureObject_t makeCudaTextureObject(cudaArray_t cuArray,
   return retval;
 }
 
-void makeCudaCompressedTextureArray(cudaArray_t &cuArray,
+cudaError_t makeCudaCompressedTextureArray(cudaArray_t &cuArray,
     const uvec2 &size,
-    const Array &array,
+    const void *data,
+    size_t bytes,
     const cudaChannelFormatKind channelFormatKind)
 {
-  assert(!cuArray);
-
-  const ANARIDataType format = array.elementType();
-  assert(format == ANARI_UINT8 || format == ANARI_INT8);
+  // Callers free any previous allocation first.
+  if (cuArray || !data || size.x == 0 || size.y == 0)
+    return cudaErrorInvalidValue;
 
   // Create CUDA texture //
   cudaChannelFormatDesc desc;
@@ -352,33 +352,39 @@ void makeCudaCompressedTextureArray(cudaArray_t &cuArray,
   }
   default:
     // Unknown format type
-    return;
+    return cudaErrorInvalidValue;
   };
 
-  if (blockWidth == 0 || bytesPerBlock == 0) {
-    return;
-  }
-
-  uint32_t widthInBlocks = (size.x + blockWidth - 1) / blockWidth;
-  uint32_t heightInBlocks = (size.y + blockWidth - 1) / blockWidth;
+  const size_t widthInBlocks = (size_t(size.x) + blockWidth - 1) / blockWidth;
+  const size_t heightInBlocks = (size_t(size.y) + blockWidth - 1) / blockWidth;
+  if (bytes < widthInBlocks * heightInBlocks * bytesPerBlock)
+    return cudaErrorInvalidValue;
 
   // Make sure the 3rd component is 0 so we allocate a 2D array. If 1 we
   // allocate a 3D array of depth 1 which is not the same and will not work with
   // the texture object.
-  cudaMalloc3DArray(&cuArray, &desc, make_cudaExtent(size.x, size.y, 0));
-  // cudaMalloc3DArray(&cuArray, &desc, make_cudaExtent(size.x, size.y, 0));
+  auto error =
+      cudaMalloc3DArray(&cuArray, &desc, make_cudaExtent(size.x, size.y, 0));
+  if (error != cudaSuccess)
+    return error;
 
   cudaMemcpy3DParms p = {};
   p.dstArray = cuArray;
-  p.srcPtr = make_cudaPitchedPtr(const_cast<void *>(array.data()),
+  p.srcPtr = make_cudaPitchedPtr(const_cast<void *>(data),
       widthInBlocks * bytesPerBlock,
       widthInBlocks,
       heightInBlocks);
   // Compare to the extent above, we want the 3rd component to be 1 here so we
   // copy a full slice of data.
   p.extent = make_cudaExtent(size.x, size.y, 1); // extent;
-  p.kind = cudaMemcpyHostToDevice;
-  cudaMemcpy3D(&p);
+  // Host data or app-provided device memory.
+  p.kind = cudaMemcpyDefault;
+  error = cudaMemcpy3D(&p);
+  if (error != cudaSuccess) {
+    cudaFreeArray(cuArray);
+    cuArray = {};
+  }
+  return error;
 }
 
 cudaTextureObject_t makeCudaCompressedTextureObject(cudaArray_t cuArray,

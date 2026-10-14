@@ -68,9 +68,13 @@ void makeCudaArrayFloat(
 cudaError_t makeCudaArray(
     cudaArray_t &cuArray, const Array &array, uvec3 size, size_t offset = 0);
 
-void makeCudaCompressedTextureArray(cudaArray_t &cuArray,
+// Allocate a block-compressed 2D cudaArray and copy 'data' (host or device)
+// into it. Fails without allocating when the format is not block-compressed,
+// 'size' is empty, or 'bytes' is too short for 'size'.
+cudaError_t makeCudaCompressedTextureArray(cudaArray_t &cuArray,
     const uvec2 &size,
-    const Array &array,
+    const void *data,
+    size_t bytes,
     const cudaChannelFormatKind channelFormatKind);
 
 cudaTextureObject_t makeCudaTextureObject1D(cudaArray_t cuArray,
