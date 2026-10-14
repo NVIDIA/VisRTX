@@ -71,15 +71,20 @@ void HDRI::commitParameters()
   m_direction = getParam<vec3>("direction", vec3(1.f, 0.f, 0.f));
   m_up = getParam<vec3>("up", vec3(0.f, 0.f, 1.f));
   m_scale = getParam<float>("scale", 1.f);
-  auto *oldRadiance = m_radiance.get();
-  m_radiance = getParamObject<Array2D>("radiance");
-  if (oldRadiance != m_radiance.get())
+  auto *newRadiance = getParamObject<Array2D>("radiance");
+  if (newRadiance != m_radiance.get()) {
+    // Dropping the old array may free its storage; destroy what refers to it.
+    cleanup();
     m_radianceLastUpdated = {};
+  }
+  m_radiance = newRadiance;
 }
 
 void HDRI::finalize()
 {
   if (!m_radiance) {
+    cleanup();
+    upload();
     reportMessage(ANARI_SEVERITY_WARNING,
         "missing required parameter 'radiance' on HDRI light");
     return;
@@ -87,19 +92,24 @@ void HDRI::finalize()
     reportMessage(ANARI_SEVERITY_WARNING,
         "invalid element type %s for 'radiance' on HDRI light",
         anari::toString(m_radiance->elementType()));
+    cleanup();
     m_radiance = nullptr;
     m_radianceLastUpdated = {};
+    upload();
     return;
   }
 
   auto radianceDataModified = m_radiance->lastDataModified();
-  if (m_radianceLastUpdated != radianceDataModified) {
-    m_radianceLastUpdated = radianceDataModified;
-
+  // Rebuild after a failed attempt even if the data stamp did not change.
+  if (!m_radianceTex || m_radianceLastUpdated != radianceDataModified) {
     cleanup();
 
     const bool isFp = isFloat(m_radiance->elementType());
-    cudaArray_t cuArray = m_radiance->acquireCUDAArray();
+    const cudaArray_t cuArray = m_radiance->cudaArray();
+    if (!cuArray) {
+      upload();
+      return;
+    }
 
     m_size = {m_radiance->size(0), m_radiance->size(1)};
 
@@ -112,6 +122,8 @@ void HDRI::finalize()
 
     m_radianceTex = makeCudaTextureObject2D(
         cuArray, !isFp, "linear", "repeat", "clampToEdge");
+    if (m_radianceTex)
+      m_radianceLastUpdated = radianceDataModified;
   }
 
 #ifdef VISRTX_ENABLE_HDRI_SAMPLING_DEBUG
@@ -123,7 +135,7 @@ void HDRI::finalize()
 
 bool HDRI::isValid() const
 {
-  return m_radiance;
+  return m_radianceTex != 0;
 }
 
 bool HDRI::isHDRI() const
@@ -134,6 +146,8 @@ bool HDRI::isHDRI() const
 LightGPUData HDRI::gpuData() const
 {
   auto retval = Light::gpuData();
+  if (!isValid())
+    return retval;
 
   const vec3 up = -glm::normalize(m_up);
   const vec3 forward = -glm::normalize(glm::cross(up, m_direction));
@@ -156,9 +170,9 @@ LightGPUData HDRI::gpuData() const
 
 void HDRI::cleanup()
 {
-  if (m_radiance && m_radianceTex) {
+  if (m_radianceTex) {
     cudaDestroyTextureObject(m_radianceTex);
-    m_radiance->releaseCUDAArray();
+    m_radianceTex = {};
   }
 
 #ifdef VISRTX_ENABLE_HDRI_SAMPLING_DEBUG

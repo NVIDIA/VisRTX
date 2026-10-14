@@ -167,7 +167,11 @@ Renderer::~Renderer()
 
 void Renderer::commitParameters()
 {
-  m_backgroundImage = getParamObject<Array2D>("background");
+  auto *backgroundImage = getParamObject<Array2D>("background");
+  // Dropping the old array may free its storage; destroy what refers to it.
+  if (backgroundImage != m_backgroundImage.get())
+    cleanup();
+  m_backgroundImage = backgroundImage;
   m_bgColor = getParam<vec4>("background", vec4(vec3(0.f), 1.f));
   m_spp = getParam<int>("pixelSamples", 1);
   m_ambientColor = getParam<vec3>("ambientColor", vec3(1.f));
@@ -366,7 +370,9 @@ void Renderer::finalize()
       return; // m_backgroundTexture stays null -> COLOR background fallback
     }
     const bool isFp = isFloat(fmt);
-    auto cuArray = m_backgroundImage->acquireCUDAArray();
+    const cudaArray_t cuArray = m_backgroundImage->cudaArray();
+    if (!cuArray)
+      return;
     m_backgroundTexture = makeCudaTextureObject2D(cuArray,
         !isFp,
         "linear",
@@ -1326,11 +1332,9 @@ void Renderer::releasePipeline()
 
 void Renderer::cleanup()
 {
-  if (m_backgroundImage) {
-    if (m_backgroundTexture) {
-      cudaDestroyTextureObject(m_backgroundTexture);
-      m_backgroundImage->releaseCUDAArray();
-    }
+  if (m_backgroundTexture) {
+    cudaDestroyTextureObject(m_backgroundTexture);
+    m_backgroundTexture = {};
   }
 }
 

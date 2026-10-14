@@ -33,95 +33,44 @@
 
 namespace visrtx {
 
-Image1D::Image1D(DeviceGlobalState *d) : Sampler(d), m_image(this) {}
-
-Image1D::~Image1D()
-{
-  cleanupImageTextureObjects();
-  cleanupImageCudaArray();
-}
+Image1D::Image1D(DeviceGlobalState *d) : ImageSampler(d, "image1D") {}
 
 void Image1D::commitParameters()
 {
   Sampler::commitParameters();
   m_filter = getParamString("filter", "linear");
   m_wrap1 = getParamString("wrapMode", "clampToEdge");
-  auto *oldImage = m_image.get();
-  auto *newImage = getParamObject<Array1D>("image");
-  if (oldImage != newImage)
-    cleanupImageCudaArray();
-  m_image = newImage;
+  setImage(getParamObject<Array1D>("image"));
 }
 
-void Image1D::finalize()
+Array1D *Image1D::image() const
 {
-  if (!m_image) {
-    reportMessage(ANARI_SEVERITY_WARNING,
-        "missing required parameter 'image' on image1D sampler");
-    return;
-  }
+  return static_cast<Array1D *>(imageArray());
+}
 
-  ANARIDataType format = m_image->elementType();
-  auto nc = numANARIChannels(format);
-  if (nc == 0) {
-    reportMessage(ANARI_SEVERITY_WARNING,
-        "invalid texture type encountered in image1D sampler (%s)",
-        anari::toString(format));
-    return;
-  }
-
-  const bool isFp = isFloat(m_image->elementType());
-  cudaArray_t cuArray = m_image->acquireCUDAArray();
-
-  cleanupImageTextureObjects();
-
+void Image1D::makeTextureObjects(cudaArray_t cuArray, ANARIDataType format)
+{
+  const bool isFp = isFloat(format);
   // sRGB data is kept as raw bytes; the sampler does sRGB->linear in hardware.
-  const bool sRGB = isSrgb8(m_image->elementType());
+  const bool sRGB = isSrgb8(format);
   m_texture = makeCudaTextureObject1D(
       cuArray, !isFp, m_filter, m_wrap1, m_borderColor, sRGB);
   m_texels =
       makeCudaTexelObject1D(cuArray, !isFp, "nearest", m_wrap1, m_borderColor);
-
-  upload();
-}
-
-bool Image1D::isValid() const
-{
-  return m_image;
-}
-
-int Image1D::numChannels() const
-{
-  ANARIDataType format = m_image->elementType();
-  return numANARIChannels(format);
 }
 
 SamplerGPUData Image1D::gpuData() const
 {
   SamplerGPUData retval = Sampler::gpuData();
+  if (!m_texture || !m_texels)
+    return retval;
   retval.type = SamplerType::TEXTURE1D;
   retval.image1D.texobj = m_texture;
   retval.image1D.texelTexobj = m_texels;
-  retval.image1D.size = m_image->size();
-  retval.image1D.invSize = 1.0f / m_image->size();
+  retval.image1D.size = image()->size();
+  retval.image1D.invSize = 1.0f / image()->size();
 
   return retval;
-}
-
-void Image1D::cleanupImageCudaArray()
-{
-  if (!m_image)
-    return;
-
-  m_image->releaseCUDAArray();
-}
-
-void Image1D::cleanupImageTextureObjects()
-{
-  cudaDestroyTextureObject(m_texels);
-  cudaDestroyTextureObject(m_texture);
-  m_texels = {};
-  m_texture = {};
 }
 
 } // namespace visrtx

@@ -31,35 +31,27 @@
 
 #pragma once
 
-#include "Sampler.h"
+#include "ImageSampler.h"
 #include "array/Array1D.h"
 #include "utility/CudaImageTexture.h"
 
 namespace visrtx {
 
-struct Image1D : public Sampler
+struct Image1D : public ImageSampler
 {
   Image1D(DeviceGlobalState *d);
-  ~Image1D();
 
   void commitParameters() override;
-  void finalize() override;
-  bool isValid() const override;
 
-  int numChannels() const override;
+ protected:
+  void makeTextureObjects(cudaArray_t array, ANARIDataType format) override;
 
  private:
   SamplerGPUData gpuData() const override;
-
-  void cleanupImageCudaArray();
-  void cleanupImageTextureObjects();
+  Array1D *image() const;
 
   std::string m_filter;
   std::string m_wrap1;
-  helium::ChangeObserverPtr<Array1D> m_image;
-
-  cudaTextureObject_t m_texture{};
-  cudaTextureObject_t m_texels{};
 };
 
 } // namespace visrtx
