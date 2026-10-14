@@ -203,7 +203,6 @@ set(SOURCES
   surface/Surface.cpp
 
   utility/CudaImageTexture.cpp
-  utility/DeferredArrayUploadBuffer.cpp
   utility/instrument.cpp
   utility/MemoryAllocation.cpp
   utility/PPM.cpp

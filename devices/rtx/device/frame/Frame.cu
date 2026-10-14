@@ -642,10 +642,6 @@ void Frame::renderFrame()
   state.commitBuffer.flush();
   instrument::rangePop(); // flush commits
 
-  instrument::rangePush("flush array uploads");
-  state.uploadBuffer.flush();
-  instrument::rangePop(); // flush array uploads
-
   if (!isValid()) {
     std::string problemMsg = "<unknown>";
     if (!m_renderer)
@@ -1113,13 +1109,11 @@ void Frame::checkAccumulationReset()
     m_lastRenderedAccumulationVersion = m_applicationAccumulationVersion;
     m_nextFrameReset = true;
   } else if (!m_manualAccumulationRestart) { // automatic accumulation restart
+    // Array unmaps invalidate observing objects; their finalizations reset
+    // accumulation along with ordinary parameter changes.
     if (m_lastCommitFlushOccured
         < state.commitBuffer.lastObjectFinalization()) {
       m_lastCommitFlushOccured = state.commitBuffer.lastObjectFinalization();
-      m_nextFrameReset = true;
-    }
-    if (m_lastUploadFlushOccured < state.uploadBuffer.lastUpload()) {
-      m_lastUploadFlushOccured = state.uploadBuffer.lastUpload();
       m_nextFrameReset = true;
     }
   }

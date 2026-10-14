@@ -32,7 +32,6 @@
 #pragma once
 
 #include "gpu/gpu_objects.h"
-#include "utility/DeferredArrayUploadBuffer.h"
 #include "utility/DeviceObjectArray.h"
 
 // helium
@@ -213,8 +212,6 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
     helium::TimeStamp lastLightSetChange{0};
     helium::TimeStamp lastTLASChange{0};
   } objectUpdates;
-
-  DeferredArrayUploadBuffer uploadBuffer;
 
   struct DeviceObjectRegistry
   {
