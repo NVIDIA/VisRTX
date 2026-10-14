@@ -98,6 +98,14 @@ struct Array : public UploadableArray
   virtual const void *dataGPU() const;
   virtual const void *dataHost() const;
 
+  // GPU view of the elements that never creates this array's persistent
+  // linear device copy. Returns app-provided or already up-to-date device
+  // memory as is; otherwise copies the host data into the caller-owned
+  // 'staging' buffer, which frees it. Valid until 'staging' is destroyed or
+  // reused, and until this array's data changes or its linear copy is
+  // evicted.
+  const void *stagedDataGPU(DeviceBuffer &staging) const;
+
   void evictGPU();
 
  protected:
