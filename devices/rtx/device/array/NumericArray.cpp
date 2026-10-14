@@ -85,8 +85,10 @@ cudaArray_t NumericArray::cudaArray()
 void NumericArray::on_NoInternalReferences()
 {
   // No holder remains, hence nothing built on the CUDA array is still alive.
+  reportMessage(ANARI_SEVERITY_DEBUG,
+      "evicting GPU memory for array with no internal references");
   freeCUDAArray();
-  Array::on_NoInternalReferences();
+  evictGPU();
 }
 
 void NumericArray::freeCUDAArray()

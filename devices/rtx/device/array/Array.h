@@ -113,9 +113,8 @@ struct Array : public UploadableArray
   // Free the linear device copy; host data is kept for later re-upload.
   void evictGPU();
 
-  void on_NoInternalReferences() override;
-
  private:
+  void on_NoInternalReferences() override;
   void on_NoPublicReferences() override;
 
   struct AnariArrayData
