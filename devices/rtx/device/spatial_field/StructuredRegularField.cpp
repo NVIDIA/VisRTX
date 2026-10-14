@@ -137,19 +137,22 @@ void StructuredRegularField::finalize()
   cudaMalloc3DArray(
       &m_cudaArray, &desc, make_cudaExtent(dims.x, dims.y, dims.z));
 
+  // The field samples its own CUDA array: copy straight from the host data
+  // rather than through a linear device copy, which would only double peak
+  // memory. App-provided device memory is copied as is.
+  const void *src = m_data->data(AddressSpace::HOST);
+  if (!src)
+    src = m_data->dataGPU();
+
   cudaMemcpy3DParms copyParams;
   std::memset(&copyParams, 0, sizeof(copyParams));
-  copyParams.srcPtr = make_cudaPitchedPtr(const_cast<void *>(m_data->dataGPU()),
-      dims.x * anari::sizeOf(format),
-      dims.x,
-      dims.y);
+  copyParams.srcPtr = make_cudaPitchedPtr(
+      const_cast<void *>(src), dims.x * anari::sizeOf(format), dims.x, dims.y);
   copyParams.dstArray = m_cudaArray;
   copyParams.extent = make_cudaExtent(dims.x, dims.y, dims.z);
-  copyParams.kind = cudaMemcpyDeviceToDevice;
+  copyParams.kind = cudaMemcpyDefault;
 
   cudaMemcpy3D(&copyParams);
-
-  m_data->evictGPU();
 
   cudaResourceDesc resDesc;
   std::memset(&resDesc, 0, sizeof(resDesc));

@@ -106,11 +106,12 @@ struct Array : public UploadableArray
   // evicted.
   const void *stagedDataGPU(DeviceBuffer &staging) const;
 
-  void evictGPU();
-
  protected:
   template <typename T>
   void throwIfDifferentElementType() const;
+
+  // Free the linear device copy; host data is kept for later re-upload.
+  void evictGPU();
 
   void on_NoInternalReferences() override;
 
