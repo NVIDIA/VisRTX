@@ -113,12 +113,15 @@ void HDRI::finalize()
 
     m_size = {m_radiance->size(0), m_radiance->size(1)};
 
-    m_pdfWeight =
-        generateCDFTables(m_radiance->dataAs<glm::vec3>(AddressSpace::GPU),
-            m_radiance->size(0),
-            m_radiance->size(1),
-            &m_marginalCDF,
-            &m_conditionalCDF);
+    // The CDFs only need the radiance once; do not keep a linear device copy
+    // next to the CUDA array.
+    DeviceBuffer staging;
+    m_pdfWeight = generateCDFTables(
+        static_cast<const glm::vec3 *>(m_radiance->stagedDataGPU(staging)),
+        m_radiance->size(0),
+        m_radiance->size(1),
+        &m_marginalCDF,
+        &m_conditionalCDF);
 
     m_radianceTex = makeCudaTextureObject2D(
         cuArray, !isFp, "linear", "repeat", "clampToEdge");

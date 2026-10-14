@@ -266,6 +266,34 @@ const void *Array::dataGPU() const
   return nullptr;
 }
 
+const void *Array::stagedDataGPU(DeviceBuffer &staging) const
+{
+  const void *host = dataHost();
+  const void *device = nullptr;
+  switch (ownership()) {
+  case ArrayDataOwnership::SHARED:
+    device = m_data.shared.device.ptr();
+    break;
+  case ArrayDataOwnership::CAPTURED:
+    device = m_data.captured.device.ptr();
+    break;
+  case ArrayDataOwnership::MANAGED:
+    device = m_data.managed.device.ptr();
+    break;
+  default:
+    break;
+  }
+
+  if (device && (!host || !needToUploadData()))
+    return device;
+  if (!host)
+    return nullptr;
+
+  staging.upload(static_cast<const uint8_t *>(host),
+      totalCapacity() * anari::sizeOf(elementType()));
+  return staging.ptr();
+}
+
 const void *Array::dataHost() const
 {
   switch (ownership()) {

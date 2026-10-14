@@ -116,14 +116,14 @@ const Image2D::TextureReduction &Image2D::textureReduction() const
   return m_reduction;
 }
 
-// One thrust pass over the resident device texels (Array::data(GPU) is a real
-// H2D upload) yielding, per channel, the max absolute value (exact zero proof),
-// the mean of the positive part (the non-negative magnitude that sizes a
-// textured emitter's Pick Power — variance, never bias), and the min value
-// (non-negative sign proof). The device functor linearizes sRGB byte data to
-// match the hardware sampler. Unsupported element types or a missing device
-// residency leave the reduction Unknown (magnitude stays unit so the emitter is
-// still picked).
+// One thrust pass over the device texels (staged for the scan only, see
+// Array::stagedDataGPU()) yielding, per channel, the max absolute value
+// (exact zero proof), the mean of the positive part (the non-negative magnitude
+// that sizes a textured emitter's Pick Power — variance, never bias), and the
+// min value (non-negative sign proof). The device functor linearizes sRGB byte
+// data to match the hardware sampler. Unsupported element types or a missing
+// device residency leave the reduction Unknown (magnitude stays unit so the
+// emitter is still picked).
 Image2D::TextureReduction Image2D::computeTextureReduction() const
 {
   TextureReduction r;
@@ -143,7 +143,9 @@ Image2D::TextureReduction Image2D::computeTextureReduction() const
   const int colorChannels =
       (fmt == TexelFormat::Srgb8 && (nc == 2 || nc == 4)) ? nc - 1 : nc;
 
-  const void *dev = image()->data(AddressSpace::GPU);
+  // One-off scan: do not keep a linear device copy next to the CUDA array.
+  DeviceBuffer staging;
+  const void *dev = image()->stagedDataGPU(staging);
   if (!dev)
     return r; // no device residency ⇒ Unknown
 
