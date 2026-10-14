@@ -52,6 +52,10 @@ struct Rect : public Light
   vec3 m_edge1 = vec3(1.f, 0.f, 0.f);
   vec3 m_edge2 = vec3(0.f, 1.f, 0.f);
   float m_intensity = 1.f;
+  float m_coneAngle = 1.57079632679489661923f;
+  float m_coneSoftness = 0.f;
+  float m_focus = 0.f;
+  vec3 m_focusTint = vec3(0.f);
   enum class Side
   {
     FRONT,

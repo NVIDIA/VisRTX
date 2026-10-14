@@ -138,6 +138,17 @@ box; omitting either leaves the bound open.
 - `roi` (`FLOAT32_BOX3`): the restriction box to apply (default: unbounded).
 
 
+#### VISRTX_LIGHT_QUAD_SHAPING
+
+Adds `coneAngle` (float half-angle in radians, default pi/2, range [0,pi])
+and `coneSoftness` (float fraction, default 0, range [0,1]) to `quad` lights.
+Each enabled side emits about its own normal. Softness defines an inner angle
+`coneAngle*(1-coneSoftness)` with smoothstep attenuation in angular space up to
+the outer cutoff. Zero softness is a hard cutoff. Shaping multiplies radiance
+without renormalizing power; the same restriction applies to illumination and
+visible/reflected area-light proxies. The uniform area-sampling density is
+unchanged. Unset parameters retain existing unshaped behavior.
+
 #### VISRTX_SPATIAL_FIELD_STRUCTURED_RECTILINEAR
 
 The `structuredRectilinear` spatial field type provides efficient sampling of
@@ -359,3 +370,5 @@ The following extensions are either partially or fully implemented by VisRTX:
 
 For any found bugs in extensions that are implemented, please [open an
 issue](https://github.com/NVIDIA/VisRTX/issues/new)!
+
+The `ANARI_VISRTX_LIGHT_QUAD_FOCUS` extension adds quad `focus` (nonnegative exponent, default 0) and `focusTint` (linear RGB, default black). Radiance is multiplied by `mix(focusTint, white, abs(axis dot emissionDirection)^focus)` and the cone cutoff/softness. White tint disables focus. Sampling density stays unchanged, with shared NEE/proxy radiance; no emission power renormalization is applied. `TestQuadLightFocus` covers retained edits, tint/default restoration, illumination and visible proxies in interactive and quality modes.
