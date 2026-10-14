@@ -63,7 +63,6 @@ void Array1D::finalize()
   }
 
   markDataModified();
-  notifyChangeObservers();
 }
 
 size_t Array1D::totalSize() const
