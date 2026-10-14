@@ -1,0 +1,39 @@
+{
+  "info": {
+    "name": "VISRTX_LIGHT_QUAD_SHAPING",
+    "type": "extension",
+    "dependencies": [
+      "khr_light_quad"
+    ]
+  },
+  "objects": [
+    {
+      "type": "ANARI_LIGHT",
+      "name": "quad",
+      "parameters": [
+        {
+          "name": "coneAngle",
+          "types": [
+            "ANARI_FLOAT32"
+          ],
+          "tags": [],
+          "default": 1.5707963267948966,
+          "minimum": 0,
+          "maximum": 3.141592653589793,
+          "description": "Cone half-angle in radians about each emitting side normal; default leaves the hemisphere unrestricted."
+        },
+        {
+          "name": "coneSoftness",
+          "types": [
+            "ANARI_FLOAT32"
+          ],
+          "tags": [],
+          "default": 0,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Fraction of the cone angle occupied by a smooth angular edge: inner angle is coneAngle*(1-coneSoftness). Zero is a hard cutoff. No radiance or power renormalization."
+        }
+      ]
+    }
+  ]
+}

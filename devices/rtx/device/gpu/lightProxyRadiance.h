@@ -54,8 +54,15 @@ VISRTX_DEVICE vec3 lightProxyRadiance(
   const auto &proxy = frameData.world.lightProxies[hit.lightProxyIndex];
   const auto &ld = frameData.registry.lights[proxy.lightIndex];
   switch (ld.type) {
-  case LightType::RECT:
-    return rectRadiance(ld.rect, ld.color);
+  case LightType::RECT: {
+    // Preserve the existing constant-radiance path for unshaped emitters.
+    if (!rectHasShaping(ld.rect))
+      return rectRadiance(ld.rect, ld.color);
+    const RectFrame rect = rectFrame(ld.rect, proxy.xfm);
+    const RectPointRelation rel =
+        rectRelateToPoint(ld.rect, rect, origin, hit.hitpoint);
+    return rectRadiance(ld.rect, ld.color, rel.cosTheta);
+  }
   case LightType::RING: {
     const vec3 axis = ringWorldAxis(ld.ring, proxy.xfm);
     const RingPointRelation rel =
