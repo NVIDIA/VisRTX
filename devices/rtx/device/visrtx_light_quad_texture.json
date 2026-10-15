@@ -1,0 +1,28 @@
+{
+  "info": {
+    "name": "VISRTX_LIGHT_QUAD_TEXTURE",
+    "type": "extension",
+    "dependencies": [
+      "khr_light_quad"
+    ]
+  },
+  "objects": [
+    {
+      "type": "ANARI_LIGHT",
+      "name": "quad",
+      "parameters": [
+        {
+          "name": "colorMap",
+          "types": [
+            "ANARI_ARRAY2D"
+          ],
+          "elementType": [
+            "ANARI_FLOAT32_VEC3"
+          ],
+          "tags": [],
+          "description": "Optional finite nonnegative linear RGB emission multiplier, bilinear filtered and clamped to the edge. UV runs along edge1 and edge2. No average normalization; absent behaves as white."
+        }
+      ]
+    }
+  ]
+}

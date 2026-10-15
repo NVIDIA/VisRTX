@@ -33,20 +33,29 @@
 
 #include "Light.h"
 #include "array/Array.h"
+#include "array/Array2D.h"
 
 namespace visrtx {
 
 struct Rect : public Light
 {
   Rect(DeviceGlobalState *d);
+  ~Rect() override;
 
   void commitParameters() override;
+  void finalize() override;
 
   bool hasAreaProxy() const override;
   box3 areaProxyBounds(const mat4 &xfm) const override;
 
  private:
   LightGPUData gpuData() const override;
+  void cleanupColorMap();
+
+  helium::ChangeObserverPtr<Array2D> m_colorMap;
+  helium::TimeStamp m_colorMapStamp{};
+  cudaTextureObject_t m_colorTexture{};
+  vec3 m_colorMapMean{1.f};
 
   vec3 m_position = vec3(0.f, 0.f, 0.f);
   vec3 m_edge1 = vec3(1.f, 0.f, 0.f);

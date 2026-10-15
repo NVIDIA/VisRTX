@@ -89,8 +89,9 @@ VISRTX_HOST_DEVICE float lightPickPower(
     const float area =
         detail::affineAreaScale(xfm) / glm::max(ld.rect.oneOverArea, 1e-8f);
     const float sides = float(ld.rect.side.front + ld.rect.side.back);
-    return detail::pickLuminance(ld.color) * ld.rect.intensity * area * kPi
-        * sides;
+    return detail::pickLuminance(
+               ld.color * (ld.rect.colorMap ? ld.rect.colorMapMean : vec3(1.f)))
+        * ld.rect.intensity * area * kPi * sides;
   }
   case LightType::SPOT: {
     // Point light restricted to a cone: flux ≈ intensity · solid angle.
