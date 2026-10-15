@@ -393,6 +393,89 @@ int main()
     CHECK(isFinite(ringRadiance(zeroRadius, vec3(1.0f), 1.0f).x));
   }
 
+  // --- Cone shaping: independent angle-space reference ---------------------
+  {
+    RectLightGPUData r = unitRect(true, false, 4.f);
+    const auto configure = [&](float degrees, float softness) {
+      r.coneAngle = degrees * kPi / 180.f;
+      r.innerAngle = r.coneAngle * (1.f - softness);
+      r.cosOuterAngle = std::cos(r.coneAngle);
+      r.cosInnerAngle = std::cos(r.innerAngle);
+    };
+    configure(30.f, 0.f);
+    CHECK(rectHasConeShaping(r));
+    CHECK(nearf(rectConeAttenuation(r, std::cos(29.f * kPi / 180.f)), 1.f));
+    CHECK(rectConeAttenuation(r, std::cos(31.f * kPi / 180.f)) == 0.f);
+    // A hard cutoff attenuates radiance, never the uniform-area density.
+    const RectFrame frame = rectFrame(r, identity);
+    const RectPointRelation rel = rectRelateToPoint(
+        r, frame, vec3(3.f, 1.f, 0.f), vec3(0.f));
+    CHECK(rel.cosTheta > 0.f && rel.solidAnglePdf > 0.f);
+    CHECK(rectRadiance(r, vec3(1.f), rel.cosTheta).x == 0.f);
+    configure(30.f, 0.5f);
+    for (int degrees = 0; degrees <= 90; ++degrees) {
+      // USD's smoothstep is over [15,30] degrees, not over cosines.
+      const double u = std::fmax(0., std::fmin(1., (degrees - 15.) / 15.));
+      const float expected = float(1. - u * u * (3. - 2. * u));
+      CHECK(nearf(rectConeAttenuation(r,
+                      std::cos(degrees * kPi / 180.f)), expected, 2e-5f));
+    }
+    configure(0.f, 0.f);
+    CHECK(rectConeAttenuation(r, 1.f) == 1.f);
+    CHECK(rectConeAttenuation(r, 0.999f) == 0.f);
+    configure(90.f, 0.f);
+    CHECK(!rectHasConeShaping(r));
+    CHECK(nearf(rectRadiance(r, vec3(1.f), 0.1f).x, 4.f));
+    configure(180.f, 0.f);
+    CHECK(!rectHasConeShaping(r));
+    CHECK(nearf(rectRadiance(r, vec3(1.f), 0.1f).x, 4.f));
+    // The existing side predicate selects the axis for back/both lights.
+    r.side.back = 1;
+    r.side.front = 0;
+    configure(30.f, 0.f);
+    CHECK(nearf(rectEmissionCosTheta(r, frame.worldNormal,
+                     frame.worldNormal), 1.f));
+    CHECK(nearf(rectConeAttenuation(r,
+                     rectEmissionCosTheta(r, frame.worldNormal,
+                         frame.worldNormal)), 1.f));
+    r.side.front = 1;
+    CHECK(nearf(rectConeAttenuation(r,
+                     rectEmissionCosTheta(r, frame.worldNormal,
+                         -frame.worldNormal)), 1.f));
+  }
+
+  // USD focus: an independent cosine-power reference and tint interpolation.
+  {
+    RectLightGPUData r = unitRect(true, false, 4.f);
+    r.coneAngle = r.innerAngle = kPi * 0.5f;
+    r.cosOuterAngle = r.cosInnerAngle = 0.f;
+    r.focus = 2.f;
+    r.focusTint = vec3(0.f);
+    for (int i = -100; i <= 100; ++i) {
+      const float cosine = float(i) / 100.f;
+      CHECK(nearf(rectFocusAttenuation(r, cosine).x, cosine * cosine));
+    }
+    CHECK(rectHasFocusShaping(r) && rectHasShaping(r));
+    CHECK(nearf(rectRadiance(r, vec3(1.f), 0.5f).x, 1.f));
+    const float pdf = rectSolidAnglePdf(r.oneOverArea, 3.f, 0.5f);
+    r.focus = 20.f;
+    CHECK(rectFocusAttenuation(r, 0.5f).x < 1e-5f);
+    CHECK(rectSolidAnglePdf(r.oneOverArea, 3.f, 0.5f) == pdf);
+    r.focusTint = vec3(1.f, 0.f, 0.f);
+    CHECK(nearf(rectFocusAttenuation(r, 0.f).x, 1.f));
+    CHECK(rectFocusAttenuation(r, 0.f).y == 0.f);
+    r.focusTint = vec3(1.f);
+    CHECK(!rectHasFocusShaping(r));
+    CHECK(nearf(rectRadiance(r, vec3(1.f), 0.1f).x, 4.f));
+    r.focus = -1.f;
+    r.focusTint = vec3(0.f);
+    CHECK(rectFocusAttenuation(r, 0.5f) == vec3(1.f));
+    r.focus = 2.f;
+    r.coneAngle = r.innerAngle = kPi / 6.f;
+    r.cosOuterAngle = r.cosInnerAngle = std::cos(r.coneAngle);
+    CHECK(rectRadiance(r, vec3(1.f), 0.5f) == vec3(0.f));
+  }
+
   if (g_failures == 0)
     std::printf("test_LightGeometry: all checks passed\n");
   else

@@ -151,12 +151,58 @@ VISRTX_HOST_DEVICE float rectEmissionCosTheta(const RectLightGPUData &rect,
   return cosTheta;
 }
 
-// Lambertian: radiance is independent of distance and of viewing angle. The
-// cosine is carried by the pdf, not by the radiance.
-VISRTX_HOST_DEVICE vec3 rectRadiance(
-    const RectLightGPUData &rect, const vec3 &color)
+VISRTX_HOST_DEVICE bool rectHasConeShaping(const RectLightGPUData &rect)
 {
-  return color * rect.intensity;
+  return rect.cosOuterAngle > 0.f || rect.innerAngle < rect.coneAngle;
+}
+
+VISRTX_HOST_DEVICE bool rectHasFocusShaping(const RectLightGPUData &rect)
+{
+  return rect.focus > 0.f && rect.focusTint != vec3(1.f);
+}
+
+VISRTX_HOST_DEVICE bool rectHasShaping(const RectLightGPUData &rect)
+{
+  return rectHasConeShaping(rect) || rectHasFocusShaping(rect);
+}
+
+// USD Lux focus is a cosine-power tint, independent of the cone cutoff.
+// Negative focus is ignored; white tint disables focus. Do not renormalize power.
+VISRTX_HOST_DEVICE vec3 rectFocusAttenuation(
+    const RectLightGPUData &rect, float cosTheta)
+{
+  if (!rectHasFocusShaping(rect))
+    return vec3(1.f);
+  const float factor = powf(glm::clamp(fabsf(cosTheta), 0.f, 1.f), rect.focus);
+  return glm::mix(rect.focusTint, vec3(1.f), factor);
+}
+
+// Cone shaping attenuates emission about each enabled side's normal. The
+// smoothstep is in ANGLE space, matching USD Lux rather than smoothing cosines.
+// A hard cutoff (including the unshaped default) requires no inverse trig.
+VISRTX_HOST_DEVICE float rectConeAttenuation(
+    const RectLightGPUData &rect, float cosTheta)
+{
+  if (cosTheta < rect.cosOuterAngle)
+    return 0.f;
+  if (cosTheta >= rect.cosInnerAngle || rect.innerAngle >= rect.coneAngle)
+    return 1.f;
+  const float angle = acosf(glm::clamp(cosTheta, -1.f, 1.f));
+  const float t = glm::clamp(
+      (rect.coneAngle - angle) / (rect.coneAngle - rect.innerAngle), 0.f, 1.f);
+  return t * t * (3.f - 2.f * t);
+}
+
+// The geometric cosine remains in the pdf; shaping multiplies radiance only.
+// NEE and the visible/reflected proxy call this same leaf (ADR 0009).
+VISRTX_HOST_DEVICE vec3 rectRadiance(
+    const RectLightGPUData &rect, const vec3 &color, float cosTheta = 1.f)
+{
+  const vec3 radiance = color * rect.intensity;
+  return rectHasShaping(rect)
+      ? radiance * rectConeAttenuation(rect, cosTheta)
+          * rectFocusAttenuation(rect, cosTheta)
+      : radiance;
 }
 
 // Uniform-area sampling converted to solid angle: (1/area) * dist^2 / cosTheta.
