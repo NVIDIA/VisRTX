@@ -113,6 +113,12 @@ Geometry *Geometry::createInstance(
 
 void Geometry::commitParameters()
 {
+  // Array observers can re-finalize without a parameter commit, but parameter
+  // replacement can release the last reference to an aliased device array.
+  // Complete earlier consumers before subclasses replace those references.
+  m_inputRetirementFailed = !checkPreparation(this,
+      cudaStreamSynchronize(deviceState()->stream),
+      "retiring previous geometry inputs");
   commitAttributes("primitive.", m_primitiveAttributes);
 
   auto getUniformAttribute =
@@ -141,6 +147,24 @@ void Geometry::markFinalized()
 bool Geometry::isAreaSamplingSupported() const
 {
   return false;
+}
+
+bool Geometry::beginPreparation()
+{
+  if (m_inputRetirementFailed)
+    return false;
+  m_preparationFailed = false;
+  return true;
+}
+
+bool Geometry::preparationFailed() const
+{
+  return m_preparationFailed;
+}
+
+void Geometry::setPreparationFailed(bool failed)
+{
+  m_preparationFailed = failed;
 }
 
 void Geometry::ensureAreaData() {}

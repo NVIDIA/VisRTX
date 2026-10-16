@@ -223,16 +223,25 @@ CudaMemoryAllocation::CudaMemoryAllocation(const HostMemoryAllocation &o) {
   (*this) = o;
 }
 
-void CudaMemoryAllocation::privatize()
+cudaError_t CudaMemoryAllocation::privatize()
 {
   if (!isValid() || isOwner())
-    return;
+    return cudaSuccess;
   void *dst = nullptr;
-  cudaMalloc(&dst, bytes());
-  cudaMemcpy(dst, ptr(), bytes(), cudaMemcpyDeviceToDevice);
+  auto error = cudaMalloc(&dst, bytes());
+  if (error != cudaSuccess)
+    return error;
+  error = cudaMemcpy(dst, ptr(), bytes(), cudaMemcpyDeviceToDevice);
+  if (error == cudaSuccess)
+    error = cudaStreamSynchronize(nullptr);
+  if (error != cudaSuccess) {
+    cudaFree(dst);
+    return error;
+  }
   freeMemory();
   m_ptr = dst;
   m_owner = true;
+  return cudaSuccess;
 }
 
 CudaMemoryAllocation::CudaMemoryAllocation(CudaMemoryAllocation &&o)

@@ -42,9 +42,9 @@
 #include "utility/AnariTypeHelpers.h"
 #include "world/Group.h"
 
-#include <glm/gtc/matrix_inverse.hpp>
 #include <cassert>
 #include <cmath>
+#include <glm/gtc/matrix_inverse.hpp>
 #include <set>
 
 #ifdef USE_MDL
@@ -125,6 +125,8 @@ bool World::getProperty(const std::string_view &name,
       deviceState()->commitBuffer.flush();
       rebuildWorld();
     }
+    if (preparationFailed())
+      return false;
     auto bounds = m_surfaceBounds;
     bounds.extend(m_volumeBounds);
     std::memcpy(ptr, &bounds, sizeof(bounds));
@@ -140,6 +142,8 @@ bool World::getProperty(const std::string_view &name,
       deviceState()->commitBuffer.flush();
       rebuildWorld();
     }
+    if (preparationFailed())
+      return false;
     const auto count = uint32_t(m_instanceLightGPUData.size());
     std::memcpy(ptr, &count, sizeof(count));
     return true;
@@ -247,6 +251,15 @@ WorldGPUData World::gpuData() const
   return retval;
 }
 
+bool World::preparationFailed() const
+{
+  for (auto *instance : m_instances) {
+    if (instance->group()->preparationFailed())
+      return true;
+  }
+  return false;
+}
+
 void World::rebuildWorld()
 {
   const auto &state = *deviceState();
@@ -259,6 +272,8 @@ void World::rebuildWorld()
     m_objectUpdates.lastTLASBuild = 0; // BLAS changed, so need to build TLAS
     rebuildBLASs();
   }
+  if (preparationFailed())
+    return;
 
   if (m_objectUpdates.lastTLASBuild <= state.objectUpdates.lastTLASChange) {
     m_surfaceBounds = box3();
@@ -272,6 +287,8 @@ void World::rebuildWorld()
     // is deliberately NOT computed here -- it is scaled by the scene radius,
     // which only exists once the TLAS has been built. See buildLightPickCdf().
     buildInstanceLightGPUData();
+    if (preparationFailed())
+      return;
     buildLightProxies();
 
     populateOptixInstances();
@@ -501,8 +518,7 @@ void World::buildInstanceSurfaceGPUData()
 
       const mat4 o2wMat4 = mat4(inst->xfm(t));
       const mat3x4 o2w = glm::transpose(mat4x3(o2wMat4));
-      const mat3x4 w2o =
-          glm::transpose(mat4x3(glm::affineInverse(o2wMat4)));
+      const mat3x4 w2o = glm::transpose(mat4x3(glm::affineInverse(o2wMat4)));
 
       auto assignXfm = [&](InstanceSurfaceGPUData &g) {
         g.objectToWorld = o2w;
@@ -519,20 +535,18 @@ void World::buildInstanceSurfaceGPUData()
         ++instID;
       }
       if (group->containsCurveGeometry()) {
-        sd[instID] =
-            makeInstanceGPUData(group->surfaceCurveGPUIndices().data(),
-                inst->uniformAttributes(),
-                id,
-                t);
+        sd[instID] = makeInstanceGPUData(group->surfaceCurveGPUIndices().data(),
+            inst->uniformAttributes(),
+            id,
+            t);
         assignXfm(sd[instID]);
         ++instID;
       }
       if (group->containsUserGeometry()) {
-        sd[instID] =
-            makeInstanceGPUData(group->surfaceUserGPUIndices().data(),
-                inst->uniformAttributes(),
-                id,
-                t);
+        sd[instID] = makeInstanceGPUData(group->surfaceUserGPUIndices().data(),
+            inst->uniformAttributes(),
+            id,
+            t);
         assignXfm(sd[instID]);
         ++instID;
       }
@@ -557,8 +571,7 @@ void World::buildInstanceVolumeGPUData()
 
       const mat4 o2wMat4 = mat4(inst->xfm(t));
       const mat3x4 o2w = glm::transpose(mat4x3(o2wMat4));
-      const mat3x4 w2o =
-          glm::transpose(mat4x3(glm::affineInverse(o2wMat4)));
+      const mat3x4 w2o = glm::transpose(mat4x3(glm::affineInverse(o2wMat4)));
 
       InstanceVolumeGPUData g;
       g.objectToWorld = o2w;
@@ -588,8 +601,8 @@ void World::synthesizeGeometryLights()
 {
   // Configure or drop each candidate surface's Geometry Light from current
   // material + geometry state. Runs over triangle and user (custom-primitive,
-  // e.g. sphere) surfaces; isSampleableEmitter gates out non-area-samplable ones.
-  // Object-space, so done once per group; the fill pass instances it per
+  // e.g. sphere) surfaces; isSampleableEmitter gates out non-area-samplable
+  // ones. Object-space, so done once per group; the fill pass instances it per
   // transform like an authored light. The light carries the material's mean
   // radiance (Pick Power); the sampler evaluates the material at the sampled
   // point when its emission is not constant.
@@ -597,6 +610,8 @@ void World::synthesizeGeometryLights()
     if (surface->isSampleableEmitter()) {
       auto *geometry = surface->geometry();
       geometry->ensureAreaData();
+      if (geometry->preparationFailed())
+        return;
       const float area = geometry->totalArea();
       if (area > 0.0f) {
         surface->ensureGeometryLight()->configure(geometry->index(),
@@ -624,6 +639,8 @@ void World::synthesizeGeometryLights()
 void World::buildInstanceLightGPUData()
 {
   synthesizeGeometryLights();
+  if (preparationFailed())
+    return;
 
   // Calculate total lights (authored + synthesized Geometry Lights)
   size_t totalLights = 0;
@@ -667,10 +684,10 @@ void World::buildInstanceLightGPUData()
 
   size_t lightIndex = 0;
   size_t hdriIndex = 0;
-  // Mirrors buildInstanceSurfaceGPUData's instID: surface instances are laid out
-  // per (instance, transform) as [triangle?][curve?][user?]. Tracking the same
-  // cursor here recovers each Geometry Light's surface-instance index without a
-  // side table.
+  // Mirrors buildInstanceSurfaceGPUData's instID: surface instances are laid
+  // out per (instance, transform) as [triangle?][curve?][user?]. Tracking the
+  // same cursor here recovers each Geometry Light's surface-instance index
+  // without a side table.
   size_t surfaceInstanceCursor = 0;
 
   std::for_each(m_instances.begin(), m_instances.end(), [&](auto *inst) {
@@ -798,9 +815,8 @@ void World::buildLightPickCdf()
   //
   // Fall back to unit radius so an empty scene still weights the infinite
   // lights nonzero.
-  m_sceneRadius = empty(m_illuminatedBounds)
-      ? 1.0f
-      : 0.5f
+  m_sceneRadius = empty(m_illuminatedBounds) ? 1.0f
+                                             : 0.5f
           * glm::length(m_illuminatedBounds.upper - m_illuminatedBounds.lower);
   if (!(m_sceneRadius > 0.0f) || !std::isfinite(m_sceneRadius))
     m_sceneRadius = 1.0f;

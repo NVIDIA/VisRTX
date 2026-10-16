@@ -52,6 +52,7 @@
 #include "utility/TaskExecutor.h"
 #endif // defined(USE_MDL)
 // std
+#include <atomic>
 #include <filesystem>
 #include <optional>
 #include <set>
@@ -165,6 +166,10 @@ struct ptx_blob
 struct DeviceGlobalState : public helium::BaseGlobalDeviceState
 {
   anari::Device anariDevice{nullptr};
+
+  // A failed last-public-release copy leaves application memory unavailable.
+  // Cached GPU pointers cannot be repaired safely: only cleanup is permitted.
+  std::atomic<bool> arrayPrivatizationFailed{false};
 
   CUcontext cudaContext;
   CUstream stream;

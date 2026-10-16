@@ -29,6 +29,8 @@ void Neural::commitParameters()
 
 void Neural::finalize()
 {
+  if (!beginPreparation())
+    return;
   Geometry::finalize();
   m_aabbs.resize(1);
   m_aabbs.dataHost()[0] = m_aabb;

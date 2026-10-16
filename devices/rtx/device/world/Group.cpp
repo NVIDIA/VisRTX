@@ -73,7 +73,11 @@ bool Group::getProperty(const std::string_view &name,
       deviceState()->commitBuffer.flush();
       rebuildSurfaceBVHs();
       rebuildVolumeBVH();
+      if (preparationFailed())
+        return false;
     }
+    if (preparationFailed())
+      return false;
     auto bounds = m_triangleBounds;
     bounds.extend(m_curveBounds);
     bounds.extend(m_userBounds);
@@ -205,8 +209,24 @@ const std::vector<Surface *> &Group::surfacesUser() const
   return m_surfacesUser;
 }
 
+bool Group::preparationFailed() const
+{
+  if (!m_surfaceData)
+    return false;
+  auto surfaces = make_Span(
+      (Surface **)m_surfaceData->handlesBegin(), m_surfaceData->totalSize());
+  for (auto *s : surfaces) {
+    if (s && s->isVisible() && s->geometry()
+        && s->geometry()->preparationFailed())
+      return true;
+  }
+  return false;
+}
+
 void Group::rebuildSurfaceBVHs()
 {
+  if (preparationFailed())
+    return;
   const auto &state = *deviceState();
   if (state.objectUpdates.lastSurfaceBLASChange
       < m_objectUpdates.lastSurfaceBVHBuilt)
@@ -221,9 +241,21 @@ void Group::rebuildSurfaceBVHs()
   m_traversableCurve = {};
   m_traversableUser = {};
 
+  // populateBuildInput can trigger a first upload of an authored index array.
+  // Establish its default-stream producer edge before any BLAS consumes it.
+  auto triangles = createOBI(m_surfacesTriangle);
+  auto curves = createOBI(m_surfacesCurve);
+  auto users = createOBI(m_surfacesUser);
+  Surface *first = !m_surfacesTriangle.empty() ? m_surfacesTriangle.front()
+      : !m_surfacesCurve.empty()               ? m_surfacesCurve.front()
+      : !m_surfacesUser.empty()                ? m_surfacesUser.front()
+                                               : nullptr;
+  if (first && !waitForPreparationInputs(first->geometry()))
+    return;
+
   if (!m_surfacesTriangle.empty()) {
     reportMessage(ANARI_SEVERITY_DEBUG, "visrtx::Group building triangle BVH");
-    buildOptixBVH(createOBI(m_surfacesTriangle),
+    buildOptixBVH(std::move(triangles),
         m_bvhTriangle,
         m_traversableTriangle,
         m_triangleBounds,
@@ -235,11 +267,8 @@ void Group::rebuildSurfaceBVHs()
 
   if (!m_surfacesCurve.empty()) {
     reportMessage(ANARI_SEVERITY_DEBUG, "visrtx::Group building curve BVH");
-    buildOptixBVH(createOBI(m_surfacesCurve),
-        m_bvhCurve,
-        m_traversableCurve,
-        m_curveBounds,
-        this);
+    buildOptixBVH(
+        std::move(curves), m_bvhCurve, m_traversableCurve, m_curveBounds, this);
   } else {
     reportMessage(
         ANARI_SEVERITY_DEBUG, "visrtx::Group skipping curve BVH build");
@@ -247,11 +276,8 @@ void Group::rebuildSurfaceBVHs()
 
   if (!m_surfacesUser.empty()) {
     reportMessage(ANARI_SEVERITY_DEBUG, "visrtx::Group building user BVH");
-    buildOptixBVH(createOBI(m_surfacesUser),
-        m_bvhUser,
-        m_traversableUser,
-        m_userBounds,
-        this);
+    buildOptixBVH(
+        std::move(users), m_bvhUser, m_traversableUser, m_userBounds, this);
   } else {
     reportMessage(
         ANARI_SEVERITY_DEBUG, "visrtx::Group skipping user BVH build");

@@ -455,6 +455,11 @@ VisRTXDevice::~VisRTXDevice()
 
 bool VisRTXDevice::initDevice()
 {
+  if (deviceState()->arrayPrivatizationFailed) {
+    reportMessage(ANARI_SEVERITY_ERROR,
+        "device disabled after array privatization failure; create a new device");
+    return false;
+  }
   if (m_initStatus == DeviceInitStatus::SUCCESS)
     return true;
   else if (m_initStatus == DeviceInitStatus::FAILURE) {

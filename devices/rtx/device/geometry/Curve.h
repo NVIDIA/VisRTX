@@ -33,7 +33,7 @@
 
 #include "Geometry.h"
 #include "array/Array1D.h"
-#include "utility/HostDeviceArray.h"
+#include "utility/DeviceBuffer.h"
 
 namespace visrtx {
 
@@ -62,8 +62,11 @@ struct Curve : public Geometry
 
   float m_globalRadius;
 
-  HostDeviceArray<uint32_t> m_generatedIndices;
-  HostDeviceArray<float> m_generatedRadii;
+  DeviceBuffer m_generatedIndices;
+  DeviceBuffer m_generatedRadii;
+  const uint32_t *m_indices{nullptr};
+  const float *m_radii{nullptr};
+  size_t m_numPrimitives{0};
 
   CUdeviceptr m_vertexBufferPtr{};
   CUdeviceptr m_radiusBufferPtr{};
