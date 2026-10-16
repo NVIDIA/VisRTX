@@ -35,6 +35,7 @@
 #include "Material.h"
 #include "gpu/gpu_objects.h"
 #include "mdl/MaterialRegistry.h"
+#include "mdl/SceneDataInstance.h"
 #include "optix_visrtx.h"
 
 #include "libmdl/ArgumentBlockInstance.h"
@@ -101,9 +102,8 @@ struct MDL : public Material
 
   void clearSamplers();
 
-  std::vector<MDLSceneDataBinding> m_sceneDataBindings;
+  std::optional<mdl::SceneDataInstance> m_sceneDataInstance;
   DeviceBuffer m_sceneDataBuffer;
-  uint32_t m_numSceneData{0};
   void syncSceneData();
   DeviceBuffer m_argBlockBuffer;
 

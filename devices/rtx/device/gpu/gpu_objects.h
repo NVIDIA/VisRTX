@@ -32,6 +32,7 @@
 #pragma once
 
 #include "gpu/gpu_math.h"
+#include "gpu/materialAttributes.h"
 #include "gpu/sbt.h"
 
 // optix
@@ -61,20 +62,6 @@ namespace visrtx {
 
 using RandState = PCGState;
 using DeviceObjectIndex = int32_t;
-
-enum class MaterialAttribute : uint8_t
-{
-  ATTRIB_0,
-  ATTRIB_1,
-  ATTRIB_2,
-  ATTRIB_3,
-  COLOR,
-  OBJECT_POSITION,
-  OBJECT_NORMAL,
-  WORLD_POSITION,
-  WORLD_NORMAL,
-  UNKNOWN
-};
 
 ///////////////////////////////////////////////////////////////////////////////
 // Objects ////////////////////////////////////////////////////////////////////
@@ -462,11 +449,6 @@ enum class MaterialType
   MATTE = 0, // Akin to callable id
   PHYSICALLYBASED,
   MDL,
-};
-
-struct MDLSceneDataBinding
-{
-  MaterialAttribute attribute{MaterialAttribute::UNKNOWN};
 };
 
 struct MaterialGPUData
