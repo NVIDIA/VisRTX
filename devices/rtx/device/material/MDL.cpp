@@ -71,6 +71,8 @@ namespace visrtx {
 
 namespace {
 
+constexpr auto SCENE_DATA_PREFIX = "sceneData."sv;
+
 // Value source that folds the emission IR against this material instance's live
 // arguments and bound samplers. Keyed by class-compilation argument name, which
 // is how the argument block and the sampler descriptors are keyed.
@@ -248,8 +250,7 @@ void MDL::syncSource()
   auto &materialRegistry = deviceState()->mdl->materialRegistry;
   auto &samplerRegistry = deviceState()->mdl->samplerRegistry;
 
-  auto uuid = libmdl::Uuid{};
-  auto argumentBlockDescriptor = libmdl::ArgumentBlockDescriptor{};
+  mdl::MaterialRegistry::AcquiredMaterial acquired;
 
   const bool isMdle = libmdl::endsWith(source, ".mdle");
 
@@ -258,10 +259,9 @@ void MDL::syncSource()
       reportMessage(ANARI_SEVERITY_ERROR,
           "MDL::syncSource(): sourceType 'code' requires a 'source' parameter");
     } else {
-      std::tie(uuid, argumentBlockDescriptor) =
-          materialRegistry.acquireMaterialFromCode(
-              source, materialName.value_or("main"));
-      if (uuid == libmdl::Uuid{})
+      acquired = materialRegistry.acquireMaterialFromCode(
+          source, materialName.value_or("main"));
+      if (acquired.uuid == libmdl::Uuid{})
         reportMessage(ANARI_SEVERITY_ERROR,
             "MDL::syncSource(): failed to compile inline 'code' material");
     }
@@ -277,9 +277,8 @@ void MDL::syncSource()
           "MDL::syncSource(): MDLE modules only expose 'main', got materialName '%s'",
           materialName->c_str());
     } else {
-      std::tie(uuid, argumentBlockDescriptor) =
-          materialRegistry.acquireMaterial(source, "main");
-      if (uuid == libmdl::Uuid{})
+      acquired = materialRegistry.acquireMaterial(source, "main");
+      if (acquired.uuid == libmdl::Uuid{})
         reportMessage(ANARI_SEVERITY_ERROR,
             "MDL::syncSource(): failed to acquire MDLE material '%s'",
             source.c_str());
@@ -299,9 +298,8 @@ void MDL::syncSource()
           "MDL::syncSource(): could not parse material source name '%s'",
           source.c_str());
     } else {
-      std::tie(uuid, argumentBlockDescriptor) =
-          materialRegistry.acquireMaterial(moduleName, material);
-      if (uuid == libmdl::Uuid{})
+      acquired = materialRegistry.acquireMaterial(moduleName, material);
+      if (acquired.uuid == libmdl::Uuid{})
         reportMessage(ANARI_SEVERITY_ERROR,
             "MDL::syncSource(): failed to acquire material '%s'",
             source.c_str());
@@ -314,10 +312,10 @@ void MDL::syncSource()
 
   // Any failure path falls back to the default material so a committed MDL
   // material always ends up with a valid argument block.
-  if (uuid == libmdl::Uuid{}) {
+  if (acquired.uuid == libmdl::Uuid{}) {
     reportMessage(ANARI_SEVERITY_WARNING,
         "MDL::syncSource(): falling back to ::visrtx::default::diffuseWhite");
-    std::tie(uuid, argumentBlockDescriptor) =
+    acquired =
         materialRegistry.acquireMaterial("::visrtx::default", "diffuseWhite");
   }
 
@@ -327,8 +325,8 @@ void MDL::syncSource()
   m_sourceType = sourceType;
   m_materialName = materialName;
 
-  if (uuid == libmdl::Uuid{}) {
-    // Even the fallback failed; keep the previous argument block (if any).
+  if (acquired.uuid == libmdl::Uuid{}) {
+    // Even the fallback failed; keep the previous descriptors and arguments.
     reportMessage(ANARI_SEVERITY_ERROR,
         "MDL::syncSource(): failed to acquire fallback material");
     return;
@@ -341,14 +339,18 @@ void MDL::syncSource()
   if (m_uuid != libmdl::Uuid{}) {
     materialRegistry.releaseMaterial(m_uuid);
   }
-  m_uuid = uuid;
+  m_uuid = acquired.uuid;
   m_argumentBlockInstance =
-      materialRegistry.createArgumentBlock(argumentBlockDescriptor);
+      materialRegistry.createArgumentBlock(acquired.arguments);
+  m_sceneDataInstance.emplace(acquired.sceneData);
+  // A fresh instance may be entirely unbound and report no CPU-table change.
+  // Discard the previous source's GPU table so the initial upload still runs.
+  m_sceneDataBuffer.reset();
 
   clearSamplers();
 
   for (auto textureDesc :
-      argumentBlockDescriptor.m_defaultAndBodyTextureDescriptors) {
+      acquired.arguments.m_defaultAndBodyTextureDescriptors) {
     auto sampler = samplerRegistry.acquireSampler(textureDesc);
     if (!sampler) {
       reportMessage(ANARI_SEVERITY_WARNING,
@@ -378,7 +380,7 @@ void MDL::syncParameters()
         continue;
       }
 
-      if (name.rfind("sceneData.", 0) == 0)
+      if (name.rfind(SCENE_DATA_PREFIX, 0) == 0)
         continue;
 
       if (libmdl::endsWith(name, ".colorspace"sv)) {
@@ -585,39 +587,26 @@ void MDL::syncImplementationIndex()
 
 void MDL::syncSceneData()
 {
-  const auto *target =
-      m_argumentBlockInstance ? m_argumentBlockInstance->targetCode() : nullptr;
-  m_numSceneData = target ? uint32_t(target->get_string_constant_count()) : 0;
-  if (!m_numSceneData) {
+  if (!m_sceneDataInstance) {
     m_sceneDataBuffer.reset();
-    m_sceneDataBindings.clear();
     return;
   }
-  std::vector<MDLSceneDataBinding> bindings(m_numSceneData);
-  for (uint32_t id = 0; id < m_numSceneData; ++id) {
-    const char *name = target->get_string_constant(id);
-    if (!name || !*name)
+
+  std::vector<mdl::SceneDataInstance::NamedBinding> bindings;
+  for (auto param = params_begin(); param != params_end(); ++param) {
+    const auto &[name, value] = *param;
+    if (name.rfind(SCENE_DATA_PREFIX, 0) != 0 || value.type() != ANARI_STRING)
       continue;
-    const std::string parameter = "sceneData." + std::string(name);
-    const std::string slot = getParamString(parameter, "");
-    if (slot == "color")
-      bindings[id].attribute = MaterialAttribute::COLOR;
-    else if (slot.size() == 10 && slot.compare(0, 9, "attribute") == 0
-        && slot[9] >= '0' && slot[9] <= '3')
-      bindings[id].attribute = MaterialAttribute(slot[9] - '0');
+    bindings.push_back({name.substr(SCENE_DATA_PREFIX.size()),
+        attributeFromString(value.getString())});
   }
-  const bool unchanged = bindings.size() == m_sceneDataBindings.size()
-      && std::equal(bindings.begin(),
-          bindings.end(),
-          m_sceneDataBindings.begin(),
-          [](const auto &a, const auto &b) {
-            return a.attribute == b.attribute;
-          });
-  if (!unchanged) {
-    m_sceneDataBuffer.upload(
-        bindings.data(), bindings.size() * sizeof(bindings[0]));
-    m_sceneDataBindings = std::move(bindings);
-  }
+
+  const bool changed = m_sceneDataInstance->update(bindings);
+  const auto data = m_sceneDataInstance->data();
+  if (data.empty())
+    m_sceneDataBuffer.reset();
+  else if (changed || m_sceneDataBuffer.bytes() == 0)
+    m_sceneDataBuffer.upload(data.data(), data.size_bytes());
 }
 
 MaterialGPUData MDL::gpuData() const
@@ -636,7 +625,9 @@ MaterialGPUData MDL::gpuData() const
 
   retval.materialData.mdl.sceneData =
       m_sceneDataBuffer.ptrAs<const MDLSceneDataBinding>();
-  retval.materialData.mdl.numSceneData = m_numSceneData;
+  retval.materialData.mdl.numSceneData = m_sceneDataInstance
+      ? static_cast<uint32_t>(m_sceneDataInstance->data().size())
+      : 0;
   if (m_argumentBlockInstance.has_value()) {
     retval.materialData.mdl.numSamplers =
         std::min(std::size(retval.materialData.mdl.samplers), size(m_samplers));

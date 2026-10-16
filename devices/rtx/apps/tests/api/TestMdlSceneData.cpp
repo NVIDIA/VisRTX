@@ -259,6 +259,48 @@ struct Scene
   }
 };
 
+static void testSharedSource(Scene &s)
+{
+  auto d = s.device;
+  s.check("original source binding", {0.8f, 0.8f, 0.8f});
+  uint32_t registered = 0;
+  require(anari::getProperty(
+              d, d, "numRegisteredMdlMaterials", registered, ANARI_WAIT),
+      "material registry query failed");
+
+  auto other = anari::newObject<anari::Material>(d, "mdl");
+  anari::setParameter(d, other, "sourceType", "code");
+  anari::setParameter(d, other, "source", source);
+  anari::setParameter(d, other, "materialName", "main");
+  anari::setParameter(d, other, "sceneData.scalar", "attribute1");
+  anari::commitParameters(d, other);
+  anari::setParameter(d, s.geometry, "attribute1", vec4{0.35f, 0, 0, 1});
+  anari::commitParameters(d, s.geometry);
+  anari::setParameter(d, s.surface, "material", other);
+  anari::commitParameters(d, s.surface);
+  s.check("name-cache hit retains scene-data IDs", {0.35f, 0.35f, 0.35f});
+
+  // A different module name with identical compiled content takes the UUID
+  // cache path rather than the source-name cache path.
+  const std::string equivalent = std::string(source) + "\n// same material\n";
+  anari::setParameter(d, other, "source", equivalent.c_str());
+  anari::commitParameters(d, other);
+  s.check("compiled-code reuse retains scene-data IDs", {0.35f, 0.35f, 0.35f});
+  uint32_t reused = 0;
+  require(
+      anari::getProperty(d, d, "numRegisteredMdlMaterials", reused, ANARI_WAIT),
+      "material registry query failed");
+  require(
+      reused == registered, "equivalent source did not reuse compiled code");
+
+  anari::setParameter(d, s.surface, "material", s.material);
+  anari::commitParameters(d, s.surface);
+  s.check("shared descriptors keep bindings independent", {0.8f, 0.8f, 0.8f});
+  anari::release(d, other);
+  anari::unsetParameter(d, s.geometry, "attribute1");
+  anari::commitParameters(d, s.geometry);
+}
+
 static void testSceneData(Scene &s)
 {
   auto d = s.device;
@@ -382,9 +424,15 @@ static void testSceneData(Scene &s)
   anari::unsetParameter(d, s.material, "sceneData.scalar");
   anari::commitParameters(d, s.material);
   s.check("unset binding", {0.25f, 0.25f, 0.25f});
-  anari::setParameter(d, s.material, "sceneData.scalar", "attribute9");
+  for (const char *slot :
+      {"attribute9", "objectPosition", "worldNormal", "Attribute0"}) {
+    anari::setParameter(d, s.material, "sceneData.scalar", slot);
+    anari::commitParameters(d, s.material);
+    s.check("invalid binding", {0.25f, 0.25f, 0.25f});
+  }
+  anari::setParameter(d, s.material, "sceneData.scalar", 42);
   anari::commitParameters(d, s.material);
-  s.check("invalid binding", {0.25f, 0.25f, 0.25f});
+  s.check("non-string binding is unbound", {0.25f, 0.25f, 0.25f});
   anari::setParameter(d, s.material, "sceneData.scalar", "attribute0");
   anari::setParameter(d,
       s.geometry,
@@ -431,6 +479,20 @@ export material main() = material(surface: material_surface(
   anari::setParameter(d, s.material, "sceneData.replacement", "color");
   anari::commitParameters(d, s.material);
   s.check("source replacement string IDs", {0.9f, 0.3f, 0.1f});
+
+  // The new one-name table is entirely unbound. update() returns false for
+  // that initial CPU table, but the old GPU binding must not survive.
+  anari::setParameter(d, s.material, "source", R"mdl(mdl 1.7;
+import ::df::*; import ::scene::*;
+export material main() = material(surface: material_surface(
+  emission: material_emission(emission: df::diffuse_edf(),
+    intensity: scene::data_lookup_color("unboundReplacement", color(0.2, 0.4, 0.6)) * 3.14159265)));
+)mdl");
+  anari::commitParameters(d, s.material);
+  s.check("unbound source replacement clears GPU bindings", {0.2f, 0.4f, 0.6f});
+  anari::setParameter(d, s.material, "sceneData.unboundReplacement", "color");
+  anari::commitParameters(d, s.material);
+  s.check("bind initially unbound source", {0.9f, 0.3f, 0.1f});
 }
 
 static void testCurve(Scene &s)
@@ -515,6 +577,7 @@ int main()
 {
   try {
     Scene scene;
+    testSharedSource(scene);
     testSceneData(scene);
     testCurve(scene);
     testAnimation(scene);

@@ -35,6 +35,7 @@
 #include "libmdl/ArgumentBlockInstance.h"
 #include "libmdl/Core.h"
 #include "libmdl/EmissionIR.h"
+#include "libmdl/SceneDataDescriptor.h"
 #include "libmdl/TimeStamp.h"
 #include "libmdl/uuid.h"
 
@@ -57,6 +58,13 @@ class MaterialRegistry
  public:
   using Uuid = libmdl::Uuid;
 
+  struct AcquiredMaterial
+  {
+    Uuid uuid{};
+    libmdl::ArgumentBlockDescriptor arguments;
+    libmdl::SceneDataDescriptor sceneData;
+  };
+
   MaterialRegistry(libmdl::Core *core);
   ~MaterialRegistry();
 
@@ -71,13 +79,12 @@ class MaterialRegistry
   }
 
   // Material code
-  std::tuple<libmdl::Uuid, libmdl::ArgumentBlockDescriptor> acquireMaterial(
+  AcquiredMaterial acquireMaterial(
       std::string_view moduleName, std::string_view materialName);
   // Compile a material from inline MDL module source. The module is registered
   // under a synthetic, content-addressed name and shares the same compile/cache
   // path as acquireMaterial.
-  std::tuple<libmdl::Uuid, libmdl::ArgumentBlockDescriptor>
-  acquireMaterialFromCode(
+  AcquiredMaterial acquireMaterialFromCode(
       std::string_view source, std::string_view materialName);
   void releaseMaterial(const Uuid &uuid);
 
@@ -132,9 +139,6 @@ class MaterialRegistry
       const libmdl::ArgumentBlockDescriptor &uuid) const;
 
  private:
-  using AcquiredMaterial =
-      std::tuple<libmdl::Uuid, libmdl::ArgumentBlockDescriptor>;
-
   // Return a previously compiled material, bumping its refcount. Empty on a
   // cache miss. No transaction needed -- the lookup is keyed on the name.
   std::optional<AcquiredMaterial> reuseCompiledMaterial(
@@ -160,15 +164,15 @@ class MaterialRegistry
     // Extracted at compile time, while the compiled material is alive (it is
     // not retained past compilation); evicted with the slot on release.
     libmdl::EmissionIR emission;
+    // String IDs must match this slot's PTX, including on a UUID cache hit.
+    libmdl::SceneDataDescriptor sceneData;
   };
 
   // Per material PTX blobs. Stored in Sbt order. Sparse structure depending on
   // acquire/release calls.
   std::vector<TargetCode> m_targetCodes;
 
-  std::unordered_map<std::string,
-      std::tuple<libmdl::Uuid, libmdl::ArgumentBlockDescriptor>>
-      m_materialNameToUuid;
+  std::unordered_map<std::string, AcquiredMaterial> m_materialNameToUuid;
   std::unordered_map<libmdl::Uuid, std::size_t, libmdl::UuidHasher>
       m_uuidToIndex;
 

@@ -43,11 +43,6 @@ class ArgumentBlockInstance
     return m_argumentBlockDescriptor.m_arguments;
   }
 
-  const mi::neuraylib::ITarget_code *targetCode() const
-  {
-    return m_argumentBlockDescriptor.m_targetCode.get();
-  }
-
   bool hasArgument(std::string_view name) const
   {
     return m_argumentBlockDescriptor.m_nameToArgbBlockLayout.count(

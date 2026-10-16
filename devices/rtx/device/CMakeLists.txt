@@ -222,6 +222,7 @@ set(SOURCES
     mdl/ptx.cpp
     mdl/MaterialRegistry.cpp
     mdl/SamplerRegistry.cpp
+    mdl/SceneDataInstance.cpp
     material/MDL.cpp
     material/PhysicallyBasedMDL.cpp
     ${CMAKE_CURRENT_BINARY_DIR}/mdl/default.mdl.cpp
