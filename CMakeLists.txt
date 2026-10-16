@@ -46,5 +46,6 @@ enable_testing()
 
 option(VISRTX_BUILD_RTX_DEVICE "Build CUDA/OptiX device" ON)
 option(VISRTX_BUILD_GL_DEVICE "Build OpenGL device" ON)
+option(VISRTX_BUILD_HALCYON_DEVICE "Build Embree/ISPC CPU device (halcyon)" OFF)
 
 add_subdirectory(devices)

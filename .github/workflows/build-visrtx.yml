@@ -3,13 +3,17 @@ on:
   push:
     branches: [ next_release ]
     paths:
-      - 'devices/**'
+      - 'CMakeLists.txt'
+      - 'devices/CMakeLists.txt'
+      - 'devices/rtx/**'
       - '.github/actions/**'
       - '.github/workflows/build-visrtx.yml'
   pull_request:
     branches: [ main, next_release ]
     paths:
-      - 'devices/**'
+      - 'CMakeLists.txt'
+      - 'devices/CMakeLists.txt'
+      - 'devices/rtx/**'
       - '.github/actions/**'
       - '.github/workflows/build-visrtx.yml'
 

@@ -1,0 +1,63 @@
+name: Halcyon CI
+on:
+  push:
+    branches: [ next_release ]
+    paths:
+      - 'CMakeLists.txt'
+      - 'devices/CMakeLists.txt'
+      - 'devices/halcyon/**'
+      - 'devices/rtx/cmake/build_deps/**'
+      - '.github/actions/build-anari-sdk/**'
+      - '.github/workflows/build-halcyon.yml'
+  pull_request:
+    branches: [ main, next_release ]
+    paths:
+      - 'CMakeLists.txt'
+      - 'devices/CMakeLists.txt'
+      - 'devices/halcyon/**'
+      - 'devices/rtx/cmake/build_deps/**'
+      - '.github/actions/build-anari-sdk/**'
+      - '.github/workflows/build-halcyon.yml'
+
+env:
+  ISPC_VERSION: v1.28.2
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        # Release only: a Debug build and its tests take about 48 minutes
+        config: [Release]
+    # halcyon is Linux only so far
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Install ISPC
+        run: |
+          curl -sSfL https://github.com/ispc/ispc/releases/download/${ISPC_VERSION}/ispc-${ISPC_VERSION}-linux.tar.gz \
+            | tar xz -C ${{ runner.temp }}
+          echo "${{ runner.temp }}/ispc-${ISPC_VERSION}-linux/bin" >> $GITHUB_PATH
+      - name: Build ANARI-SDK
+        uses: ./.github/actions/build-anari-sdk
+        with:
+          config: ${{ matrix.config }}
+          install-prefix: ${{ github.workspace }}/deps
+          build-deps-path: devices/rtx/cmake/build_deps
+          generator: Ninja
+      - name: Configure halcyon
+        run: >
+          cmake -LA -G Ninja -B ${{ github.workspace }}/build-halcyon
+          -DCMAKE_BUILD_TYPE=${{ matrix.config }}
+          -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/install
+          -DCMAKE_PREFIX_PATH=${{ github.workspace }}/deps
+          -DVISRTX_BUILD_RTX_DEVICE=OFF
+          -DVISRTX_BUILD_GL_DEVICE=OFF
+          -DVISRTX_BUILD_HALCYON_DEVICE=ON
+      - name: Build + install halcyon
+        run: >
+          cmake --build ${{ github.workspace }}/build-halcyon --config ${{ matrix.config }} --target install --parallel
+      - name: Unit tests
+        working-directory: ${{ github.workspace }}/build-halcyon
+        run: ctest -C ${{ matrix.config }} --output-on-failure
