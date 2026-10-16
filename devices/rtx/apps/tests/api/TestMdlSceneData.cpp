@@ -100,6 +100,13 @@ export material main(uniform int mode = 0, uniform float gain = 1) = let {
       : mode == 7 ? color(state::animation_time())
       : mode == 8 ? scene::data_lookup_color("missing", color(0.7, 0.1, 0.8))
       : mode == 9 ? color(float(scene::data_lookup_int("scalar", 2)) * 0.1)
+      : mode == 11 ? 0.5 * color(
+          state::texture_coordinate(0).x
+              + scene::data_lookup_float4("scalar", float4(0)).w,
+          state::texture_coordinate(1).y
+              + scene::data_lookup_float4("pair", float4(0)).w,
+          state::texture_coordinate(2).z + state::texture_coordinate(3).z)
+      : mode == 12 ? color(state::texture_coordinate(0))
       : color(scene::data_lookup_uniform_float("scalar.uniform", 0.15));
 } in material(surface: material_surface(
     scattering: df::diffuse_reflection_bsdf(tint: color(0)),
@@ -299,6 +306,61 @@ static void testSharedSource(Scene &s)
   anari::release(d, other);
   anari::unsetParameter(d, s.geometry, "attribute1");
   anari::commitParameters(d, s.geometry);
+}
+
+static void testSharedAttributeCache(Scene &s)
+{
+  auto d = s.device;
+  const std::array<vec4, 4> values = {vec4{0.2f, 0.3f, 0.4f, 0.7f},
+      vec4{0.3f, 0.4f, 0.5f, 0.8f},
+      vec4{0.4f, 0.5f, 0.6f, 0.9f},
+      vec4{0.5f, 0.6f, 0.9f, 0.2f}};
+  std::array<vec4, 4> vertices;
+  for (unsigned i = 0; i < values.size(); ++i) {
+    vertices.fill(values[i]);
+    const auto name = "vertex.attribute" + std::to_string(i);
+    anari::setParameterArray1D(d, s.geometry, name.c_str(), vertices.data(), 4);
+  }
+  vertices.fill(vec4{0.9f, 0.3f, 0.1f, 0.4f});
+  anari::setParameterArray1D(d, s.geometry, "vertex.color", vertices.data(), 4);
+  anari::commitParameters(d, s.geometry);
+
+  // Exercise all four float3 texture-coordinate strides together with the
+  // separately cached fourth components and the fifth (color) attribute.
+  s.mode(11);
+  s.check("shared texture coordinates and scene-data components",
+      {0.45f, 0.6f, 0.75f});
+  s.mode(3);
+  s.check("cached attribute3 fourth component", {0.5f, 0.6f, 0.2f});
+  s.mode(4);
+  s.check("cached vertex color", {0.9f, 0.3f, 0.1f});
+  s.mode(5);
+  s.check(
+      "cached varying source rejects uniform lookup", {0.125f, 0.125f, 0.125f});
+
+  auto nonfiniteW = values[0];
+  nonfiniteW[3] = std::numeric_limits<float>::quiet_NaN();
+  vertices.fill(nonfiniteW);
+  anari::setParameterArray1D(
+      d, s.geometry, "vertex.attribute0", vertices.data(), 4);
+  anari::commitParameters(d, s.geometry);
+  s.mode(0);
+  s.check("nonfinite cached w uses scene-data default", {0.25f, 0.25f, 0.25f});
+  s.mode(6);
+  s.check("nonfinite cached w preserves presence", {1, 1, 1});
+  s.mode(12);
+  s.check(
+      "nonfinite w does not alter texture-coordinate xyz", {0.2f, 0.3f, 0.4f});
+
+  for (const char *name : {"vertex.attribute0",
+           "vertex.attribute1",
+           "vertex.attribute2",
+           "vertex.attribute3",
+           "vertex.color"})
+    anari::unsetParameter(d, s.geometry, name);
+  anari::commitParameters(d, s.geometry);
+  s.mode(0);
+  s.check("attribute removal refreshes shared cache", {0.8f, 0.8f, 0.8f});
 }
 
 static void testSceneData(Scene &s)
@@ -578,6 +640,7 @@ int main()
   try {
     Scene scene;
     testSharedSource(scene);
+    testSharedAttributeCache(scene);
     testSceneData(scene);
     testCurve(scene);
     testAnimation(scene);
