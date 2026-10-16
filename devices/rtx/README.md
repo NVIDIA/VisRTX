@@ -229,15 +229,17 @@ primitive data makes a uniform lookup invalid. Array contents are not scanned
 to infer constancy. No additional uniform metadata parameter is required.
 
 Float, float2/3/4 and color lookups use the existing ANARI attribute interpolation
-and padding rules. Geometry constants use `ANARI_FLOAT32_VEC4`; arrays can use
-supported scalar/vector attribute types. No geometry array is copied for these
+and padding rules. Values are prepared once per shading hit and shared with MDL
+texture coordinates; scene-data lookups retain all four components and `color`.
+Geometry constants use `ANARI_FLOAT32_VEC4`; arrays can use supported
+scalar/vector attribute types. No geometry array is copied for these
 bindings. Names are case-sensitive, material-local and may be chosen by the MDL
 author. For example, `sceneData.temperature = "attribute1"` supplies
 `scene::data_lookup_float("temperature", default_value)`.
 
 Missing names, absent attributes, invalid slots and nonfinite values return the
-shader's default. `scene::data_isvalid` tests only binding and data existence;
-it does not read or interpolate values and ignores their numeric validity.
+shader's default. `scene::data_isvalid` tests only binding and cached attribute
+presence; it does not read cached values and ignores their numeric validity.
 Integer and matrix lookups continue to return their defaults.
 These dynamic metadata names are reserved and are not matched to shader inputs;
 they are not enumerated as literal parameter names by the query API. Binding and

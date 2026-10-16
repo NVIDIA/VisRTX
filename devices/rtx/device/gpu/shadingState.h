@@ -128,7 +128,12 @@ struct TextureHandler : mi::neuraylib::Texture_handler_base
   visrtx::vec3 V;
   visrtx::vec3 shadingNormal;
   bool normalAdapted;
-  const visrtx::SurfaceHit *hit;
+  // Attribute0..3 xyz share state.text_coords, whose ABI requires float3
+  // stride. Keep w and color separately, without retaining the shading hit.
+  float attributeW[4];
+  visrtx::vec4 attributeColor;
+  unsigned int attributePresentMask;
+  unsigned int attributeUniformMask;
   const visrtx::MDLSceneDataBinding *sceneData;
   unsigned int numSceneData;
 };
