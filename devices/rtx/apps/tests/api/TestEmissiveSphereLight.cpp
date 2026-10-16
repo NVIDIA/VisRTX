@@ -33,11 +33,11 @@
 // (PhysicallyBased, constant `emissive`) must illuminate a floor the same as an
 // ANARI sphere light (the "point" subtype with radius) of matching radiance,
 // radius, and placement. Validates the sphere sampler's radiometry and that
-// hit-side MIS does not bias (NEE + BSDF-hit deposit sum to the analytic light's
-// contribution). The emitter sits above the top of frame so only its cast pool
-// on the floor is measured — the emissive sphere's own glow (which the analytic
-// light has no counterpart for) never enters the region. Rendered with 'quality'
-// into a linear float buffer, firefly filter off.
+// hit-side MIS does not bias (NEE + BSDF-hit deposit sum to the analytic
+// light's contribution). The emitter sits above the top of frame so only its
+// cast pool on the floor is measured — the emissive sphere's own glow (which
+// the analytic light has no counterpart for) never enters the region. Rendered
+// with 'quality' into a linear float buffer, firefly filter off.
 
 // anari_cpp
 #define ANARI_EXTENSION_UTILITY_IMPL
@@ -52,70 +52,58 @@
 #include <cstdio>
 #include <cstdlib>
 #include <vector>
+#include "DeviceTestArray.h"
+#include "ReceiverTestSupport.h"
+
+struct ResidencyCase
+{
+  const char *name;
+  int deviceInputs;
+};
+
+// Bounds/visibility isolate input roles; radiometry checks the sampler.
+static constexpr std::array<ResidencyCase, 2> SPHERE_CASES = {
+    {{"host-indexed", 0}, {"all-device", 7}}};
 
 using uvec2 = std::array<unsigned int, 2>;
 using vec3 = std::array<float, 3>;
 using vec4 = std::array<float, 4>;
 
-static void statusFunc(const void *,
-    ANARIDevice,
-    ANARIObject source,
-    ANARIDataType,
-    ANARIStatusSeverity severity,
-    ANARIStatusCode,
-    const char *message)
-{
-  if (severity == ANARI_SEVERITY_FATAL_ERROR) {
-    fprintf(stderr, "[FATAL][%p] %s\n", source, message);
-    std::exit(1);
-  } else if (severity == ANARI_SEVERITY_ERROR)
-    fprintf(stderr, "[ERROR][%p] %s\n", source, message);
-}
-
 static constexpr uvec2 IMAGE_SIZE = {256, 256};
 static constexpr int PIXEL_SAMPLES = 512;
 static constexpr float EMISSIVE_RADIANCE = 8.f;
+static constexpr double TOLERANCE = 0.05;
+
+static bool equivalent(double actual, double reference)
+{
+  return std::isfinite(actual) && std::isfinite(reference) && actual > 0.0
+      && reference > 0.0
+      && std::abs(actual - reference) / reference <= TOLERANCE;
+}
 
 // Emitter footprint: a small sphere centered above the origin, above frame.
 static constexpr vec3 SPHERE_CENTER = {0.f, 1.5f, 0.f};
 static constexpr float SPHERE_RADIUS = 0.4f;
 
-// Add a floor (large diffuse XZ quad at y=0) to the world.
-static anari::Surface makeFloor(ANARIDevice device)
-{
-  const std::array<vec3, 4> pos = {vec3{-6.f, 0.f, -6.f},
-      vec3{6.f, 0.f, -6.f},
-      vec3{6.f, 0.f, 6.f},
-      vec3{-6.f, 0.f, 6.f}};
-  const std::array<std::array<unsigned, 3>, 2> idx = {
-      std::array<unsigned, 3>{0, 1, 2}, std::array<unsigned, 3>{0, 2, 3}};
-
-  auto geom = anari::newObject<anari::Geometry>(device, "triangle");
-  anari::setParameterArray1D(device, geom, "vertex.position", pos.data(), 4);
-  anari::setParameterArray1D(device, geom, "primitive.index", idx.data(), 2);
-  anari::commitParameters(device, geom);
-
-  auto mat = anari::newObject<anari::Material>(device, "physicallyBased");
-  anari::setParameter(device, mat, "baseColor", vec3{0.6f, 0.6f, 0.6f});
-  anari::setParameter(device, mat, "metallic", 0.f);
-  anari::setParameter(device, mat, "roughness", 1.f);
-  anari::commitParameters(device, mat);
-
-  auto surface = anari::newObject<anari::Surface>(device);
-  anari::setAndReleaseParameter(device, surface, "geometry", geom);
-  anari::setAndReleaseParameter(device, surface, "material", mat);
-  anari::commitParameters(device, surface);
-  return surface;
-}
-
 // Emissive sphere geometry at the emitter footprint.
-static anari::Surface makeEmissiveSphere(ANARIDevice device)
+static anari::Surface makeEmissiveSphere(
+    ANARIDevice device, int deviceInputs, bool indexed)
 {
   const std::array<vec3, 1> pos = {SPHERE_CENTER};
 
   auto geom = anari::newObject<anari::Geometry>(device, "sphere");
-  anari::setParameterArray1D(device, geom, "vertex.position", pos.data(), 1);
-  anari::setParameter(device, geom, "radius", SPHERE_RADIUS);
+  if (indexed) {
+    const std::array<vec3, 2> positions = {vec3{0.f, 20.f, 0.f}, SPHERE_CENTER};
+    const std::array<float, 2> radii = {0.01f, SPHERE_RADIUS};
+    const std::array<unsigned, 1> indices = {1};
+    setTestArray(device, geom, "vertex.position", positions, deviceInputs & 1);
+    setTestArray(device, geom, "vertex.radius", radii, deviceInputs & 2);
+    setTestArray(device, geom, "primitive.index", indices, deviceInputs & 4);
+    anari::setParameter(device, geom, "radius", 0.01f);
+  } else {
+    anari::setParameterArray1D(device, geom, "vertex.position", pos.data(), 1);
+    anari::setParameter(device, geom, "radius", SPHERE_RADIUS);
+  }
   anari::commitParameters(device, geom);
 
   auto mat = anari::newObject<anari::Material>(device, "physicallyBased");
@@ -149,17 +137,21 @@ static anari::Light makeSphereLight(ANARIDevice device)
 }
 
 // Render the floor lit by either the emissive sphere (useMesh) or the ANARI
-// sphere light, and return the linear framebuffer.
-static std::vector<vec4> render(ANARIDevice device, bool useMesh)
+// sphere light, measuring linear luminance without copying the framebuffer.
+static double render(ANARIDevice device,
+    bool useMesh,
+    int deviceInputs = 0,
+    bool indexed = false)
 {
-  std::vector<anari::Surface> surfaces = {makeFloor(device)};
+  std::vector<anari::Surface> surfaces = {visrtx::test::receiverFloor(device)};
   std::vector<anari::Light> lights;
   if (useMesh)
-    surfaces.push_back(makeEmissiveSphere(device));
+    surfaces.push_back(makeEmissiveSphere(device, deviceInputs, indexed));
   else
     lights.push_back(makeSphereLight(device));
 
   auto world = anari::newObject<anari::World>(device);
+  const visrtx::test::ObjectOwner worldOwner(device, world);
   anari::setParameterArray1D(
       device, world, "surface", surfaces.data(), surfaces.size());
   if (!lights.empty())
@@ -171,85 +163,45 @@ static std::vector<vec4> render(ANARIDevice device, bool useMesh)
     anari::release(device, l);
   anari::commitParameters(device, world);
 
-  // Look across the floor toward +Z; the emitter at y=1.5 sits above the frame,
-  // so only its cast pool on the floor is visible.
-  auto camera = anari::newObject<anari::Camera>(device, "perspective");
-  anari::setParameter(device, camera, "position", vec3{0.f, 0.5f, -3.f});
-  anari::setParameter(device, camera, "direction", vec3{0.f, -0.15f, 1.f});
-  anari::setParameter(device, camera, "up", vec3{0.f, 1.f, 0.f});
-  anari::setParameter(
-      device, camera, "aspect", IMAGE_SIZE[0] / float(IMAGE_SIZE[1]));
-  anari::commitParameters(device, camera);
-
-  auto renderer = anari::newObject<anari::Renderer>(device, "quality");
-  anari::setParameter(device, renderer, "background", vec4{0.f, 0.f, 0.f, 1.f});
-  anari::setParameter(device, renderer, "ambientRadiance", 0.f);
-  anari::setParameter(device, renderer, "pixelSamples", PIXEL_SAMPLES);
-  anari::setParameter(device, renderer, "fireflyFilterMode", "none");
-  anari::commitParameters(device, renderer);
-
-  auto frame = anari::newObject<anari::Frame>(device);
-  anari::setParameter(device, frame, "size", IMAGE_SIZE);
-  anari::setParameter(device, frame, "channel.color", ANARI_FLOAT32_VEC4);
-  anari::setAndReleaseParameter(device, frame, "world", world);
-  anari::setAndReleaseParameter(device, frame, "camera", camera);
-  anari::setAndReleaseParameter(device, frame, "renderer", renderer);
-  anari::commitParameters(device, frame);
-
-  anari::render(device, frame);
-  anari::wait(device, frame);
-
-  auto fb = anari::map<vec4>(device, frame, "channel.color");
-  std::vector<vec4> out(fb.data, fb.data + size_t(fb.width) * fb.height);
-  anari::unmap(device, frame, "channel.color");
-  anari::release(device, frame);
-  return out;
-}
-
-// Mean linear luminance over the lit floor region (lower-center of the frame,
-// ANARI's bottom-left framebuffer origin).
-static double poolMeanLuminance(const std::vector<vec4> &fb)
-{
-  double sum = 0.0;
-  uint64_t n = 0;
-  for (uint32_t y = IMAGE_SIZE[1] / 8; y < IMAGE_SIZE[1] / 2; ++y) {
-    for (uint32_t x = 3 * IMAGE_SIZE[0] / 8; x < 5 * IMAGE_SIZE[0] / 8; ++x) {
-      const vec4 &p = fb[y * IMAGE_SIZE[0] + x];
-      sum += 0.2126 * p[0] + 0.7152 * p[1] + 0.0722 * p[2];
-      ++n;
-    }
-  }
-  return n ? sum / double(n) : 0.0;
+  auto frame = visrtx::test::receiverFrame(
+      device, world, IMAGE_SIZE, "quality", PIXEL_SAMPLES);
+  const visrtx::test::ObjectOwner frameOwner(device, frame);
+  // Bottom-left origin; only the floor's cast pool, never the emitter.
+  return visrtx::test::receiverLuminance(device,
+      frame,
+      IMAGE_SIZE,
+      {3 * IMAGE_SIZE[0] / 8,
+          5 * IMAGE_SIZE[0] / 8,
+          IMAGE_SIZE[1] / 8,
+          IMAGE_SIZE[1] / 2});
 }
 
 int main()
 {
-  auto device = makeVisRTXDevice(statusFunc);
+  auto device = makeVisRTXDevice(visrtx::test::exitOnErrorStatus);
 
-  const double mesh = poolMeanLuminance(render(device, true));
-  const double light = poolMeanLuminance(render(device, false));
+  fprintf(stderr, "[case] sphere/reference\n");
+  const double light = render(device, false);
+  bool ok = std::isfinite(light) && light > 0.0;
+
+  const auto check = [&](const char *name, int deviceInputs, bool indexed) {
+    fprintf(stderr, "[case] sphere/%s\n", name);
+    const double mesh = render(device, true, deviceInputs, indexed);
+    // The unchanged 5% allowance covers MC noise at 512 spp.
+    const bool matches = equivalent(mesh, light);
+    printf("sphere/%s mesh=%f reference=%f relErr=%g tolerance=%g %s\n",
+        name,
+        mesh,
+        light,
+        std::abs(mesh - light) / light,
+        TOLERANCE,
+        matches ? "PASS" : "FAIL");
+    ok = matches && ok;
+  };
+  check("host-scalar-radius", 0, false);
+  for (const auto &residency : SPHERE_CASES)
+    check(residency.name, residency.deviceInputs, true);
 
   anari::release(device, device);
-
-  const double relErr =
-      light > 0.0 ? std::abs(mesh - light) / light : (mesh > 0 ? 1.0 : 0.0);
-  printf("emissiveSphere=%f  sphereLight=%f  relErr=%f\n", mesh, light, relErr);
-
-  // Both estimators must converge to the same floor irradiance. A generous 5%
-  // absorbs residual MC noise at 512 spp; a broken radiometry or double-count
-  // shifts it by far more.
-  if (mesh <= 0.0 || light <= 0.0) {
-    fprintf(stderr, "FAIL: floor pool unlit (mesh=%f light=%f)\n", mesh, light);
-    return 1;
-  }
-  constexpr double TOLERANCE = 0.05;
-  if (relErr > TOLERANCE) {
-    fprintf(stderr,
-        "FAIL: emissive sphere geometry light not equivalent to sphere light (relErr=%f > %f)\n",
-        relErr,
-        TOLERANCE);
-    return 1;
-  }
-  printf("emissive sphere geometry light equivalence passed\n");
-  return 0;
+  return ok ? 0 : 1;
 }

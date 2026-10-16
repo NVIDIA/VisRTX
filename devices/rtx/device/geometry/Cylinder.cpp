@@ -69,8 +69,27 @@ void Cylinder::commitParameters()
   commitAttributes("vertex.", m_vertexAttributes);
 }
 
+PrimitiveInput Cylinder::primitiveInput() const
+{
+  PrimitiveInput input;
+  input.type = GeometryType::CYLINDER;
+  input.count = m_index ? m_index->size() : m_vertex->size() / 2;
+  input.vertices = m_vertex->beginAs<vec3>(AddressSpace::GPU);
+  input.indices =
+      m_index ? m_index->beginAs<uvec2>(AddressSpace::GPU) : nullptr;
+  input.radii =
+      m_radius ? m_radius->beginAs<float>(AddressSpace::GPU) : nullptr;
+  input.caps = m_vertexCaps ? m_vertexCaps->beginAs<uint8_t>(AddressSpace::GPU)
+                            : nullptr;
+  input.radius = m_globalRadius;
+  input.capFlags = m_defaultCapFlags;
+  return input;
+}
+
 void Cylinder::finalize()
 {
+  if (!beginPreparation())
+    return;
   if (!m_vertex) {
     reportMessage(ANARI_SEVERITY_WARNING,
         "missing required parameter 'vertex.position' on cylinders geometry");
@@ -81,51 +100,9 @@ void Cylinder::finalize()
       "finalizing %s cylinder geometry",
       m_index ? "indexed" : "soup");
 
-  std::vector<uvec2> implicitIndices;
-  Span<uvec2> indices;
-
-  if (!m_index) {
-    implicitIndices.resize(m_vertex->size() / 2);
-    uvec2 idx(0, 1);
-    std::for_each(
-        implicitIndices.begin(), implicitIndices.end(), [&](uvec2 &i) {
-          i = idx;
-          idx += 2;
-        });
-    indices = make_Span(implicitIndices.data(), implicitIndices.size());
-  } else {
-    indices = make_Span(m_index->beginAs<uvec2>(), m_index->size());
-  }
-
-  const float *radius = nullptr;
-  if (m_radius)
-    radius = m_radius->beginAs<float>();
-
-  m_aabbs.resize(indices.size());
-
-  const auto *posBegin = m_vertex->beginAs<vec3>();
-  size_t cylinderID = 0;
-  std::transform(
-      indices.begin(), indices.end(), m_aabbs.begin(), [&](const uvec2 &c) {
-        const float r =
-            std::abs(radius ? radius[cylinderID++] : m_globalRadius);
-        const vec3 &v0 = posBegin[c.x];
-        const vec3 &v1 = posBegin[c.y];
-        return box3(glm::min(v0, v1) - r, glm::max(v0, v1) + r);
-      });
-
-  m_aabbs.upload();
-  m_aabbsBufferPtr = (CUdeviceptr)m_aabbs.dataDevice();
-
-  // Coordinate scale of the intersector's arithmetic; floors hit.epsilon so
-  // secondary rays clear the solve's fp noise band (see
-  // GeometryGPUData::epsilonScale).
-  m_epsilonScale = 0.f;
-  for (auto it = m_aabbs.begin(); it != m_aabbs.end(); ++it) {
-    const vec3 m = glm::max(glm::abs(it->lower), glm::abs(it->upper));
-    m_epsilonScale =
-        std::max(m_epsilonScale, std::max(m.x, std::max(m.y, m.z)));
-  }
+  if (!m_preprocessing.bounds(this, primitiveInput(), m_aabbs, m_epsilonScale))
+    return;
+  m_aabbsBufferPtr = (CUdeviceptr)m_aabbs.ptr();
 
   // Vertices/radii/caps may have changed. Rebuild the Geometry Light CDF if a
   // surface has ever requested it (order-independent of the surface commit),
@@ -135,65 +112,17 @@ void Cylinder::finalize()
     buildAreaData();
   else {
     m_totalArea = 0.f;
-    m_primAreaCdf.clear();
+    m_primAreaCdf.reset();
   }
 
-  upload();
+  if (!preparationFailed())
+    upload();
 }
 
 void Cylinder::buildAreaData()
 {
-  std::vector<uvec2> implicitIndices;
-  Span<uvec2> indices;
-  if (!m_index) {
-    implicitIndices.resize(m_vertex->size() / 2);
-    uvec2 idx(0, 1);
-    for (auto &i : implicitIndices) {
-      i = idx;
-      idx += 2;
-    }
-    indices = make_Span(implicitIndices.data(), implicitIndices.size());
-  } else
-    indices = make_Span(m_index->beginAs<uvec2>(), m_index->size());
-
-  const float *radius = m_radius ? m_radius->beginAs<float>() : nullptr;
-  const vec3 *pos = m_vertex->beginAs<vec3>();
-  const uint8_t *vcaps = m_vertexCaps ? m_vertexCaps->beginAs<uint8_t>() : nullptr;
-
-  const size_t n = indices.size();
-  m_primAreaCdf.resize(n);
-  auto *cdf = m_primAreaCdf.dataHost();
-
-  double cumulative = 0.0;
-  for (size_t i = 0; i < n; ++i) {
-    const uvec2 c = indices[i];
-    const float r = std::abs(radius ? radius[i] : m_globalRadius);
-    const double len = double(glm::length(pos[c.y] - pos[c.x]));
-    const bool cap0 = vcaps ? (vcaps[c.x] != 0) : (m_defaultCapFlags & CAP_FIRST);
-    const bool cap1 = vcaps ? (vcaps[c.y] != 0) : (m_defaultCapFlags & CAP_SECOND);
-    // A degenerate (zero-length or zero-radius) cylinder gets no pick mass; the
-    // sampler early-returns on it, so any mass here would be a wasted sample.
-    double area = 0.0;
-    if (len > 0.0 && r > 0.0f) {
-      area = 2.0 * double(kPi) * double(r) * len; // lateral
-      const double capArea = double(kPi) * double(r) * double(r);
-      if (cap0)
-        area += capArea;
-      if (cap1)
-        area += capArea;
-    }
-    cumulative += area;
-    cdf[i] = float(cumulative);
-  }
-  m_totalArea = float(cumulative);
-
-  if (m_totalArea > 0.f) {
-    for (size_t i = 0; i < n; ++i)
-      cdf[i] /= m_totalArea;
-  }
-
-  m_primAreaCdf.upload();
-  m_areaDataValid = true;
+  m_areaDataValid =
+      m_preprocessing.areas(this, primitiveInput(), m_primAreaCdf, m_totalArea);
 }
 
 bool Cylinder::isAreaSamplingSupported() const
@@ -207,7 +136,8 @@ void Cylinder::ensureAreaData()
   if (m_areaDataValid)
     return;
   buildAreaData();
-  upload(); // republish gpuData() so the CDF pointers reach the device
+  if (m_areaDataValid)
+    upload();
 }
 
 float Cylinder::totalArea() const
@@ -225,7 +155,8 @@ void Cylinder::populateBuildInput(OptixBuildInput &buildInput) const
   buildInput.type = OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
 
   buildInput.customPrimitiveArray.aabbBuffers = &m_aabbsBufferPtr;
-  buildInput.customPrimitiveArray.numPrimitives = m_aabbs.size();
+  buildInput.customPrimitiveArray.numPrimitives =
+      m_index ? m_index->size() : m_vertex->size() / 2;
 
   static uint32_t buildInputFlags[1] = {OPTIX_GEOMETRY_FLAG_NONE};
 
@@ -252,8 +183,10 @@ GeometryGPUData Cylinder::gpuData() const
   populateAttributeDataSet(m_vertexAttributes, cylinder.vertexAttr);
 
   // Geometry Light sampling data; null/zero until ensureAreaData() runs.
-  cylinder.primAreaCdf = m_primAreaCdf.dataDevice();
-  cylinder.numPrimitives = uint32_t(m_primAreaCdf.size());
+  cylinder.primAreaCdf =
+      m_totalArea > 0.f ? m_primAreaCdf.ptrAs<float>() : nullptr;
+  cylinder.numPrimitives =
+      m_totalArea > 0.f ? uint32_t(primitiveInput().count) : 0;
   cylinder.totalArea = m_totalArea;
 
   return retval;

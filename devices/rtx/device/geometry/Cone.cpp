@@ -68,8 +68,27 @@ void Cone::commitParameters()
   commitAttributes("vertex.", m_vertexAttributes);
 }
 
+PrimitiveInput Cone::primitiveInput() const
+{
+  PrimitiveInput input;
+  input.type = GeometryType::CONE;
+  input.count = m_index ? m_index->size() : m_vertex->size() / 2;
+  input.vertices = m_vertex->beginAs<vec3>(AddressSpace::GPU);
+  input.indices =
+      m_index ? m_index->beginAs<uvec2>(AddressSpace::GPU) : nullptr;
+  input.radii =
+      m_radius ? m_radius->beginAs<float>(AddressSpace::GPU) : nullptr;
+  input.caps = m_vertexCaps ? m_vertexCaps->beginAs<uint8_t>(AddressSpace::GPU)
+                            : nullptr;
+  input.radius = 0.f;
+  input.capFlags = m_defaultCapFlags;
+  return input;
+}
+
 void Cone::finalize()
 {
+  if (!beginPreparation())
+    return;
   if (!m_vertex) {
     reportMessage(ANARI_SEVERITY_WARNING,
         "missing required parameter 'vertex.position' on cone geometry");
@@ -86,47 +105,9 @@ void Cone::finalize()
       "finalizing %s cone geometry",
       m_index ? "indexed" : "soup");
 
-  std::vector<uvec2> implicitIndices;
-  Span<uvec2> indices;
-
-  if (!m_index) {
-    implicitIndices.resize(m_vertex->size() / 2);
-    uvec2 idx(0, 1);
-    std::for_each(
-        implicitIndices.begin(), implicitIndices.end(), [&](uvec2 &i) {
-          i = idx;
-          idx += 2;
-        });
-    indices = make_Span(implicitIndices.data(), implicitIndices.size());
-  } else {
-    indices = make_Span(m_index->beginAs<uvec2>(), m_index->size());
-  }
-
-  const float *radius = m_radius->beginAs<float>();
-
-  m_aabbs.resize(indices.size());
-
-  const auto *posBegin = m_vertex->beginAs<vec3>();
-  std::transform(
-      indices.begin(), indices.end(), m_aabbs.begin(), [&](const uvec2 &c) {
-        const vec3 &v0 = posBegin[c.x];
-        const vec3 &v1 = posBegin[c.y];
-        const float r = glm::max(std::abs(radius[c.x]), std::abs(radius[c.y]));
-        return box3(glm::min(v0, v1) - r, glm::max(v0, v1) + r);
-      });
-
-  m_aabbs.upload();
-  m_aabbsBufferPtr = (CUdeviceptr)m_aabbs.dataDevice();
-
-  // Coordinate scale of the intersector's arithmetic; floors hit.epsilon so
-  // secondary rays clear the solve's fp noise band (see
-  // GeometryGPUData::epsilonScale).
-  m_epsilonScale = 0.f;
-  for (auto it = m_aabbs.begin(); it != m_aabbs.end(); ++it) {
-    const vec3 m = glm::max(glm::abs(it->lower), glm::abs(it->upper));
-    m_epsilonScale =
-        std::max(m_epsilonScale, std::max(m.x, std::max(m.y, m.z)));
-  }
+  if (!m_preprocessing.bounds(this, primitiveInput(), m_aabbs, m_epsilonScale))
+    return;
+  m_aabbsBufferPtr = (CUdeviceptr)m_aabbs.ptr();
 
   // Vertices/radii/caps may have changed. Rebuild the Geometry Light CDF if a
   // surface has ever requested it (order-independent of the surface commit),
@@ -136,66 +117,17 @@ void Cone::finalize()
     buildAreaData();
   else {
     m_totalArea = 0.f;
-    m_primAreaCdf.clear();
+    m_primAreaCdf.reset();
   }
 
-  upload();
+  if (!preparationFailed())
+    upload();
 }
 
 void Cone::buildAreaData()
 {
-  std::vector<uvec2> implicitIndices;
-  Span<uvec2> indices;
-  if (!m_index) {
-    implicitIndices.resize(m_vertex->size() / 2);
-    uvec2 idx(0, 1);
-    for (auto &i : implicitIndices) {
-      i = idx;
-      idx += 2;
-    }
-    indices = make_Span(implicitIndices.data(), implicitIndices.size());
-  } else
-    indices = make_Span(m_index->beginAs<uvec2>(), m_index->size());
-
-  const float *radius = m_radius->beginAs<float>();
-  const vec3 *pos = m_vertex->beginAs<vec3>();
-  const uint8_t *vcaps = m_vertexCaps ? m_vertexCaps->beginAs<uint8_t>() : nullptr;
-
-  const size_t n = indices.size();
-  m_primAreaCdf.resize(n);
-  auto *cdf = m_primAreaCdf.dataHost();
-
-  double cumulative = 0.0;
-  for (size_t i = 0; i < n; ++i) {
-    const uvec2 c = indices[i];
-    const double r0 = double(std::abs(radius[c.x]));
-    const double r1 = double(std::abs(radius[c.y]));
-    const double len = double(glm::length(pos[c.y] - pos[c.x]));
-    const bool cap0 = vcaps ? (vcaps[c.x] != 0) : (m_defaultCapFlags & CAP_FIRST);
-    const bool cap1 = vcaps ? (vcaps[c.y] != 0) : (m_defaultCapFlags & CAP_SECOND);
-    // A degenerate (zero-length) cone gets no pick mass; the sampler
-    // early-returns on it, so any mass here would be a wasted sample.
-    double area = 0.0;
-    if (len > 0.0) {
-      const double slant = std::sqrt(len * len + (r0 - r1) * (r0 - r1));
-      area = double(kPi) * (r0 + r1) * slant; // lateral (frustum)
-      if (cap0)
-        area += double(kPi) * r0 * r0;
-      if (cap1)
-        area += double(kPi) * r1 * r1;
-    }
-    cumulative += area;
-    cdf[i] = float(cumulative);
-  }
-  m_totalArea = float(cumulative);
-
-  if (m_totalArea > 0.f) {
-    for (size_t i = 0; i < n; ++i)
-      cdf[i] /= m_totalArea;
-  }
-
-  m_primAreaCdf.upload();
-  m_areaDataValid = true;
+  m_areaDataValid =
+      m_preprocessing.areas(this, primitiveInput(), m_primAreaCdf, m_totalArea);
 }
 
 bool Cone::isAreaSamplingSupported() const
@@ -209,7 +141,8 @@ void Cone::ensureAreaData()
   if (m_areaDataValid)
     return;
   buildAreaData();
-  upload(); // republish gpuData() so the CDF pointers reach the device
+  if (m_areaDataValid)
+    upload();
 }
 
 float Cone::totalArea() const
@@ -227,7 +160,8 @@ void Cone::populateBuildInput(OptixBuildInput &buildInput) const
   buildInput.type = OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
 
   buildInput.customPrimitiveArray.aabbBuffers = &m_aabbsBufferPtr;
-  buildInput.customPrimitiveArray.numPrimitives = m_aabbs.size();
+  buildInput.customPrimitiveArray.numPrimitives =
+      m_index ? m_index->size() : m_vertex->size() / 2;
 
   static uint32_t buildInputFlags[1] = {OPTIX_GEOMETRY_FLAG_NONE};
 
@@ -256,8 +190,8 @@ GeometryGPUData Cone::gpuData() const
   populateAttributeDataSet(m_vertexAttributes, cone.vertexAttr);
 
   // Geometry Light sampling data; null/zero until ensureAreaData() runs.
-  cone.primAreaCdf = m_primAreaCdf.dataDevice();
-  cone.numPrimitives = uint32_t(m_primAreaCdf.size());
+  cone.primAreaCdf = m_totalArea > 0.f ? m_primAreaCdf.ptrAs<float>() : nullptr;
+  cone.numPrimitives = m_totalArea > 0.f ? uint32_t(primitiveInput().count) : 0;
   cone.totalArea = m_totalArea;
 
   return retval;

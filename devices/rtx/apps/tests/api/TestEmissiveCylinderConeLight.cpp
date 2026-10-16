@@ -64,31 +64,37 @@
 #include <cstdlib>
 #include <functional>
 #include <vector>
+#include "DeviceTestArray.h"
+#include "ReceiverTestSupport.h"
+
+struct ResidencyCase
+{
+  const char *name;
+  int deviceInputs;
+};
+
+// Bounds/visibility isolate positions, indices and radii. Caps affect
+// sampling rather than conservative bounds, so retain their isolated oracle.
+static constexpr std::array<ResidencyCase, 3> TUBE_CASES = {
+    {{"host-indexed", 0}, {"device-vertex-caps", 4}, {"all-device", 15}}};
 
 using vec3 = std::array<float, 3>;
 using vec4 = std::array<float, 4>;
 using uvec3 = std::array<unsigned, 3>;
 using mat4 = std::array<float, 16>;
 
-static void statusFunc(const void *,
-    ANARIDevice,
-    ANARIObject source,
-    ANARIDataType,
-    ANARIStatusSeverity severity,
-    ANARIStatusCode,
-    const char *message)
-{
-  if (severity == ANARI_SEVERITY_FATAL_ERROR) {
-    fprintf(stderr, "[FATAL][%p] %s\n", source, message);
-    std::exit(1);
-  } else if (severity == ANARI_SEVERITY_ERROR)
-    fprintf(stderr, "[ERROR][%p] %s\n", source, message);
-}
-
 static constexpr std::array<unsigned, 2> IMAGE_SIZE = {256, 256};
 static constexpr int PIXEL_SAMPLES = 1024;
 static constexpr float EMISSIVE_RADIANCE = 8.f;
-static constexpr int TESS = 128; // circumferential segments of the reference mesh
+static constexpr double TOLERANCE = 0.03;
+static bool equivalent(double actual, double reference)
+{
+  return std::isfinite(actual) && std::isfinite(reference) && actual > 0.0
+      && reference > 0.0
+      && std::abs(actual - reference) / reference <= TOLERANCE;
+}
+static constexpr int TESS =
+    128; // circumferential segments of the reference mesh
 
 // One tapered tube (cylinder if r0==r1). Two parallel bars above the origin,
 // axes along X, offset in Z, so their walls face the floor. Above the top of
@@ -169,35 +175,11 @@ static anari::Material makeEmissiveMaterial(ANARIDevice device)
   return mat;
 }
 
-static anari::Surface makeFloor(ANARIDevice device)
-{
-  const std::array<vec3, 4> pos = {vec3{-6.f, 0.f, -6.f},
-      vec3{6.f, 0.f, -6.f},
-      vec3{6.f, 0.f, 6.f},
-      vec3{-6.f, 0.f, 6.f}};
-  const std::array<uvec3, 2> idx = {uvec3{0, 1, 2}, uvec3{0, 2, 3}};
-
-  auto geom = anari::newObject<anari::Geometry>(device, "triangle");
-  anari::setParameterArray1D(device, geom, "vertex.position", pos.data(), 4);
-  anari::setParameterArray1D(device, geom, "primitive.index", idx.data(), 2);
-  anari::commitParameters(device, geom);
-
-  auto mat = anari::newObject<anari::Material>(device, "physicallyBased");
-  anari::setParameter(device, mat, "baseColor", vec3{0.5f, 0.5f, 0.5f});
-  anari::setParameter(device, mat, "roughness", 1.f);
-  anari::commitParameters(device, mat);
-
-  auto surface = anari::newObject<anari::Surface>(device);
-  anari::setAndReleaseParameter(device, surface, "geometry", geom);
-  anari::setAndReleaseParameter(device, surface, "material", mat);
-  anari::commitParameters(device, surface);
-  return surface;
-}
-
 // Capped, tessellated emissive triangle mesh of the given tubes: two rings of
 // TESS points per tube plus a center vertex for each ENABLED cap. Winding does
-// not matter (emission is double-sided); the closed shell absorbs its own inward
-// emission so it lights the exterior floor like a single-sided primitive.
+// not matter (emission is double-sided); the closed shell absorbs its own
+// inward emission so it lights the exterior floor like a single-sided
+// primitive.
 static anari::Surface makeEmissiveTubeMesh(
     ANARIDevice device, const std::array<Tube, 2> &tubes)
 {
@@ -257,7 +239,8 @@ static anari::Surface makeEmissiveTubeMesh(
 
 // Per-endpoint vertex.cap (0/1) for a soup tube set: endpoints of tube k are
 // vertices (2k, 2k+1).
-static std::vector<unsigned char> tubeVertexCaps(const std::array<Tube, 2> &tubes)
+static std::vector<unsigned char> tubeVertexCaps(
+    const std::array<Tube, 2> &tubes)
 {
   std::vector<unsigned char> caps;
   for (const auto &t : tubes) {
@@ -267,7 +250,8 @@ static std::vector<unsigned char> tubeVertexCaps(const std::array<Tube, 2> &tube
   return caps;
 }
 
-static anari::Surface makeEmissiveCylinderPrim(ANARIDevice device)
+static anari::Surface makeEmissiveCylinderPrim(
+    ANARIDevice device, int deviceInputs, bool indexed)
 {
   std::vector<vec3> pos;
   std::vector<float> radii; // per primitive
@@ -279,12 +263,13 @@ static anari::Surface makeEmissiveCylinderPrim(ANARIDevice device)
   const auto caps = tubeVertexCaps(CYLINDERS);
 
   auto geom = anari::newObject<anari::Geometry>(device, "cylinder");
-  anari::setParameterArray1D(
-      device, geom, "vertex.position", pos.data(), pos.size());
-  anari::setParameterArray1D(
-      device, geom, "primitive.radius", radii.data(), radii.size());
-  anari::setParameterArray1D(
-      device, geom, "vertex.cap", caps.data(), caps.size());
+  setTestArray(device, geom, "vertex.position", pos, deviceInputs & 1);
+  setTestArray(device, geom, "primitive.radius", radii, deviceInputs & 2);
+  setTestArray(device, geom, "vertex.cap", caps, deviceInputs & 4);
+  if (indexed) {
+    const std::array<std::array<unsigned, 2>, 2> indices = {{{0, 1}, {2, 3}}};
+    setTestArray(device, geom, "primitive.index", indices, deviceInputs & 8);
+  }
   anari::commitParameters(device, geom);
 
   auto surface = anari::newObject<anari::Surface>(device);
@@ -295,7 +280,8 @@ static anari::Surface makeEmissiveCylinderPrim(ANARIDevice device)
   return surface;
 }
 
-static anari::Surface makeEmissiveConePrim(ANARIDevice device)
+static anari::Surface makeEmissiveConePrim(
+    ANARIDevice device, int deviceInputs, bool indexed)
 {
   std::vector<vec3> pos;
   std::vector<float> radii; // per vertex
@@ -308,12 +294,13 @@ static anari::Surface makeEmissiveConePrim(ANARIDevice device)
   const auto caps = tubeVertexCaps(CONES);
 
   auto geom = anari::newObject<anari::Geometry>(device, "cone");
-  anari::setParameterArray1D(
-      device, geom, "vertex.position", pos.data(), pos.size());
-  anari::setParameterArray1D(
-      device, geom, "vertex.radius", radii.data(), radii.size());
-  anari::setParameterArray1D(
-      device, geom, "vertex.cap", caps.data(), caps.size());
+  setTestArray(device, geom, "vertex.position", pos, deviceInputs & 1);
+  setTestArray(device, geom, "vertex.radius", radii, deviceInputs & 2);
+  setTestArray(device, geom, "vertex.cap", caps, deviceInputs & 4);
+  if (indexed) {
+    const std::array<std::array<unsigned, 2>, 2> indices = {{{0, 1}, {2, 3}}};
+    setTestArray(device, geom, "primitive.index", indices, deviceInputs & 8);
+  }
   anari::commitParameters(device, geom);
 
   auto surface = anari::newObject<anari::Surface>(device);
@@ -342,128 +329,90 @@ static anari::Instance instanceOf(
   return inst;
 }
 
-static std::vector<vec4> render(ANARIDevice device,
+static double render(ANARIDevice device,
     const std::function<anari::Surface(ANARIDevice)> &emitter,
     bool scaled)
 {
   const std::array<anari::Instance, 2> instances = {
-      instanceOf(device, makeFloor(device), false),
+      instanceOf(device, visrtx::test::receiverFloor(device, 0.5f), false),
       instanceOf(device, emitter(device), scaled)};
 
   auto world = anari::newObject<anari::World>(device);
+  const visrtx::test::ObjectOwner worldOwner(device, world);
   anari::setParameterArray1D(
       device, world, "instance", instances.data(), instances.size());
   for (auto i : instances)
     anari::release(device, i);
   anari::commitParameters(device, world);
 
-  auto camera = anari::newObject<anari::Camera>(device, "perspective");
-  anari::setParameter(device, camera, "position", vec3{0.f, 0.5f, -3.f});
-  anari::setParameter(device, camera, "direction", vec3{0.f, -0.15f, 1.f});
-  anari::setParameter(device, camera, "up", vec3{0.f, 1.f, 0.f});
-  anari::setParameter(
-      device, camera, "aspect", IMAGE_SIZE[0] / float(IMAGE_SIZE[1]));
-  anari::commitParameters(device, camera);
-
-  auto renderer = anari::newObject<anari::Renderer>(device, "quality");
-  anari::setParameter(device, renderer, "background", vec4{0.f, 0.f, 0.f, 1.f});
-  anari::setParameter(device, renderer, "ambientRadiance", 0.f);
-  anari::setParameter(device, renderer, "pixelSamples", PIXEL_SAMPLES);
-  anari::setParameter(device, renderer, "fireflyFilterMode", "none");
-  anari::commitParameters(device, renderer);
-
-  auto frame = anari::newObject<anari::Frame>(device);
-  anari::setParameter(device, frame, "size", IMAGE_SIZE);
-  anari::setParameter(device, frame, "channel.color", ANARI_FLOAT32_VEC4);
-  anari::setAndReleaseParameter(device, frame, "world", world);
-  anari::setAndReleaseParameter(device, frame, "camera", camera);
-  anari::setAndReleaseParameter(device, frame, "renderer", renderer);
-  anari::commitParameters(device, frame);
-
-  anari::render(device, frame);
-  anari::wait(device, frame);
-
-  auto fb = anari::map<vec4>(device, frame, "channel.color");
-  std::vector<vec4> out(fb.data, fb.data + size_t(fb.width) * fb.height);
-  anari::unmap(device, frame, "channel.color");
-  anari::release(device, frame);
-  return out;
+  auto frame = visrtx::test::receiverFrame(
+      device, world, IMAGE_SIZE, "quality", PIXEL_SAMPLES);
+  const visrtx::test::ObjectOwner frameOwner(device, frame);
+  // Bottom-left origin; only the floor's cast pool, never the emitters.
+  return visrtx::test::receiverLuminance(device,
+      frame,
+      IMAGE_SIZE,
+      {3 * IMAGE_SIZE[0] / 8,
+          5 * IMAGE_SIZE[0] / 8,
+          IMAGE_SIZE[1] / 8,
+          IMAGE_SIZE[1] / 2});
 }
 
-// Mean linear luminance over the lit floor region (lower-center of the frame,
-// ANARI's bottom-left framebuffer origin).
-static double poolMeanLuminance(const std::vector<vec4> &fb)
-{
-  double sum = 0.0;
-  uint64_t n = 0;
-  for (uint32_t y = IMAGE_SIZE[1] / 8; y < IMAGE_SIZE[1] / 2; ++y) {
-    for (uint32_t x = 3 * IMAGE_SIZE[0] / 8; x < 5 * IMAGE_SIZE[0] / 8; ++x) {
-      const vec4 &p = fb[y * IMAGE_SIZE[0] + x];
-      sum += 0.2126 * p[0] + 0.7152 * p[1] + 0.0722 * p[2];
-      ++n;
-    }
-  }
-  return n ? sum / double(n) : 0.0;
-}
-
-static bool checkEquivalent(
-    ANARIDevice device, const char *name,
-    const std::function<anari::Surface(ANARIDevice)> &prim,
-    const std::function<anari::Surface(ANARIDevice)> &mesh,
+static bool checkFamily(ANARIDevice device,
+    const char *name,
+    const std::array<Tube, 2> &tubes,
+    const std::function<anari::Surface(ANARIDevice, int, bool)> &prim,
     bool scaled)
 {
-  const double p = poolMeanLuminance(render(device, prim, scaled));
-  const double m = poolMeanLuminance(render(device, mesh, scaled));
-  const double relErr = m > 0.0 ? std::abs(p - m) / m : (p > 0 ? 1.0 : 0.0);
-  printf("%s%s: primitive=%f  mesh=%f  relErr=%f\n",
-      name,
-      scaled ? " (scaled)" : "",
-      p,
-      m,
-      relErr);
-  if (p <= 0.0 || m <= 0.0) {
-    fprintf(stderr, "FAIL: %s floor pool unlit\n", name);
-    return false;
+  const char *transform = scaled ? "nonuniform-scale" : "identity";
+  // Keep an independent tessellated reference for each family and transform.
+  fprintf(stderr, "[case] %s/%s/reference\n", name, transform);
+  const double mesh = render(
+      device,
+      [&](ANARIDevice d) { return makeEmissiveTubeMesh(d, tubes); },
+      scaled);
+  bool ok = std::isfinite(mesh) && mesh > 0.0;
+
+  const auto check =
+      [&](const char *residency, int deviceInputs, bool indexed) {
+        fprintf(stderr, "[case] %s/%s/%s\n", name, transform, residency);
+        const double actual = render(
+            device,
+            [&](ANARIDevice d) { return prim(d, deviceInputs, indexed); },
+            scaled);
+        // Keep the original 3% MC/faceting allowance.
+        const bool matches = equivalent(actual, mesh);
+        printf("%s/%s/%s primitive=%f reference=%f relErr=%g tolerance=%g %s\n",
+            name,
+            transform,
+            residency,
+            actual,
+            mesh,
+            std::abs(actual - mesh) / mesh,
+            TOLERANCE,
+            matches ? "PASS" : "FAIL");
+        ok = matches && ok;
+      };
+  check("host-implicit-indices", 0, false);
+  for (const auto &residency : TUBE_CASES) {
+    // Residency roles are isolated at identity; the all-device case also
+    // witnesses their integration with the nonuniform area Jacobian.
+    if (!scaled || residency.deviceInputs == 15)
+      check(residency.name, residency.deviceInputs, true);
   }
-  // 3% absorbs MC noise at 1024 spp plus the reference mesh's small (<0.1% area)
-  // faceting; observed relErr is well under 1%.
-  constexpr double TOLERANCE = 0.03;
-  if (relErr > TOLERANCE) {
-    fprintf(stderr,
-        "FAIL: %s%s geometry light not equivalent to tessellated mesh (relErr=%f > %f)\n",
-        name,
-        scaled ? " (scaled)" : "",
-        relErr,
-        TOLERANCE);
-    return false;
-  }
-  return true;
+  return ok;
 }
 
 int main()
 {
-  auto device = makeVisRTXDevice(statusFunc);
-
-  const auto cylMesh = [](ANARIDevice d) {
-    return makeEmissiveTubeMesh(d, CYLINDERS);
-  };
-  const auto coneMesh = [](ANARIDevice d) {
-    return makeEmissiveTubeMesh(d, CONES);
-  };
-
+  auto device = makeVisRTXDevice(visrtx::test::exitOnErrorStatus);
   bool ok = true;
   for (bool scaled : {false, true}) {
-    ok = checkEquivalent(
-             device, "cylinder", makeEmissiveCylinderPrim, cylMesh, scaled)
+    ok = checkFamily(
+             device, "cylinder", CYLINDERS, makeEmissiveCylinderPrim, scaled)
         && ok;
-    ok = checkEquivalent(device, "cone", makeEmissiveConePrim, coneMesh, scaled)
-        && ok;
+    ok = checkFamily(device, "cone", CONES, makeEmissiveConePrim, scaled) && ok;
   }
-
   anari::release(device, device);
-
-  if (!ok)
-    return 1;
-  printf("emissive cylinder/cone geometry light equivalence passed\n");
-  return 0;
+  return ok ? 0 : 1;
 }

@@ -51,6 +51,8 @@ void Quad::commitParameters()
 
 void Quad::finalize()
 {
+  if (!beginPreparation())
+    return;
   if (!m_vertex) {
     reportMessage(ANARI_SEVERITY_WARNING,
         "missing required parameter 'vertex.position' on quad geometry");
@@ -69,6 +71,8 @@ void Quad::finalize()
       m_index ? "indexed" : "soup");
 
   generateIndices();
+  if (preparationFailed())
+    return;
 
   if (m_vertexTangent && m_vertex->size() != m_vertexTangent->size()) {
     reportMessage(ANARI_SEVERITY_WARNING,
@@ -102,8 +106,8 @@ void Quad::populateBuildInput(OptixBuildInput &buildInput) const
 
   buildInput.triangleArray.indexFormat = OPTIX_INDICES_FORMAT_UNSIGNED_INT3;
   buildInput.triangleArray.indexStrideInBytes = sizeof(uvec3);
-  buildInput.triangleArray.numIndexTriplets = m_indices.size();
-  buildInput.triangleArray.indexBuffer = (CUdeviceptr)m_indices.dataDevice();
+  buildInput.triangleArray.numIndexTriplets = m_numTriangles;
+  buildInput.triangleArray.indexBuffer = (CUdeviceptr)m_indices.ptrAs<uvec3>();
 
   static uint32_t buildInputFlags[1] = {0};
 
@@ -123,7 +127,7 @@ GeometryGPUData Quad::gpuData() const
 
   auto &quad = retval.quad;
   quad.vertices = m_vertex->beginAs<vec3>(AddressSpace::GPU);
-  quad.indices = m_indices.dataDevice();
+  quad.indices = m_indices.ptrAs<uvec3>();
   quad.vertexNormals = m_vertexNormal
       ? m_vertexNormal->beginAs<vec3>(AddressSpace::GPU)
       : nullptr;
@@ -137,27 +141,12 @@ GeometryGPUData Quad::gpuData() const
 
 void Quad::generateIndices()
 {
-  if (m_index) {
-    size_t numIndices = 2 * m_index->size();
-    m_indices.resize(numIndices);
-    auto *indicesIn = (const uvec4 *)m_index->dataAs<uvec4>(AddressSpace::HOST);
-    auto *indicesOut = m_indices.dataHost();
-    for (size_t i = 0; i < m_index->size(); i++) {
-      auto idx = indicesIn[i];
-      indicesOut[2 * i + 0] = uvec3(idx.x, idx.y, idx.w);
-      indicesOut[2 * i + 1] = uvec3(idx.z, idx.w, idx.y);
-    }
-  } else {
-    size_t numQuad = m_vertex->size() / 4;
-    m_indices.resize(2 * numQuad);
-    auto *indicesOut = m_indices.dataHost();
-    for (size_t i = 0; i < numQuad; i++) {
-      indicesOut[2 * i + 0] = uvec3(4 * i) + uvec3(0, 1, 3);
-      indicesOut[2 * i + 1] = uvec3(4 * i) + uvec3(2, 3, 1);
-    }
-  }
-
-  m_indices.upload();
+  const size_t n = m_index ? m_index->size() : m_vertex->size() / 4;
+  m_numTriangles = 2 * n;
+  generateQuadIndices(this,
+      m_index ? m_index->beginAs<uvec4>(AddressSpace::GPU) : nullptr,
+      n,
+      m_indices);
 }
 
 void Quad::generateTangents()
@@ -169,8 +158,8 @@ void Quad::generateTangents()
   // is always per vertex.
   TangentGenerationInput input;
   input.positions = m_vertex.get();
-  input.indices = m_indices.dataDevice();
-  input.numTriangles = m_indices.size();
+  input.indices = m_indices.ptrAs<uvec3>();
+  input.numTriangles = m_numTriangles;
   input.normals = m_vertexNormal.ptr;
   input.uvs = uvs;
 

@@ -53,6 +53,9 @@
 #include <cstdio>
 #include <cstdlib>
 #include <vector>
+#include "DeviceTestArray.h"
+
+static bool deviceInputs = false;
 
 using uvec2 = std::array<unsigned int, 2>;
 using uvec3 = std::array<unsigned int, 3>;
@@ -69,11 +72,10 @@ static void statusFunc(const void *,
     ANARIStatusCode,
     const char *message)
 {
-  if (severity == ANARI_SEVERITY_FATAL_ERROR) {
-    fprintf(stderr, "[FATAL][%p] %s\n", source, message);
-    std::exit(1);
-  } else if (severity == ANARI_SEVERITY_ERROR)
+  if (severity <= ANARI_SEVERITY_ERROR) {
     fprintf(stderr, "[ERROR][%p] %s\n", source, message);
+    std::exit(1);
+  }
 }
 
 static constexpr uvec2 IMAGE_SIZE = {256, 256};
@@ -200,13 +202,10 @@ static anari::Geometry makeQuads(ANARIDevice device, Frame frame)
   }
 
   auto geom = anari::newObject<anari::Geometry>(device, "quad");
-  anari::setParameterArray1D(
-      device, geom, "vertex.position", pos.data(), pos.size());
-  anari::setParameterArray1D(
-      device, geom, "primitive.index", idx.data(), idx.size());
+  setTestArray(device, geom, "vertex.position", pos, deviceInputs);
+  setTestArray(device, geom, "primitive.index", idx, deviceInputs);
   anari::setParameterArray1D(device, geom, "vertex.normal", n.data(), n.size());
-  anari::setParameterArray1D(
-      device, geom, "vertex.attribute0", uv.data(), uv.size());
+  setTestArray(device, geom, "vertex.attribute0", uv, deviceInputs);
   if (frame == Frame::AUTHORED || frame == Frame::ROTATED)
     anari::setParameterArray1D(
         device, geom, "vertex.tangent", t.data(), t.size());
@@ -320,8 +319,9 @@ static double maxTileRelErr(
   return worst;
 }
 
-int main()
+int main(int argc, char **)
 {
+  deviceInputs = argc > 1;
   auto device = makeVisRTXDevice(statusFunc);
 
   const std::array<const char *, 2> subtypes = {"physicallyBased",
