@@ -5,7 +5,7 @@ repository.
 
 ## Project Overview
 
-**VisRTX** is an experimental NVIDIA implementation of the [Khronos ANARI](https://www.khronos.org/anari) (Analytic Rendering Interface) standard, focused on scientific visualization. It ships two ANARI device implementations. The testing/demo framework that used to live here (TSD) now lives in the [Vela](https://github.com/NVIDIA/Vela) repository.
+**VisRTX** is an experimental NVIDIA implementation of the [Khronos ANARI](https://www.khronos.org/anari) (Analytic Rendering Interface) standard, focused on scientific visualization. It ships three ANARI device implementations. The testing/demo framework that used to live here (TSD) now lives in the [Vela](https://github.com/NVIDIA/Vela) repository.
 
 All development should occur on top of the `next_release` branch, unless otherwise directed.
 
@@ -13,7 +13,7 @@ All development should occur on top of the `next_release` branch, unless otherwi
 
 ### Build Scope
 
-The individual devices (`devices/rtx/` and `devices/gl/`) are independently
+The individual devices (`devices/rtx/`, `devices/gl/` and `devices/halcyon/`) are independently
 buildable. When making changes, pay attention to whether the work is isolated
 to one device, and prefer the smallest relevant configure/build/test cycle
 before falling back to a full repository build.
@@ -38,6 +38,7 @@ cmake --install .
 |--------|---------|-------------|
 | `VISRTX_BUILD_RTX_DEVICE` | ON | OptiX/CUDA ray-tracing device |
 | `VISRTX_BUILD_GL_DEVICE` | ON | OpenGL 4.3/GLES 3.2 device |
+| `VISRTX_BUILD_HALCYON_DEVICE` | OFF | Embree/ISPC CPU device (needs ISPC, CMake 3.19) |
 
 Component-specific options (MDL, Neural, NVTX, OptiX pinning) are documented in
 the subtree AGENTS.md file: [devices/rtx/AGENTS.md](devices/rtx/AGENTS.md).
@@ -52,7 +53,7 @@ ctest -C Release --output-on-failure
 ctest -C Release -R <test_name> --output-on-failure
 ```
 
-Test sources: `devices/rtx/apps/tests/api/` (RTX API tests). `ctest -N` lists the current set.
+Test sources: `devices/rtx/apps/tests/api/` (RTX API tests) and `devices/halcyon/tests/` (halcyon, `halcyon::<name>`). `ctest -N` lists the current set.
 
 ## Code Style
 
@@ -68,8 +69,10 @@ See [CODING_STANDARDS.md](CODING_STANDARDS.md) for detailed C++ and CUDA coding 
 
 ### ANARI Devices (`devices/`)
 
-Both devices implement the ANARI C API and are installed as shared libraries loadable by any ANARI application.
+All three devices implement the ANARI C API and are installed as shared libraries loadable by any ANARI application.
 
 - **`devices/rtx/`**: OptiX-based GPU ray tracer (`libanari_library_visrtx`). Implements 30+ Khronos and NVIDIA ANARI extensions including CUDA array/framebuffer interop, NanoVDB volumes, and MDL materials. The heavy lifting is in OptiX launch parameters, hit programs, and CUDA kernels.
 
 - **`devices/gl/`**: OpenGL rasterizer (`libanari_library_visgl`). Simpler implementation; supports shadow mapping and ambient occlusion.
+
+- **`devices/halcyon/`**: Embree/ISPC CPU device (`libanari_library_halcyon`), with a `preview` renderer modelled on the ANARI SDK's helide and a `quality` path tracer ported from Typhoon. Linux only so far; its own guide is [devices/halcyon/AGENTS.md](devices/halcyon/AGENTS.md), its ctests are named `halcyon::<name>`. It finds an installed MaterialX as `rtx` does but, unlike `rtx`, fetches and builds MaterialX's Core and Format under its own target names and C++ namespace where none is installed, which can't clash with `rtx`'s or OpenUSD's MaterialX.

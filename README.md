@@ -11,6 +11,8 @@ The following ANARI devices are available:
 
 - [RTX device](devices/rtx/) based on OptiX
 - [OpenGL device](devices/gl/) (experimental)
+- [halcyon](devices/halcyon/), a CPU device based on Embree and ISPC
+  (experimental, off by default: `-DVISRTX_BUILD_HALCYON_DEVICE=ON`)
 
 For any new feature requests or bugs found in extensions that are implemented,
 do not hesitate to [open an issue](https://github.com/NVIDIA/VisRTX/issues/new)!
@@ -25,7 +27,8 @@ ANARI scenes.
 ## Build + Install
 
 [VisRTX](devices/rtx/) and [VisGL](devices/gl/) are supported on both Linux and
-Windows.
+Windows. [halcyon](devices/halcyon/) is built and tested on Linux only, and needs an
+ISPC compiler and CMake 3.19.
 
 Each device can be built stand alone (separately invoking CMake on their
 respective subdirectories), or as a combined build (invoking CMake on the
