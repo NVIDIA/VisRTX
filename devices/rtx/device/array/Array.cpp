@@ -30,6 +30,7 @@
  */
 
 #include "Array.h"
+#include "optix_visrtx.h"
 // std
 #include <cstring>
 
@@ -163,6 +164,12 @@ void Array::unmap()
 
 void Array::privatize()
 {
+  auto &state = *static_cast<DeviceGlobalState *>(deviceState());
+  // Cleanup can release more public references after the original failure.
+  // Do not retry copies from application memory that may already be freed.
+  if (state.arrayPrivatizationFailed)
+    return;
+  bool changed = false;
   if (m_data.shared.host.isValid() && !m_data.shared.host.isOwner()) {
     reportMessage(ANARI_SEVERITY_PERFORMANCE_WARNING,
         "making private copy of shared host array (type '%s') | refs: (%i:%i)",
@@ -170,6 +177,7 @@ void Array::privatize()
         this->useCount(helium::RefType::PUBLIC),
         this->useCount(helium::RefType::INTERNAL));
     m_data.shared.host.privatize();
+    changed = true;
   }
   if (m_data.shared.device.isValid() && !m_data.shared.device.isOwner()) {
     reportMessage(ANARI_SEVERITY_PERFORMANCE_WARNING,
@@ -177,8 +185,26 @@ void Array::privatize()
         anari::toString(elementType()),
         this->useCount(helium::RefType::PUBLIC),
         this->useCount(helium::RefType::INTERNAL));
-    m_data.shared.device.privatize();
+    // Existing frames may still read the shared pointer. The application may
+    // free it as soon as this last PUBLIC release returns.
+    auto completion = cudaStreamSynchronize(state.stream);
+    if (completion == cudaSuccess)
+      completion = m_data.shared.device.privatize();
+    if (completion != cudaSuccess) {
+      // Set before reporting: callbacks must not resume rendering or query
+      // bounds using cached aliases to the application-owned allocation.
+      state.arrayPrivatizationFailed = true;
+      reportMessage(ANARI_SEVERITY_FATAL_ERROR,
+          "array privatization failed; device disabled: %s",
+          cudaGetErrorString(completion));
+      return;
+    }
+    changed = true;
   }
+  // Geometry may alias authored arrays directly: a new backing allocation is
+  // an observable pointer change even though the array's values did not change.
+  if (changed)
+    notifyChangeObservers();
 }
 
 void Array::uploadArrayData() const

@@ -30,12 +30,6 @@
  */
 
 #include "Sphere.h"
-// thrust
-#include <thrust/device_ptr.h>
-#include <thrust/functional.h>
-#include <thrust/sequence.h>
-#include <thrust/transform.h>
-#include <thrust/transform_reduce.h>
 
 namespace visrtx {
 
@@ -57,6 +51,8 @@ void Sphere::commitParameters()
 
 void Sphere::finalize()
 {
+  if (!beginPreparation())
+    return;
   if (!m_vertex) {
     reportMessage(ANARI_SEVERITY_WARNING,
         "missing required parameter 'vertex.position' on sphere geometry");
@@ -70,105 +66,48 @@ void Sphere::finalize()
   // Calculate bounds //
 
   m_numSpheres = m_index ? m_index->size() : m_vertex->size();
-  m_aabbs.reserve(m_numSpheres * sizeof(box3));
-
-  const float globalRadius = m_globalRadius;
-  const float *radii = nullptr;
-  if (m_vertexRadius)
-    radii = m_vertexRadius->beginAs<float>(AddressSpace::GPU);
-
-  const auto *vertices = m_vertex->beginAs<vec3>(AddressSpace::GPU);
-
-  auto &state = *deviceState();
-
-  if (m_index) {
-    auto *begin = m_index->beginAs<uint32_t>(AddressSpace::GPU);
-    auto *end = m_index->endAs<uint32_t>(AddressSpace::GPU);
-    thrust::transform(thrust::cuda::par.on(state.stream),
-        begin,
-        end,
-        thrust::device_pointer_cast<box3>((box3 *)m_aabbs.ptr()),
-        [=] __device__(uint32_t i) {
-          const auto &v = vertices[i];
-          const float r = glm::abs(radii ? radii[i] : globalRadius);
-          return box3(v - r, v + r);
-        });
-  } else {
-    DeviceBuffer index;
-    index.reserve(m_numSpheres * sizeof(uint32_t));
-    auto idx_begin =
-        thrust::device_pointer_cast<uint32_t>((uint32_t *)index.ptr());
-    auto idx_end = idx_begin + m_numSpheres;
-    thrust::sequence(thrust::cuda::par.on(state.stream), idx_begin, idx_end);
-    thrust::transform(thrust::cuda::par.on(state.stream),
-        idx_begin,
-        idx_end,
-        thrust::device_pointer_cast<box3>((box3 *)m_aabbs.ptr()),
-        [=] __device__(uint32_t i) {
-          const auto &v = vertices[i];
-          const float r = glm::abs(radii ? radii[i] : globalRadius);
-          return box3(v - r, v + r);
-        });
-  }
-
+  PrimitiveInput input;
+  input.type = GeometryType::SPHERE;
+  input.count = m_numSpheres;
+  input.vertices = m_vertex->beginAs<vec3>(AddressSpace::GPU);
+  input.indices =
+      m_index ? m_index->beginAs<uint32_t>(AddressSpace::GPU) : nullptr;
+  input.radii = m_vertexRadius
+      ? m_vertexRadius->beginAs<float>(AddressSpace::GPU)
+      : nullptr;
+  input.radius = m_globalRadius;
+  if (!m_preprocessing.bounds(this, input, m_aabbs, m_epsilonScale))
+    return;
   m_aabbsBufferPtr = (CUdeviceptr)m_aabbs.ptr();
 
-  // Coordinate scale of the intersector's arithmetic; floors hit.epsilon so
-  // secondary rays clear the solve's fp noise band (see
-  // GeometryGPUData::epsilonScale).
-  auto aabbsBegin = thrust::device_pointer_cast<box3>((box3 *)m_aabbs.ptr());
-  m_epsilonScale = thrust::transform_reduce(
-      thrust::cuda::par.on(state.stream),
-      aabbsBegin,
-      aabbsBegin + m_numSpheres,
-      [] __device__(const box3 &b) -> float {
-        const vec3 m = glm::max(glm::abs(b.lower), glm::abs(b.upper));
-        return glm::max(m.x, glm::max(m.y, m.z));
-      },
-      0.f,
-      thrust::maximum<float>());
-
-  // Radii may have changed. Rebuild the Geometry Light CDF if a surface has ever
-  // requested it (order-independent of the surface commit), else drop stale data.
+  // Radii may have changed. Rebuild the Geometry Light CDF if a surface has
+  // ever requested it (order-independent of the surface commit), else drop
+  // stale data.
   m_areaDataValid = false;
   if (m_areaDataWanted)
     buildAreaData();
   else {
     m_totalArea = 0.f;
-    m_primAreaCdf.clear();
+    m_primAreaCdf.reset();
   }
 
-  upload();
+  if (!preparationFailed())
+    upload();
 }
 
 void Sphere::buildAreaData()
 {
-  const float *radii =
-      m_vertexRadius ? m_vertexRadius->beginAs<float>(AddressSpace::HOST) : nullptr;
-  const uint32_t *indices =
-      m_index ? m_index->beginAs<uint32_t>(AddressSpace::HOST) : nullptr;
-
-  m_primAreaCdf.resize(m_numSpheres);
-  auto *cdf = m_primAreaCdf.dataHost();
-
-  double cumulative = 0.0;
-  for (size_t i = 0; i < m_numSpheres; ++i) {
-    const uint32_t vi = indices ? indices[i] : uint32_t(i);
-    const float r = glm::abs(radii ? radii[vi] : m_globalRadius);
-    cumulative += 4.0 * double(kPi) * double(r) * double(r);
-    cdf[i] = float(cumulative);
-  }
-  m_totalArea = float(cumulative);
-
-  // Normalize to a cumulative CDF ending at 1. A degenerate (zero-area) set
-  // leaves totalArea 0; callers gate on that.
-  if (m_totalArea > 0.f) {
-    for (size_t i = 0; i < m_numSpheres; ++i)
-      cdf[i] /= m_totalArea;
-  }
-
-  m_primAreaCdf.upload();
-  m_areaDataValid = true;
+  PrimitiveInput input;
+  input.type = GeometryType::SPHERE;
+  input.count = m_numSpheres;
+  input.radii = m_vertexRadius
+      ? m_vertexRadius->beginAs<float>(AddressSpace::GPU)
+      : nullptr;
+  input.indices =
+      m_index ? m_index->beginAs<uint32_t>(AddressSpace::GPU) : nullptr;
+  input.radius = m_globalRadius;
+  m_areaDataValid =
+      m_preprocessing.areas(this, input, m_primAreaCdf, m_totalArea);
 }
 
 bool Sphere::isAreaSamplingSupported() const
@@ -182,7 +121,8 @@ void Sphere::ensureAreaData()
   if (m_areaDataValid)
     return;
   buildAreaData();
-  upload(); // republish gpuData() so the CDF pointers reach the device
+  if (m_areaDataValid)
+    upload();
 }
 
 float Sphere::totalArea() const
@@ -225,8 +165,9 @@ GeometryGPUData Sphere::gpuData() const
   populateAttributeDataSet(m_vertexAttributes, sphere.vertexAttr);
 
   // Geometry Light sampling data; null/zero until ensureAreaData() runs.
-  sphere.primAreaCdf = m_primAreaCdf.dataDevice();
-  sphere.numPrimitives = uint32_t(m_primAreaCdf.size());
+  sphere.primAreaCdf =
+      m_totalArea > 0.f ? m_primAreaCdf.ptrAs<float>() : nullptr;
+  sphere.numPrimitives = m_totalArea > 0.f ? uint32_t(m_numSpheres) : 0;
   sphere.totalArea = m_totalArea;
 
   return retval;

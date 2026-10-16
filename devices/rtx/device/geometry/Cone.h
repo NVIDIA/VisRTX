@@ -33,7 +33,7 @@
 
 #include "Geometry.h"
 #include "array/Array1D.h"
-#include "utility/HostDeviceArray.h"
+#include "utility/DeviceBuffer.h"
 
 namespace visrtx {
 
@@ -60,6 +60,7 @@ struct Cone : public Geometry
  private:
   GeometryGPUData gpuData() const override;
   void buildAreaData();
+  PrimitiveInput primitiveInput() const;
 
   helium::ChangeObserverPtr<Array1D> m_index;
   helium::ChangeObserverPtr<Array1D> m_radius;
@@ -67,13 +68,14 @@ struct Cone : public Geometry
   helium::ChangeObserverPtr<Array1D> m_vertexCaps;
   GeometryAttributes m_vertexAttributes;
 
-  HostDeviceArray<box3> m_aabbs;
+  DeviceBuffer m_aabbs;
   CUdeviceptr m_aabbsBufferPtr{};
 
   uint8_t m_defaultCapFlags{0};
 
-  // Geometry Light sampling data, built lazily by ensureAreaData(); see Triangle.
-  HostDeviceArray<float> m_primAreaCdf;
+  // Geometry Light sampling data, built lazily by ensureAreaData(); see
+  // Triangle.
+  DeviceBuffer m_primAreaCdf;
   float m_totalArea{0.f};
   bool m_areaDataValid{false};
   bool m_areaDataWanted{false};
