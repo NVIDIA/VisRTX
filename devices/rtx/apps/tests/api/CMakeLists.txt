@@ -78,12 +78,51 @@ target_link_libraries(TestSampleAddressing PRIVATE CUDA::cudart)
 set_tests_properties(TestSampleAddressing PROPERTIES TIMEOUT 120)
 make_test(TestPowerLightPickEnv)
 make_test(TestEmissiveGeometryLight)
+make_test(TestSharedGeometryLifecycle)
+target_link_libraries(TestSharedGeometryLifecycle PRIVATE CUDA::cudart)
+make_test(TestGeometryPreprocessingFailure)
+target_link_libraries(TestGeometryPreprocessingFailure PRIVATE CUDA::cudart)
+add_test(NAME TestGeometryBoundsFailure COMMAND TestGeometryPreprocessingFailure --bounds)
+# CUDA API interposition needs ELF dynamic symbols; static cudart calls cannot
+# be intercepted. Configure with -DCMAKE_CUDA_RUNTIME_LIBRARY=Shared to run.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CUDA_RUNTIME_LIBRARY STREQUAL "Shared")
+  make_test(TestFramePublicationRecovery)
+  target_link_libraries(TestFramePublicationRecovery PRIVATE CUDA::cudart ${CMAKE_DL_LIBS})
+  set_target_properties(TestFramePublicationRecovery PROPERTIES ENABLE_EXPORTS ON)
+  make_test(TestCudaPreparationFailure)
+  target_link_libraries(TestCudaPreparationFailure PRIVATE CUDA::cudart ${CMAKE_DL_LIBS})
+  set_target_properties(TestCudaPreparationFailure PROPERTIES ENABLE_EXPORTS ON)
+  add_test(NAME TestIsosurfacePreparationRecovery
+    COMMAND TestCudaPreparationFailure isosurface)
+  foreach(geometry sphere sphere-indexed)
+    add_test(NAME TestSpherePreparationRecovery_${geometry}
+      COMMAND TestCudaPreparationFailure ${geometry})
+  endforeach()
+  foreach(failure allocation copy work-sync copy-sync)
+    add_test(NAME TestArrayPrivatizationFailure_${failure}
+      COMMAND TestCudaPreparationFailure ${failure})
+  endforeach()
+endif()
+make_test(TestDeviceGeometryVisibility)
+target_link_libraries(TestDeviceGeometryVisibility PRIVATE CUDA::cudart)
+add_test(NAME TestSharedGeometryInputs COMMAND TestDeviceGeometryVisibility --shared-inputs)
+add_test(NAME TestDeviceArrayRetirement COMMAND TestDeviceGeometryVisibility --retire)
+add_test(NAME TestDeviceSdfExpansion COMMAND TestDeviceGeometryVisibility sdf-expanded)
+foreach(type triangle sphere curve sdf cone cylinder)
+  add_test(NAME TestDeviceGeometryVisibility_${type} COMMAND TestDeviceGeometryVisibility ${type})
+endforeach()
 make_test(TestQuadLightSide)
 make_test(TestVisibleAreaLight)
 make_test(TestEmissiveSphereLight)
+target_link_libraries(TestEmissiveSphereLight PRIVATE CUDA::cudart)
+# Sampling radiometry retains host anchors and all-device integration;
+# individual input roles use deterministic bounds/visibility above.
 make_test(TestEmissiveInstanceScale)
 make_test(TestEmissiveSphereInstanceScale)
 make_test(TestEmissiveCylinderConeLight)
+target_link_libraries(TestEmissiveCylinderConeLight PRIVATE CUDA::cudart)
+# Each family keeps independent identity/nonuniform-transform references;
+# cap residency is isolated at identity, with all-device coverage also scaled.
 # These interleave attribute-driven emission cases, and MDL does not support
 # attributes — native-PBR only. (Textured emission itself works on the MDL
 # wrapper too; TestEmissiveMaterialParity covers it in that config.)
@@ -94,6 +133,8 @@ endif()
 make_test(TestPbrSpecularDefault)
 make_test(TestNormalMapDecode)
 make_test(TestGeneratedTangents)
+target_link_libraries(TestGeneratedTangents PRIVATE CUDA::cudart)
+add_test(NAME TestDeviceGeneratedTangents COMMAND TestGeneratedTangents --device)
 make_test(TestShadingNormalGrazing)
 if (VISRTX_USE_MDL_FOR_PHYSICALLY_BASED)
   # Its closed-form reference models the backend's diffuse lobe.

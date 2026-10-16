@@ -56,6 +56,8 @@ void Isosurface::commitParameters()
 
 void Isosurface::finalize()
 {
+  if (!beginPreparation())
+    return;
   m_numBricks = 0;
   m_isovaluesDev = nullptr;
   m_numIsovalues = 0;

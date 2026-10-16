@@ -76,6 +76,8 @@ void Triangle::commitParameters()
 
 void Triangle::finalize()
 {
+  if (!beginPreparation())
+    return;
   if (!m_vertex) {
     reportMessage(ANARI_SEVERITY_WARNING,
         "missing required parameter 'vertex.position' on triangle geometry");
@@ -146,42 +148,22 @@ void Triangle::finalize()
     buildAreaData();
   else {
     m_totalArea = 0.f;
-    m_primAreaCdf.clear();
+    m_primAreaCdf.reset();
   }
 
-  upload();
+  if (!preparationFailed())
+    upload();
 }
 
 void Triangle::buildAreaData()
 {
-  const size_t numTriangles = m_index ? m_index->size() : m_vertex->size() / 3;
-  const vec3 *vertices = m_vertex->beginAs<vec3>(AddressSpace::HOST);
-  const uvec3 *indices =
-      m_index ? m_index->beginAs<uvec3>(AddressSpace::HOST) : nullptr;
-
-  m_primAreaCdf.resize(numTriangles);
-  auto *cdf = m_primAreaCdf.dataHost();
-
-  double cumulative = 0.0;
-  for (size_t i = 0; i < numTriangles; ++i) {
-    const uvec3 tri = indices ? indices[i] : uvec3(0, 1, 2) + uint32_t(3 * i);
-    const vec3 &v0 = vertices[tri.x];
-    const vec3 &v1 = vertices[tri.y];
-    const vec3 &v2 = vertices[tri.z];
-    cumulative += 0.5 * glm::length(glm::cross(v1 - v0, v2 - v0));
-    cdf[i] = float(cumulative);
-  }
-  m_totalArea = float(cumulative);
-
-  // Normalize to a cumulative CDF ending at 1. A degenerate (zero-area) mesh
-  // leaves totalArea 0; callers gate on that.
-  if (m_totalArea > 0.f) {
-    for (size_t i = 0; i < numTriangles; ++i)
-      cdf[i] /= m_totalArea;
-  }
-
-  m_primAreaCdf.upload();
-  m_areaDataValid = true;
+  PrimitiveInput input;
+  input.count = m_index ? m_index->size() : m_vertex->size() / 3;
+  input.vertices = m_vertex->beginAs<vec3>(AddressSpace::GPU);
+  input.indices =
+      m_index ? m_index->beginAs<uvec3>(AddressSpace::GPU) : nullptr;
+  m_areaDataValid =
+      m_preprocessing.areas(this, input, m_primAreaCdf, m_totalArea);
 }
 
 bool Triangle::isAreaSamplingSupported() const
@@ -195,7 +177,8 @@ void Triangle::ensureAreaData()
   if (m_areaDataValid)
     return;
   buildAreaData();
-  upload(); // republish gpuData() so the CDF pointers reach the device
+  if (m_areaDataValid)
+    upload(); // republish only successfully prepared sampling data
 }
 
 float Triangle::totalArea() const
@@ -264,8 +247,10 @@ GeometryGPUData Triangle::gpuData() const
   tri.cullBackfaces = m_cullBackfaces;
 
   // Geometry Light sampling data; null/zero until ensureAreaData() runs.
-  tri.primAreaCdf = m_primAreaCdf.dataDevice();
-  tri.numPrimitives = uint32_t(m_primAreaCdf.size());
+  tri.primAreaCdf = m_totalArea > 0.f ? m_primAreaCdf.ptrAs<float>() : nullptr;
+  tri.numPrimitives = m_totalArea > 0.f
+      ? uint32_t(m_index ? m_index->size() : m_vertex->size() / 3)
+      : 0;
   tri.totalArea = m_totalArea;
 
   return retval;

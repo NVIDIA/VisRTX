@@ -53,6 +53,8 @@ void Curve::commitParameters()
 
 void Curve::finalize()
 {
+  if (!beginPreparation())
+    return;
   if (!m_vertexPosition) {
     reportMessage(ANARI_SEVERITY_WARNING,
         "missing required parameter 'vertex.position' on curve geometry");
@@ -64,10 +66,15 @@ void Curve::finalize()
       m_index ? "indexed" : "soup");
 
   computeIndices();
+  if (preparationFailed())
+    return;
   computeRadii();
+  if (preparationFailed() || !waitForPreparationInputs(this)
+      || !finishPreparation(this))
+    return;
 
   m_vertexBufferPtr = (CUdeviceptr)m_vertexPosition->begin(AddressSpace::GPU);
-  m_radiusBufferPtr = (CUdeviceptr)m_generatedRadii.dataDevice();
+  m_radiusBufferPtr = (CUdeviceptr)m_radii;
 
   upload();
 }
@@ -88,8 +95,8 @@ void Curve::populateBuildInput(OptixBuildInput &buildInput) const
   curveArray.widthBuffers = &m_radiusBufferPtr;
 
   curveArray.indexStrideInBytes = sizeof(uint32_t);
-  curveArray.numPrimitives = m_generatedIndices.size();
-  curveArray.indexBuffer = (CUdeviceptr)m_generatedIndices.dataDevice();
+  curveArray.numPrimitives = m_numPrimitives;
+  curveArray.indexBuffer = (CUdeviceptr)m_indices;
 
   curveArray.normalBuffers = 0;
   curveArray.normalStrideInBytes = 0;
@@ -107,30 +114,22 @@ bool Curve::isValid() const
 
 void Curve::computeIndices()
 {
-  if (m_index) {
-    m_generatedIndices.resize(m_index->size());
-    std::copy(m_index->beginAs<uint32_t>(),
-        m_index->endAs<uint32_t>(),
-        m_generatedIndices.begin());
-  } else {
-    m_generatedIndices.resize(m_vertexPosition->size() / 2);
-    std::iota(m_generatedIndices.begin(), m_generatedIndices.end(), 0);
-  }
-  m_generatedIndices.upload();
+  m_numPrimitives = m_index ? m_index->size() : m_vertexPosition->size() / 2;
+  if (m_index)
+    m_indices = m_index->beginAs<uint32_t>(AddressSpace::GPU);
+  else if (generateCurveIndices(this, m_numPrimitives, m_generatedIndices))
+    m_indices = m_generatedIndices.ptrAs<uint32_t>();
 }
 
 void Curve::computeRadii()
 {
-  if (m_vertexRadius) {
-    m_generatedRadii.resize(m_vertexRadius->totalCapacity());
-    std::copy(m_vertexRadius->dataAs<float>(),
-        m_vertexRadius->dataAs<float>() + m_vertexRadius->totalCapacity(),
-        m_generatedRadii.begin());
-  } else {
-    m_generatedRadii.resize(m_vertexPosition->size());
-    std::fill(m_generatedRadii.begin(), m_generatedRadii.end(), m_globalRadius);
-  }
-  m_generatedRadii.upload();
+  if (m_vertexRadius)
+    m_radii = m_vertexRadius->beginAs<float>(AddressSpace::GPU);
+  else if (generateCurveRadii(this,
+               m_vertexPosition->size(),
+               m_globalRadius,
+               m_generatedRadii))
+    m_radii = m_generatedRadii.ptrAs<float>();
 }
 
 GeometryGPUData Curve::gpuData() const
@@ -140,8 +139,8 @@ GeometryGPUData Curve::gpuData() const
 
   auto &curve = retval.curve;
   curve.vertices = m_vertexPosition->beginAs<vec3>(AddressSpace::GPU);
-  curve.indices = m_generatedIndices.dataDevice();
-  curve.radii = m_generatedRadii.dataDevice();
+  curve.indices = m_indices;
+  curve.radii = m_radii;
   populateAttributeDataSet(m_vertexAttributes, curve.vertexAttr);
 
   return retval;

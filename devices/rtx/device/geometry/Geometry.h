@@ -31,6 +31,7 @@
 
 #pragma once
 
+#include "Preprocessing.h"
 #include "RegisteredObject.h"
 #include "array/Array1D.h"
 #include "gpu/gpu_objects.h"
@@ -77,13 +78,18 @@ struct Geometry : public RegisteredObject<GeometryGPUData>
   virtual int optixGeometryType() const = 0;
 
   // Geometry Light area sampling. Only types that can be sampled by area as an
-  // Emissive Surface override these (Stage 1: Triangle). ensureAreaData() builds
-  // the per-primitive area CDF; totalArea() is the object-space emitting area.
+  // Emissive Surface override these (Stage 1: Triangle). ensureAreaData()
+  // builds the per-primitive area CDF; totalArea() is the object-space emitting
+  // area.
   virtual bool isAreaSamplingSupported() const;
   virtual void ensureAreaData();
   virtual float totalArea() const;
 
+  bool preparationFailed() const;
+  void setPreparationFailed(bool failed);
+
  protected:
+  bool beginPreparation();
   GeometryGPUData gpuData() const override = 0;
 
   void commitAttributes(const char *prefix, GeometryAttributes &attrs);
@@ -96,6 +102,11 @@ struct Geometry : public RegisteredObject<GeometryGPUData>
   // Set by analytic-primitive subtypes in finalize(); see
   // GeometryGPUData::epsilonScale.
   float m_epsilonScale{0.f};
+  Preprocessing m_preprocessing;
+
+ private:
+  bool m_preparationFailed{false};
+  bool m_inputRetirementFailed{false};
 };
 
 } // namespace visrtx

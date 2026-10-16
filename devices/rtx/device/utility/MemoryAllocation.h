@@ -33,6 +33,8 @@
 
 // anari
 #include <anari/anari_cpp.hpp>
+// CUDA
+#include <cuda_runtime_api.h>
 
 namespace visrtx {
 
@@ -99,7 +101,7 @@ struct CudaMemoryAllocation
   CudaMemoryAllocation &operator=(const HostMemoryAllocation &o);
   CudaMemoryAllocation(const HostMemoryAllocation &o);
 
-  void privatize(); // if !isOwner(), then make internal copy
+  cudaError_t privatize(); // publish an internal copy only after completion
 
   // Movable, not copyable //
   CudaMemoryAllocation(CudaMemoryAllocation &&);
