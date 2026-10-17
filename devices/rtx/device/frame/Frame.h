@@ -100,6 +100,7 @@ struct Frame : public helium::BaseFrame, public DeviceObject<FrameGPUData>
   bool m_denoiseUsingAlbedo{false};
   bool m_denoiseUsingNormal{false};
   bool m_nextFrameReset{true};
+  bool m_mdlAnimationTimeChanged{false};
   bool m_frameMappedOnce{false}; // NOTE(jda) - for instrumented events
 
   bool m_manualAccumulationRestart{false};

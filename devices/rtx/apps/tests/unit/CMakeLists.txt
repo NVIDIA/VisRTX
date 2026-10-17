@@ -106,4 +106,22 @@ if (VISRTX_ENABLE_MDL_SUPPORT)
   add_test(NAME rtx::MdlEmissionClassifier COMMAND ${PROJECT_NAME})
   # The test SKIPs (not fails) when the MDL SDK shared library is not loadable.
   set_tests_properties(rtx::MdlEmissionClassifier PROPERTIES SKIP_RETURN_CODE 77)
+
+  project(rtx_test_MdlSceneDataDescriptor LANGUAGES CXX)
+  add_executable(${PROJECT_NAME} test_MdlSceneDataDescriptor.cpp)
+  target_link_libraries(${PROJECT_NAME} PRIVATE libmdl fmt::fmt)
+  target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_17)
+  add_test(NAME rtx::MdlSceneDataDescriptor COMMAND ${PROJECT_NAME})
+  set_tests_properties(rtx::MdlSceneDataDescriptor PROPERTIES SKIP_RETURN_CODE 77)
+
+  # Binding resolution uses only owned host data: no CUDA or SDK runtime calls.
+  project(rtx_test_MdlSceneDataInstance LANGUAGES CXX)
+  add_executable(${PROJECT_NAME}
+    test_MdlSceneDataInstance.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/../../../device/mdl/SceneDataInstance.cpp)
+  target_include_directories(${PROJECT_NAME} PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}/../../../device)
+  target_link_libraries(${PROJECT_NAME} PRIVATE libmdl)
+  target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_17)
+  add_test(NAME rtx::MdlSceneDataInstance COMMAND ${PROJECT_NAME})
 endif()

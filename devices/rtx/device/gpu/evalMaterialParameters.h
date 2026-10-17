@@ -187,47 +187,121 @@ VISRTX_DEVICE uint32_t decodeCurveAttributeIndices(
   return ggd.curve.indices[hit.primID];
 }
 
-VISRTX_DEVICE vec4 readAttributeValue(
-    MaterialAttribute attribute, const SurfaceHit &hit)
+enum class AttributeSource
 {
-  switch (attribute) {
-  case MaterialAttribute::WORLD_POSITION:
-  case MaterialAttribute::OBJECT_POSITION: // TODO: handle instance xfm
-    return vec4(hit.hitpoint, 1.f);
-  case MaterialAttribute::WORLD_NORMAL:
-  case MaterialAttribute::OBJECT_NORMAL: // TODO: handle instance xfm
-    return vec4(hit.Ns, 1.f);
-  case MaterialAttribute::UNKNOWN:
-    return vec4{0.f, 0.f, 0.f, 1.f};
-  default:
-    break; // read attribute from geometry below
+  MISSING,
+  CONSTANT,
+  INSTANCE_ARRAY,
+  PRIMITIVE,
+  VERTEX,
+  FACE_VARYING,
+};
+
+struct ResolvedAttribute
+{
+  MaterialAttribute attribute{MaterialAttribute::UNKNOWN};
+  AttributeSource source{AttributeSource::MISSING};
+  const AttributeData *array{nullptr};
+  const vec4 *constant{nullptr};
+
+  VISRTX_DEVICE bool isPresent() const
+  {
+    return source != AttributeSource::MISSING;
   }
 
-  const auto &isd = *hit.instance;
-  const auto &ggd = *hit.geometry;
-  const uint8_t attributeID = static_cast<uint8_t>(attribute);
-  const vec4 &uf = ggd.attrUniform[attributeID];
+  VISRTX_DEVICE bool isUniform() const
+  {
+    return source == AttributeSource::CONSTANT
+        || source == AttributeSource::INSTANCE_ARRAY;
+  }
+};
 
-  // First check per-vertex attributes
-  if (ggd.type == GeometryType::TRIANGLE) {
-    const auto &ap = ggd.tri.vertexAttr[attributeID];
-    const auto &apFV = ggd.tri.vertexAttrFV[attributeID];
-    if (isPopulated(apFV)) {
-      const uvec3 idx = uvec3(0, 1, 2) + (hit.primID * 3);
-      const vec3 b = hit.uvw;
-      return b.x * getAttributeValue(apFV, idx.x, uf)
-          + b.y * getAttributeValue(apFV, idx.y, uf)
-          + b.z * getAttributeValue(apFV, idx.z, uf);
-    } else if (isPopulated(ap)) {
+VISRTX_DEVICE ResolvedAttribute resolveAttribute(
+    MaterialAttribute attribute, const SurfaceHit &hit)
+{
+  const uint8_t attributeID = static_cast<uint8_t>(attribute);
+  const auto &ggd = *hit.geometry;
+  const auto &isd = *hit.instance;
+  const auto *uf = &ggd.attrUniform[attributeID];
+  const AttributeData *vertex = nullptr;
+  switch (ggd.type) {
+  case GeometryType::TRIANGLE:
+    if (isPopulated(ggd.tri.vertexAttrFV[attributeID]))
+      return {attribute,
+          AttributeSource::FACE_VARYING,
+          &ggd.tri.vertexAttrFV[attributeID],
+          uf};
+    vertex = &ggd.tri.vertexAttr[attributeID];
+    break;
+  case GeometryType::QUAD:
+    vertex = &ggd.quad.vertexAttr[attributeID];
+    break;
+  case GeometryType::CYLINDER:
+    vertex = &ggd.cylinder.vertexAttr[attributeID];
+    break;
+  case GeometryType::CONE:
+    vertex = &ggd.cone.vertexAttr[attributeID];
+    break;
+  case GeometryType::CURVE:
+    vertex = &ggd.curve.vertexAttr[attributeID];
+    break;
+  case GeometryType::SPHERE:
+    vertex = &ggd.sphere.vertexAttr[attributeID];
+    break;
+  default:
+    break;
+  }
+  if (vertex && isPopulated(*vertex))
+    return {attribute, AttributeSource::VERTEX, vertex, uf};
+  if (isPopulated(ggd.attr[attributeID]))
+    return {attribute,
+        AttributeSource::PRIMITIVE,
+        &ggd.attr[attributeID],
+        uf};
+  if (ggd.attrUniformPresent[attributeID])
+    return {attribute, AttributeSource::CONSTANT, nullptr, uf};
+  if (isd.attrUniformArrayPresent[attributeID])
+    return {attribute,
+        AttributeSource::INSTANCE_ARRAY,
+        &isd.attrUniformArray[attributeID],
+        uf};
+  if (isd.attrUniformPresent[attributeID])
+    return {attribute,
+        AttributeSource::CONSTANT,
+        nullptr,
+        &isd.attrUniform[attributeID]};
+  return {attribute, AttributeSource::MISSING, nullptr, uf};
+}
+
+VISRTX_DEVICE vec4 readAttributeValue(
+    const ResolvedAttribute &attribute, const SurfaceHit &hit)
+{
+  if (!attribute.array)
+    return *attribute.constant;
+
+  const auto &ggd = *hit.geometry;
+  const uint8_t attributeID = static_cast<uint8_t>(attribute.attribute);
+  const auto &ap = *attribute.array;
+  const auto &uf = *attribute.constant;
+  if (attribute.source == AttributeSource::FACE_VARYING) {
+    // resolveAttribute() currently produces FACE_VARYING only for triangles.
+    // Other geometries require their own indexing and interpolation.
+    const uvec3 idx = uvec3(0, 1, 2) + (hit.primID * 3);
+    const vec3 b = hit.uvw;
+    return b.x * getAttributeValue(ap, idx.x, uf)
+        + b.y * getAttributeValue(ap, idx.y, uf)
+        + b.z * getAttributeValue(ap, idx.z, uf);
+  }
+  if (attribute.source == AttributeSource::VERTEX) {
+    switch (ggd.type) {
+    case GeometryType::TRIANGLE: {
       const uvec3 idx = decodeTriangleAttributeIndices(ggd, attributeID, hit);
       const vec3 b = hit.uvw;
       return b.x * getAttributeValue(ap, idx.x, uf)
           + b.y * getAttributeValue(ap, idx.y, uf)
           + b.z * getAttributeValue(ap, idx.z, uf);
     }
-  } else if (ggd.type == GeometryType::QUAD) {
-    const auto &ap = ggd.quad.vertexAttr[attributeID];
-    if (isPopulated(ap)) {
+    case GeometryType::QUAD: {
       const uvec4 idx =
           decodeQuadAttributeIndices(ggd, attributeID, hit.primID);
       const vec3 b = hit.uvw;
@@ -241,55 +315,52 @@ VISRTX_DEVICE vec4 readAttributeValue(
       const auto l1 = v2 + (v3 - v2) * u;
       return l1 + (l0 - l1) * v;
     }
-  } else if (ggd.type == GeometryType::CYLINDER) {
-    const auto &ap = ggd.cylinder.vertexAttr[attributeID];
-    if (isPopulated(ap)) {
+    case GeometryType::CYLINDER: {
       const uvec2 idx = decodeCylinderAttributeIndices(ggd, attributeID, hit);
       const vec3 b = hit.uvw;
       return b.z * getAttributeValue(ap, idx.x, uf)
           + b.y * getAttributeValue(ap, idx.y, uf);
     }
-  } else if (ggd.type == GeometryType::CONE) {
-    const auto &ap = ggd.cone.vertexAttr[attributeID];
-    if (isPopulated(ap)) {
+    case GeometryType::CONE: {
       const uvec2 idx = decodeConeAttributeIndices(ggd, attributeID, hit);
       const vec3 b = hit.uvw;
       return b.z * getAttributeValue(ap, idx.x, uf)
           + b.y * getAttributeValue(ap, idx.y, uf);
     }
-  } else if (ggd.type == GeometryType::CURVE) {
-    const auto &ap = ggd.curve.vertexAttr[attributeID];
-    if (isPopulated(ap)) {
+    case GeometryType::CURVE: {
       const uint32_t idx = decodeCurveAttributeIndices(ggd, attributeID, hit);
       const vec3 b = hit.uvw;
       return b.z * getAttributeValue(ap, idx, uf)
           + b.y * getAttributeValue(ap, idx + 1, uf);
     }
-  } else if (ggd.type == GeometryType::SPHERE) {
-    const auto &ap = ggd.sphere.vertexAttr[attributeID];
-    const uint32_t idx = decodeSphereAttributeIndices(ggd, hit);
-    if (isPopulated(ap))
-      return getAttributeValue(ap, idx, uf);
+    case GeometryType::SPHERE:
+      return getAttributeValue(ap, decodeSphereAttributeIndices(ggd, hit), uf);
+    default:
+      return uf;
+    }
   }
+  if (attribute.source == AttributeSource::INSTANCE_ARRAY)
+    return getAttributeValue(ap, hit.instance->localArrayId, uf);
+  return getAttributeValue(ap,
+      ggd.type == GeometryType::QUAD ? hit.primID / 2 : hit.primID,
+      uf);
+}
 
-  // Else check for  per-primitive attributes
-  if (const auto &ap = ggd.attr[attributeID]; isPopulated(ap)) {
-    if (ggd.type == GeometryType::QUAD)
-      return getAttributeValue(ap, hit.primID / 2, uf);
-    else
-      return getAttributeValue(ap, hit.primID, uf);
+VISRTX_DEVICE vec4 readAttributeValue(
+    MaterialAttribute attribute, const SurfaceHit &hit)
+{
+  switch (attribute) {
+  case MaterialAttribute::WORLD_POSITION:
+  case MaterialAttribute::OBJECT_POSITION: // TODO: handle instance xfm
+    return vec4(hit.hitpoint, 1.f);
+  case MaterialAttribute::WORLD_NORMAL:
+  case MaterialAttribute::OBJECT_NORMAL: // TODO: handle instance xfm
+    return vec4(hit.Ns, 1.f);
+  case MaterialAttribute::UNKNOWN:
+    return vec4{0.f, 0.f, 0.f, 1.f};
+  default:
+    return readAttributeValue(resolveAttribute(attribute, hit), hit);
   }
-
-  // Eventually process instance values if any
-  if (isd.attrUniformArrayPresent[attributeID]) {
-    return getAttributeValue(
-        isd.attrUniformArray[attributeID], isd.localArrayId, uf);
-  }
-
-  if (isd.attrUniformPresent[attributeID])
-    return isd.attrUniform[attributeID];
-
-  return uf;
 }
 
 VISRTX_DEVICE vec4 evaluateImageTextureSampler(

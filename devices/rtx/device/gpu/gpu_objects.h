@@ -32,6 +32,7 @@
 #pragma once
 
 #include "gpu/gpu_math.h"
+#include "gpu/materialAttributes.h"
 #include "gpu/sbt.h"
 
 // optix
@@ -61,20 +62,6 @@ namespace visrtx {
 
 using RandState = PCGState;
 using DeviceObjectIndex = int32_t;
-
-enum class MaterialAttribute : uint8_t
-{
-  ATTRIB_0,
-  ATTRIB_1,
-  ATTRIB_2,
-  ATTRIB_3,
-  COLOR,
-  OBJECT_POSITION,
-  OBJECT_NORMAL,
-  WORLD_POSITION,
-  WORLD_NORMAL,
-  UNKNOWN
-};
 
 ///////////////////////////////////////////////////////////////////////////////
 // Objects ////////////////////////////////////////////////////////////////////
@@ -331,6 +318,7 @@ struct GeometryGPUData
   GeometryType type{GeometryType::UNKNOWN};
   AttributeDataSet attr;
   AttributeDataSetUniform attrUniform;
+  bool attrUniformPresent[5];
   const uint32_t *primitiveId;
   // Object-space coordinate magnitude the analytic intersectors' arithmetic
   // runs at (max |AABB corner| over the geometry's primitives); 0 when unused.
@@ -506,6 +494,8 @@ struct MaterialGPUData
 
   struct MDL
   {
+    const MDLSceneDataBinding *sceneData;
+    uint32_t numSceneData;
     const char *argBlock;
     uint32_t numSamplers;
     // Should be sized according to MDL's execution context
@@ -1074,6 +1064,7 @@ struct FramebufferGPUData
 
 struct FrameGPUData
 {
+  float mdlAnimationTime;
   FramebufferGPUData fb;
   RendererGPUData renderer;
   WorldGPUData world;

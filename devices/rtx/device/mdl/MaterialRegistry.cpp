@@ -103,7 +103,7 @@ MaterialRegistry::reuseCompiledMaterial(const std::string &fullMaterialName)
   if (uuidIt == cend(m_materialNameToUuid))
     return std::nullopt;
 
-  auto indexIt = m_uuidToIndex.find(std::get<0>(uuidIt->second));
+  auto indexIt = m_uuidToIndex.find(uuidIt->second.uuid);
   if (indexIt == cend(m_uuidToIndex))
     return std::nullopt;
 
@@ -263,8 +263,9 @@ MaterialRegistry::compileAndCacheMaterial(const std::string &fullMaterialName,
   // Reuse an existing targetCode and its matching ptx generated code if we
   // already have it.
   if (auto it = m_uuidToIndex.find(uuid); it != std::cend(m_uuidToIndex)) {
-    ++m_targetCodes[it->second].refCount;
-    return AcquiredMaterial{uuid, argBlockDesc};
+    auto &target = m_targetCodes[it->second];
+    ++target.refCount;
+    return AcquiredMaterial{uuid, argBlockDesc, target.sceneData};
   }
 
   // First time we hit this. Build a complete PTX shader from the generated
@@ -294,12 +295,13 @@ MaterialRegistry::compileAndCacheMaterial(const std::string &fullMaterialName,
   // finalize to publish an emission descriptor (ADR 0007).
   targetIt->emission =
       libmdl::buildEmissionIR(compiledMaterial.get(), transaction);
+  targetIt->sceneData = libmdl::SceneDataDescriptor(*targetCode);
 
   auto targetIndex = std::distance(std::begin(m_targetCodes), targetIt);
 
   m_uuidToIndex.insert({uuid, targetIndex});
-  m_materialNameToUuid.insert(
-      {fullMaterialName, std::tuple{uuid, argBlockDesc}});
+  const AcquiredMaterial acquired{uuid, argBlockDesc, targetIt->sceneData};
+  m_materialNameToUuid.insert({fullMaterialName, acquired});
 
   m_lastUpdateTS = libmdl::newTimeStamp();
 
@@ -310,11 +312,10 @@ MaterialRegistry::compileAndCacheMaterial(const std::string &fullMaterialName,
       uuid.m_id2,
       uuid.m_id3,
       uuid.m_id4);
-  return AcquiredMaterial{uuid, argBlockDesc};
+  return acquired;
 }
 
-std::tuple<libmdl::Uuid, libmdl::ArgumentBlockDescriptor>
-MaterialRegistry::acquireMaterial(
+MaterialRegistry::AcquiredMaterial MaterialRegistry::acquireMaterial(
     std::string_view moduleName, std::string_view materialName)
 {
   using mi::base::make_handle;
@@ -345,8 +346,7 @@ MaterialRegistry::acquireMaterial(
   return material.value_or(AcquiredMaterial{});
 }
 
-std::tuple<libmdl::Uuid, libmdl::ArgumentBlockDescriptor>
-MaterialRegistry::acquireMaterialFromCode(
+MaterialRegistry::AcquiredMaterial MaterialRegistry::acquireMaterialFromCode(
     std::string_view source, std::string_view materialName)
 {
   using mi::base::make_handle;
@@ -414,7 +414,7 @@ void MaterialRegistry::releaseMaterial(const Uuid &uuid)
       // resolved to a different content hash.
       for (auto nameIt = std::begin(m_materialNameToUuid);
           nameIt != std::end(m_materialNameToUuid);) {
-        if (std::get<0>(nameIt->second) == uuid)
+        if (nameIt->second.uuid == uuid)
           nameIt = m_materialNameToUuid.erase(nameIt);
         else
           ++nameIt;

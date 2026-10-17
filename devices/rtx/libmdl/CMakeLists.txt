@@ -14,6 +14,7 @@ project_add_library(STATIC
   EmissionIR.cpp
   helpers.cpp
   ptx.cpp
+  SceneDataDescriptor.cpp
   TimeStamp.cpp
 )
 

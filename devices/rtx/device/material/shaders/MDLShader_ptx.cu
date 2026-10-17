@@ -97,14 +97,25 @@ VISRTX_CALLABLE void __direct_callable__init(MDLShadingState *shadingState,
   // One texture space per ANARI attribute0..3; matches kNumTextureSpaces in
   // libmdl/MDLBackendConfig.h. Tangent frame is the geometry's; multi-UV
   // materials reuse it for every slot (no per-attribute tangent track yet).
-  shadingState->textureCoords[0] =
-      readAttributeValue(MaterialAttribute::ATTRIB_0, *hit);
-  shadingState->textureCoords[1] =
-      readAttributeValue(MaterialAttribute::ATTRIB_1, *hit);
-  shadingState->textureCoords[2] =
-      readAttributeValue(MaterialAttribute::ATTRIB_2, *hit);
-  shadingState->textureCoords[3] =
-      readAttributeValue(MaterialAttribute::ATTRIB_3, *hit);
+  static_assert(libmdl::kNumTextureSpaces == 4);
+  auto &attributes = shadingState->textureHandler;
+  attributes.attributePresentMask = 0;
+  attributes.attributeUniformMask = 0;
+  // Resolve once per hit for both texture coordinates and named scene data.
+  // Presence is independent of numeric validity; data_isvalid uses only it.
+  for (unsigned int i = 0; i < 5; ++i) {
+    const auto source = resolveAttribute(MaterialAttribute(i), *hit);
+    const vec4 value = readAttributeValue(source, *hit);
+    if (source.isPresent())
+      attributes.attributePresentMask |= 1u << i;
+    if (source.isUniform())
+      attributes.attributeUniformMask |= 1u << i;
+    if (i < 4) {
+      shadingState->textureCoords[i] = vec3(value);
+      attributes.attributeW[i] = value.w;
+    } else
+      attributes.attributeColor = value;
+  }
 
   shadingState->textureTangentsU[0] = tU;
   shadingState->textureTangentsU[1] = tU;
@@ -116,7 +127,7 @@ VISRTX_CALLABLE void __direct_callable__init(MDLShadingState *shadingState,
   shadingState->textureTangentsV[2] = tV;
   shadingState->textureTangentsV[3] = tV;
 
-  shadingState->state.animation_time = 0.0f;
+  shadingState->state.animation_time = fd->mdlAnimationTime;
   shadingState->state.geom_normal = bit_cast<float3>(Ng);
   shadingState->state.normal = bit_cast<float3>(Ns);
   shadingState->state.position = bit_cast<float3>(position);
@@ -146,6 +157,8 @@ VISRTX_CALLABLE void __direct_callable__init(MDLShadingState *shadingState,
   shadingState->textureHandler.numSamplers = md->numSamplers;
   shadingState->textureHandler.V = hit->V;
   shadingState->textureHandler.normalAdapted = false;
+  shadingState->textureHandler.sceneData = md->sceneData;
+  shadingState->textureHandler.numSceneData = md->numSceneData;
   shadingState->resData = {nullptr, &shadingState->textureHandler};
 
   // Front facing for transmission
