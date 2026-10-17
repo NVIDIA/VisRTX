@@ -284,6 +284,8 @@ VISRTX_DEVICE vec4 readAttributeValue(
   const auto &ap = *attribute.array;
   const auto &uf = *attribute.constant;
   if (attribute.source == AttributeSource::FACE_VARYING) {
+    // resolveAttribute() currently produces FACE_VARYING only for triangles.
+    // Other geometries require their own indexing and interpolation.
     const uvec3 idx = uvec3(0, 1, 2) + (hit.primID * 3);
     const vec3 b = hit.uvw;
     return b.x * getAttributeValue(ap, idx.x, uf)
