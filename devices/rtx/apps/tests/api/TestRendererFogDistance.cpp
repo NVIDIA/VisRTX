@@ -375,6 +375,137 @@ int testRayBuffer(anari::Device d, const char *subtype)
   return failures;
 }
 
+// The black distance fixtures cannot detect a lost albedo, and world-level
+// surfaces do not supply an application instance ID. Keep one colored,
+// explicitly instanced surface as a non-vacuous auxiliary-channel anchor.
+int testSurfaceChannels(anari::Device d, const char *subtype)
+{
+  fprintf(stderr, "[fog-case] surface-channels %s baseline\n", subtype);
+  fflush(stderr);
+  Scene scene(d, subtype, "orthographic");
+  constexpr Vec3 COLOR = {0.2f, 0.4f, 0.8f};
+  constexpr Vec3 FOG = {0.8f, 0.3f, 0.1f};
+  constexpr Vec4 BACKDROP = {0.1f, 0.6f, 0.9f, 0.25f};
+  auto material = anari::newObject<anari::Material>(d, "matte");
+  const ObjectOwner materialOwner(d, material);
+  anari::setParameter(d, material, "color", COLOR);
+  anari::commitParameters(d, material);
+  anari::setParameter(d, scene.surface, "material", material);
+  anari::commitParameters(d, scene.surface);
+  auto group = anari::newObject<anari::Group>(d);
+  const ObjectOwner groupOwner(d, group);
+  anari::setParameterArray1D(d, group, "surface", &scene.surface, 1);
+  anari::commitParameters(d, group);
+  auto instance = anari::newObject<anari::Instance>(d, "transform");
+  const ObjectOwner instanceOwner(d, instance);
+  anari::setParameter(d, instance, "group", group);
+  anari::setParameter(d, instance, "id", 73u);
+  anari::commitParameters(d, instance);
+  anari::unsetParameter(d, scene.world, "surface");
+  anari::setParameterArray1D(d, scene.world, "instance", &instance, 1);
+  anari::commitParameters(d, scene.world);
+  anari::setParameter(d, scene.renderer, "ambientRadiance", 1.f);
+  anari::setParameter(d, scene.renderer, "background", BACKDROP);
+  anari::setParameter(d, scene.renderer, "premultiplyBackground", false);
+  anari::setParameter(d, scene.renderer, "fogColor", FOG);
+  scene.fog("none", nullptr);
+  scene.render();
+  const auto baseline = auxiliary(scene);
+  int failures = 0;
+  for (unsigned p = 0; p < PIXELS; ++p) {
+    bool valid = near(baseline.depth[p], 10.)
+        && near(std::abs(baseline.normal[p][2]), 1.)
+        && baseline.primitive[p] <= 1u && baseline.object[p] == 42u
+        && baseline.instance[p] == 73u && near(baseline.color[p][3], 1.);
+    for (int c = 0; c < 3; ++c)
+      valid &= near(baseline.color[p][c], COLOR[c])
+          && near(baseline.albedo[p][c], COLOR[c]);
+    if (!valid) {
+      fprintf(stderr,
+          "%s surface-channel baseline invalid at %u: depth=%g normal=%g "
+          "albedo=(%g,%g,%g) IDs=%u/%u/%u\n",
+          subtype,
+          p,
+          baseline.depth[p],
+          baseline.normal[p][2],
+          baseline.albedo[p][0],
+          baseline.albedo[p][1],
+          baseline.albedo[p][2],
+          baseline.primitive[p],
+          baseline.object[p],
+          baseline.instance[p]);
+      ++failures;
+    }
+  }
+  struct Case
+  {
+    const char *mode;
+    const char *metric;
+    const char *source;
+    float end;
+  };
+  constexpr Case CASES[] = {
+      {"linear", "viewDepth", "constant", FOG_END},
+      {"linear", "rayDistance", "background", FOG_END},
+      {"exp", "viewDepth", "background", FOG_END},
+      {"exp", "rayDistance", "constant", FOG_END},
+      {"exp2", "viewDepth", "constant", FOG_END},
+      {"exp2", "rayDistance", "background", FOG_END},
+      {"linear", "rayDistance", "background", 1.f},
+  };
+  for (const auto &test : CASES) {
+    fprintf(stderr,
+        "[fog-case] surface-channels %s %s %s %s end=%g\n",
+        subtype,
+        test.mode,
+        test.metric,
+        test.source,
+        test.end);
+    fflush(stderr);
+    scene.fog(test.mode, test.metric);
+    anari::setParameter(d, scene.renderer, "fogColorSource", test.source);
+    anari::setParameter(d, scene.renderer, "fogEnd", test.end);
+    anari::commitParameters(d, scene.renderer);
+    scene.render();
+    const auto actual = auxiliary(scene);
+    // Opaque contribution: V*C + (1-V)*F, alpha=1. This specification
+    // equation is independent of shading output and production fog helpers.
+    const double visibility =
+        referenceVisibility(test.mode, 10., 0., test.end, FOG_DENSITY);
+    const bool background = std::string(test.source) == "background";
+    for (unsigned p = 0; p < PIXELS; ++p) {
+      for (int c = 0; c < 3; ++c) {
+        const double expected = visibility * COLOR[c]
+            + (1. - visibility) * (background ? BACKDROP[c] : FOG[c]);
+        if (!near(actual.color[p][c], expected)) {
+          fprintf(stderr,
+              "%s %s %s %s pixel %u channel %d: %g expected %g\n",
+              subtype,
+              test.mode,
+              test.metric,
+              test.source,
+              p,
+              c,
+              actual.color[p][c],
+              expected);
+          ++failures;
+        }
+      }
+    }
+    failures += !sameAuxiliary(baseline, actual, subtype);
+  }
+  // Disable after full fog, without a Frame commit or manual reset.
+  scene.fog("none", "rayDistance");
+  failures += scene.render() != baseline.color;
+  failures += !sameAuxiliary(baseline, auxiliary(scene), subtype);
+  printf(
+      "%s colored surface channels: 7 fog settings, positive albedo, "
+      "depth/normal and IDs (0 or 1)/42/73, %d failures\n",
+      subtype,
+      failures);
+  return failures;
+}
+
 int testOpaqueCutPlane(anari::Device d)
 {
   Scene scene(d, "quality", "orthographic");
@@ -554,6 +685,7 @@ int main()
   for (const char *subtype : {"fast", "interactive", "default", "quality"}) {
     failures += testPlanes(device, subtype);
     failures += testRayBuffer(device, subtype);
+    failures += testSurfaceChannels(device, subtype);
     failures += testAperture(device, subtype);
     failures += testMetricLifecycle(device, subtype, warnings);
   }
