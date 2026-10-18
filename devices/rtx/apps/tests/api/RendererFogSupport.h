@@ -30,6 +30,13 @@ struct Image
   std::vector<unsigned> primitive, object, instance;
 };
 
+// Print named contracts before execution so failures remain attributable.
+inline void logCase(const std::string &name)
+{
+  fprintf(stderr, "[fog-case] %s\n", name.c_str());
+  fflush(stderr);
+}
+
 /* Owns one public ANARI reference; the Device must outlive this scope. */
 class ObjectOwner
 {
