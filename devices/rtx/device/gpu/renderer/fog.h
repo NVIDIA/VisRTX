@@ -46,8 +46,10 @@ VISRTX_DEVICE FogAppearance fogAppearance(
   // overflow intermediate differences. No world-unit epsilon on intervals.
   const bool rayDistance =
       fog.distanceMetric == FogDistanceMetric::RAY_DISTANCE;
-  const glm::dvec3 delta = glm::dvec3(position)
-      - glm::dvec3(rayDistance ? cameraOrigin : fd.camera.pos);
+  // Select values, not references into camera-local and frame-data storage.
+  const glm::dvec3 origin =
+      rayDistance ? glm::dvec3(cameraOrigin) : glm::dvec3(fd.camera.pos);
+  const glm::dvec3 delta = glm::dvec3(position) - origin;
   const double distance = rayDistance
       ? glm::length(delta)
       : fmax(0.0, glm::dot(delta, glm::dvec3(fd.camera.dir)));
