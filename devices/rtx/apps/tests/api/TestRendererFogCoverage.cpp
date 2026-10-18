@@ -43,6 +43,7 @@ struct Scene
   void fog(const char *mode, const char *metric, bool full = false);
   void rayBuffer();
   Image render();
+  void setSamples(int count);
 
   anari::Device device;
   const char *subtype;
@@ -50,6 +51,7 @@ struct Scene
   anari::Camera camera;
   anari::Renderer renderer;
   anari::Frame frame;
+  int samples = 1;
   std::vector<anari::Material> materials;
   std::vector<anari::Instance> instances;
 };
@@ -215,9 +217,16 @@ void Scene::rayBuffer()
   anari::commitParameters(device, frame);
 }
 
+void Scene::setSamples(int count)
+{
+  anari::setParameter(device, renderer, "pixelSamples", count);
+  samples = count;
+}
+
 Image Scene::render()
 {
   anari::render(device, frame);
+
   anari::wait(device, frame);
   return readImage(device, frame, SIZE);
 }
@@ -232,9 +241,14 @@ bool expect(const Scene &scene,
     const Image &actual,
     const std::vector<Vec4> &expected)
 {
+  double maxError = 0., maxToleranceFraction = 0.;
   for (unsigned p = 0; p < PIXELS; ++p) {
     for (unsigned c = 0; c < 4; ++c) {
       const double ref = expected[p][c];
+      const double error = std::abs(actual.color[p][c] - ref);
+      maxError = std::fmax(maxError, error);
+      maxToleranceFraction = std::fmax(
+          maxToleranceFraction, error / (1e-5 + 1e-4 * std::abs(ref)));
       if (!std::isfinite(actual.color[p][c])
           || std::abs(actual.color[p][c] - ref) > 1e-5 + 1e-4 * std::abs(ref)) {
         fprintf(stderr,
@@ -249,6 +263,12 @@ bool expect(const Scene &scene,
       }
     }
   }
+  printf("%s %s: %d spp, max error=%g, tolerance fraction=%g\n",
+      scene.subtype,
+      label.c_str(),
+      scene.samples,
+      maxError,
+      maxToleranceFraction);
   return true;
 }
 
@@ -291,80 +311,118 @@ bool expectCoverage(const Scene &scene,
   return maxPixelError <= 0.05 && maxMeanError <= 0.008;
 }
 
+struct FogCase
+{
+  const char *name;
+  const char *mode;
+  const char *metric;
+  bool full = false;
+};
+
+// Oblique rays distinguish the metrics. Keep every active curve/metric pair,
+// but only one saturated endpoint and one disable-after-active transition.
+constexpr FogCase LAYER_FOG[] = {{"linear-view", "linear", "viewDepth"},
+    {"exp-view", "exp", "viewDepth"},
+    {"exp2-view", "exp2", "viewDepth"},
+    {"linear-ray", "linear", "rayDistance"},
+    {"exp-ray", "exp", "rayDistance"},
+    {"exp2-ray", "exp2", "rayDistance"},
+    {"saturated", "linear", "viewDepth", true},
+    {"disabled-restoration", "none", "rayDistance"}};
+
+// Orthographic planar depths agree under both metrics. Retain a ray-metric
+// composition witness, all curves and the endpoint; cheap Distance anchors
+// separately distinguish the metrics rather than repeating equal distances.
+constexpr FogCase PLANAR_FOG[] = {{"linear-view", "linear", "viewDepth"},
+    {"exp-view", "exp", "viewDepth"},
+    {"exp2-view", "exp2", "viewDepth"},
+    {"linear-ray", "linear", "rayDistance"},
+    {"saturated", "linear", "viewDepth", true}};
+
 int testLayers(anari::Device d, const char *subtype, bool background = false)
 {
   int failures = 0;
   constexpr Vec3 FRONT{0.2f, 0.3f, 0.1f}, BACK{0.1f, 0.2f, 0.4f};
   const Vec3 target = background ? Vec3{0.15f, 0.65f, 0.35f} : FOG_COLOR;
-  for (float alpha : {0.f, 0.25f, 1.f}) {
-    for (float backAlpha : {0.f, 0.5f, 1.f}) {
-      Scene scene(d, subtype);
-      if (background) {
-        anari::setParameter(d,
-            scene.renderer,
-            "background",
-            Vec4{target[0], target[1], target[2], 1.f});
-        anari::setParameter(d, scene.renderer, "fogColorSource", "background");
-      }
-      if (std::string(subtype) == "quality")
-        anari::setParameter(d, scene.renderer, "pixelSamples", 4096);
-      scene.addPlane(4.f, FRONT, alpha);
-      scene.addPlane(12.f, BACK, backAlpha);
-      scene.rayBuffer();
-      scene.fog("none", "viewDepth");
-      const auto baseline = scene.render();
-      for (const char *metric : {"viewDepth", "rayDistance"}) {
-        for (const char *mode : {"none", "linear", "exp", "exp2"}) {
-          scene.fog(mode, metric);
-          std::vector<Vec4> expected(PIXELS);
-          for (unsigned p = 0; p < PIXELS; ++p) {
-            const bool radial = std::string(metric) == "rayDistance";
-            const double t0 =
-                visibility(mode, radial ? (4. - p % 3) * 1.25 : 5.);
-            const double t1 =
-                visibility(mode, radial ? (12. - p % 3) * 1.25 : 13.);
-            for (unsigned c = 0; c < 3; ++c) {
-              // Independently composited premultiplied contributions at two
-              // depths.
-              expected[p][c] = alpha * (t0 * FRONT[c] + (1. - t0) * target[c])
-                  + (1. - alpha) * backAlpha
-                      * (t1 * BACK[c] + (1. - t1) * target[c])
-                  + (background ? (1. - alpha) * (1. - backAlpha) * target[c]
-                                : 0.);
-            }
-            expected[p][3] =
-                background ? 1.f : alpha + (1.f - alpha) * backAlpha;
-          }
-          const auto image = scene.render();
-          failures += !expectCoverage(scene,
-              std::string(background ? "background layers " : "layers ") + mode
-                  + " " + metric,
-              image,
-              expected);
-          failures += !sameAuxiliary(baseline, image, scene.subtype);
+  const struct LayerCase
+  {
+    const char *name;
+    float front, rear;
+    bool occlusionOnly = false;
+  } cases[] = {{"empty", 0.f, 0.f},
+      {"rear-partial", 0.f, 0.5f},
+      {"rear-opaque", 0.f, 1.f},
+      {"front-partial", 0.25f, 0.f},
+      {"both-partial", 0.25f, 0.5f},
+      {"partial-over-opaque", 0.25f, 1.f},
+      {"opaque-over-empty", 1.f, 0.f, true},
+      {"opaque-over-partial", 1.f, 0.5f, true},
+      {"opaque-over-opaque", 1.f, 1.f}};
+  for (const auto &layer : cases) {
+    const float alpha = layer.front, backAlpha = layer.rear;
+    logCase(std::string(subtype) + "/layers/" + layer.name
+        + (background ? "/background" : "/constant"));
+    Scene scene(d, subtype);
+    if (background) {
+      anari::setParameter(d,
+          scene.renderer,
+          "background",
+          Vec4{target[0], target[1], target[2], 1.f});
+      anari::setParameter(d, scene.renderer, "fogColorSource", "background");
+    }
+    if (std::string(subtype) == "quality")
+      scene.setSamples(4096);
+    scene.addPlane(4.f, FRONT, alpha);
+    scene.addPlane(12.f, BACK, backAlpha);
+    scene.rayBuffer();
+    scene.fog("none", "viewDepth");
+    const auto baseline = scene.render();
+    for (const auto &fog : LAYER_FOG) {
+      // Rear opacity cannot affect an opaque front. Keep live unfogged,
+      // oblique partial-fog and disable witnesses at both other opacities;
+      // opaque-over-opaque carries the complete setting table.
+      if (layer.occlusionOnly && std::string(fog.name) != "linear-ray"
+          && std::string(fog.mode) != "none")
+        continue;
+      fprintf(stderr, "[fog-setting] %s/%s\n", layer.name, fog.name);
+      scene.fog(fog.mode, fog.metric, fog.full);
+      std::vector<Vec4> expected(PIXELS);
+      for (unsigned p = 0; p < PIXELS; ++p) {
+        const bool radial = std::string(fog.metric) == "rayDistance";
+        const double t0 = fog.full
+            ? 0.
+            : visibility(fog.mode, radial ? (4. - p % 3) * 1.25 : 5.);
+        const double t1 = fog.full
+            ? 0.
+            : visibility(fog.mode, radial ? (12. - p % 3) * 1.25 : 13.);
+        for (unsigned c = 0; c < 3; ++c) {
+          // Independently composited premultiplied contributions at two
+          // depths.
+          expected[p][c] = alpha * (t0 * FRONT[c] + (1. - t0) * target[c])
+              + (1. - alpha) * backAlpha
+                  * (t1 * BACK[c] + (1. - t1) * target[c])
+              + (background ? (1. - alpha) * (1. - backAlpha) * target[c] : 0.);
         }
-        scene.fog("linear", metric, true);
-        const auto full = scene.render();
-        std::vector<Vec4> expected(PIXELS);
-        for (auto &pixel : expected) {
-          pixel[3] = background ? 1.f : alpha + (1.f - alpha) * backAlpha;
-          for (unsigned c = 0; c < 3; ++c)
-            pixel[c] = pixel[3] * target[c];
-        }
-        failures += !expectCoverage(scene, "full fog layers", full, expected);
-        failures += !sameAuxiliary(baseline, full, scene.subtype);
+        expected[p][3] = background ? 1.f : alpha + (1.f - alpha) * backAlpha;
       }
-      // Make ID assertions non-vacuous, including the transparent front case.
-      if (baseline.primitive[0] == ~0u || baseline.object[0] != 200
-          || baseline.instance[0] != 300) {
-        fprintf(stderr,
-            "%s unexpected baseline IDs: %u %u %u\n",
-            subtype,
-            baseline.primitive[0],
-            baseline.object[0],
-            baseline.instance[0]);
-        ++failures;
-      }
+      const auto image = scene.render();
+      failures += !expectCoverage(scene,
+          std::string(layer.name) + (background ? " background " : " ")
+              + fog.name,
+          image,
+          expected);
+      failures += !sameAuxiliary(baseline, image, scene.subtype);
+    }
+    // Make ID assertions non-vacuous, including the transparent front case.
+    if (baseline.primitive[0] == ~0u || baseline.object[0] != 200
+        || baseline.instance[0] != 300) {
+      fprintf(stderr,
+          "%s unexpected baseline IDs: %u %u %u\n",
+          subtype,
+          baseline.primitive[0],
+          baseline.object[0],
+          baseline.instance[0]);
+      ++failures;
     }
   }
   return failures;
@@ -375,6 +433,8 @@ int testTransmission(anari::Device d, const char *subtype)
   int failures = 0;
   constexpr Vec3 TINT{0.25f, 0.5f, 0.75f}, BACK{0.1f, 0.2f, 0.3f};
   for (float alpha : {0.5f, 1.f}) {
+    logCase(
+        std::string(subtype) + "/transmission/alpha=" + std::to_string(alpha));
     Scene scene(d, subtype);
     scene.addPlane(4.f, TINT, alpha, -100.f, 100.f, 0.75f);
     scene.addPlane(12.f, BACK, 0.5f);
@@ -385,34 +445,34 @@ int testTransmission(anari::Device d, const char *subtype)
     scene.rayBuffer();
     scene.fog("none", "viewDepth");
     const auto baseline = scene.render();
-    for (const char *metric : {"viewDepth", "rayDistance"}) {
-      for (const char *mode : {"none", "linear", "exp", "exp2", "full"}) {
-        const bool full = std::string(mode) == "full";
-        scene.fog(full ? "linear" : mode, metric, full);
-        std::vector<Vec4> expected(PIXELS);
-        for (unsigned p = 0; p < PIXELS; ++p) {
-          const bool radial = std::string(metric) == "rayDistance";
-          const double t0 =
-              full ? 0. : visibility(mode, radial ? (4. - p % 3) * 1.25 : 5.);
-          const double t1 =
-              full ? 0. : visibility(mode, radial ? (12. - p % 3) * 1.25 : 13.);
-          for (unsigned c = 0; c < 3; ++c) {
-            // Thin native PBR: no metal/volume attenuation, so the material's
-            // straight-through filter is transmission * baseColor. This is
-            // independent of fog visibility and of the scalar coverage alpha.
-            const double through = 1. - alpha + alpha * 0.75 * TINT[c];
-            expected[p][c] =
-                (alpha * (1. - t0) + through * 0.5 * (1. - t1)) * FOG_COLOR[c];
-          }
-          expected[p][3] = alpha + (1.f - alpha) * 0.5f;
+    for (const auto &fog : LAYER_FOG) {
+      const auto mode = fog.mode, metric = fog.metric;
+      const bool full = fog.full;
+      fprintf(stderr, "[fog-setting] transmission/%s\n", fog.name);
+      scene.fog(mode, metric, full);
+      std::vector<Vec4> expected(PIXELS);
+      for (unsigned p = 0; p < PIXELS; ++p) {
+        const bool radial = std::string(metric) == "rayDistance";
+        const double t0 =
+            full ? 0. : visibility(mode, radial ? (4. - p % 3) * 1.25 : 5.);
+        const double t1 =
+            full ? 0. : visibility(mode, radial ? (12. - p % 3) * 1.25 : 13.);
+        for (unsigned c = 0; c < 3; ++c) {
+          // Thin native PBR: no metal/volume attenuation, so the material's
+          // straight-through filter is transmission * baseColor. This is
+          // independent of fog visibility and of the scalar coverage alpha.
+          const double through = 1. - alpha + alpha * 0.75 * TINT[c];
+          expected[p][c] =
+              (alpha * (1. - t0) + through * 0.5 * (1. - t1)) * FOG_COLOR[c];
         }
-        const auto image = scene.render();
-        failures += !expect(scene,
-            std::string("colored transmission ") + mode + " " + metric,
-            image,
-            expected);
-        failures += !sameAuxiliary(baseline, image, scene.subtype);
+        expected[p][3] = alpha + (1.f - alpha) * 0.5f;
       }
+      const auto image = scene.render();
+      failures += !expect(scene,
+          std::string("colored transmission ") + fog.name,
+          image,
+          expected);
+      failures += !sameAuxiliary(baseline, image, scene.subtype);
     }
   }
   return failures;
@@ -420,9 +480,10 @@ int testTransmission(anari::Device d, const char *subtype)
 
 int testCutouts(anari::Device d, const char *subtype)
 {
+  logCase(std::string(subtype) + "/cutouts");
   Scene scene(d, subtype);
   if (std::string(subtype) == "quality")
-    anari::setParameter(d, scene.renderer, "pixelSamples", 4096);
+    scene.setSamples(4096);
   constexpr Vec3 FRONT{0.2f, 0.3f, 0.1f}, BACK{0.1f, 0.2f, 0.4f};
   // Two adjoining masked patches form a genuine discarded hole in front of a
   // half-covered rear layer, not a geometric hole or a zero-valued fog color.
@@ -432,29 +493,32 @@ int testCutouts(anari::Device d, const char *subtype)
   scene.fog("none", "viewDepth");
   const auto baseline = scene.render();
   int failures = 0;
-  for (const char *metric : {"viewDepth", "rayDistance"}) {
-    for (const char *mode : {"none", "linear", "exp", "exp2", "full"}) {
-      const bool full = std::string(mode) == "full";
-      scene.fog(full ? "linear" : mode, metric, full);
-      std::vector<Vec4> expected(PIXELS);
-      for (unsigned p = 0; p < PIXELS; ++p) {
-        // Camera right is -X for direction +Z and up +Y.
-        const bool covered = p % SIZE[0] < SIZE[0] / 2;
-        const double t = full ? 0. : visibility(mode, covered ? 4. : 12.);
-        const auto &color = covered ? FRONT : BACK;
-        const float alpha = covered ? 1.f : 0.5f;
-        for (unsigned c = 0; c < 3; ++c)
-          expected[p][c] = alpha * (t * color[c] + (1. - t) * FOG_COLOR[c]);
-        expected[p][3] = alpha;
-      }
-      const auto image = scene.render();
-      failures += !expectCoverage(scene,
-          std::string("masked hole ") + mode + " " + metric,
-          image,
-          expected);
-      failures += !sameAuxiliary(baseline, image, scene.subtype);
+  for (const auto &fog : PLANAR_FOG) {
+    const auto mode = fog.mode;
+    const bool full = fog.full;
+    fprintf(stderr, "[fog-setting] cutouts/%s\n", fog.name);
+    scene.fog(mode, fog.metric, full);
+    std::vector<Vec4> expected(PIXELS);
+    for (unsigned p = 0; p < PIXELS; ++p) {
+      // Camera right is -X for direction +Z and up +Y.
+      const bool covered = p % SIZE[0] < SIZE[0] / 2;
+      const double t = full ? 0. : visibility(mode, covered ? 4. : 12.);
+      const auto &color = covered ? FRONT : BACK;
+      const float alpha = covered ? 1.f : 0.5f;
+      for (unsigned c = 0; c < 3; ++c)
+        expected[p][c] = alpha * (t * color[c] + (1. - t) * FOG_COLOR[c]);
+      expected[p][3] = alpha;
     }
+    const auto image = scene.render();
+    failures += !expectCoverage(
+        scene, std::string("masked hole ") + fog.name, image, expected);
+    failures += !sameAuxiliary(baseline, image, scene.subtype);
   }
+  scene.fog("none", "rayDistance");
+  const auto restored = scene.render();
+  failures +=
+      !expect(scene, "cutout disabled restoration", restored, baseline.color);
+  failures += !sameAuxiliary(baseline, restored, scene.subtype);
   return failures;
 }
 
@@ -470,6 +534,7 @@ int testEdges(anari::Device d, const char *subtype)
   int failures = 0;
   constexpr Vec3 FRONT{0.1f, 0.2f, 0.3f}, BACK{0.4f, 0.1f, 0.2f};
   for (bool depthEdge : {false, true}) {
+    logCase(std::string(subtype) + (depthEdge ? "/depth-edge" : "/silhouette"));
     Scene scene(d, subtype);
     const bool layeredSilhouette =
         !depthEdge && std::string(subtype) == "quality";
@@ -481,73 +546,75 @@ int testEdges(anari::Device d, const char *subtype)
       // happens to commute with premultiplied fog. Two adjoining depths plus
       // empty background make a resolved-depth operation distinguishable.
       scene.addPlane(12.f, BACK, 1.f, 0.02f, 0.07f);
-    // 256 camera samples per pixel, paired by fresh accumulation on Commit.
+    // 64 camera samples per pixel, paired by fresh accumulation on Commit.
     // No statistical tolerance is needed: the reference uses the same geometry
     // and sampling with independently pre-cued material colors. Orthographic
     // planar layers have constant depth under BOTH metrics for every sample.
-    anari::setParameter(d, scene.renderer, "pixelSamples", 256);
+    scene.setSamples(64);
     scene.fog("none", "viewDepth");
     const auto baseline = scene.render();
-    for (const char *metric : {"viewDepth", "rayDistance"}) {
-      for (const char *mode : {"linear", "exp", "exp2", "full"}) {
-        const bool full = std::string(mode) == "full";
-        scene.fog(full ? "linear" : mode, metric, full);
-        const auto image = scene.render();
-        failures += !sameAuxiliary(baseline, image, scene.subtype);
-        scene.setColor(0, cueColor(FRONT, full ? 0. : visibility(mode, 4.)));
-        if (depthEdge || layeredSilhouette)
-          scene.setColor(1, cueColor(BACK, full ? 0. : visibility(mode, 12.)));
-        scene.fog("none", metric);
-        const auto reference = scene.render();
-        failures += !expect(scene,
-            std::string(depthEdge ? "depth edge " : "silhouette ") + mode + " "
-                + metric,
-            image,
-            reference.color);
+    for (const auto &fog : PLANAR_FOG) {
+      const auto mode = fog.mode, metric = fog.metric;
+      const bool full = fog.full;
+      fprintf(stderr, "[fog-setting] edges/%s\n", fog.name);
+      scene.fog(mode, metric, full);
+      const auto image = scene.render();
+      failures += !sameAuxiliary(baseline, image, scene.subtype);
+      scene.setColor(0, cueColor(FRONT, full ? 0. : visibility(mode, 4.)));
+      if (depthEdge || layeredSilhouette)
+        scene.setColor(1, cueColor(BACK, full ? 0. : visibility(mode, 12.)));
+      scene.fog("none", metric);
+      const auto reference = scene.render();
+      failures += !expect(scene,
+          std::string(depthEdge ? "depth edge " : "silhouette ") + mode + " "
+              + metric,
+          image,
+          reference.color);
 
-        unsigned mixed = 0, distinguishable = 0;
-        double maxPostError = 0.;
-        for (unsigned p = 0; p < PIXELS; ++p) {
-          const double coverage = depthEdge
-              ? (baseline.color[p][0] - BACK[0]) / (FRONT[0] - BACK[0])
-              : baseline.color[p][3];
-          if (coverage <= 0.05 || coverage >= 0.95)
-            continue;
-          ++mixed;
-          // A tempting but wrong resolved-depth implementation, evaluated on
-          // unfogged output. Assert that the oracle can reject it, not just
-          // that two equivalent public-ANARI renders happen to agree.
-          const double t = full ? 0. : visibility(mode, baseline.depth[p]);
-          double error = 0.;
-          for (unsigned c = 0; c < 3; ++c) {
-            const double post = t * baseline.color[p][c]
-                + baseline.color[p][3] * (1. - t) * FOG_COLOR[c];
-            error = std::fmax(error, std::abs(post - reference.color[p][c]));
-          }
-          maxPostError = std::fmax(maxPostError, error);
-          distinguishable += error > 0.01;
+      unsigned mixed = 0, distinguishable = 0;
+      double maxPostError = 0.;
+      for (unsigned p = 0; p < PIXELS; ++p) {
+        const double coverage = depthEdge
+            ? (baseline.color[p][0] - BACK[0]) / (FRONT[0] - BACK[0])
+            : baseline.color[p][3];
+        if (coverage <= 0.05 || coverage >= 0.95)
+          continue;
+        ++mixed;
+        // A tempting but wrong resolved-depth implementation, evaluated on
+        // unfogged output. Assert that the oracle can reject it, not just
+        // that two equivalent public-ANARI renders happen to agree.
+        const double t = full ? 0. : visibility(mode, baseline.depth[p]);
+        double error = 0.;
+        for (unsigned c = 0; c < 3; ++c) {
+          const double post = t * baseline.color[p][c]
+              + baseline.color[p][3] * (1. - t) * FOG_COLOR[c];
+          error = std::fmax(error, std::abs(post - reference.color[p][c]));
         }
-        if (mixed < SIZE[1] / 2 || (!full && distinguishable < SIZE[1] / 2)) {
-          fprintf(stderr,
-              "%s insensitive %s %s edge oracle: mixed=%u distinct=%u\n",
-              subtype,
-              depthEdge ? "depth" : "silhouette",
-              mode,
-              mixed,
-              distinguishable);
-          ++failures;
-        }
-        printf("%s %s %s %s: 256 spp, mixed=%u, max resolved-depth error=%g\n",
-            subtype,
-            depthEdge ? "depth edge" : "silhouette",
-            mode,
-            metric,
-            mixed,
-            maxPostError);
-        scene.setColor(0, FRONT);
-        if (depthEdge || layeredSilhouette)
-          scene.setColor(1, BACK);
+        maxPostError = std::fmax(maxPostError, error);
+        distinguishable += error > 0.01;
       }
+      if (mixed < SIZE[1] / 2 || (!full && distinguishable < SIZE[1] / 2)) {
+        fprintf(stderr,
+            "%s insensitive %s %s edge oracle: mixed=%u distinct=%u\n",
+            subtype,
+            depthEdge ? "depth" : "silhouette",
+            mode,
+            mixed,
+            distinguishable);
+        ++failures;
+      }
+      printf(
+          "%s %s %s %s: 64 spp, mixed=%u distinct=%u, max resolved-depth error=%g\n",
+          subtype,
+          depthEdge ? "depth edge" : "silhouette",
+          mode,
+          metric,
+          mixed,
+          distinguishable,
+          maxPostError);
+      scene.setColor(0, FRONT);
+      if (depthEdge || layeredSilhouette)
+        scene.setColor(1, BACK);
     }
     scene.fog("none", "viewDepth");
     const auto restored = scene.render();
@@ -560,6 +627,7 @@ int testEdges(anari::Device d, const char *subtype)
 
 int testLighting(anari::Device d, const char *subtype)
 {
+  logCase(std::string(subtype) + "/lighting-AO");
   Scene scene(d, subtype);
   constexpr Vec3 GRAY{0.4f, 0.4f, 0.4f};
   // Pixel-aligned opaque planes: every sample in a pixel sees the same depth.
@@ -588,7 +656,7 @@ int testLighting(anari::Device d, const char *subtype)
         d, scene.renderer, "ambientOcclusionDistance", distance);
   };
   setAoDistance(20.f);
-  anari::setParameter(d, scene.renderer, "pixelSamples", 64);
+  scene.setSamples(64);
   int failures = 0;
   // Quality path-traces ambient illumination; only straight-through renderers
   // expose the bounded AO estimator. Remove direct lighting to isolate it.
@@ -658,24 +726,24 @@ int testLighting(anari::Device d, const char *subtype)
         backMean);
     ++failures;
   }
-  for (const char *metric : {"viewDepth", "rayDistance"}) {
-    for (const char *mode : {"linear", "exp", "exp2", "full"}) {
-      const bool full = std::string(mode) == "full";
-      scene.fog(full ? "linear" : mode, metric, full);
-      auto expected = baseline.color;
-      for (unsigned p = 0; p < PIXELS; ++p) {
-        const double z = p % SIZE[0] >= SIZE[0] / 2 ? 4. : 12.;
-        const double t = full ? 0. : visibility(mode, z);
-        for (unsigned c = 0; c < 3; ++c)
-          expected[p][c] = t * expected[p][c] + (1. - t) * FOG_COLOR[c];
-      }
-      const auto image = scene.render();
-      failures += !expect(scene,
-          std::string("paired lighting/AO ") + mode + " " + metric,
-          image,
-          expected);
-      failures += !sameAuxiliary(baseline, image, scene.subtype);
+  for (const auto &fog : PLANAR_FOG) {
+    const auto mode = fog.mode, metric = fog.metric;
+    const bool full = fog.full;
+    fprintf(stderr, "[fog-setting] lighting/%s\n", fog.name);
+    scene.fog(mode, metric, full);
+    auto expected = baseline.color;
+    for (unsigned p = 0; p < PIXELS; ++p) {
+      const double z = p % SIZE[0] >= SIZE[0] / 2 ? 4. : 12.;
+      const double t = full ? 0. : visibility(mode, z);
+      for (unsigned c = 0; c < 3; ++c)
+        expected[p][c] = t * expected[p][c] + (1. - t) * FOG_COLOR[c];
     }
+    const auto image = scene.render();
+    failures += !expect(scene,
+        std::string("paired lighting/AO ") + mode + " " + metric,
+        image,
+        expected);
+    failures += !sameAuxiliary(baseline, image, scene.subtype);
   }
   printf("%s paired lighting/AO: 64 spp x 16 AO samples, front=%g back=%g\n",
       subtype,
@@ -686,11 +754,12 @@ int testLighting(anari::Device d, const char *subtype)
 
 int testDisabledChannels(anari::Device d, const char *subtype)
 {
+  logCase(std::string(subtype) + "/disabled-channels");
   Scene scene(d, subtype);
   scene.addPlane(4.f, {0.2f, 0.3f, 0.1f}, 0.25f, -100.f, 0.f);
   scene.addPlane(12.f, {0.1f, 0.2f, 0.4f}, 0.5f);
   // Paired 64-spp realizations test exact preservation, not convergence.
-  anari::setParameter(d, scene.renderer, "pixelSamples", 64);
+  scene.setSamples(64);
   anari::commitParameters(d, scene.renderer);
   const auto omitted = scene.render();
   int failures = 0;
@@ -727,10 +796,8 @@ void configureLayers(
     Scene &scene, const char *mode, const char *metric, bool background)
 {
   const auto d = scene.device;
-  anari::setParameter(d,
-      scene.renderer,
-      "pixelSamples",
-      std::string(scene.subtype) == "quality" ? 4096 : 1);
+  // This is a paired fresh/reused oracle, not the independent coverage mean.
+  scene.setSamples(std::string(scene.subtype) == "quality" ? 64 : 1);
   anari::setParameter(d,
       scene.renderer,
       "background",
@@ -744,6 +811,7 @@ void configureLayers(
 
 int testLayeredRecommit(anari::Device d, const char *subtype)
 {
+  logCase(std::string(subtype) + "/layered-recommit");
   Scene reused(d, subtype);
   reused.addPlane(4.f, {0.2f, 0.3f, 0.1f}, 0.25f);
   reused.addPlane(12.f, {0.1f, 0.2f, 0.4f}, 0.5f);
@@ -754,6 +822,9 @@ int testLayeredRecommit(anari::Device d, const char *subtype)
     // Deliberately leave old accumulated color, not merely a committed setting.
     for (unsigned i = 0; i < 4; ++i)
       reused.render();
+    int oldSamples = -1;
+    const bool haveOldSamples = anari::getProperty(
+        d, reused.frame, "numSamples", oldSamples, ANARI_WAIT);
     const bool background = std::string(mode) == "exp";
     const char *metric = background ? "rayDistance" : "viewDepth";
     configureLayers(reused, mode, metric, background);
@@ -764,6 +835,31 @@ int testLayeredRecommit(anari::Device d, const char *subtype)
     fresh.rayBuffer();
     configureLayers(fresh, mode, metric, background);
     const auto reference = fresh.render();
+    int actualSamples = -1, freshSamples = -1;
+    const bool haveActualSamples = anari::getProperty(
+        d, reused.frame, "numSamples", actualSamples, ANARI_WAIT);
+    const bool haveFreshSamples = anari::getProperty(
+        d, fresh.frame, "numSamples", freshSamples, ANARI_WAIT);
+    // The default sampleLimit can cap the old renders. Require actual retained
+    // accumulation beyond one render, not an assumed four-times-spp count.
+    if (!haveOldSamples || !haveActualSamples || !haveFreshSamples
+        || oldSamples <= reused.samples || actualSamples != reused.samples
+        || freshSamples != reused.samples) {
+      fprintf(stderr,
+          "%s %s incorrect accumulation counts: old=%d changed=%d fresh=%d\n",
+          subtype,
+          mode,
+          oldSamples,
+          actualSamples,
+          freshSamples);
+      ++failures;
+    }
+    printf("%s %s accumulation counts: old=%d changed=%d fresh=%d\n",
+        subtype,
+        mode,
+        oldSamples,
+        actualSamples,
+        freshSamples);
     // Fresh/reused realizations use identical accumulation-frame-zero samples;
     // unlike the analytic coverage mean above, this comparison is paired.
     failures += !expect(reused,
@@ -774,9 +870,9 @@ int testLayeredRecommit(anari::Device d, const char *subtype)
   }
   printf(
       "%s layered recommits: fresh-renderer paired checks, %d spp, "
-      "four old accumulation frames per transition\n",
+      "four old render calls per transition (subject to sampleLimit)\n",
       subtype,
-      std::string(subtype) == "quality" ? 4096 : 1);
+      reused.samples);
   return failures;
 }
 
