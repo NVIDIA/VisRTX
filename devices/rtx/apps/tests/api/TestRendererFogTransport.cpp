@@ -12,6 +12,8 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <iterator>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -25,8 +27,72 @@ constexpr Vec3 FOG{0.3f, 0.9f, 0.2f};
 constexpr Vec3 EMISSION{1.6f, 0.8f, 1.2f};
 constexpr Vec3 TINT{0.6f, 0.8f, 0.4f};
 constexpr int SAMPLES = 4096;
+constexpr int PAIRED_SAMPLES = 64;
 constexpr float FOG_END = 20.f;
 constexpr float FOG_DENSITY = 0.1f;
+
+struct FogSetting
+{
+  const char *name;
+  const char *mode;
+  const char *metric;
+  bool background;
+};
+
+// These representatives cover every active combination on both BSDF paths and
+// indirect volume radiance. Saturated metrics and disabled selectors are
+// equivalent here; restore none after active fog, not before it.
+constexpr FogSetting COMPLETE_FOG[] = {
+    {"linear-depth-constant", "linear", "viewDepth", false},
+    {"exp-depth-constant", "exp", "viewDepth", false},
+    {"exp2-depth-constant", "exp2", "viewDepth", false},
+    {"linear-ray-constant", "linear", "rayDistance", false},
+    {"exp-ray-constant", "exp", "rayDistance", false},
+    {"exp2-ray-constant", "exp2", "rayDistance", false},
+    {"linear-depth-image", "linear", "viewDepth", true},
+    {"exp-depth-image", "exp", "viewDepth", true},
+    {"exp2-depth-image", "exp2", "viewDepth", true},
+    {"linear-ray-image", "linear", "rayDistance", true},
+    {"exp-ray-image", "exp", "rayDistance", true},
+    {"exp2-ray-image", "exp2", "rayDistance", true},
+    {"saturated-constant", "full", "viewDepth", false},
+    {"saturated-image", "full", "viewDepth", true},
+    {"disabled-restoration", "none", "rayDistance", true}};
+
+// Distance, proxy, fractional coverage and roulette retain both unequal camera
+// metrics, both sources, all curves and both endpoints. Cheap independent fog
+// anchors plus COMPLETE_FOG carry the selector products, not these variations.
+constexpr FogSetting VARIATION_FOG[] = {
+    {"linear-depth-constant", "linear", "viewDepth", false},
+    {"linear-ray-constant", "linear", "rayDistance", false},
+    {"exp-depth-image", "exp", "viewDepth", true},
+    {"exp2-ray-image", "exp2", "rayDistance", true},
+    {"saturated-constant", "full", "viewDepth", false},
+    {"disabled-restoration", "none", "rayDistance", true}};
+
+struct TransportCase
+{
+  const char *name;
+  bool transmission;
+  float emitterZ;
+  float coverage;
+  unsigned panes;
+  bool proxy;
+  bool completeSettings;
+};
+
+constexpr TransportCase TRANSPORT_CASES[] = {
+    {"reflection-matrix", false, -3.f, 0.f, 1, false, true},
+    {"reflection-distant-emitter", false, -19.f, 0.f, 1, false, false},
+    {"refraction-matrix", true, 13.f, 0.f, 1, false, true},
+    {"refraction-distant-emitter", true, 29.f, 0.f, 1, false, false},
+    {"reflection-fractional-coverage", false, -19.f, .25f, 1, false, false},
+    {"refraction-fractional-coverage", true, 29.f, .25f, 1, false, false},
+    {"refraction-four-panes-roulette", true, 29.f, 0.f, 4, false, false},
+    {"reflection-hidden-proxy", false, -3.f, 0.f, 1, true, false},
+    {"reflection-distant-hidden-proxy", false, -19.f, 0.f, 1, true, false},
+    {"refraction-hidden-proxy", true, 13.f, 0.f, 1, true, false},
+    {"refraction-distant-hidden-proxy", true, 29.f, 0.f, 1, true, false}};
 
 /* Public-ANARI transport fixture with paired camera samples and controlled
  * indirect radiance; no production fog evaluator defines its references.
@@ -44,7 +110,9 @@ struct Scene
       float opacity = 1.f,
       bool metal = false);
   void fog(const char *mode, const char *metric, bool background);
-  Image render();
+  anari::Frame newFrame();
+  Image render(anari::Frame target = nullptr);
+  Image pairedBaseline(int &failures);
   Vec3 backdrop(unsigned pixel) const;
 
   anari::Device d;
@@ -52,6 +120,7 @@ struct Scene
   anari::Renderer renderer;
   anari::Camera camera;
   anari::Frame frame;
+  int samples = SAMPLES;
   std::vector<anari::Surface> surfaces;
   std::vector<anari::Material> materials;
 };
@@ -102,24 +171,30 @@ Scene::Scene(anari::Device device) : d(device)
   anari::setParameter(d, camera, "position", Vec3{0.f, 0.f, -1.f});
   anari::setParameter(d, camera, "direction", Vec3{0.f, 0.f, 1.f});
   anari::commitParameters(d, camera);
-  frame = anari::newObject<anari::Frame>(d);
-  ObjectOwner frameOwner(d, frame);
-  anari::setParameter(d, frame, "size", SIZE);
-  anari::setParameter(d, frame, "channel.color", ANARI_FLOAT32_VEC4);
-  anari::setParameter(d, frame, "channel.depth", ANARI_FLOAT32);
-  anari::setParameter(d, frame, "channel.normal", ANARI_FLOAT32_VEC3);
-  anari::setParameter(d, frame, "channel.albedo", ANARI_FLOAT32_VEC3);
-  for (const char *name :
-      {"channel.primitiveId", "channel.objectId", "channel.instanceId"})
-    anari::setParameter(d, frame, name, ANARI_UINT32);
-  anari::setParameter(d, frame, "world", world);
-  anari::setParameter(d, frame, "camera", camera);
-  anari::setParameter(d, frame, "renderer", renderer);
-  anari::commitParameters(d, frame);
+  frame = newFrame();
   worldOwner.release();
   rendererOwner.release();
   cameraOwner.release();
+}
+
+anari::Frame Scene::newFrame()
+{
+  auto result = anari::newObject<anari::Frame>(d);
+  ObjectOwner frameOwner(d, result);
+  anari::setParameter(d, result, "size", SIZE);
+  anari::setParameter(d, result, "channel.color", ANARI_FLOAT32_VEC4);
+  anari::setParameter(d, result, "channel.depth", ANARI_FLOAT32);
+  anari::setParameter(d, result, "channel.normal", ANARI_FLOAT32_VEC3);
+  anari::setParameter(d, result, "channel.albedo", ANARI_FLOAT32_VEC3);
+  for (const char *name :
+      {"channel.primitiveId", "channel.objectId", "channel.instanceId"})
+    anari::setParameter(d, result, name, ANARI_UINT32);
+  anari::setParameter(d, result, "world", world);
+  anari::setParameter(d, result, "camera", camera);
+  anari::setParameter(d, result, "renderer", renderer);
+  anari::commitParameters(d, result);
   frameOwner.release();
+  return result;
 }
 
 Scene::~Scene()
@@ -207,11 +282,43 @@ void Scene::fog(const char *mode, const char *metric, bool background)
   anari::commitParameters(d, renderer);
 }
 
-Image Scene::render()
+Image Scene::render(anari::Frame target)
 {
-  anari::render(d, frame);
-  anari::wait(d, frame);
-  return readImage(d, frame, SIZE);
+  if (!target)
+    target = frame;
+
+  anari::render(d, target);
+
+  anari::wait(d, target);
+
+  auto image = readImage(d, target, SIZE);
+
+  int observed = 0;
+  if (!anari::getProperty(d, target, "numSamples", observed, ANARI_WAIT)
+      || observed != samples)
+    throw std::runtime_error("transport sample count: expected "
+        + std::to_string(samples) + ", observed " + std::to_string(observed));
+  return image;
+}
+
+Image Scene::pairedBaseline(int &failures)
+{
+  // Change only Renderer parameters; old high-sample Frame content must reset
+  // automatically. A separate fresh Frame observes the same low-sample streams.
+  samples = PAIRED_SAMPLES;
+  anari::setParameter(d, renderer, "pixelSamples", samples);
+  fog("none", "viewDepth", false);
+  const auto baseline = render();
+  auto fresh = newFrame();
+  const ObjectOwner freshOwner(d, fresh);
+  const auto independentFrame = render(fresh);
+  const bool paired = baseline.color == independentFrame.color
+      && sameAuxiliary(baseline, independentFrame, "fresh transport baseline");
+  printf("paired baseline: fresh/reused %d spp, exact match=%s\n",
+      samples,
+      paired ? "yes" : "NO");
+  failures += !paired;
+  return baseline;
 }
 
 double visibility(const char *mode, double distance)
@@ -227,7 +334,7 @@ bool expect(const std::string &label,
     bool stochastic = false,
     int samples = SAMPLES)
 {
-  double maxError = 0., meanErrors[2][3] = {};
+  double maxError = 0., maxToleranceFraction = 0., meanErrors[2][3] = {};
   bool passed = true;
   for (unsigned p = 0; p < PIXELS; ++p) {
     for (unsigned c = 0; c < 3; ++c) {
@@ -238,6 +345,8 @@ bool expect(const std::string &label,
       meanErrors[p % 2][c] += error / (PIXELS / 2);
       const double limit =
           stochastic ? 0.05 : 1e-5 + 1e-4 * std::abs(reference[p][c]);
+      maxToleranceFraction =
+          std::fmax(maxToleranceFraction, std::abs(error) / limit);
       passed &= std::abs(error) <= limit;
     }
   }
@@ -247,12 +356,16 @@ bool expect(const std::string &label,
       maxMeanError = std::fmax(maxMeanError, std::abs(error));
   if (stochastic)
     passed &= maxMeanError <= 0.009;
-  printf("%s: %d spp, max RGB error=%g, grouped mean error=%g%s\n",
+  printf(
+      "%s: %d spp, max RGB error=%g, grouped mean error=%g, "
+      "tolerance fraction=%g%s\n",
       label.c_str(),
       samples,
       maxError,
       maxMeanError,
+      maxToleranceFraction,
       passed ? "" : " FAILED");
+  fflush(stdout);
   return passed;
 }
 
@@ -260,13 +373,20 @@ bool expect(const std::string &label,
 // setting, pairing transport random streams without a private seed interface.
 // The expected affine operation is applied to the *unfogged* shaded result;
 // no production fog helper or resolved-depth channel defines the reference.
-int testTransport(anari::Device d,
-    bool transmission,
-    float emitterZ,
-    float coverage,
-    unsigned panes,
-    bool proxy = false)
+int testTransport(anari::Device d, const TransportCase &test)
 {
+  const auto [name,
+      transmission,
+      emitterZ,
+      coverage,
+      panes,
+      proxy,
+      completeSettings] = test;
+  fprintf(stderr, "[transport-fixture] %s\n", name);
+  logCase(std::string(transmission ? "refraction" : "reflection")
+      + (proxy ? "/hidden-proxy" : "/emitter") + "/z="
+      + std::to_string(emitterZ) + "/coverage=" + std::to_string(coverage)
+      + "/panes=" + std::to_string(panes));
   Scene scene(d);
   // Coverage rejection is camera visibility, including numerical re-origining.
   // The zero-opacity case also ensures a discarded contribution injects no fog.
@@ -348,43 +468,47 @@ int testTransport(anari::Device d,
     }
   }
 
-  for (bool background : {false, true}) {
-    for (const char *metric : {"viewDepth", "rayDistance"}) {
-      for (const char *mode : {"linear", "exp", "exp2", "full", "none"}) {
-        scene.fog(mode, metric, background);
-        const auto image = scene.render();
-        auto expected = baseline.color;
-        for (unsigned p = 0; p < PIXELS; ++p) {
-          const bool radial = std::string(metric) == "rayDistance";
-          const double distance = radial ? (5. - 2 * (p % 2)) * 1.25 : 6.;
-          const double frontDistance = radial ? (3. - 2 * (p % 2)) * 1.25 : 4.;
-          const double t = visibility(mode, distance);
-          const double frontT = visibility(mode, frontDistance);
-          const auto target = background ? scene.backdrop(p) : FOG;
-          for (unsigned c = 0; c < 3; ++c) {
-            // Existing frame backdrop compositing is not surface shading.
-            const double miss =
-                (1. - baseline.color[p][3]) * scene.backdrop(p)[c];
-            expected[p][c] = t * (baseline.color[p][c] - miss) + miss
-                + (coverage * (1. - frontT) + (1. - coverage) * (1. - t))
-                    * target[c];
-          }
-        }
-        // Only the additive rear-layer coverage term is unpaired. Its range
-        // <=.9 gives six-SE bounds .043/pixel and .0075 per 32-pixel origin
-        // group at 4096 spp; use .05/.009 including float accumulation error.
-        const std::string label =
-            std::string(transmission ? "refraction " : "reflection ") + mode
-            + " " + metric + (background ? " image" : " constant")
-            + " coverage=" + std::to_string(coverage) + " panes="
-            + std::to_string(panes) + (proxy ? " hidden proxy" : " emitter");
-        failures += !expect(label, image, expected, coverage > 0.f);
-        failures += !sameAuxiliary(baseline, image, "transport");
-        if (std::string(mode) == "none" && image.color != baseline.color) {
-          fprintf(stderr, "disabled fog changed paired transport RGB\n");
-          ++failures;
-        }
+  // Independent radiance/direct-only anchors above stay at 4096 spp.
+  // Coverage's additive term does not cancel, so it keeps that budget too.
+  const auto paired =
+      coverage == 0.f ? scene.pairedBaseline(failures) : baseline;
+  const auto *settings = completeSettings ? COMPLETE_FOG : VARIATION_FOG;
+  const auto count =
+      completeSettings ? std::size(COMPLETE_FOG) : std::size(VARIATION_FOG);
+  for (std::size_t i = 0; i < count; ++i) {
+    const auto [settingName, mode, metric, background] = settings[i];
+    fprintf(stderr, "[transport-setting] %s/%s\n", name, settingName);
+    scene.fog(mode, metric, background);
+    const auto image = scene.render();
+    auto expected = paired.color;
+    for (unsigned p = 0; p < PIXELS; ++p) {
+      const bool radial = std::string(metric) == "rayDistance";
+      const double distance = radial ? (5. - 2 * (p % 2)) * 1.25 : 6.;
+      const double frontDistance = radial ? (3. - 2 * (p % 2)) * 1.25 : 4.;
+      const double t = visibility(mode, distance);
+      const double frontT = visibility(mode, frontDistance);
+      const auto target = background ? scene.backdrop(p) : FOG;
+      for (unsigned c = 0; c < 3; ++c) {
+        // Existing frame backdrop compositing is not surface shading.
+        const double miss = (1. - paired.color[p][3]) * scene.backdrop(p)[c];
+        expected[p][c] = t * (paired.color[p][c] - miss) + miss
+            + (coverage * (1. - frontT) + (1. - coverage) * (1. - t))
+                * target[c];
       }
+    }
+    // Only the additive rear-layer coverage term is unpaired. Its range
+    // <=.9 gives six-SE bounds .043/pixel and .0075 per 32-pixel origin
+    // group at 4096 spp; use .05/.009 including float accumulation error.
+    const std::string label =
+        std::string(transmission ? "refraction " : "reflection ") + mode + " "
+        + metric + (background ? " image" : " constant") + " coverage="
+        + std::to_string(coverage) + " panes=" + std::to_string(panes)
+        + (proxy ? " hidden proxy" : " emitter");
+    failures += !expect(label, image, expected, coverage > 0.f, scene.samples);
+    failures += !sameAuxiliary(paired, image, "transport");
+    if (std::string(mode) == "none" && image.color != paired.color) {
+      fprintf(stderr, "disabled fog changed paired transport RGB\n");
+      ++failures;
     }
   }
   return failures;
@@ -395,10 +519,12 @@ int testHdrRadiance(anari::Device d)
   int failures = 0;
   constexpr Vec3 HDR_EMISSION{1e38f, 5e37f, 2e37f};
   for (bool indirect : {false, true}) {
+    logCase(indirect ? "HDR/reflection" : "HDR/emission");
     Scene scene(d);
     // One paired sample avoids overflow in the unfogged accumulation sum.
     // The accepted surface is at view depth 10, including for reflection.
     anari::setParameter(d, scene.renderer, "pixelSamples", 1);
+    scene.samples = 1;
     anari::setParameter(d, scene.renderer, "fogColor", Vec3{});
     if (indirect)
       scene.plane(9.f, TINT, {}, 0.f, 1.f, true);
@@ -449,6 +575,7 @@ int testHdrRadiance(anari::Device d)
 
 int testIndirectVolume(anari::Device d)
 {
+  logCase("refraction/indirect-volume");
   Scene scene(d);
   scene.plane(3.f, {}, {}, 0.f, 0.f);
   scene.plane(5.f, TINT, {}, 1.f);
@@ -500,34 +627,32 @@ int testIndirectVolume(anari::Device d)
   // volume NEE and subsequent scattering/RR. Only camera-surface distance is
   // used, never a sampled volume position. Existing backdrop compositing is
   // not surface radiance; leave that term unchanged even through refraction.
-  for (bool background : {false, true}) {
-    for (const char *metric : {"viewDepth", "rayDistance"}) {
-      for (const char *mode : {"linear", "exp", "exp2", "full", "none"}) {
-        scene.fog(mode, metric, background);
-        const auto image = scene.render();
-        auto expected = baseline.color;
-        for (unsigned p = 0; p < PIXELS; ++p) {
-          const double distance = std::string(metric) == "rayDistance"
-              ? (5. - 2 * (p % 2)) * 1.25
-              : 6.;
-          const double t = visibility(mode, distance);
-          const auto target = background ? scene.backdrop(p) : FOG;
-          for (unsigned c = 0; c < 3; ++c) {
-            const double miss =
-                (1. - baseline.color[p][3]) * scene.backdrop(p)[c];
-            expected[p][c] =
-                t * (baseline.color[p][c] - miss) + miss + (1. - t) * target[c];
-          }
-        }
-        failures += !expect(std::string("indirect volume ") + mode + " "
-                + metric + (background ? " image" : " constant"),
-            image,
-            expected);
-        failures += !sameAuxiliary(baseline, image, "transport");
-        if (std::string(mode) == "none" && image.color != baseline.color)
-          ++failures;
+  const auto paired = scene.pairedBaseline(failures);
+  for (const auto &[name, mode, metric, background] : COMPLETE_FOG) {
+    fprintf(stderr, "[transport-setting] indirect-volume/%s\n", name);
+    scene.fog(mode, metric, background);
+    const auto image = scene.render();
+    auto expected = paired.color;
+    for (unsigned p = 0; p < PIXELS; ++p) {
+      const double distance =
+          std::string(metric) == "rayDistance" ? (5. - 2 * (p % 2)) * 1.25 : 6.;
+      const double t = visibility(mode, distance);
+      const auto target = background ? scene.backdrop(p) : FOG;
+      for (unsigned c = 0; c < 3; ++c) {
+        const double miss = (1. - paired.color[p][3]) * scene.backdrop(p)[c];
+        expected[p][c] =
+            t * (paired.color[p][c] - miss) + miss + (1. - t) * target[c];
       }
     }
+    failures += !expect(std::string("indirect volume ") + mode + " " + metric
+            + (background ? " image" : " constant"),
+        image,
+        expected,
+        false,
+        scene.samples);
+    failures += !sameAuxiliary(paired, image, "transport");
+    if (std::string(mode) == "none" && image.color != paired.color)
+      ++failures;
   }
   return failures;
 }
@@ -539,17 +664,8 @@ int main()
   auto device = makeVisRTXDevice(exitOnErrorStatus);
   const ObjectOwner deviceOwner(device, device);
   int failures = requireRendererFogSupport(device);
-  for (float emitterZ : {-3.f, -19.f})
-    failures += testTransport(device, false, emitterZ, 0.f, 1);
-  for (float emitterZ : {13.f, 29.f})
-    failures += testTransport(device, true, emitterZ, 0.f, 1);
-  failures += testTransport(device, false, -19.f, 0.25f, 1);
-  failures += testTransport(device, true, 29.f, 0.25f, 1);
-  failures += testTransport(device, true, 29.f, 0.f, 4);
-  for (float z : {-3.f, -19.f})
-    failures += testTransport(device, false, z, 0.f, 1, true);
-  for (float z : {13.f, 29.f})
-    failures += testTransport(device, true, z, 0.f, 1, true);
+  for (const auto &test : TRANSPORT_CASES)
+    failures += testTransport(device, test);
   failures += testIndirectVolume(device);
   failures += testHdrRadiance(device);
   if (failures)
