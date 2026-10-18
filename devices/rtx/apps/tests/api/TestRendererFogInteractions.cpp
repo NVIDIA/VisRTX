@@ -121,7 +121,9 @@ Image Scene::render(int samples)
   anari::setParameter(d, frame, "camera", camera);
   anari::setParameter(d, frame, "renderer", renderer);
   anari::commitParameters(d, frame);
+
   anari::render(d, frame);
+
   anari::wait(d, frame);
   return readImage(d, frame, {WIDTH, WIDTH});
 }
@@ -213,6 +215,7 @@ anari::Light quadLight(anari::Device d)
 
 int testProxy(Scene &scene)
 {
+  logCase(std::string(scene.subtype) + "/proxy");
   int failures = 0;
   const auto d = scene.d;
   auto light = quadLight(d);
@@ -270,6 +273,7 @@ int testProxy(Scene &scene)
 // This isolates light transport from fog on the receiver itself.
 int testIllumination(Scene &scene)
 {
+  logCase(std::string(scene.subtype) + "/illumination");
   if (std::string(scene.subtype) == "fast")
     return 0; // Fast uses headlight shading, not analytic-light illumination.
   const auto d = scene.d;
@@ -345,6 +349,7 @@ anari::Volume slab(anari::Device d,
 
 int testVolume(Scene &scene)
 {
+  logCase(std::string(scene.subtype) + "/volume");
   const auto d = scene.d;
   int failures = 0;
   auto volume = slab(d, 2.f);
@@ -452,6 +457,7 @@ bool expectSlabMean(const Scene &scene,
 
 int testJitteredVolume(Scene &scene)
 {
+  logCase(std::string(scene.subtype) + "/jittered-volume");
   const auto d = scene.d;
   int failures = 0;
   auto volume = slab(d, 2.03125f);
@@ -523,6 +529,7 @@ void configureObliqueRayBuffer(Scene &scene)
   anari::setParameter(d, scene.renderer, "premultiplyBackground", false);
   anari::setParameter(d, scene.renderer, "ambientRadiance", 0.f);
   anari::setParameter(d, scene.renderer, "maxRayDepth", 4);
+  anari::commitParameters(d, scene.renderer);
 }
 
 double qualityFraction(unsigned p, float z, bool radial, bool full)
@@ -535,6 +542,59 @@ double qualityFraction(unsigned p, float z, bool radial, bool full)
 Vec3 qualityTarget(bool background)
 {
   return background ? Vec3{BACKDROP[0], BACKDROP[1], BACKDROP[2]} : FOG_COLOR;
+}
+
+struct FogCase
+{
+  const char *name;
+  const char *mode;
+  bool radial;
+  bool background;
+  bool full;
+  bool representativeOnly = false;
+};
+
+// Complete selector products belong to the absorbing surface representative.
+// Other paths distinguish both distances/sources locally, and retain both full
+// colors; at saturation the metrics are equivalent for every supplied hit.
+constexpr FogCase QUALITY_CASES[] = {
+    {"linear-view-constant", "linear", false, false, false},
+    {"linear-ray-background", "linear", true, true, false},
+    {"linear-view-background", "linear", false, true, false, true},
+    {"linear-ray-constant", "linear", true, false, false, true},
+    {"full-constant", "linear", false, false, true},
+    {"full-background", "linear", true, true, true}};
+
+// All curves still exercise volume/proxy composition on every contribution
+// path. Only the volume+surface representative repeats the other source at
+// each metric. Independent cheap formula/selector anchors cover those products
+// without multiplying every physical interaction (see the coverage ledger).
+constexpr FogCase STRAIGHT_CASES[] = {
+    {"linear-view-constant", "linear", false, false, false},
+    {"linear-ray-background", "linear", true, true, false},
+    {"exp-view-constant", "exp", false, false, false},
+    {"exp-ray-background", "exp", true, true, false},
+    {"exp2-view-constant", "exp2", false, false, false},
+    {"exp2-ray-background", "exp2", true, true, false},
+    {"linear-view-background", "linear", false, true, false, true},
+    {"linear-ray-constant", "linear", true, false, false, true},
+    {"exp-view-background", "exp", false, true, false, true},
+    {"exp-ray-constant", "exp", true, false, false, true},
+    {"exp2-view-background", "exp2", false, true, false, true},
+    {"exp2-ray-constant", "exp2", true, false, false, true},
+    {"full-constant", "linear", false, false, true},
+    {"full-background", "linear", true, true, true},
+    {"disabled-restoration", "none", true, true, false}};
+
+void caseLabel(const Scene &scene, const std::string &path, const char *name)
+{
+  fflush(stdout);
+  fprintf(stderr,
+      "[fog-interaction] %s/%s/%s\n",
+      scene.subtype,
+      path.c_str(),
+      name);
+  fflush(stderr);
 }
 
 void qualityFog(Scene &scene, bool radial, bool background, bool full)
@@ -553,25 +613,29 @@ void qualityFog(Scene &scene, bool radial, bool background, bool full)
 bool expectQuality(const char *label,
     const Image &image,
     const std::vector<Vec4> &expected,
-    double sampleRange = 0.)
+    double sampleRange = 0.,
+    int samples = QUALITY_SAMPLES)
 {
   // A Bernoulli camera survival/coverage decision has range <= sampleRange.
   // Hoeffding, two-sided failure probability 1e-9 per assertion, gives the
   // per-pixel and per-origin-group bounds independently of measured error.
-  // Each group has 120 pixels * 4096 samples. Paired volume-lighting estimates
+  // Each group has 120 pixels * samples. Paired volume-lighting estimates
   // cancel when testing the added surface term, so only survival is random.
+  // All nonzero-range assertions retain 4096 spp. Zero-opacity primary proxies
+  // are deterministic and use 1 spp with the same original numeric criterion.
   const double pixelBound =
-      sampleRange * std::sqrt(std::log(2. / 1e-9) / (2. * QUALITY_SAMPLES));
+      sampleRange * std::sqrt(std::log(2. / 1e-9) / (2. * samples));
   const double groupBound = pixelBound / std::sqrt(120.);
   double meanError[2][4] = {};
-  double maxError = 0., maxMean = 0.;
+  double maxError = 0., maxMean = 0., maxBoundRatio = 0.;
   bool ok = true;
   for (unsigned p = 0; p < PIXELS; ++p) {
     for (unsigned c = 0; c < 4; ++c) {
       const double error = double(image.color[p][c]) - expected[p][c];
       const double numeric = 1e-5 + 1e-4 * std::abs(expected[p][c]);
-      ok &= std::isfinite(error)
-          && std::abs(error) <= numeric + (isMiss(p) ? 0. : pixelBound);
+      const double bound = numeric + (isMiss(p) ? 0. : pixelBound);
+      ok &= std::isfinite(error) && std::abs(error) <= bound;
+      maxBoundRatio = std::max(maxBoundRatio, std::abs(error) / bound);
       maxError = std::max(maxError, std::abs(error));
       if (!isMiss(p))
         meanError[p % 2][c] += error / 120.;
@@ -581,20 +645,26 @@ bool expectQuality(const char *label,
     for (double error : group) {
       maxMean = std::max(maxMean, std::abs(error));
       ok &= std::abs(error) <= groupBound + 0.00011;
+      maxBoundRatio =
+          std::max(maxBoundRatio, std::abs(error) / (groupBound + 0.00011));
     }
-  printf("quality %s: max error=%g mean=%g bounds=%g/%g (%d spp)%s\n",
+  printf(
+      "quality %s: max error=%g mean=%g bounds=%g/%g (%d spp) max-bound-ratio=%g%s\n",
       label,
       maxError,
       maxMean,
       pixelBound,
       groupBound,
-      QUALITY_SAMPLES,
+      samples,
+      maxBoundRatio,
       ok ? "" : " FAILED");
+  fflush(stdout);
   return ok;
 }
 
 int testQualityProxyCoverage(Scene &scene)
 {
+  logCase("quality/proxy-coverage");
   const auto d = scene.d;
   configureObliqueRayBuffer(scene);
   auto light = quadLight(d);
@@ -605,11 +675,17 @@ int testQualityProxyCoverage(Scene &scene)
   anari::commitParameters(d, light);
   int failures = 0;
   for (float coverage : {0.f, 0.25f}) {
+    // Zero-opacity camera pass-through has no sampled coverage decision.
+    // The fractional witness keeps its independent 4096-spp coverage anchor.
+    const int samples = coverage == 0.f ? 1 : QUALITY_SAMPLES;
+    const std::string path =
+        coverage == 0.f ? "proxy-pass-through" : "proxy-fractional";
+    caseLabel(scene, path, "baseline");
     auto front = plane(d, 2.5f, {}, 0.f, false, 20.f, coverage);
     const ObjectOwner frontOwner(d, front);
     scene.attach(front, light);
     scene.fog("none");
-    const auto baseline = scene.render(QUALITY_SAMPLES);
+    const auto baseline = scene.render(samples);
     auto expected = baseline.color;
     for (unsigned p = 0; p < PIXELS; ++p) {
       expected[p] = BACKDROP;
@@ -622,44 +698,54 @@ int testQualityProxyCoverage(Scene &scene)
     failures += !expectQuality("proxy coverage baseline",
         baseline,
         expected,
-        coverage > 0.f ? 1. : 0.);
-    for (bool radial : {false, true}) {
-      for (bool background : {false, true}) {
-        for (bool full : {false, true}) {
-          qualityFog(scene, radial, background, full);
-          const auto image = scene.render(QUALITY_SAMPLES);
-          const auto target = qualityTarget(background);
-          for (unsigned p = 0; p < PIXELS; ++p) {
-            if (isMiss(p))
-              continue;
-            const double f = qualityFraction(p, 10.f, radial, full);
-            const double frontF = qualityFraction(p, 2.5f, radial, full);
-            for (unsigned c = 0; c < 3; ++c)
-              expected[p][c] = coverage * frontF * target[c]
-                  + (1. - coverage) * ((1. - f) * RADIANCE[c] + f * target[c]);
-          }
-          failures += !expectQuality("proxy through coverage",
-              image,
-              expected,
-              coverage > 0.f ? 1. : 0.);
-          failures += !sameAuxiliary(baseline, image, scene.subtype);
-        }
+        coverage > 0.f ? 1. : 0.,
+        samples);
+    for (const auto &setting : QUALITY_CASES) {
+      if (setting.representativeOnly)
+        continue;
+      caseLabel(scene, path, setting.name);
+      qualityFog(scene, setting.radial, setting.background, setting.full);
+      const auto image = scene.render(samples);
+      const auto target = qualityTarget(setting.background);
+      for (unsigned p = 0; p < PIXELS; ++p) {
+        if (isMiss(p))
+          continue;
+        const double f = qualityFraction(p, 10.f, setting.radial, setting.full);
+        const double frontF =
+            qualityFraction(p, 2.5f, setting.radial, setting.full);
+        for (unsigned c = 0; c < 3; ++c)
+          expected[p][c] = coverage * frontF * target[c]
+              + (1. - coverage) * ((1. - f) * RADIANCE[c] + f * target[c]);
       }
+      failures += !expectQuality("proxy through coverage",
+          image,
+          expected,
+          coverage > 0.f ? 1. : 0.,
+          samples);
+      failures += !sameAuxiliary(baseline, image, scene.subtype);
     }
+    caseLabel(scene, path, "disabled-restoration");
+    scene.fog("none");
+    const auto restored = scene.render(samples);
+    failures += !check(
+        restored.color == baseline.color, scene, "proxy disable restores RGB");
+    failures += !sameAuxiliary(baseline, restored, scene.subtype);
     // Primary visibility must survive even a zero-opacity pass-through.
     anari::setParameter(d, light, "visible", false);
     anari::commitParameters(d, light);
     scene.fog("none");
-    const auto hidden = scene.render(QUALITY_SAMPLES);
+    caseLabel(scene, path, "hidden-baseline");
+    const auto hidden = scene.render(samples);
     qualityFog(scene, true, false, true);
-    const auto hiddenFog = scene.render(QUALITY_SAMPLES);
+    caseLabel(scene, path, "hidden-full");
+    const auto hiddenFog = scene.render(samples);
     expected = hidden.color;
     for (unsigned p = 0; p < PIXELS; ++p)
       if (!isMiss(p))
         for (unsigned c = 0; c < 3; ++c)
           expected[p][c] += coverage * FOG_COLOR[c];
-    failures +=
-        !expectQuality("hidden proxy through coverage", hiddenFog, expected);
+    failures += !expectQuality(
+        "hidden proxy through coverage", hiddenFog, expected, 0., samples);
     failures += !sameAuxiliary(hidden, hiddenFog, scene.subtype);
     anari::setParameter(d, light, "visible", true);
     anari::commitParameters(d, light);
@@ -669,6 +755,8 @@ int testQualityProxyCoverage(Scene &scene)
 
 int testQualityVolume(Scene &scene, bool scattering)
 {
+  logCase(
+      std::string("quality/volume/scattering=") + std::to_string(scattering));
   const auto d = scene.d;
   configureObliqueRayBuffer(scene);
   anari::setParameter(
@@ -678,6 +766,8 @@ int testQualityVolume(Scene &scene, bool scattering)
   const ObjectOwner volumeOwner(d, volume);
   scene.attach({}, {}, volume);
   scene.fog("none");
+  const std::string medium = scattering ? "scattering" : "absorbing";
+  caseLabel(scene, medium + "/volume-only", "baseline");
   const auto only = scene.render(QUALITY_SAMPLES);
   // sigma_t = -log(1-opacity)/unitDistance = log(2). The oblique rays
   // cross a two-unit slab with cos(theta)=4/5: P(no collision)=2^(-2.5).
@@ -708,15 +798,15 @@ int testQualityVolume(Scene &scene, bool scattering)
       int(scattering),
       volumeRadiance,
       survival);
-  for (bool radial : {false, true}) {
-    for (bool background : {false, true}) {
-      qualityFog(scene, radial, background, true);
-      const auto active = scene.render(QUALITY_SAMPLES);
-      failures += !check(only.color == active.color,
-          scene,
-          "sampled volume-only RGB unchanged");
-      failures += !sameAuxiliary(only, active, scene.subtype);
-    }
+  for (const auto &setting : QUALITY_CASES) {
+    if (!setting.full)
+      continue;
+    caseLabel(scene, medium + "/volume-only", setting.name);
+    qualityFog(scene, setting.radial, setting.background, true);
+    const auto active = scene.render(QUALITY_SAMPLES);
+    failures += !check(
+        only.color == active.color, scene, "sampled volume-only RGB unchanged");
+    failures += !sameAuxiliary(only, active, scene.subtype);
   }
 
   // Absorbing media isolate the transmitted emitter against a fully
@@ -736,6 +826,8 @@ int testQualityVolume(Scene &scene, bool scattering)
   anari::setParameter(d, light, "edge2", Vec3{0.f, 40.f, 0.f});
   anari::commitParameters(d, light);
   for (bool proxy : {false, true}) {
+    const std::string path = medium + (proxy ? "/proxy" : "/surface");
+    caseLabel(scene, path, "baseline");
     scene.attach(proxy ? anari::Surface{} : surface,
         proxy ? light : anari::Light{},
         volume);
@@ -755,35 +847,40 @@ int testQualityVolume(Scene &scene, bool scattering)
           expected,
           1.);
     }
-    for (bool radial : {false, true}) {
-      for (bool background : {false, true}) {
-        for (bool full : {false, true}) {
-          qualityFog(scene, radial, background, full);
-          const auto image = scene.render(QUALITY_SAMPLES);
-          const auto target = qualityTarget(background);
-          expected = baseline.color;
-          for (unsigned p = 0; p < PIXELS; ++p) {
-            if (isMiss(p))
-              continue;
-            const double f = qualityFraction(p, 10.f, radial, full);
-            for (unsigned c = 0; c < 3; ++c)
-              expected[p][c] = scattering
-                  ? baseline.color[p][c]
-                      + survival * f * (target[c] - (proxy ? RADIANCE[c] : 0.f))
-                  : survival * ((1. - f) * RADIANCE[c] + f * target[c]);
-          }
-          failures +=
-              !expectQuality(scattering ? (proxy ? "proxy with scattering"
-                                                 : "surface after scattering")
-                      : proxy           ? "proxy behind absorbing volume"
-                                        : "surface behind absorbing volume",
-                  image,
-                  expected,
-                  1.);
-          failures += !sameAuxiliary(baseline, image, scene.subtype);
-        }
+    for (const auto &setting : QUALITY_CASES) {
+      if (setting.representativeOnly && (scattering || proxy))
+        continue;
+      caseLabel(scene, path, setting.name);
+      qualityFog(scene, setting.radial, setting.background, setting.full);
+      const auto image = scene.render(QUALITY_SAMPLES);
+      const auto target = qualityTarget(setting.background);
+      expected = baseline.color;
+      for (unsigned p = 0; p < PIXELS; ++p) {
+        if (isMiss(p))
+          continue;
+        const double f = qualityFraction(p, 10.f, setting.radial, setting.full);
+        for (unsigned c = 0; c < 3; ++c)
+          expected[p][c] = scattering
+              ? baseline.color[p][c]
+                  + survival * f * (target[c] - (proxy ? RADIANCE[c] : 0.f))
+              : survival * ((1. - f) * RADIANCE[c] + f * target[c]);
       }
+      failures += !expectQuality(scattering
+              ? (proxy ? "proxy with scattering" : "surface after scattering")
+              : proxy ? "proxy behind absorbing volume"
+                      : "surface behind absorbing volume",
+          image,
+          expected,
+          1.);
+      failures += !sameAuxiliary(baseline, image, scene.subtype);
     }
+    caseLabel(scene, path, "disabled-restoration");
+    scene.fog("none");
+    const auto restored = scene.render(QUALITY_SAMPLES);
+    failures += !check(restored.color == baseline.color,
+        scene,
+        "volume path disable restores RGB");
+    failures += !sameAuxiliary(baseline, restored, scene.subtype);
   }
   return failures;
 }
@@ -795,11 +892,12 @@ enum class Contribution
   PROXY
 };
 
-// Release cross-product for the straight-through Renderers. Oblique supplied
+// Named composition contracts for straight-through Renderers. Oblique supplied
 // rays distinguish the two metrics; the black homogeneous slab has exactly
 // forty march steps and transmission 2^(-2.5), independent of sample jitter.
-int testStraightThroughMatrix(Scene &scene)
+int testStraightThroughContracts(Scene &scene)
 {
+  logCase(std::string(scene.subtype) + "/straight-through");
   const auto d = scene.d;
   configureObliqueRayBuffer(scene);
   anari::setParameter(d, scene.renderer, "ambientRadiance", 1.f);
@@ -825,72 +923,79 @@ int testStraightThroughMatrix(Scene &scene)
       const bool hit = contribution == Contribution::SURFACE
           || (contribution == Contribution::PROXY
               && std::string(scene.subtype) != "fast");
+      const std::string path = std::string(hasVolume ? "volume/" : "clear/")
+          + (contribution == Contribution::SURFACE      ? "surface"
+                  : contribution == Contribution::PROXY ? "proxy"
+                                                        : "backdrop");
+      caseLabel(scene, path, "baseline");
       scene.attach(
           contribution == Contribution::SURFACE ? surface : anari::Surface{},
           contribution == Contribution::PROXY ? light : anari::Light{},
           hasVolume ? volume : anari::Volume{});
       scene.fog("none");
       const auto baseline = scene.render();
-      for (bool radial : {false, true}) {
-        for (bool background : {false, true}) {
-          for (const char *mode : {"none", "linear", "exp", "exp2", "full"}) {
-            const bool full = std::string(mode) == "full";
-            qualityFog(scene, radial, background, full);
-            scene.fog(full ? "linear" : mode, 0.f, full ? 0.01f : 20.f);
-            const auto image = scene.render();
-            const auto target = qualityTarget(background);
-            bool ok = true;
-            for (unsigned p = 0; p < PIXELS; ++p) {
-              Vec4 expected = BACKDROP;
-              if (!isMiss(p)) {
-                const double survival = hasVolume ? std::pow(2., -2.5) : 1.;
-                const double distance =
-                    radial ? (10. - 2 * (p % 2)) * 1.25 : 11.;
-                const std::string curve(mode);
-                const double visibility = curve == "none" ? 1.
-                    : full                                ? 0.
-                    : curve == "linear"
-                    ? 1. - distance / 20.
-                    : std::exp(curve == "exp" ? -0.05 * distance
-                                              : -std::pow(0.05 * distance, 2));
-                for (unsigned c = 0; c < 3; ++c)
-                  expected[c] = survival
-                      * (hit ? visibility * RADIANCE[c]
-                                  + (1. - visibility) * target[c]
-                             : BACKDROP[c]);
-                expected[3] = hit ? 1. : 1. - survival * (1. - BACKDROP[3]);
-              }
-              for (unsigned c = 0; c < 4; ++c) {
-                const double error =
-                    std::abs(double(image.color[p][c]) - expected[c]);
-                maximumError = std::max(maximumError, error);
-                ok &= std::isfinite(error)
-                    && error <= 1e-5 + 1e-4 * std::abs(expected[c]);
-              }
-            }
-            if (!ok)
-              fprintf(stderr,
-                  "%s cross interaction: volume=%d contribution=%d metric=%s source=%s curve=%s\n",
-                  scene.subtype,
-                  int(hasVolume),
-                  int(contribution),
-                  radial ? "rayDistance" : "viewDepth",
-                  background ? "background" : "constant",
-                  mode);
-            failures += !ok;
-            failures += !sameAuxiliary(baseline, image, scene.subtype);
-            if (!hit)
-              failures += !check(image.color == baseline.color,
-                  scene,
-                  "volume-only/miss output unchanged in cross-product");
-            ++cases;
+      for (const auto &setting : STRAIGHT_CASES) {
+        if (setting.representativeOnly
+            && !(hasVolume && contribution == Contribution::SURFACE))
+          continue;
+        caseLabel(scene, path, setting.name);
+        const auto *mode = setting.mode;
+        const bool radial = setting.radial;
+        const bool background = setting.background;
+        const bool full = setting.full;
+        qualityFog(scene, radial, background, full);
+        scene.fog(mode, 0.f, full ? 0.01f : 20.f);
+        const auto image = scene.render();
+        const auto target = qualityTarget(background);
+        bool ok = true;
+        for (unsigned p = 0; p < PIXELS; ++p) {
+          Vec4 expected = BACKDROP;
+          if (!isMiss(p)) {
+            const double survival = hasVolume ? std::pow(2., -2.5) : 1.;
+            const double distance = radial ? (10. - 2 * (p % 2)) * 1.25 : 11.;
+            const std::string curve(mode);
+            const double visibility = curve == "none" ? 1.
+                : full                                ? 0.
+                : curve == "linear"
+                ? 1. - distance / 20.
+                : std::exp(curve == "exp" ? -0.05 * distance
+                                          : -std::pow(0.05 * distance, 2));
+            for (unsigned c = 0; c < 3; ++c)
+              expected[c] = survival
+                  * (hit ? visibility * RADIANCE[c]
+                              + (1. - visibility) * target[c]
+                         : BACKDROP[c]);
+            expected[3] = hit ? 1. : 1. - survival * (1. - BACKDROP[3]);
+          }
+          for (unsigned c = 0; c < 4; ++c) {
+            const double error =
+                std::abs(double(image.color[p][c]) - expected[c]);
+            maximumError = std::max(maximumError, error);
+            ok &= std::isfinite(error)
+                && error <= 1e-5 + 1e-4 * std::abs(expected[c]);
           }
         }
+        if (!ok)
+          fprintf(stderr,
+              "%s cross interaction: volume=%d contribution=%d metric=%s source=%s curve=%s\n",
+              scene.subtype,
+              int(hasVolume),
+              int(contribution),
+              radial ? "rayDistance" : "viewDepth",
+              background ? "background" : "constant",
+              mode);
+        failures += !ok;
+        failures += !sameAuxiliary(baseline, image, scene.subtype);
+        if (!hit || std::string(mode) == "none")
+          failures += !check(image.color == baseline.color,
+              scene,
+              "volume-only/miss or disabled output unchanged");
+        ++cases;
       }
     }
   }
   printf(
-      "%s straight-through interaction matrix: %u cases, max absolute error=%g\n",
+      "%s straight-through interaction contracts: %u cases, max absolute error=%g\n",
       scene.subtype,
       cases,
       maximumError);
@@ -913,7 +1018,7 @@ int main()
     failures += testIllumination(scene);
     failures += testVolume(scene);
     failures += testJitteredVolume(scene);
-    failures += testStraightThroughMatrix(scene);
+    failures += testStraightThroughContracts(scene);
   }
   {
     Scene scene(d, "quality");
