@@ -12,6 +12,10 @@ The `devices/rtx/` subdirectory contains the OptiX-based GPU ray-tracing ANARI d
 - [`CONTEXT-MAP.md`](./CONTEXT-MAP.md) — bounded contexts and how they relate; each context has its own `CONTEXT.md` glossary ([Frontend](./device/CONTEXT.md), [Render Pipeline](./device/renderer/CONTEXT.md), [World](./device/world/CONTEXT.md), [MDL](./libmdl/CONTEXT.md)). Use these terms in code and docs.
 - [`docs/adr/`](./docs/adr/) — architecture decision records. Scan the directory and read the relevant one before "fixing" a design it locks in.
 
+## Measuring geometry preparation
+
+Use the [`benchmark-geometry-preprocessing`](../../.agents/skills/benchmark-geometry-preprocessing/SKILL.md) skill for local before/after checks of geometry preparation or preparation-reuse performance. Timing contracts: [`docs/geometry-preprocessing-performance.md`](./docs/geometry-preprocessing-performance.md). Keep one-off results in local scratch; historical tracking belongs in a separate CI workflow.
+
 ## Build
 
 Built as part of the repository build — see the repo-root [AGENTS.md](../../AGENTS.md). `CMAKE_PREFIX_PATH` must locate the ANARI-SDK and OptiX.
