@@ -63,7 +63,15 @@ void SDF::commitParameters()
 
 void SDF::finalize()
 {
-  if (!beginPreparation())
+  if (!beginPreparation({"primitive.sdf",
+          "primitive.neighbor",
+          "epsilon",
+          "nbMarchIterations",
+          "blendFactor",
+          "blendLerpFactor",
+          "omega",
+          "distanceFromCamera",
+          "noiseFactor"}))
     return;
   if (!m_sdf) {
     reportMessage(ANARI_SEVERITY_WARNING,

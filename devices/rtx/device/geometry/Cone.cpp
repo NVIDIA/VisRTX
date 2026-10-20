@@ -87,7 +87,11 @@ PrimitiveInput Cone::primitiveInput() const
 
 void Cone::finalize()
 {
-  if (!beginPreparation())
+  if (!beginPreparation({"primitive.index",
+          "vertex.position",
+          "vertex.radius",
+          "vertex.cap",
+          "caps"}))
     return;
   if (!m_vertex) {
     reportMessage(ANARI_SEVERITY_WARNING,
