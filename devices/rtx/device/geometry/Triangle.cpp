@@ -76,7 +76,18 @@ void Triangle::commitParameters()
 
 void Triangle::finalize()
 {
-  if (!beginPreparation())
+  if (!beginPreparation({"primitive.index",
+          "vertex.position",
+          "vertex.normal",
+          "faceVarying.normal",
+          "vertex.tangent",
+          "faceVarying.tangent",
+          "cullBackfaces",
+          "faceVarying.attribute0",
+          "faceVarying.attribute1",
+          "faceVarying.attribute2",
+          "faceVarying.attribute3",
+          "faceVarying.color"}))
     return;
   if (!m_vertex) {
     reportMessage(ANARI_SEVERITY_WARNING,

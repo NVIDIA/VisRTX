@@ -51,7 +51,8 @@ void Sphere::commitParameters()
 
 void Sphere::finalize()
 {
-  if (!beginPreparation())
+  if (!beginPreparation(
+          {"primitive.index", "vertex.position", "vertex.radius", "radius"}))
     return;
   if (!m_vertex) {
     reportMessage(ANARI_SEVERITY_WARNING,

@@ -53,7 +53,8 @@ void Curve::commitParameters()
 
 void Curve::finalize()
 {
-  if (!beginPreparation())
+  if (!beginPreparation(
+          {"primitive.index", "vertex.position", "vertex.radius", "radius"}))
     return;
   if (!m_vertexPosition) {
     reportMessage(ANARI_SEVERITY_WARNING,

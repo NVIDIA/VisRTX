@@ -88,7 +88,12 @@ PrimitiveInput Cylinder::primitiveInput() const
 
 void Cylinder::finalize()
 {
-  if (!beginPreparation())
+  if (!beginPreparation({"primitive.index",
+          "vertex.position",
+          "primitive.radius",
+          "vertex.cap",
+          "caps",
+          "radius"}))
     return;
   if (!m_vertex) {
     reportMessage(ANARI_SEVERITY_WARNING,

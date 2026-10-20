@@ -129,10 +129,22 @@ int main(int argc, char **argv)
         bounds.data(),
         sizeof(bounds),
         ANARI_WAIT);
-    if (invalid)
+    if (invalid) {
       ok = ok && errors > beforeErrors && samples == previousSamples
           && completions == beforeCompletions && !haveBounds;
-    else {
+      // Geometry-wide attributes must not rehabilitate a failed generation.
+      anari::setParameter(
+          d, geometry, "attribute0", vec4{float(step), 0, 0, 1});
+      anari::commitParameters(d, geometry);
+      ok = !anariGetProperty(d,
+               world,
+               "bounds",
+               ANARI_FLOAT32_BOX3,
+               bounds.data(),
+               sizeof(bounds),
+               ANARI_WAIT)
+          && ok;
+    } else {
       ok = ok && errors == beforeErrors && samples > 0
           && completions == beforeCompletions + 1 && haveBounds;
       previousSamples = samples;
