@@ -51,7 +51,11 @@ void Quad::commitParameters()
 
 void Quad::finalize()
 {
-  if (!beginPreparation())
+  if (!beginPreparation({"primitive.index",
+          "vertex.position",
+          "vertex.normal",
+          "vertex.tangent",
+          "cullBackfaces"}))
     return;
   if (!m_vertex) {
     reportMessage(ANARI_SEVERITY_WARNING,
