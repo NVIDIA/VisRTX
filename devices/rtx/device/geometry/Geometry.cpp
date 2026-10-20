@@ -141,7 +141,8 @@ void Geometry::commitParameters()
 void Geometry::markFinalized()
 {
   Object::markFinalized();
-  deviceState()->objectUpdates.lastSurfaceBLASChange = helium::newTimeStamp();
+  if (!m_preparationPreserved)
+    deviceState()->objectUpdates.lastSurfaceBLASChange = helium::newTimeStamp();
 }
 
 bool Geometry::isAreaSamplingSupported() const
@@ -149,10 +150,79 @@ bool Geometry::isAreaSamplingSupported() const
   return false;
 }
 
-bool Geometry::beginPreparation()
+bool Geometry::PreparationParameter::operator==(
+    const PreparationParameter &other) const
 {
+  return parameterIndex == other.parameterIndex && value == other.value
+      && updated == other.updated && finalized == other.finalized
+      && modified == other.modified && devicePointer == other.devicePointer;
+}
+
+void Geometry::upload()
+{
+  RegisteredObject<GeometryGPUData>::upload();
+  m_hasPreparedData = !preparationFailed() && isValid();
+}
+
+bool Geometry::beginPreparation(std::initializer_list<const char *> parameters)
+{
+  m_preparationPreserved = false;
   if (m_inputRetirementFailed)
     return false;
+
+  std::vector<PreparationParameter> current;
+  if (parameters.size() != 0) {
+    current.reserve(m_preparedParameters.size());
+    size_t parameterIndex = 0;
+    auto append = [&](const char *name) {
+      PreparationParameter parameter;
+      parameter.parameterIndex = parameterIndex++;
+      parameter.value = getParamDirect(name); // committed snapshot, not staging
+      if (!parameter.value.valid())
+        return; // Keep only present values, retaining their parameter identity.
+      if (anari::isObject(parameter.value.type())) {
+        auto *object = parameter.value.getObject<helium::BaseObject>();
+        if (object) {
+          parameter.updated = object->lastUpdated();
+          parameter.finalized = object->lastFinalized();
+          if (auto *array = dynamic_cast<Array *>(object)) {
+            parameter.modified = array->lastDataModified();
+            // Privatization can change backing pointers without changing values
+            // or the array timestamp. Never reuse cached aliases in that case.
+            parameter.devicePointer = array->dataGPU();
+          }
+        }
+      }
+      current.push_back(std::move(parameter));
+    };
+    for (const char *name : {"primitive.attribute0",
+             "primitive.attribute1",
+             "primitive.attribute2",
+             "primitive.attribute3",
+             "primitive.color",
+             "primitive.id",
+             "vertex.attribute0",
+             "vertex.attribute1",
+             "vertex.attribute2",
+             "vertex.attribute3",
+             "vertex.color"})
+      append(name);
+    for (const char *name : parameters)
+      append(name);
+
+    // Observer-only updates always take the preparation path. A geometry-wide
+    // attribute edit coalesced with an array change cannot hide that change;
+    // the versions/pointers above still invalidate preparation reuse.
+    if (m_hasPreparedData && !preparationFailed() && isValid()
+        && lastCommitted() > lastFinalized()
+        && current == m_preparedParameters) {
+      m_preparationPreserved = true;
+      upload();
+      return false;
+    }
+  }
+  m_preparedParameters = std::move(current);
+  m_hasPreparedData = false;
   m_preparationFailed = false;
   return true;
 }
