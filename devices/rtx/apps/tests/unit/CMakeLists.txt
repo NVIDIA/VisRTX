@@ -95,6 +95,47 @@ add_test(NAME rtx::LightGeometryOracle COMMAND ${PROJECT_NAME})
 # (the MDL SDK is dlopen'd at runtime), so the classifier is testable on the host.
 # Gated on MDL support, since libmdl only exists then.
 if (VISRTX_ENABLE_MDL_SUPPORT)
+  find_package(Threads REQUIRED)
+  add_executable(rtx_test_MdlCompileCoordinator
+    test_MdlCompileCoordinator.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/../../../device/mdl/MdlCompileCoordinator.cpp)
+  target_include_directories(rtx_test_MdlCompileCoordinator PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}/../../../device)
+  target_link_libraries(rtx_test_MdlCompileCoordinator PRIVATE Threads::Threads)
+  target_compile_features(rtx_test_MdlCompileCoordinator PRIVATE cxx_std_17)
+  add_test(NAME rtx::MdlCompileCoordinator COMMAND rtx_test_MdlCompileCoordinator)
+  set_tests_properties(rtx::MdlCompileCoordinator PROPERTIES
+    ENVIRONMENT "VISRTX_MDL_COMPILE_THREADS=2" TIMEOUT 30)
+  add_test(NAME rtx::MdlCompileCoordinatorReserveFailure
+    COMMAND rtx_test_MdlCompileCoordinator --reserve-failure)
+  set_tests_properties(rtx::MdlCompileCoordinatorReserveFailure PROPERTIES
+    ENVIRONMENT "VISRTX_MDL_COMPILE_THREADS=256" TIMEOUT 30)
+
+  # Exercise the real registry directly (its symbols are private to the device
+  # DSO). Reuse the device's embedded MDL/PTX, without creating a GPU device.
+  set(mdl_device_binary_dir ${CMAKE_CURRENT_BINARY_DIR}/../../../device)
+  set(mdl_registry_resources
+    ${mdl_device_binary_dir}/mdl/default.mdl.cpp
+    ${mdl_device_binary_dir}/mdl/physically_based.mdl.cpp)
+  set_source_files_properties(${mdl_registry_resources} PROPERTIES GENERATED TRUE)
+  add_executable(rtx_test_MdlMaterialRegistry
+    test_MdlMaterialRegistry.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/../../../device/mdl/MaterialRegistry.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/../../../device/mdl/MdlCompileCoordinator.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/../../../device/mdl/ptx.cpp
+    ${mdl_registry_resources})
+  target_link_libraries(rtx_test_MdlMaterialRegistry PRIVATE
+    anari_library_visrtx libmdl fmt::fmt nonstd::scope-lite
+    visrtx::glm OptiX::OptiX anari::helium
+    CUDA::cudart Threads::Threads)
+  target_include_directories(rtx_test_MdlMaterialRegistry PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}/../../../external/nanovdb/include)
+  target_compile_definitions(rtx_test_MdlMaterialRegistry PRIVATE USE_MDL)
+  target_compile_features(rtx_test_MdlMaterialRegistry PRIVATE cxx_std_17)
+  add_test(NAME rtx::MdlMaterialRegistry COMMAND rtx_test_MdlMaterialRegistry)
+  set_tests_properties(rtx::MdlMaterialRegistry PROPERTIES
+    ENVIRONMENT "VISRTX_MDL_COMPILE_THREADS=4" TIMEOUT 120)
+
   project(rtx_test_MdlEmissionClassifier LANGUAGES CXX)
 
   add_executable(${PROJECT_NAME} test_MdlEmissionClassifier.cpp)
