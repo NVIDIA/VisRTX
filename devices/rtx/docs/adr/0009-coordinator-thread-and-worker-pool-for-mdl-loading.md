@@ -12,6 +12,13 @@ serial.
 
 ## The model
 
+The execution mechanism is `visrtx::TaskExecutor` in `device/utility/`: one
+serial lane (`invokeSerial`) and a worker pool (`submit`). The MDL state still
+owns the instance, with the same teardown order. MDL resolves
+`VISRTX_MDL_COMPILE_THREADS` and passes the worker count explicitly; the generic
+executor has no MDL configuration or SDK dependency. This extraction does not
+introduce a device-wide shared executor or migrate other `std::async` work.
+
 - **Coordinator** — one dedicated thread, device-lifetime owner of the
   `MaterialRegistry`. It is the *only* thread that mutates registry state
   (`m_targetCodes`, the uuid/name caches, refcounts, the update timestamp), so
@@ -121,7 +128,7 @@ Two things make the bet defensible rather than reckless:
   declared last in the MDL state struct, so it is destroyed — and its threads
   drained and joined — before the registry and Core it serializes. The workers
   are joined before the Coordinator thread (a worker's bookkeeping reaches back
-  into it), and a `run()`/`submit()` issued after stop executes inline, so a
+  into it), and an `invokeSerial()`/`submit()` issued after stop executes inline, so a
   material released during `commitBuffer.clear()` never deadlocks on a
   thread that is already gone.
 - `finalize` blocking on a promise cannot hang or crash the commit thread: a

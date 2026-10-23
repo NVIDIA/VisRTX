@@ -68,6 +68,7 @@ set(CMAKE_VISIBILITY_INLINES_HIDDEN TRUE)
 #### Dependencies ####
 
 find_package(nanovdb MODULE REQUIRED)
+find_package(Threads REQUIRED)
 
 #### Build library target ####
 
@@ -208,6 +209,7 @@ set(SOURCES
   utility/instrument.cpp
   utility/MemoryAllocation.cpp
   utility/PPM.cpp
+  utility/TaskExecutor.cpp
 
   volume/TransferFunction1D.cpp
   volume/UnknownVolume.cpp
@@ -221,7 +223,6 @@ set(SOURCES
     mdl/Logger.cpp
     mdl/ptx.cpp
     mdl/MaterialRegistry.cpp
-    mdl/MdlCompileCoordinator.cpp
     mdl/SamplerRegistry.cpp
     mdl/SceneDataInstance.cpp
     material/MDL.cpp
@@ -288,6 +289,7 @@ PUBLIC
   anari::anari_headers
 PRIVATE
   anari::helium
+  Threads::Threads
   CUDA::cuda_driver
   $<$<BOOL:${VISRTX_ENABLE_NVTX}>:CUDA::nvToolsExt>
   $<$<BOOL:${VISRTX_ENABLE_MDL_SUPPORT}>:libmdl>

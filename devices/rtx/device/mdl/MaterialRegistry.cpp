@@ -175,7 +175,7 @@ std::optional<std::string> MaterialRegistry::preloadModule(
 std::optional<MaterialRegistry::CompileProduct>
 MaterialRegistry::compileMaterial(const std::string &moduleDbName,
     const std::string &materialName,
-    MdlCompileCoordinator &coordinator)
+    TaskExecutor &coordinator)
 {
   using mi::base::make_handle;
 
@@ -309,7 +309,7 @@ MaterialRegistry::compileMaterial(const std::string &moduleDbName,
         return m_core->resolveResource(
             url.c_str(), ownerName, moduleFile ? moduleFile : "");
       };
-      url = coordinator.run(resolve);
+      url = coordinator.invokeSerial(resolve);
       if (url.empty()) {
         m_core->logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
             "Failed to resolve texture resource {} for material {}",
@@ -424,7 +424,7 @@ MaterialRegistry::AcquiredMaterial MaterialRegistry::insertCompiled(
 }
 
 std::future<MaterialRegistry::AcquiredMaterial>
-MaterialRegistry::acquireMaterialAsync(MdlCompileCoordinator &coordinator,
+MaterialRegistry::acquireMaterialAsync(TaskExecutor &coordinator,
     std::string moduleOrSource,
     std::string materialName,
     bool fromCode)
@@ -443,17 +443,17 @@ MaterialRegistry::acquireMaterialAsync(MdlCompileCoordinator &coordinator,
     // Dedup, preload and insert mutate or read the registry / SDK database, so
     // they run on the coordinator thread; only the compile runs here on the
     // worker, in parallel with other materials' compiles.
-    if (auto cached = coordinator.run(
+    if (auto cached = coordinator.invokeSerial(
             [&] { return reuseCompiledMaterial(fullMaterialName); }))
       return *cached;
-    auto moduleDbName = coordinator.run(
+    auto moduleDbName = coordinator.invokeSerial(
         [&] { return preloadModule(moduleOrSource, fromCode); });
     if (!moduleDbName)
       return {};
     auto product = compileMaterial(*moduleDbName, materialName, coordinator);
     if (!product)
       return {};
-    return coordinator.run(
+    return coordinator.invokeSerial(
         [&] { return insertCompiled(fullMaterialName, std::move(*product)); });
   });
 }

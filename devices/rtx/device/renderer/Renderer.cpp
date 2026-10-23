@@ -424,7 +424,7 @@ void Renderer::populateFrameData(FrameGPUData &fd) const
 static libmdl::TimeStamp mdlLibraryUpdateTime(DeviceGlobalState *state)
 {
   auto &mdl = *state->mdl;
-  return mdl.coordinator.run(
+  return mdl.coordinator.invokeSerial(
       [&] { return mdl.materialRegistry.getLastUpdateTime(); });
 }
 #endif
@@ -1070,7 +1070,7 @@ void Renderer::initOptixPipeline()
       // Copy bytes and their version on the registry's owning thread. Material
       // releases may clear/reuse slots while the modules build below; no span
       // into registry storage may escape this task.
-      auto snapshot = state.mdl->coordinator.run(
+      auto snapshot = state.mdl->coordinator.invokeSerial(
           [&] { return state.mdl->materialRegistry.ptxSnapshot(); });
       auto &ptxBlobs = snapshot.blobs;
 

@@ -561,10 +561,11 @@ int VisRTXDevice::deviceGetProperty(const char *name,
     auto &state = *deviceState();
     if (flags & ANARI_WAIT)
       state.commitBuffer.flush();
-    const uint32_t count = state.mdl ? uint32_t(state.mdl->coordinator.run([&] {
-      return state.mdl->materialRegistry.numRegisteredMaterials();
-    }))
-                                     : 0u;
+    const uint32_t count = state.mdl
+        ? uint32_t(state.mdl->coordinator.invokeSerial([&] {
+            return state.mdl->materialRegistry.numRegisteredMaterials();
+          }))
+        : 0u;
     helium::writeToVoidP(mem, count);
     return 1;
   }
@@ -581,7 +582,7 @@ int VisRTXDevice::deviceGetProperty(const char *name,
     auto &state = *deviceState();
     if (flags & ANARI_WAIT)
       state.commitBuffer.flush();
-    const uint64_t fp = state.mdl ? state.mdl->coordinator.run([&] {
+    const uint64_t fp = state.mdl ? state.mdl->coordinator.invokeSerial([&] {
       return state.mdl->materialRegistry.ptxFingerprint();
     })
                                   : 0ull;

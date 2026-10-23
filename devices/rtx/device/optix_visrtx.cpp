@@ -32,6 +32,12 @@
 #include "optix_visrtx.h"
 #include "Object.h"
 
+#ifdef USE_MDL
+#include <algorithm>
+#include <cstdlib>
+#include <thread>
+#endif
+
 namespace visrtx {
 
 void buildOptixBVH(std::vector<OptixBuildInput> buildInput,
@@ -129,6 +135,45 @@ DeviceGlobalState::DeviceGlobalState(ANARIDevice d)
 {}
 
 DeviceGlobalState::~DeviceGlobalState() = default;
+
+#ifdef USE_MDL
+namespace {
+
+// MDL policy, not executor policy. Eight is a conservative default resource
+// limit, not a measured scaling ceiling. The runtime environment overrides it;
+// a hard ceiling protects against accidentally requesting thousands of threads.
+std::size_t mdlCompileWorkerCount()
+{
+  constexpr std::size_t maxDefaultWorkers = 8;
+  constexpr std::size_t maxWorkers = 256;
+  if (const char *env = std::getenv("VISRTX_MDL_COMPILE_THREADS")) {
+    char *end = nullptr;
+    const long value = std::strtol(env, &end, 10);
+    if (end != env && value >= 1)
+      return std::clamp<std::size_t>(
+          static_cast<std::size_t>(value), 1, maxWorkers);
+  }
+  return std::clamp<std::size_t>(
+      std::thread::hardware_concurrency(), 1, maxDefaultWorkers);
+}
+
+} // namespace
+
+DeviceGlobalState::MDL::MDL(DeviceGlobalState *deviceState)
+    : core(new mdl::Logger(deviceState)),
+      materialRegistry(&core),
+      samplerRegistry(&core, deviceState),
+      coordinator(mdlCompileWorkerCount())
+{}
+
+DeviceGlobalState::MDL::MDL(
+    DeviceGlobalState *deviceState, mi::neuraylib::INeuray *neuray)
+    : core(neuray),
+      materialRegistry(&core),
+      samplerRegistry(&core, deviceState),
+      coordinator(mdlCompileWorkerCount())
+{}
+#endif
 
 } // namespace visrtx
 
