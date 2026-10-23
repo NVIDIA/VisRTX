@@ -17,10 +17,10 @@
 
 namespace fs = std::filesystem;
 using mi::base::make_handle;
+using visrtx::TaskExecutor;
 using visrtx::libmdl::Core;
 using visrtx::libmdl::Uuid;
 using visrtx::mdl::MaterialRegistry;
-using visrtx::mdl::MdlCompileCoordinator;
 
 namespace {
 
@@ -46,8 +46,7 @@ void writeFile(const fs::path &path, const std::string &contents)
   check(bool(file), "cannot write test fixture");
 }
 
-void testSnapshot(
-    MaterialRegistry &registry, MdlCompileCoordinator &coordinator)
+void testSnapshot(MaterialRegistry &registry, TaskExecutor &coordinator)
 {
   auto acquire = [&](int value) {
     auto result =
@@ -57,13 +56,13 @@ void testSnapshot(
     return result;
   };
   auto release = [&](const auto &material) {
-    coordinator.run([&] { registry.releaseMaterial(material.uuid); });
+    coordinator.invokeSerial([&] { registry.releaseMaterial(material.uuid); });
   };
   auto snapshot = [&] {
-    return coordinator.run([&] { return registry.ptxSnapshot(); });
+    return coordinator.invokeSerial([&] { return registry.ptxSnapshot(); });
   };
   auto index = [&](const auto &material) {
-    return coordinator.run(
+    return coordinator.invokeSerial(
         [&] { return registry.getMaterialImplementationIndex(material.uuid); });
   };
 
@@ -101,7 +100,7 @@ void testSnapshot(
                                       &coordinator,
                                       secondUuid = second.uuid,
                                       replacementUuid = replacement.uuid] {
-    coordinator.run([&] {
+    coordinator.invokeSerial([&] {
       registry.releaseMaterial(secondUuid);
       registry.releaseMaterial(replacementUuid);
     });
@@ -109,7 +108,9 @@ void testSnapshot(
   check(captured.blobs == savedBytes, "snapshot changed during release");
   clear.get();
   check(captured.blobs == savedBytes, "snapshot lost storage on release");
-  check(coordinator.run([&] { return registry.numRegisteredMaterials(); }) == 0,
+  check(coordinator.invokeSerial([&] {
+    return registry.numRegisteredMaterials();
+  }) == 0,
       "snapshot test leaked registry entries");
 }
 
@@ -138,7 +139,7 @@ void exportMdle(Core &core, const fs::path &path)
 
 void testSources(Core &core,
     MaterialRegistry &registry,
-    MdlCompileCoordinator &coordinator,
+    TaskExecutor &coordinator,
     const fs::path &root)
 {
   const auto library = root / "library";
@@ -188,18 +189,20 @@ export material test() = material(surface: material_surface(
   }
 
   const auto mdlePath = root / "exported.mdle";
-  coordinator.run([&] { exportMdle(core, mdlePath); });
+  coordinator.invokeSerial([&] { exportMdle(core, mdlePath); });
   auto mdle =
       registry
           .acquireMaterialAsync(coordinator, mdlePath.string(), "main", false)
           .get();
   check(mdle.uuid != Uuid{}, "MDLE acquire failed");
-  coordinator.run([&] {
+  coordinator.invokeSerial([&] {
     for (const auto &material : acquired)
       registry.releaseMaterial(material.uuid);
     registry.releaseMaterial(mdle.uuid);
   });
-  check(coordinator.run([&] { return registry.numRegisteredMaterials(); }) == 0,
+  check(coordinator.invokeSerial([&] {
+    return registry.numRegisteredMaterials();
+  }) == 0,
       "source test leaked registry entries");
 }
 
@@ -218,7 +221,7 @@ int main()
   try {
     Core core;
     MaterialRegistry registry(&core);
-    MdlCompileCoordinator coordinator;
+    TaskExecutor coordinator(4);
     testSnapshot(registry, coordinator);
     testSources(core, registry, coordinator, root);
   } catch (const std::exception &e) {

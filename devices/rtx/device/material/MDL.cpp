@@ -149,11 +149,12 @@ MDL::~MDL()
   if (m_pendingAcquire.valid()) {
     auto pending = collectAcquire(m_pendingAcquire);
     if (pending.uuid != libmdl::Uuid{})
-      mdl.coordinator.run(
+      mdl.coordinator.invokeSerial(
           [&] { mdl.materialRegistry.releaseMaterial(pending.uuid); });
   }
   if (m_uuid != libmdl::Uuid{}) {
-    mdl.coordinator.run([&] { mdl.materialRegistry.releaseMaterial(m_uuid); });
+    mdl.coordinator.invokeSerial(
+        [&] { mdl.materialRegistry.releaseMaterial(m_uuid); });
   }
   clearSamplers();
 }
@@ -276,7 +277,7 @@ void MDL::finalize()
   // commitParameters, where the flag would be stale on the commit that first
   // introduces or removes emission).
   auto &mdlState = *deviceState()->mdl;
-  const libmdl::EmissionIR emissionIR = mdlState.coordinator.run(
+  const libmdl::EmissionIR emissionIR = mdlState.coordinator.invokeSerial(
       [&] { return mdlState.materialRegistry.getEmissionIR(m_uuid); });
   MDLValueSource values;
   values.argBlock =
@@ -368,7 +369,8 @@ void MDL::syncSource()
     } else {
       auto stale = collectAcquire(m_pendingAcquire);
       if (stale.uuid != libmdl::Uuid{})
-        coordinator.run([&] { materialRegistry.releaseMaterial(stale.uuid); });
+        coordinator.invokeSerial(
+            [&] { materialRegistry.releaseMaterial(stale.uuid); });
     }
     m_pendingAcquire = {};
     m_pendingAcquireKey.clear();
@@ -457,10 +459,10 @@ void MDL::syncSource()
   // destructor's "release exactly the current uuid" invariant never sees a
   // released-but-still-assigned window.
   if (m_uuid != libmdl::Uuid{}) {
-    coordinator.run([&] { materialRegistry.releaseMaterial(m_uuid); });
+    coordinator.invokeSerial([&] { materialRegistry.releaseMaterial(m_uuid); });
   }
   m_uuid = acquired.uuid;
-  m_argumentBlockInstance = coordinator.run(
+  m_argumentBlockInstance = coordinator.invokeSerial(
       [&] { return materialRegistry.createArgumentBlock(acquired.arguments); });
   m_sceneDataInstance.emplace(acquired.sceneData);
   // A fresh instance may be entirely unbound and report no CPU-table change.
@@ -469,8 +471,8 @@ void MDL::syncSource()
 
   clearSamplers();
 
-  // Decode this material's texture files in parallel (one material can reference
-  // many) before creating the samplers serially below.
+  // Decode this material's texture files in parallel (one material can
+  // reference many) before creating the samplers serially below.
   samplerRegistry.stageDecodeBatch(
       coordinator, acquired.arguments.m_defaultAndBodyTextureDescriptors);
 
@@ -706,7 +708,7 @@ void MDL::syncParameters()
 void MDL::syncImplementationIndex()
 {
   auto &mdl = *deviceState()->mdl;
-  m_implementationIndex = mdl.coordinator.run([&] {
+  m_implementationIndex = mdl.coordinator.invokeSerial([&] {
     return mdl.materialRegistry.getMaterialImplementationIndex(m_uuid);
   });
 }

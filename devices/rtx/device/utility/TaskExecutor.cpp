@@ -29,52 +29,23 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "MdlCompileCoordinator.h"
+#include "TaskExecutor.h"
 
-#include <algorithm>
-#include <cstdlib>
-#include <thread>
+#include <stdexcept>
 
-namespace visrtx::mdl {
+namespace visrtx {
 
-namespace {
-
-// Worker count from VISRTX_MDL_COMPILE_THREADS (clamped to >=1). Unset defaults
-// to the hardware concurrency, capped so a many-core host does not
-// oversubscribe the shared MDL SDK compiler far past the point of return
-// (compilation is bounded by the material count in practice, and the
-// PTX-identity gate validates the parallel path). Set the env to 1 to force
-// serial compilation.
-constexpr std::size_t kMaxDefaultWorkers = 8;
-// Hard ceiling for an explicit VISRTX_MDL_COMPILE_THREADS, so a typo (e.g.
-// 100000) cannot try to spawn an absurd number of threads.
-constexpr std::size_t kMaxWorkers = 256;
-
-std::size_t resolveWorkerCount()
+TaskExecutor::TaskExecutor(std::size_t workerCount)
 {
-  if (const char *env = std::getenv("VISRTX_MDL_COMPILE_THREADS")) {
-    char *end = nullptr;
-    const long value = std::strtol(env, &end, 10);
-    if (end != env && value >= 1)
-      return std::clamp<std::size_t>(
-          static_cast<std::size_t>(value), 1, kMaxWorkers);
-  }
-  const unsigned hw = std::thread::hardware_concurrency();
-  return std::clamp<std::size_t>(hw, 1, kMaxDefaultWorkers);
-}
-
-} // namespace
-
-MdlCompileCoordinator::MdlCompileCoordinator()
-{
+  if (workerCount == 0)
+    throw std::invalid_argument("TaskExecutor requires at least one worker");
   // Allocation may throw. Do it before starting any joinable thread, since a
   // failed constructor does not run stop() through our destructor.
-  const std::size_t workerCount = resolveWorkerCount();
   m_workers.reserve(workerCount);
 
-  m_thread = std::thread([this] { coordinatorMain(); });
-  // Set from the constructing thread before run() can be reached, so the
-  // re-entrancy check never races the coordinator thread writing its own id.
+  m_thread = std::thread([this] { serialMain(); });
+  // Set from the constructing thread before invokeSerial() can be reached, so
+  // the re-entrancy check never races the serial thread writing its own id.
   m_threadId = m_thread.get_id();
 
   try {
@@ -89,15 +60,15 @@ MdlCompileCoordinator::MdlCompileCoordinator()
   }
 }
 
-MdlCompileCoordinator::~MdlCompileCoordinator()
+TaskExecutor::~TaskExecutor()
 {
   stop();
 }
 
-void MdlCompileCoordinator::stop()
+void TaskExecutor::stop()
 {
-  // Workers first: a worker's job reaches back into the coordinator through
-  // run() for its bookkeeping, so the coordinator thread must outlive them.
+  // Workers may still invokeSerial() while draining, so the serial thread
+  // must outlive the pool.
   if (!m_workers.empty()) {
     {
       std::lock_guard<std::mutex> guard(m_workerMutex);
@@ -121,7 +92,7 @@ void MdlCompileCoordinator::stop()
   }
 }
 
-void MdlCompileCoordinator::coordinatorMain()
+void TaskExecutor::serialMain()
 {
   for (;;) {
     std::function<void()> task;
@@ -139,7 +110,7 @@ void MdlCompileCoordinator::coordinatorMain()
   }
 }
 
-void MdlCompileCoordinator::workerMain()
+void TaskExecutor::workerMain()
 {
   for (;;) {
     std::function<void()> task;
@@ -147,7 +118,7 @@ void MdlCompileCoordinator::workerMain()
       std::unique_lock<std::mutex> guard(m_workerMutex);
       m_workerCv.wait(guard,
           [this] { return m_workersStopping || !m_workerQueue.empty(); });
-      // Drain queued compiles before exiting so their waiters are released.
+      // Drain queued tasks before exiting so their waiters are released.
       if (m_workerQueue.empty())
         return;
       task = std::move(m_workerQueue.front());
@@ -157,4 +128,4 @@ void MdlCompileCoordinator::workerMain()
   }
 }
 
-} // namespace visrtx::mdl
+} // namespace visrtx

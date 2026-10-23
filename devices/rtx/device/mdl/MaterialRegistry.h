@@ -31,7 +31,7 @@
 
 #pragma once
 
-#include "MdlCompileCoordinator.h"
+#include "utility/TaskExecutor.h"
 
 #include "libmdl/ArgumentBlockDescriptor.h"
 #include "libmdl/ArgumentBlockInstance.h"
@@ -91,11 +91,10 @@ class MaterialRegistry
   // registry insert run on the coordinator thread; the expensive compile runs
   // on a pool worker, so materials committed in one flush compile in parallel.
   // This is the only acquire path, including MDLE and fallback requests.
-  // Collect the future on the commit thread, never inside coordinator.run().
-  // `moduleOrSource` is a module name or MDLE path (fromCode=false), or inline
-  // MDL source (fromCode=true).
-  std::future<AcquiredMaterial> acquireMaterialAsync(
-      MdlCompileCoordinator &coordinator,
+  // Collect the future on the commit thread, never inside
+  // coordinator.invokeSerial(). `moduleOrSource` is a module name or MDLE path
+  // (fromCode=false), or inline MDL source (fromCode=true).
+  std::future<AcquiredMaterial> acquireMaterialAsync(TaskExecutor &coordinator,
       std::string moduleOrSource,
       std::string materialName,
       bool fromCode);
@@ -208,7 +207,7 @@ class MaterialRegistry
   // is not safe to hit from parallel workers).
   std::optional<CompileProduct> compileMaterial(const std::string &moduleDbName,
       const std::string &materialName,
-      MdlCompileCoordinator &coordinator);
+      TaskExecutor &coordinator);
 
   // Register a compiled product under `fullMaterialName` (dedup by uuid) and
   // return the acquired material. Coordinator thread (mutates the registry).

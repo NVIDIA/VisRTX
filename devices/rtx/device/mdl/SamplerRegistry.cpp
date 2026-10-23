@@ -31,7 +31,6 @@
 
 #include "SamplerRegistry.h"
 
-#include "MdlCompileCoordinator.h"
 #include "array/Array2D.h"
 #include "array/Array3D.h"
 #include "libmdl/ArgumentBlockDescriptor.h"
@@ -39,12 +38,12 @@
 #include "sampler/CompressedImage2D.h"
 #include "sampler/Image2D.h"
 #include "sampler/Image3D.h"
+#include "utility/TaskExecutor.h"
 
 #include <future>
 #include <unordered_set>
 
 #include <anari/frontend/anari_enums.h>
-#include <cassert>
 #include <helium/utility/IntrusivePtr.h>
 #include <mi/base/enums.h>
 #include <mi/base/handle.h>
@@ -55,6 +54,7 @@
 #include <mi/neuraylib/itexture.h>
 #include <mi/neuraylib/itile.h>
 #include <mi/neuraylib/itransaction.h>
+#include <cassert>
 
 #include <fmt/format.h>
 
@@ -265,7 +265,8 @@ Sampler *SamplerRegistry::loadFromDDS(
     // instead of borrowing the soon-freed local `buffer` (SHARED), which would
     // force helium to privatize a host copy + log "making private copy of
     // shared host array". appMemory is an offset into the buffer, so the array
-    // can't own it directly; pass the owning vector as deleterPtr and free that.
+    // can't own it directly; pass the owning vector as deleterPtr and free
+    // that.
     auto *owned = new std::vector<char>(std::move(buffer));
     Array1DMemoryDescriptor desc = {
         {
@@ -352,10 +353,11 @@ SamplerRegistry::StagedImage SamplerRegistry::decodeStb(
   auto isHdr = stbi_is_hdr(filePathS.c_str());
 
   int width, height, n;
-  void *data = isHdr ? static_cast<void *>(
-                     stbi_loadf(filePathS.c_str(), &width, &height, &n, 0))
-                     : static_cast<void *>(
-                         stbi_load(filePathS.c_str(), &width, &height, &n, 0));
+  void *data = isHdr
+      ? static_cast<void *>(
+            stbi_loadf(filePathS.c_str(), &width, &height, &n, 0))
+      : static_cast<void *>(
+            stbi_load(filePathS.c_str(), &width, &height, &n, 0));
 
   StagedImage image;
   if (!data || n < 1) {
@@ -577,12 +579,12 @@ SamplerRegistry::StagedImage SamplerRegistry::takeStaged(const std::string &key)
   return image;
 }
 
-void SamplerRegistry::stageDecodeBatch(MdlCompileCoordinator &coordinator,
+void SamplerRegistry::stageDecodeBatch(TaskExecutor &coordinator,
     const std::vector<libmdl::TextureDescriptor> &descriptors)
 {
-  // Runs on the commit thread, which is the sole mutator of m_dbToSampler and is
-  // then blocked in the waits below, so reading the sampler cache here needs no
-  // lock. Skip textures already cached and collapse repeated keys, so each
+  // Runs on the commit thread, which is the sole mutator of m_dbToSampler and
+  // is then blocked in the waits below, so reading the sampler cache here needs
+  // no lock. Skip textures already cached and collapse repeated keys, so each
   // unique uncached texture is decoded exactly once -- a texture referenced N
   // times (in one material or shared across the flush) is not decoded N times.
   std::unordered_set<std::string> scheduled;
@@ -600,8 +602,8 @@ void SamplerRegistry::stageDecodeBatch(MdlCompileCoordinator &coordinator,
     }
     if (!scheduled.insert(std::move(key)).second)
       continue; // this key is already being decoded in this batch
-    decodes.push_back(coordinator.submit(
-        [this, desc] { decodeToStaging(desc); }));
+    decodes.push_back(
+        coordinator.submit([this, desc] { decodeToStaging(desc); }));
   }
   for (auto &decode : decodes)
     decode.get();

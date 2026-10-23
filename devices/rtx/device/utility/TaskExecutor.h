@@ -43,59 +43,56 @@
 #include <utility>
 #include <vector>
 
-namespace visrtx::mdl {
+namespace visrtx {
 
-// The single thread that owns all MaterialRegistry and MDL-SDK-database
-// bookkeeping (ADR 0009). Callers hand it work through run() and block for the
-// result, so the registry and the SDK database are only ever touched by this
-// one thread — confinement replaces per-container locking.
+// One dedicated serial thread and a fixed-size worker pool. Worker tasks can
+// invokeSerial() for thread-confined bookkeeping without blocking other
+// workers. Caller thread-local state is not propagated to either execution
+// lane.
 //
-// The heavy, registry-free per-material compilation (create_compiled_material +
-// translate_link_unit) fans out to a worker pool through submit(), which
-// returns a future the caller collects later; workers reach back into the
-// coordinator via run() for the bookkeeping they need serialized. Worker count
-// comes from VISRTX_MDL_COMPILE_THREADS (>=1).
+// Tasks must not synchronously wait on work that needs their occupied lane:
+// in particular, a serial task must not wait for a worker that calls back into
+// the serial lane, and pool tasks must not exhaust the pool waiting for child
+// tasks. Parallel completion order is unspecified.
 //
-// Teardown contract: stop() drains and joins the workers first (they still need
-// a live coordinator for their run() bookkeeping), then joins the coordinator.
-// Any run() issued after stop() (e.g. a material released inline during device
-// teardown) executes on the calling thread, so releases never deadlock on a
-// thread that is already gone.
-class MdlCompileCoordinator
+// The owner must quiesce external callers before stop()/destruction, while
+// keeping task dependencies alive. stop() runs on an external thread, drains
+// workers first (their serial calls still run), then drains the serial thread.
+// Calls after stop() returns execute inline for single-threaded cleanup. This
+// does not permit concurrent stop() calls or external submissions during stop.
+class TaskExecutor
 {
  public:
-  MdlCompileCoordinator();
-  ~MdlCompileCoordinator();
+  // Requires workerCount >= 1; throws std::invalid_argument for zero.
+  explicit TaskExecutor(std::size_t workerCount);
+  ~TaskExecutor();
 
-  MdlCompileCoordinator(const MdlCompileCoordinator &) = delete;
-  MdlCompileCoordinator &operator=(const MdlCompileCoordinator &) = delete;
+  TaskExecutor(const TaskExecutor &) = delete;
+  TaskExecutor &operator=(const TaskExecutor &) = delete;
 
+  // Configured pool size while running, zero after stop(). No concurrent stop.
   std::size_t numWorkers() const;
 
-  // Execute f on the coordinator thread and block for its result. Runs inline
-  // when the caller already is the coordinator thread (no self-deadlock) or
-  // once the coordinator is stopping (the thread may be gone; teardown is
-  // single-threaded by then). The enqueue-vs-inline decision is made under the
-  // lock so a task is never stranded on an exited thread.
+  // Execute f on the serial thread and wait for its result (or exception).
+  // Reentrant calls from that thread execute inline, avoiding self-deadlock.
+  // After stop() returns, executes inline on the calling thread.
   template <typename F>
-  std::invoke_result_t<F> run(F &&f);
+  std::invoke_result_t<F> invokeSerial(F &&f);
 
-  // Run f on a worker thread and return a future for its result. Non-blocking:
-  // the caller submits during commitParameters and collects the future during
-  // finalize, so every material's compile is in flight before the first wait.
-  // f must not touch the registry directly — it reaches back through run().
+  // Run f on a pool worker and return a future carrying its result or
+  // exception. After stop() returns, executes inline and returns a ready
+  // future.
   template <typename F>
   std::future<std::invoke_result_t<F>> submit(F &&f);
 
-  // Drain and join the workers, then join the coordinator thread. Idempotent;
-  // safe to call before the registry it serializes is destroyed.
+  // Drain workers, then the serial thread. Idempotent; external caller only.
   void stop();
 
  private:
-  void coordinatorMain();
+  void serialMain();
   void workerMain();
 
-  // Coordinator thread: serialized bookkeeping (run()).
+  // Serial lane (invokeSerial()).
   std::mutex m_mutex;
   std::condition_variable m_cv;
   std::deque<std::function<void()>> m_queue;
@@ -113,13 +110,13 @@ class MdlCompileCoordinator
 
 // Inlined definitions ////////////////////////////////////////////////////////
 
-inline std::size_t MdlCompileCoordinator::numWorkers() const
+inline std::size_t TaskExecutor::numWorkers() const
 {
   return m_workers.size();
 }
 
 template <typename F>
-std::invoke_result_t<F> MdlCompileCoordinator::run(F &&f)
+std::invoke_result_t<F> TaskExecutor::invokeSerial(F &&f)
 {
   // m_threadId is set in the constructor and never rewritten, so this read
   // needs no lock.
@@ -134,13 +131,13 @@ std::invoke_result_t<F> MdlCompileCoordinator::run(F &&f)
     std::lock_guard<std::mutex> guard(m_mutex);
     if (!m_stopping) {
       // task outlives the queued call: this thread blocks on result.get()
-      // below until the coordinator thread has finished running it.
+      // below until the serial thread has finished running it.
       m_queue.emplace_back([&task] { task(); });
       queued = true;
     }
   }
   if (!queued) {
-    // Stopping: the thread may already be gone, so run inline (lock released).
+    // Stopped: single-threaded cleanup runs inline (lock released).
     task();
     return result.get();
   }
@@ -149,7 +146,7 @@ std::invoke_result_t<F> MdlCompileCoordinator::run(F &&f)
 }
 
 template <typename F>
-std::future<std::invoke_result_t<F>> MdlCompileCoordinator::submit(F &&f)
+std::future<std::invoke_result_t<F>> TaskExecutor::submit(F &&f)
 {
   using R = std::invoke_result_t<F>;
   auto task = std::make_shared<std::packaged_task<R()>>(std::forward<F>(f));
@@ -163,7 +160,7 @@ std::future<std::invoke_result_t<F>> MdlCompileCoordinator::submit(F &&f)
     }
   }
   if (!queued) {
-    // Stopping: no worker will pick it up, so run inline.
+    // Stopped: no worker will pick it up, so run inline.
     (*task)();
     return result;
   }
@@ -171,4 +168,4 @@ std::future<std::invoke_result_t<F>> MdlCompileCoordinator::submit(F &&f)
   return result;
 }
 
-} // namespace visrtx::mdl
+} // namespace visrtx

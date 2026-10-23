@@ -48,8 +48,8 @@
 #include "libmdl/Core.h"
 #include "mdl/Logger.h"
 #include "mdl/MaterialRegistry.h"
-#include "mdl/MdlCompileCoordinator.h"
 #include "mdl/SamplerRegistry.h"
+#include "utility/TaskExecutor.h"
 #endif // defined(USE_MDL)
 // std
 #include <filesystem>
@@ -234,18 +234,10 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
     mdl::SamplerRegistry samplerRegistry;
     // Declared last so it is destroyed first: its thread is joined before the
     // registry and Core it serializes are torn down (ADR 0009 teardown order).
-    mdl::MdlCompileCoordinator coordinator;
+    TaskExecutor coordinator;
 
-    MDL(DeviceGlobalState *deviceState)
-        : core(new mdl::Logger(deviceState)),
-          materialRegistry(&core),
-          samplerRegistry(&core, deviceState)
-    {}
-    MDL(DeviceGlobalState *deviceState, mi::neuraylib::INeuray *neuray)
-        : core(neuray),
-          materialRegistry(&core),
-          samplerRegistry(&core, deviceState)
-    {}
+    MDL(DeviceGlobalState *deviceState);
+    MDL(DeviceGlobalState *deviceState, mi::neuraylib::INeuray *neuray);
   };
   std::optional<MDL> mdl;
 #endif // defined(USE_MDL)
