@@ -40,10 +40,11 @@ namespace visrtx::mdl {
 namespace {
 
 // Worker count from VISRTX_MDL_COMPILE_THREADS (clamped to >=1). Unset defaults
-// to the hardware concurrency, capped so a many-core host does not oversubscribe
-// the shared MDL SDK compiler far past the point of return (compilation is
-// bounded by the material count in practice, and the PTX-identity gate validates
-// the parallel path). Set the env to 1 to force serial compilation.
+// to the hardware concurrency, capped so a many-core host does not
+// oversubscribe the shared MDL SDK compiler far past the point of return
+// (compilation is bounded by the material count in practice, and the
+// PTX-identity gate validates the parallel path). Set the env to 1 to force
+// serial compilation.
 constexpr std::size_t kMaxDefaultWorkers = 8;
 // Hard ceiling for an explicit VISRTX_MDL_COMPILE_THREADS, so a typo (e.g.
 // 100000) cannot try to spawn an absurd number of threads.
@@ -66,13 +67,16 @@ std::size_t resolveWorkerCount()
 
 MdlCompileCoordinator::MdlCompileCoordinator()
 {
+  // Allocation may throw. Do it before starting any joinable thread, since a
+  // failed constructor does not run stop() through our destructor.
+  const std::size_t workerCount = resolveWorkerCount();
+  m_workers.reserve(workerCount);
+
   m_thread = std::thread([this] { coordinatorMain(); });
   // Set from the constructing thread before run() can be reached, so the
   // re-entrancy check never races the coordinator thread writing its own id.
   m_threadId = m_thread.get_id();
 
-  const std::size_t workerCount = resolveWorkerCount();
-  m_workers.reserve(workerCount);
   try {
     for (std::size_t i = 0; i < workerCount; ++i)
       m_workers.emplace_back([this] { workerMain(); });
@@ -141,8 +145,8 @@ void MdlCompileCoordinator::workerMain()
     std::function<void()> task;
     {
       std::unique_lock<std::mutex> guard(m_workerMutex);
-      m_workerCv.wait(
-          guard, [this] { return m_workersStopping || !m_workerQueue.empty(); });
+      m_workerCv.wait(guard,
+          [this] { return m_workersStopping || !m_workerQueue.empty(); });
       // Drain queued compiles before exiting so their waiters are released.
       if (m_workerQueue.empty())
         return;

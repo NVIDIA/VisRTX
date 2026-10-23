@@ -114,49 +114,80 @@ MaterialRegistry::reuseCompiledMaterial(const std::string &fullMaterialName)
   return uuidIt->second;
 }
 
-bool MaterialRegistry::preloadModule(
+std::uint32_t MaterialRegistry::maxConcurrentCompiles() const
+{
+  return m_maxConcurrentCompiles.load(std::memory_order_relaxed);
+}
+
+MaterialRegistry::PtxSnapshot MaterialRegistry::ptxSnapshot() const
+{
+  PtxSnapshot snapshot;
+  snapshot.timestamp = m_lastUpdateTS;
+  snapshot.blobs.reserve(m_targetCodes.size());
+  for (const auto &target : m_targetCodes)
+    snapshot.blobs.push_back(target.ptxBlob);
+  return snapshot;
+}
+
+std::optional<std::string> MaterialRegistry::preloadModule(
     const std::string &moduleOrSource, bool fromCode)
 {
   using mi::base::make_handle;
 
   auto transaction = make_handle(m_core->createTransaction(m_scope.get()));
-  bool ok = false;
-  auto finalizeTransaction = nonstd::make_scope_exit([&] {
-    if (ok)
-      transaction->commit();
-    else
+  auto abortTransaction = nonstd::make_scope_exit([&] {
+    if (transaction->is_open())
       transaction->abort();
   });
 
-  if (fromCode) {
-    auto moduleName = libmdl::makeInlineModuleName(moduleOrSource);
-    auto module = make_handle(m_core->loadModuleFromString(
-        moduleName, moduleOrSource, transaction.get()));
-    ok = module.is_valid_interface();
-  } else {
-    auto module =
-        make_handle(m_core->loadModule(moduleOrSource, transaction.get()));
-    ok = module.is_valid_interface();
-  }
-  if (!ok)
+  std::string moduleDbName;
+  {
+    auto module = fromCode
+        ? make_handle(m_core->loadModuleFromString(
+              libmdl::makeInlineModuleName(moduleOrSource),
+              moduleOrSource,
+              transaction.get()))
+        : make_handle(m_core->loadModule(moduleOrSource, transaction.get()));
+    if (!module.is_valid_interface()) {
+      m_core->logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
+          "Cannot load module {}",
+          moduleOrSource);
+      return std::nullopt;
+    }
+    const char *name = transaction->name_of(module.get());
+    if (!name) {
+      m_core->logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
+          "Cannot find database name for module {}",
+          moduleOrSource);
+      return std::nullopt;
+    }
+    moduleDbName = name;
+  } // Release the module handle before committing its transaction.
+  if (transaction->commit() != 0) {
     m_core->logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
-        "Cannot load module {}",
+        "Cannot commit module {}",
         moduleOrSource);
-  return ok;
+    return std::nullopt;
+  }
+  return moduleDbName;
 }
 
 std::optional<MaterialRegistry::CompileProduct>
-MaterialRegistry::compileMaterial(const std::string &moduleOrSource,
+MaterialRegistry::compileMaterial(const std::string &moduleDbName,
     const std::string &materialName,
-    bool fromCode,
-    MdlCompileCoordinator *coordinator)
+    MdlCompileCoordinator &coordinator)
 {
   using mi::base::make_handle;
 
-  const std::string moduleName = fromCode
-      ? std::string(libmdl::makeInlineModuleName(moduleOrSource))
-      : moduleOrSource;
-  const auto fullMaterialName = fmt::format("{}::{}", moduleName, materialName);
+  const auto active =
+      m_activeCompiles.fetch_add(1, std::memory_order_relaxed) + 1;
+  auto finishCompile = nonstd::make_scope_exit(
+      [&] { m_activeCompiles.fetch_sub(1, std::memory_order_relaxed); });
+  auto peak = m_maxConcurrentCompiles.load(std::memory_order_relaxed);
+  while (peak < active
+      && !m_maxConcurrentCompiles.compare_exchange_weak(
+          peak, active, std::memory_order_relaxed)) {
+  }
 
   auto transaction = make_handle(m_core->createTransaction(m_scope.get()));
   bool doCommit = false;
@@ -167,18 +198,18 @@ MaterialRegistry::compileMaterial(const std::string &moduleOrSource,
       transaction->abort();
   });
 
-  // The module was preloaded and committed; re-load it idempotently in this
-  // worker's own transaction. Inline `code` modules are not reachable by name
-  // through the search paths, so re-load them from source.
-  auto module = fromCode
-      ? make_handle(m_core->loadModuleFromString(
-            moduleName, moduleOrSource, transaction.get()))
-      : make_handle(m_core->loadModule(moduleName, transaction.get()));
+  // Access only: even an idempotent load can enter the shared entity resolver.
+  // The coordinator already selected and committed the exact module to use.
+  auto module = make_handle(
+      transaction->access<mi::neuraylib::IModule>(moduleDbName.c_str()));
   if (!module.is_valid_interface()) {
-    m_core->logMessage(
-        mi::base::MESSAGE_SEVERITY_ERROR, "Cannot find module {}", moduleName);
+    m_core->logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
+        "Cannot access preloaded module {}",
+        moduleDbName);
     return std::nullopt;
   }
+  const std::string moduleName = module->get_mdl_name();
+  const auto fullMaterialName = fmt::format("{}::{}", moduleName, materialName);
 
   auto functionDef = make_handle(m_core->getFunctionDefinition(
       module.get(), materialName, transaction.get()));
@@ -273,12 +304,12 @@ MaterialRegistry::compileMaterial(const std::string &moduleOrSource,
       const char *moduleFile = module->get_filename();
       auto url = std::string(targetCode->get_texture_url(i));
       // The entity resolver is shared, so serialize resolution on the
-      // coordinator when this runs on a worker (inline on the coordinator).
+      // coordinator while the worker waits.
       auto resolve = [&] {
         return m_core->resolveResource(
             url.c_str(), ownerName, moduleFile ? moduleFile : "");
       };
-      url = coordinator ? coordinator->run(resolve) : resolve();
+      url = coordinator.run(resolve);
       if (url.empty()) {
         m_core->logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
             "Failed to resolve texture resource {} for material {}",
@@ -392,45 +423,6 @@ MaterialRegistry::AcquiredMaterial MaterialRegistry::insertCompiled(
   return acquired;
 }
 
-MaterialRegistry::AcquiredMaterial MaterialRegistry::acquireMaterial(
-    std::string_view moduleName, std::string_view materialName)
-{
-  const std::string module(moduleName);
-  const std::string material(materialName);
-  const auto fullMaterialName = fmt::format("{}::{}", module, material);
-  m_core->logMessage(mi::base::MESSAGE_SEVERITY_INFO,
-      "Acquiring material {}",
-      fullMaterialName);
-  if (auto cached = reuseCompiledMaterial(fullMaterialName))
-    return *cached;
-  if (!preloadModule(module, /*fromCode=*/false))
-    return {};
-  auto product = compileMaterial(module, material, /*fromCode=*/false, nullptr);
-  if (!product)
-    return {};
-  return insertCompiled(fullMaterialName, std::move(*product));
-}
-
-MaterialRegistry::AcquiredMaterial MaterialRegistry::acquireMaterialFromCode(
-    std::string_view source, std::string_view materialName)
-{
-  const std::string src(source);
-  const std::string material(materialName);
-  const auto moduleName = libmdl::makeInlineModuleName(src);
-  const auto fullMaterialName = fmt::format("{}::{}", moduleName, material);
-  m_core->logMessage(mi::base::MESSAGE_SEVERITY_INFO,
-      "Acquiring material {}",
-      fullMaterialName);
-  if (auto cached = reuseCompiledMaterial(fullMaterialName))
-    return *cached;
-  if (!preloadModule(src, /*fromCode=*/true))
-    return {};
-  auto product = compileMaterial(src, material, /*fromCode=*/true, nullptr);
-  if (!product)
-    return {};
-  return insertCompiled(fullMaterialName, std::move(*product));
-}
-
 std::future<MaterialRegistry::AcquiredMaterial>
 MaterialRegistry::acquireMaterialAsync(MdlCompileCoordinator &coordinator,
     std::string moduleOrSource,
@@ -454,10 +446,11 @@ MaterialRegistry::acquireMaterialAsync(MdlCompileCoordinator &coordinator,
     if (auto cached = coordinator.run(
             [&] { return reuseCompiledMaterial(fullMaterialName); }))
       return *cached;
-    if (!coordinator.run(
-            [&] { return preloadModule(moduleOrSource, fromCode); }))
+    auto moduleDbName = coordinator.run(
+        [&] { return preloadModule(moduleOrSource, fromCode); });
+    if (!moduleDbName)
       return {};
-    auto product = compileMaterial(moduleOrSource, materialName, fromCode, &coordinator);
+    auto product = compileMaterial(*moduleDbName, materialName, coordinator);
     if (!product)
       return {};
     return coordinator.run(

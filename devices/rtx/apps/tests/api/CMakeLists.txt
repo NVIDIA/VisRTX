@@ -130,6 +130,11 @@ if (VISRTX_ENABLE_MDL_SUPPORT)
     set_tests_properties(TestMdlPtxFingerprintRejects-${mode} PROPERTIES
       WILL_FAIL TRUE TIMEOUT 120)
   endforeach()
+  make_test(TestMdlSerialCompile)
+  target_link_libraries(TestMdlSerialCompile PRIVATE
+    libmdl fmt::fmt nonstd::scope-lite)
+  set_tests_properties(TestMdlSerialCompile PROPERTIES
+    ENVIRONMENT "VISRTX_MDL_COMPILE_THREADS=1" TIMEOUT 120)
   make_test(TestEmissiveMaterialParity)
   # Silent-miscompile gate (ADR 0009): the same scene must produce byte-identical
   # PTX whether compiled serially or across the worker pool. Runs the fingerprint

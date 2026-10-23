@@ -7,7 +7,7 @@
 // a standalone static library (no CUDA/OptiX/GPU), so the static IR pass and
 // the descriptor fold are exercised on the host against inline .mdl snippets —
 // the same compile flow the device runs in
-// MaterialRegistry::acquireMaterialFromCode, minus the device. Only the MDL SDK
+// MaterialRegistry::acquireMaterialAsync, minus the device. Only the MDL SDK
 // shared library must be discoverable at runtime; if it is not, the test SKIPs
 // (return code 77, wired in CMake).
 //

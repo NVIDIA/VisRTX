@@ -48,6 +48,8 @@
 #include <mi/neuraylib/iscope.h>
 #include <mi/neuraylib/itransaction.h>
 
+#include <atomic>
+#include <cstdint>
 #include <future>
 #include <limits>
 #include <optional>
@@ -84,21 +86,14 @@ class MaterialRegistry
     return m_core->getMdlFactory();
   }
 
-  // Material code
-  AcquiredMaterial acquireMaterial(
-      std::string_view moduleName, std::string_view materialName);
-  // Compile a material from inline MDL module source. The module is registered
-  // under a synthetic, content-addressed name and shares the same compile/cache
-  // path as acquireMaterial.
-  AcquiredMaterial acquireMaterialFromCode(
-      std::string_view source, std::string_view materialName);
-
   // Split-phase acquire (ADR 0009). Returns immediately with a future the
   // caller collects during finalize. The name-cache lookup, module preload and
   // registry insert run on the coordinator thread; the expensive compile runs
   // on a pool worker, so materials committed in one flush compile in parallel.
-  // `moduleOrSource` is a module name (fromCode=false) or inline MDL source
-  // (fromCode=true).
+  // This is the only acquire path, including MDLE and fallback requests.
+  // Collect the future on the commit thread, never inside coordinator.run().
+  // `moduleOrSource` is a module name or MDLE path (fromCode=false), or inline
+  // MDL source (fromCode=true).
   std::future<AcquiredMaterial> acquireMaterialAsync(
       MdlCompileCoordinator &coordinator,
       std::string moduleOrSource,
@@ -106,6 +101,10 @@ class MaterialRegistry
       bool fromCode);
 
   void releaseMaterial(const Uuid &uuid);
+
+  // Lifetime high-water mark measured at compileMaterial entry/exit. Used by
+  // the serial-execution regression gate, not inferred from pool size.
+  std::uint32_t maxConcurrentCompiles() const;
 
   // For SBT management
   libmdl::TimeStamp getLastUpdateTime() const
@@ -144,14 +143,16 @@ class MaterialRegistry
     return {};
   }
 
-  std::vector<nonstd::span<const char>> getPtxBlobs() const
+  struct PtxSnapshot
   {
-    std::vector<nonstd::span<const char>> res;
-    for (const auto &target : m_targetCodes) {
-      res.push_back({target.ptxBlob});
-    }
-    return res;
-  }
+    // Preserve empty slots: these indices are the material callable offsets.
+    std::vector<std::vector<char>> blobs;
+    libmdl::TimeStamp timestamp{};
+  };
+
+  // Call on the coordinator. Both bytes and timestamp belong to the same
+  // registry version; the result stays valid after slots are released/reused.
+  PtxSnapshot ptxSnapshot() const;
 
   // Order-independent content hash of every compiled material's PTX. Parallel
   // compilation that produced different code changes this even when the render
@@ -193,24 +194,21 @@ class MaterialRegistry
   std::optional<AcquiredMaterial> reuseCompiledMaterial(
       const std::string &fullMaterialName);
 
-  // Load a module (by name, or from inline source) and commit it, so parallel
-  // worker transactions can read it without racing to re-load it. Coordinator
-  // thread. Returns false on failure.
-  bool preloadModule(const std::string &moduleOrSource, bool fromCode);
+  // Load and commit on the coordinator, returning the actual database name
+  // (including any canonical-name recovery). Empty on failure. Workers must
+  // access this committed element directly, never invoke module loading APIs.
+  std::optional<std::string> preloadModule(
+      const std::string &moduleOrSource, bool fromCode);
 
-  // Compile `materialName` from an already-preloaded module into a
-  // transaction-independent product. Opens its own transaction (re-loading the
-  // committed module idempotently -- an inline `code` module is not reachable
-  // by name through the search paths, so the same source path is used), so it
-  // runs on a pool worker in parallel with other compiles. Empty on failure.
+  // Compile `materialName` from a committed database module into a
+  // transaction-independent product. Opens its own transaction and accesses
+  // the module by database name, without loading or resolving it again.
+  // Runs on a pool worker in parallel with other compiles. Empty on failure.
   // `coordinator` serializes texture-URL resolution (the shared entity resolver
-  // is not safe to hit from parallel workers); pass null on the coordinator
-  // thread, where resolution is already serial.
-  std::optional<CompileProduct> compileMaterial(
-      const std::string &moduleOrSource,
+  // is not safe to hit from parallel workers).
+  std::optional<CompileProduct> compileMaterial(const std::string &moduleDbName,
       const std::string &materialName,
-      bool fromCode,
-      MdlCompileCoordinator *coordinator);
+      MdlCompileCoordinator &coordinator);
 
   // Register a compiled product under `fullMaterialName` (dedup by uuid) and
   // return the acquired material. Coordinator thread (mutates the registry).
@@ -243,6 +241,8 @@ class MaterialRegistry
       m_uuidToIndex;
 
   libmdl::TimeStamp m_lastUpdateTS{};
+  std::atomic<std::uint32_t> m_activeCompiles{0};
+  std::atomic<std::uint32_t> m_maxConcurrentCompiles{0};
 };
 
 } // namespace visrtx::mdl

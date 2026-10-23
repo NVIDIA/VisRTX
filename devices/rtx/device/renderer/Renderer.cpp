@@ -446,15 +446,11 @@ OptixPipeline Renderer::pipeline()
 
 const OptixShaderBindingTable *Renderer::sbt()
 {
-#ifndef USE_MDL
+  // pipeline() owns version checks. Both accessors are arguments to the same
+  // optixLaunch: a registry update during a build must not make this accessor
+  // destroy the pipeline handle that the other accessor just returned. The
+  // address of m_sbt stays stable if pipeline() is evaluated second instead.
   if (!m_pipeline)
-#else
-  if (!m_pipeline
-      || (deviceState()->mdl
-          && (mdlLibraryUpdateTime(deviceState())
-              > m_lastMDLMaterialLibraryUpdateCheck)))
-#endif
-
     initOptixPipeline();
 
   return &m_sbt;
@@ -1071,14 +1067,12 @@ void Renderer::initOptixPipeline()
 
 #ifdef USE_MDL
     if (state.mdl) {
-      // Fetch the blob list on the coordinator thread (registry owner). The
-      // returned spans alias registry storage, so copy each blob's bytes into an
-      // owned buffer before the parallel loop below: the workers must not read
-      // registry-owned memory that a later compile could reallocate. (finalize
-      // drains every compile future before this rebuild, so in practice nothing
-      // mutates the registry here -- this snapshot is defense in depth.)
-      auto ptxBlobs = state.mdl->coordinator.run(
-          [&] { return state.mdl->materialRegistry.getPtxBlobs(); });
+      // Copy bytes and their version on the registry's owning thread. Material
+      // releases may clear/reuse slots while the modules build below; no span
+      // into registry storage may escape this task.
+      auto snapshot = state.mdl->coordinator.run(
+          [&] { return state.mdl->materialRegistry.ptxSnapshot(); });
+      auto &ptxBlobs = snapshot.blobs;
 
       const auto pipelineCompileOptions =
           makeVisRTXOptixPipelineCompileOptions();
@@ -1098,11 +1092,10 @@ void Renderer::initOptixPipeline()
       for (std::size_t i = 0; i < ptxBlobs.size(); ++i) {
         if (ptxBlobs[i].empty())
           continue;
-        std::vector<char> blob(ptxBlobs[i].begin(), ptxBlobs[i].end());
-        builds[i] = state.mdl->coordinator.submit(
-            [optixContext = state.optixContext,
-                pipelineCompileOptions,
-                blob = std::move(blob)] {
+        builds[i] =
+            state.mdl->coordinator.submit([optixContext = state.optixContext,
+                                              pipelineCompileOptions,
+                                              blob = std::move(ptxBlobs[i])] {
               OptixModuleCompileOptions moduleCompileOptions = {};
               moduleCompileOptions.maxRegisterCount =
                   OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT;
@@ -1162,6 +1155,7 @@ void Renderer::initOptixPipeline()
         OptixProgramGroupDesc callableDesc = {};
         callableDesc.kind = OPTIX_PROGRAM_GROUP_KIND_CALLABLES;
         callableDesc.callables.moduleDC = module;
+        const auto mdlBaseOffset = callableDescs.size();
 
         callableDesc.callables.entryFunctionNameDC = "__direct_callable__init";
         callableDescs.push_back(callableDesc);
@@ -1206,7 +1200,8 @@ void Renderer::initOptixPipeline()
             == size_t(SurfaceShaderEntryPoints::Count));
       }
 
-      m_lastMDLMaterialLibraryUpdateCheck = mdlLibraryUpdateTime(deviceState());
+      // Do not mark changes made during the build as already incorporated.
+      m_lastMDLMaterialLibraryUpdateCheck = snapshot.timestamp;
     }
 #endif // defined(USE_MDL)
 

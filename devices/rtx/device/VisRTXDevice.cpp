@@ -561,23 +561,30 @@ int VisRTXDevice::deviceGetProperty(const char *name,
     auto &state = *deviceState();
     if (flags & ANARI_WAIT)
       state.commitBuffer.flush();
-    const uint32_t count = state.mdl
-        ? uint32_t(state.mdl->coordinator.run([&] {
-            return state.mdl->materialRegistry.numRegisteredMaterials();
-          }))
-        : 0u;
+    const uint32_t count = state.mdl ? uint32_t(state.mdl->coordinator.run([&] {
+      return state.mdl->materialRegistry.numRegisteredMaterials();
+    }))
+                                     : 0u;
     helium::writeToVoidP(mem, count);
+    return 1;
+  }
+  if (prop == "maxConcurrentMdlCompiles" && type == ANARI_UINT32) {
+    auto &state = *deviceState();
+    if (flags & ANARI_WAIT)
+      state.commitBuffer.flush();
+    const uint32_t peak =
+        state.mdl ? state.mdl->materialRegistry.maxConcurrentCompiles() : 0u;
+    helium::writeToVoidP(mem, peak);
     return 1;
   }
   if (prop == "mdlPtxFingerprint" && type == ANARI_UINT64) {
     auto &state = *deviceState();
     if (flags & ANARI_WAIT)
       state.commitBuffer.flush();
-    const uint64_t fp = state.mdl
-        ? state.mdl->coordinator.run([&] {
-            return state.mdl->materialRegistry.ptxFingerprint();
-          })
-        : 0ull;
+    const uint64_t fp = state.mdl ? state.mdl->coordinator.run([&] {
+      return state.mdl->materialRegistry.ptxFingerprint();
+    })
+                                  : 0ull;
     helium::writeToVoidP(mem, fp);
     return 1;
   }
