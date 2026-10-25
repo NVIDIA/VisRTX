@@ -50,6 +50,7 @@
 #include <stdlib.h>
 #include <cassert>
 #include <cmath>
+#include <numeric>
 #include <optional>
 #include <string_view>
 // this include may only appear in a single source file:
@@ -1077,7 +1078,7 @@ void Renderer::initOptixPipeline()
       const auto pipelineCompileOptions =
           makeVisRTXOptixPipelineCompileOptions();
 
-      // Phase 1: create each material's OptiX module in parallel on the compile
+      // Phase 1: create each unique MDL OptiX module in parallel on the compile
       // pool -- optixModuleCreate on one context is thread-safe (the built-in
       // renderer modules already build this way). Each task has its own log
       // buffer. The SBT assembly in phase 2 stays serial, so callable order --
@@ -1088,9 +1089,31 @@ void Renderer::initOptixPipeline()
         OptixResult result = OPTIX_SUCCESS;
         std::string log;
       };
-      std::vector<std::future<ModuleBuild>> builds(ptxBlobs.size());
+      // Share identical modules to avoid redundant compilation/linker input
+      // and duplicate-symbol failures on OptiX 9.1. Material metadata and SBT
+      // slots remain independent. Compare before moving bytes into build tasks.
+      // All slots share module/pipeline compile options; if those ever become
+      // per-material, they must also participate in this comparison.
+      std::vector<std::size_t> representatives(ptxBlobs.size());
+      std::iota(representatives.begin(), representatives.end(), std::size_t(0));
       for (std::size_t i = 0; i < ptxBlobs.size(); ++i) {
         if (ptxBlobs[i].empty())
+          continue;
+        for (std::size_t j = 0; j < i; ++j) {
+          if (ptxBlobs[j] == ptxBlobs[i]) {
+            representatives[i] = representatives[j];
+            reportMessage(ANARI_SEVERITY_DEBUG,
+                "Reusing MDL OptiX module for slot %zu from slot %zu",
+                i,
+                representatives[i]);
+            break;
+          }
+        }
+      }
+      std::vector<OptixModule> modules(ptxBlobs.size());
+      std::vector<std::future<ModuleBuild>> builds(ptxBlobs.size());
+      for (std::size_t i = 0; i < ptxBlobs.size(); ++i) {
+        if (ptxBlobs[i].empty() || representatives[i] != i)
           continue;
         builds[i] =
             state.mdl->coordinator.submit([optixContext = state.optixContext,
@@ -1134,12 +1157,15 @@ void Renderer::initOptixPipeline()
         OptixModule module = {};
         if (builds[i].valid()) {
           auto build = builds[i].get();
-          module = build.module;
+          modules[i] = build.module;
+          if (build.module)
+            m_mdlModules.push_back(build.module);
           if (build.result != OPTIX_SUCCESS)
             reportMessage(ANARI_SEVERITY_ERROR,
                 "optixModuleCreate failed for an MDL material: %s",
                 build.log.c_str());
         }
+        module = modules[representatives[i]];
 
         // A null module (empty blob or failed create) falls back to the
         // empty-slot placeholders instead of a dead handle the release path
@@ -1150,8 +1176,6 @@ void Renderer::initOptixPipeline()
           }
           continue;
         }
-        m_mdlModules.push_back(module);
-
         OptixProgramGroupDesc callableDesc = {};
         callableDesc.kind = OPTIX_PROGRAM_GROUP_KIND_CALLABLES;
         callableDesc.callables.moduleDC = module;
