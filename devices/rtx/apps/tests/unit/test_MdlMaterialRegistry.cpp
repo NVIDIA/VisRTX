@@ -1,6 +1,7 @@
 // Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES.
 // SPDX-License-Identifier: BSD-3-Clause
 
+#include "../MdlModuleReuseFixture.h"
 #include "libmdl/source_name_utils.h"
 #include "mdl/MaterialRegistry.h"
 
@@ -114,6 +115,33 @@ void testSnapshot(MaterialRegistry &registry, TaskExecutor &coordinator)
       "snapshot test leaked registry entries");
 }
 
+void testModuleReuseFixture(
+    MaterialRegistry &registry, TaskExecutor &coordinator)
+{
+  auto first =
+      registry
+          .acquireMaterialAsync(coordinator, moduleReuseSource(0), "test", true)
+          .get();
+  auto second =
+      registry
+          .acquireMaterialAsync(coordinator, moduleReuseSource(1), "test", true)
+          .get();
+  check(first.uuid != Uuid{} && second.uuid != Uuid{},
+      "reuse fixture failed to compile");
+  check(first.uuid != second.uuid, "reuse fixture needs distinct UUIDs");
+  coordinator.invokeSerial([&] {
+    const auto a = registry.getMaterialImplementationIndex(first.uuid);
+    const auto b = registry.getMaterialImplementationIndex(second.uuid);
+    const auto snapshot = registry.ptxSnapshot();
+    check(a != b, "reuse fixture needs distinct registry slots");
+    check(!snapshot.blobs.at(a).empty(), "reuse fixture PTX is empty");
+    check(snapshot.blobs.at(a) == snapshot.blobs.at(b),
+        "reuse fixture needs identical PTX");
+    registry.releaseMaterial(first.uuid);
+    registry.releaseMaterial(second.uuid);
+  });
+}
+
 void exportMdle(Core &core, const fs::path &path)
 {
   auto transaction = make_handle(core.createTransaction());
@@ -223,6 +251,7 @@ int main()
     MaterialRegistry registry(&core);
     TaskExecutor coordinator(4);
     testSnapshot(registry, coordinator);
+    testModuleReuseFixture(registry, coordinator);
     testSources(core, registry, coordinator, root);
   } catch (const std::exception &e) {
     std::fprintf(stderr, "FAIL: %s\n", e.what());
