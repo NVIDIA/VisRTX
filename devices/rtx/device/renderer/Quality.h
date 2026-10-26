@@ -46,7 +46,7 @@ struct Quality : public Renderer
 
   static ptx_blob ptx();
 
-  int m_maxRayDepth{5};
+  int m_maxRayDepth{12};
   int m_maxTransparencyDepth{32};
 };
 
