@@ -54,7 +54,7 @@ void Quality::commitParameters()
 {
   Renderer::commitParameters();
   m_fog = parseFogParameters().value_or(FogGPUData{});
-  m_maxRayDepth = std::max(getParam<int>("maxRayDepth", 5), 1);
+  m_maxRayDepth = std::max(getParam<int>("maxRayDepth", 12), 1);
   m_maxTransparencyDepth = std::max(getParam<int>("maxTransparencyDepth", 32), 0);
 }
 
