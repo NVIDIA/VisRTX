@@ -71,35 +71,42 @@ void Denoiser::setup(uvec2 size,
   // per-tile tensor well under the limit; frames smaller than a tile collapse
   // to a single full-frame invoke with no overhead.
   constexpr uint32_t kMaxTile = 2048;
-  m_tileW = std::min<uint32_t>(kMaxTile, size.x);
-  m_tileH = std::min<uint32_t>(kMaxTile, size.y);
+  const uint32_t tileW = std::min<uint32_t>(kMaxTile, size.x);
+  const uint32_t tileH = std::min<uint32_t>(kMaxTile, size.y);
+  // Frame commits can change time/camera without changing denoiser resources.
+  // Image addresses are rebound below even when setup can be reused.
+  if (!m_setupValid || tileW != m_tileW || tileH != m_tileH) {
+    m_tileW = tileW;
+    m_tileH = tileH;
 
-  OptixDenoiserSizes sizes;
-  OPTIX_CHECK(optixDenoiserComputeMemoryResources(
-      m_denoiser, m_tileW, m_tileH, &sizes));
+    OptixDenoiserSizes sizes;
+    OPTIX_CHECK(optixDenoiserComputeMemoryResources(
+        m_denoiser, m_tileW, m_tileH, &sizes));
 
-  m_overlap = sizes.overlapWindowSizeInPixels;
-  m_state.reserve(sizes.stateSizeInBytes);
-  m_scratch.reserve(std::max(sizes.withOverlapScratchSizeInBytes,
-      std::max(sizes.computeIntensitySizeInBytes,
-          sizes.computeAverageColorSizeInBytes)));
-  m_intensity.reserve(sizeof(float));
-  m_averageColor.reserve(3 * sizeof(float));
+    m_overlap = sizes.overlapWindowSizeInPixels;
+    m_state.reserve(sizes.stateSizeInBytes);
+    m_scratch.reserve(std::max(sizes.withOverlapScratchSizeInBytes,
+        std::max(sizes.computeIntensitySizeInBytes,
+            sizes.computeAverageColorSizeInBytes)));
+    m_intensity.reserve(sizeof(float));
+    m_averageColor.reserve(3 * sizeof(float));
+
+    // Setup must be sized for the largest padded tile the tiled invoke feeds.
+    OPTIX_CHECK(optixDenoiserSetup(m_denoiser,
+        state.stream,
+        m_tileW + 2 * m_overlap,
+        m_tileH + 2 * m_overlap,
+        (CUdeviceptr)m_state.ptr(),
+        m_state.bytes(),
+        (CUdeviceptr)m_scratch.ptr(),
+        m_scratch.bytes()));
+    m_setupValid = true;
+  }
 
   if (format != ANARI_FLOAT32_VEC4)
     m_uintPixels.resize(size_t(size.x) * size_t(size.y));
   else
     m_uintPixels.clear();
-
-  // Setup must be sized for the largest padded tile the tiled invoke feeds.
-  OPTIX_CHECK(optixDenoiserSetup(m_denoiser,
-      state.stream,
-      m_tileW + 2 * m_overlap,
-      m_tileH + 2 * m_overlap,
-      (CUdeviceptr)m_state.ptr(),
-      m_state.bytes(),
-      (CUdeviceptr)m_scratch.ptr(),
-      m_scratch.bytes()));
 
   m_layer.input.data = (CUdeviceptr)input.ptr();
   m_layer.input.width = size.x;
@@ -128,6 +135,7 @@ void Denoiser::setup(uvec2 size,
 
 void Denoiser::cleanup()
 {
+  m_setupValid = false;
   m_state.reset();
   m_scratch.reset();
 }
@@ -226,6 +234,7 @@ void Denoiser::init(
       && (m_usingAlbedo != useAlbedo || m_usingNormal != useNormal)) {
     OPTIX_CHECK(optixDenoiserDestroy(m_denoiser));
     m_denoiser = {};
+    m_setupValid = false;
   }
 
   m_usingAlbedo = useAlbedo;

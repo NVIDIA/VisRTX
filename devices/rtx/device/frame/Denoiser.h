@@ -78,6 +78,7 @@ struct Denoiser : public Object
   uint32_t m_overlap{0};
   bool m_usingAlbedo{false};
   bool m_usingNormal{false};
+  bool m_setupValid{false};
 
   // This buffer is only used when format != ANARI_FLOAT32_VEC4
   HostDeviceArray<uint32_t> m_uintPixels;

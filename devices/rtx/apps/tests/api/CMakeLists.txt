@@ -45,6 +45,7 @@ endif()
 make_test(TestQuadLightShaping)
 make_test(TestQuadLightFocus)
 make_test(TestQuadLightTexture)
+make_test(TestDenoiserReuse)
 
 if (WIN32)
   return()
