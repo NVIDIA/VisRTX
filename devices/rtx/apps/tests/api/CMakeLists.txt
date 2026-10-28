@@ -126,6 +126,8 @@ if (VISRTX_ENABLE_MDL_SUPPORT)
   add_test(NAME TestMdlModuleReuseSerial COMMAND TestMdlModuleReuse)
   set_tests_properties(TestMdlModuleReuseSerial PROPERTIES
     ENVIRONMENT "VISRTX_MDL_COMPILE_THREADS=1" TIMEOUT 120)
+  make_test(TestMdlSearchPaths)
+  set_tests_properties(TestMdlSearchPaths PROPERTIES TIMEOUT 300)
   make_test(TestMdlIneurayHandoff)
   make_test(TestMdlIneurayIntrospect)
   set_tests_properties(TestMdlIneurayHandoff TestMdlIneurayIntrospect

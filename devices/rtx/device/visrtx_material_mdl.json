@@ -20,13 +20,13 @@
                     "name": "mdlSearchPaths",
                     "types": ["ANARI_STRING"],
                     "tags": [],
-                    "description": "Platform-separated list (`:` on POSIX, `;` on Windows) of MDL module search roots. System and user paths are always appended."
+                    "description": "Platform-separated list (`:` on POSIX, `;` on Windows) of MDL module search roots. Search paths belong to the MDL SDK instance rather than to a device, so the roots set here are combined with those of every other VisRTX device sharing that instance rather than replacing them; re-setting this parameter replaces only this device's contribution. Roots installed directly on a shared instance by the application or by another vendor's device are not known to VisRTX and are not preserved. System and user paths are always appended. Note that a module already loaded keeps resolving by name even after its root is withdrawn."
                 },
                 {
                     "name": "mdlResourceSearchPaths",
                     "types": ["ANARI_STRING"],
                     "tags": [],
-                    "description": "Platform-separated list of search roots for MDL resources (textures, light profiles)."
+                    "description": "Platform-separated list of search roots for MDL resources (textures, light profiles). Combined across VisRTX devices sharing one MDL SDK instance, like `mdlSearchPaths`, with the same caveat about roots VisRTX did not install."
                 }
             ],
             "properties" : [

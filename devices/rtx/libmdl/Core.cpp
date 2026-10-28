@@ -262,6 +262,118 @@ std::shared_ptr<SharedNeuray> acquireSharedNeuray(
 
 } // namespace
 
+// MDL search paths are a property of the INeuray instance, and every Core
+// sharing that instance sets them independently -- including Cores that merely
+// adopted an application-supplied instance. The SDK offers no way to add a
+// path on behalf of one owner, only clear-and-rebuild, so the latest caller
+// would silently drop every other Core's roots. Keep each Core's contribution
+// and re-apply their union on every change.
+//
+// Keyed on the instance rather than on a SharedNeuray, so an externally
+// supplied INeuray shared by several Cores is handled the same way.
+class SearchPathRegistry
+{
+ public:
+  using Paths = std::vector<std::filesystem::path>;
+
+  static SearchPathRegistry &instance()
+  {
+    static SearchPathRegistry registry;
+    return registry;
+  }
+
+  void setMdlPaths(
+      mi::neuraylib::INeuray *neuray, const void *owner, Paths paths)
+  {
+    std::lock_guard<std::mutex> guard(m_mutex);
+    auto &entry = m_entries[neuray];
+    entry.mdl[owner] = std::move(paths);
+    applyMdl(neuray, entry);
+  }
+
+  void setResourcePaths(
+      mi::neuraylib::INeuray *neuray, const void *owner, Paths paths)
+  {
+    std::lock_guard<std::mutex> guard(m_mutex);
+    auto &entry = m_entries[neuray];
+    entry.resource[owner] = std::move(paths);
+    applyResource(neuray, entry);
+  }
+
+  // Drop an owner's contribution and re-apply what is left. The instance is
+  // passed in because a Core is forgotten while its handle is still valid.
+  void forget(mi::neuraylib::INeuray *neuray, const void *owner)
+  {
+    std::lock_guard<std::mutex> guard(m_mutex);
+    const auto it = m_entries.find(neuray);
+    if (it == m_entries.end())
+      return;
+    auto &entry = it->second;
+    const bool hadMdl = entry.mdl.erase(owner) != 0;
+    const bool hadResource = entry.resource.erase(owner) != 0;
+    // Rebuild before forgetting the instance, or the departed owner's roots
+    // stay installed on an INeuray that outlives us -- an application-supplied
+    // instance, typically.
+    if (hadMdl)
+      applyMdl(neuray, entry);
+    if (hadResource)
+      applyResource(neuray, entry);
+    if (entry.mdl.empty() && entry.resource.empty()) {
+      // Last owner gone: forget the instance too, so a later instance that
+      // reuses the address does not inherit stale contributions.
+      m_entries.erase(it);
+    }
+  }
+
+ private:
+  // Keyed by owner address, so the order in which contributions are applied
+  // is unspecified. Where two devices supply roots containing a module of the
+  // same name, which one wins is therefore unspecified too -- documented in
+  // docs/mdl-search-paths.md rather than papered over with an arbitrary rule.
+  struct Entry
+  {
+    std::map<const void *, Paths> mdl;
+    std::map<const void *, Paths> resource;
+  };
+
+  static void applyMdl(mi::neuraylib::INeuray *neuray, const Entry &entry)
+  {
+    auto mdlConfiguration = make_handle(
+        neuray->get_api_component<mi::neuraylib::IMdl_configuration>());
+    mdlConfiguration->clear_mdl_paths();
+    std::set<std::string> seen;
+    for (const auto &[owner, paths] : entry.mdl) {
+      for (const auto &path : paths) {
+        auto asString = path.generic_string();
+        if (seen.insert(asString).second)
+          mdlConfiguration->add_mdl_path(asString.c_str());
+      }
+    }
+    mdlConfiguration->add_mdl_system_paths();
+    mdlConfiguration->add_mdl_user_paths();
+  }
+
+  static void applyResource(mi::neuraylib::INeuray *neuray, const Entry &entry)
+  {
+    auto mdlConfiguration = make_handle(
+        neuray->get_api_component<mi::neuraylib::IMdl_configuration>());
+    mdlConfiguration->clear_resource_paths();
+    std::set<std::string> seen;
+    for (const auto &[owner, paths] : entry.resource) {
+      for (const auto &path : paths) {
+        // generic_string() throughout, so the same root spelled two ways
+        // de-duplicates on Windows as well as POSIX.
+        auto asString = path.generic_string();
+        if (seen.insert(asString).second)
+          mdlConfiguration->add_resource_path(asString.c_str());
+      }
+    }
+  }
+
+  std::mutex m_mutex;
+  std::map<mi::neuraylib::INeuray *, Entry> m_entries;
+};
+
 } // namespace detail
 
 Core::Core() : Core({}, {}) {}
@@ -349,6 +461,8 @@ Core::~Core()
   m_executionContext = {};
   m_mdlFactory = {};
   m_globalScope = {};
+  if (m_neuray.is_valid_interface())
+    detail::SearchPathRegistry::instance().forget(m_neuray.get(), this);
   m_logger = {};
   m_neuray = {};
   // Shuts down and unloads the SDK if this was the last live Core.
@@ -748,25 +862,15 @@ auto Core::getLogger() const -> mi::base::ILogger *
 
 auto Core::setMdlSearchPaths(nonstd::span<std::filesystem::path> paths) -> void
 {
-  auto mdlConfiguration = make_handle(
-      m_neuray->get_api_component<mi::neuraylib::IMdl_configuration>());
-  mdlConfiguration->clear_mdl_paths();
-  for (const auto &path : paths) {
-    mdlConfiguration->add_mdl_path(path.generic_string().c_str());
-  }
-  mdlConfiguration->add_mdl_system_paths();
-  mdlConfiguration->add_mdl_user_paths();
+  detail::SearchPathRegistry::instance().setMdlPaths(
+      m_neuray.get(), this, {std::cbegin(paths), std::cend(paths)});
 }
 
 auto Core::setMdlResourceSearchPaths(nonstd::span<std::filesystem::path> paths)
     -> void
 {
-  auto mdlConfiguration = make_handle(
-      m_neuray->get_api_component<mi::neuraylib::IMdl_configuration>());
-  mdlConfiguration->clear_resource_paths();
-  for (const auto &path : paths) {
-    mdlConfiguration->add_resource_path(path.generic_string().c_str());
-  }
+  detail::SearchPathRegistry::instance().setResourcePaths(
+      m_neuray.get(), this, {std::cbegin(paths), std::cend(paths)});
 }
 
 auto Core::resolveResource(std::string_view resourceId,
