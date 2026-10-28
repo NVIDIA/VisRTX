@@ -17,8 +17,8 @@ application.
 Two consequences follow from the instance being shared, both of which the
 implementation has to handle because they used to be per-device:
 
-- **Search paths** are a property of the `INeuray` instance, not of a device,
-  so one device setting them affects every device sharing that instance.
+- **Search paths** are a property of the `INeuray` instance, not of a device.
+  See `mdl-search-paths.md`.
 - **Logging** has a single receiving logger per instance. See below.
 
 ## Logging
