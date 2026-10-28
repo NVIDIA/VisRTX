@@ -7,6 +7,38 @@
 
     "objects" : [
         {
+            "type" : "ANARI_DEVICE",
+            "description" : "device object",
+            "parameters" : [
+                {
+                    "name": "ineuray",
+                    "types": ["ANARI_VOID_POINTER"],
+                    "tags": [],
+                    "description": "Optional `mi::neuraylib::INeuray*` for this device to use instead of acquiring its own. The MDL SDK yields at most one live INeuray per loaded library image, so an application combining several MDL-capable devices in one process must share a single instance: read it from the `ineuray` property of the first such device (or create it itself) and set it here before this device initializes MDL. The instance must already be started, and must outlive every device using it: destroy the recipients before whatever owns the instance. When the pointer came from another device's `ineuray` property, ownership stays with that device -- the application does not acquire it by passing the pointer on. Ignored once this device has initialized MDL."
+                },
+                {
+                    "name": "mdlSearchPaths",
+                    "types": ["ANARI_STRING"],
+                    "tags": [],
+                    "description": "Platform-separated list (`:` on POSIX, `;` on Windows) of MDL module search roots. System and user paths are always appended."
+                },
+                {
+                    "name": "mdlResourceSearchPaths",
+                    "types": ["ANARI_STRING"],
+                    "tags": [],
+                    "description": "Platform-separated list of search roots for MDL resources (textures, light profiles)."
+                }
+            ],
+            "properties" : [
+                {
+                    "name": "ineuray",
+                    "type": "ANARI_VOID_POINTER",
+                    "tags": [],
+                    "description": "The `mi::neuraylib::INeuray*` this device is using, for handing to another MDL-capable device through its `ineuray` parameter. Readable once this device has initialized MDL; querying earlier, or when MDL is unavailable, returns 0 and writes nothing. Ownership stays on this side: a recipient must not start or shut the instance down, and must be destroyed before the devices that share the instance here. Where several VisRTX devices share one instance they all report the same pointer, and it stays alive until the last of them is destroyed."
+                }
+            ]
+        },
+        {
             "type" : "ANARI_MATERIAL",
             "name" : "mdl",
             "description" : "mdl material object",

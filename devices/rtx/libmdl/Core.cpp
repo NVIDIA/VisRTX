@@ -10,6 +10,7 @@
 #include <mi/base/enums.h>
 #include <mi/base/handle.h>
 #include <mi/base/ilogger.h>
+#include <mi/base/interface_implement.h>
 #include <mi/base/types.h>
 #include <mi/neuraylib/factory.h>
 #include <mi/neuraylib/iarray.h>
@@ -64,12 +65,204 @@ static_assert(sizeof(HMODULE) <= sizeof(void *));
 
 #include <nonstd/scope.hpp>
 
+#include <condition_variable>
+#include <map>
+#include <mutex>
+#include <set>
 #include <stdexcept>
+#include <vector>
 
 using namespace std::string_literals;
 using mi::base::make_handle;
 
 namespace visrtx::libmdl {
+
+namespace detail {
+
+struct SharedNeuray;
+
+std::mutex g_sharedNeurayMutex;
+std::weak_ptr<SharedNeuray> g_sharedNeuray;
+// An instance is "occupied" from the moment it is published until its image is
+// unloaded. A replacement that reloaded the image while the old one was still
+// unloading would overlap loadLibrary/freeLibrary and can make mi_factory
+// refuse for the rest of the process.
+//
+// The weak_ptr alone cannot express this: it expires at the last strong
+// decrement, which is strictly before the destructor runs. A flag set inside
+// the destructor therefore leaves a window in which a concurrent acquire sees
+// an expired weak_ptr and no announced teardown, and proceeds. The flag is
+// instead claimed by the shared_ptr's deleter, which runs under this mutex
+// before the object is destroyed, so expiry and occupancy change together as
+// far as any lock holder can observe.
+bool g_sharedNeurayTearingDown = false;
+std::condition_variable g_sharedNeurayIdle;
+
+// Owns the MDL SDK library image and the single INeuray instance
+// `mi_factory` is willing to hand out while one is alive. Held through a
+// shared_ptr by every self-owned Core; the SDK is shut down and the library
+// unloaded when the last one goes away.
+struct SharedNeuray
+{
+  void *dllHandle{};
+  mi::base::Handle<mi::neuraylib::INeuray> neuray;
+  // The logger the SDK reports its own diagnostics through. The first Core to
+  // create the instance installs the one it was given, if any; everyone else
+  // reads whatever is installed. See "Logging" in
+  // docs/mdl-instance-sharing.md.
+  mi::base::Handle<mi::base::ILogger> logger;
+  // Set once this object is reachable through g_sharedNeuray, so its teardown
+  // has to be serialized against a replacement.
+  bool published{};
+
+  ~SharedNeuray()
+  {
+    if (neuray.is_valid_interface())
+      neuray->shutdown();
+    neuray = {};
+    logger = {};
+    if (dllHandle)
+      freeLibrary(dllHandle);
+  }
+};
+
+// Runs when the last shared_ptr goes, which is also when the weak_ptr expires.
+// Claiming the teardown flag here -- under the mutex, before `delete` -- means
+// no lock holder can ever see an expired weak_ptr without also seeing the
+// instance announced as occupied.
+struct SharedNeurayDeleter
+{
+  void operator()(SharedNeuray *instance) const
+  {
+    const bool announce = instance->published;
+    if (announce) {
+      std::lock_guard<std::mutex> guard(g_sharedNeurayMutex);
+      g_sharedNeurayTearingDown = true;
+    }
+    delete instance;
+    if (announce) {
+      {
+        std::lock_guard<std::mutex> guard(g_sharedNeurayMutex);
+        g_sharedNeurayTearingDown = false;
+      }
+      g_sharedNeurayIdle.notify_all();
+    }
+  }
+};
+
+namespace {
+
+// The shared instance if this process already created one, else null. Unlike
+// acquireSharedNeuray() this never creates one.
+std::shared_ptr<SharedNeuray> peekSharedNeuray()
+{
+  std::lock_guard<std::mutex> guard(g_sharedNeurayMutex);
+  return g_sharedNeuray.lock();
+}
+
+// One-time setup for a freshly created instance. Must run before
+// INeuray::start(): load_plugin_library fails on a running instance (measured
+// -1 on MDL SDK 2026.0.2), so deferring any of this until after startup would
+// silently leave the instance without its image plugins.
+void configureInstance(SharedNeuray &shared, mi::neuraylib::INeuray *neuray)
+{
+  auto mdlConfiguration = make_handle(
+      neuray->get_api_component<mi::neuraylib::IMdl_configuration>());
+  mdlConfiguration->add_mdl_system_paths();
+  mdlConfiguration->add_mdl_user_paths();
+
+  auto loggingConfig = make_handle(
+      neuray->get_api_component<mi::neuraylib::ILogging_configuration>());
+  // The instance gets one receiving logger, and every Core sharing it reports
+  // through that. Install the creator's sink if it supplied one; otherwise
+  // adopt whatever the SDK already has.
+  if (shared.logger.is_valid_interface())
+    loggingConfig->set_receiving_logger(shared.logger.get());
+  else
+    shared.logger = make_handle(loggingConfig->get_receiving_logger());
+
+  auto pluginConf = make_handle(
+      neuray->get_api_component<mi::neuraylib::IPlugin_configuration>());
+  if (mi::Sint32 res = pluginConf->load_plugin_library(
+          "nv_openimageio" MI_BASE_DLL_FILE_EXT);
+      res != 0) {
+    shared.logger->message(mi::base::MESSAGE_SEVERITY_WARNING,
+        "MDL",
+        "Failed to load the nv_openimageio plugin");
+  }
+  if (mi::Sint32 res =
+          pluginConf->load_plugin_library("dds" MI_BASE_DLL_FILE_EXT);
+      res != 0) {
+    shared.logger->message(mi::base::MESSAGE_SEVERITY_WARNING,
+        "MDL",
+        "Failed to load the dds plugin");
+  }
+}
+
+// `preferredLogger`, when set and when this call is the one that creates the
+// instance, becomes the instance's receiving logger.
+std::shared_ptr<SharedNeuray> acquireSharedNeuray(
+    mi::base::ILogger *preferredLogger)
+{
+  static constexpr const auto filename = "libmdl_sdk" MI_BASE_DLL_FILE_EXT;
+
+  std::unique_lock<std::mutex> guard(g_sharedNeurayMutex);
+
+  // An instance whose last reference has gone may still be shutting down and
+  // unloading its image. Wait for it to finish before considering a
+  // replacement; the deleter announces this before the weak_ptr can be
+  // observed as expired, so there is no window between the two.
+  g_sharedNeurayIdle.wait(guard, [] { return !g_sharedNeurayTearingDown; });
+
+  if (auto existing = g_sharedNeuray.lock())
+    return existing;
+
+  // Never std::make_shared: the deleter is what closes the teardown window.
+  std::shared_ptr<SharedNeuray> shared(new SharedNeuray, SharedNeurayDeleter{});
+  if (preferredLogger)
+    shared->logger = mi::base::make_handle_dup(preferredLogger);
+
+  shared->dllHandle = loadLibrary(filename);
+  if (shared->dllHandle == nullptr)
+    throw std::runtime_error("Failed to load MDL SDK library "s + filename);
+
+  void *symbol = getProcAddress(shared->dllHandle, "mi_factory");
+  if (symbol == nullptr)
+    throw std::runtime_error("Failed to find MDL SDK mi_factory symbol");
+
+  shared->neuray = mi::neuraylib::mi_factory<mi::neuraylib::INeuray>(symbol);
+  if (!shared->neuray.is_valid_interface()) {
+    // Check if we have a valid neuray instance, otherwise check why.
+    auto version =
+        make_handle(mi::neuraylib::mi_factory<mi::neuraylib::IVersion>(symbol));
+    if (!version) {
+      throw std::runtime_error("Cannot get MDL SDK library version");
+    } else {
+      throw std::runtime_error(
+          "Cannot get INeuray interface from mi_factory, either there is a version mismatch or the interface has already been acquired: "s
+          "Expected version is " MI_NEURAYLIB_PRODUCT_VERSION_STRING
+          ", library version is "
+          + version->get_product_version());
+    }
+  }
+
+  configureInstance(*shared, shared->neuray.get());
+  // A failed startup must not be published: every later Core would adopt a
+  // non-started instance and fail far from the cause.
+  if (const mi::Sint32 result = shared->neuray->start(); result != 0) {
+    throw std::runtime_error(
+        "Failed to start the MDL SDK, INeuray::start() returned "s
+        + std::to_string(result));
+  }
+
+  shared->published = true;
+  g_sharedNeuray = shared;
+  return shared;
+}
+
+} // namespace
+
+} // namespace detail
 
 Core::Core() : Core({}, {}) {}
 
@@ -84,81 +277,43 @@ Core::Core(mi::neuraylib::INeuray *neuray, mi::base::ILogger *logger)
         "Only one of neuray or logger can be provided to libmdl::Core");
   }
 
-  static constexpr const auto filename = "libmdl_sdk" MI_BASE_DLL_FILE_EXT;
-
   nonstd::scope_fail handleCleanup([this]() {
     m_executionContext = {};
+    m_mdlFactory = {};
     m_globalScope = {};
     m_neuray = {};
-
-    if (m_dllHandle)
-      freeLibrary(m_dllHandle);
-    m_dllHandle = {};
+    m_logger = {};
+    m_shared = {};
   });
 
   if (neuray) {
+    // Externally owned instance: whoever owns it configures and shuts it down,
+    // including its logger. Note this Core takes no lease on the started SDK
+    // or its loaded image -- holding an INeuray reference is not that -- so
+    // the owner must outlive it (docs/mdl-instance-sharing.md).
     m_neuray = mi::base::make_handle_dup(neuray);
-    m_dllHandle = {};
-  } else {
-    // Load library
-    m_dllHandle = loadLibrary(filename);
 
-    if (m_dllHandle == nullptr)
-      throw std::runtime_error("Failed to load MDL SDK library "s + filename);
-
-    // Get neuray main entry point
-    void *symbol = getProcAddress(m_dllHandle, "mi_factory");
-    if (symbol == nullptr)
-      throw std::runtime_error("Failed to find MDL SDK mi_factory symbol");
-
-    m_neuray = mi::neuraylib::mi_factory<mi::neuraylib::INeuray>(symbol);
-    if (m_neuray == nullptr) {
-      // Check if we have a valid neuray instance, otherwise check why.
-      auto version = make_handle(
-          mi::neuraylib::mi_factory<mi::neuraylib::IVersion>(symbol));
-      if (!version) {
-        throw std::runtime_error("Cannot get MDL SDK library version");
-      } else {
-        throw std::runtime_error(
-            "Cannot get INeuray interface from mi_factory, either there is a version mismatch or the interface has already been acquired: "s
-            "Expected version is " MI_NEURAYLIB_PRODUCT_VERSION_STRING
-            ", library version is "
-            + version->get_product_version());
-      }
-    }
-
-    // Get the MDL configuration component so main path can be added.
-    auto mdlConfiguration = make_handle(
-        m_neuray->get_api_component<mi::neuraylib::IMdl_configuration>());
-    mdlConfiguration->add_mdl_system_paths();
-    mdlConfiguration->add_mdl_user_paths();
-
+    // Report through the instance's logger, so this Core's own messages do
+    // not silently fall back to stderr.
     auto loggingConfig = make_handle(
         m_neuray->get_api_component<mi::neuraylib::ILogging_configuration>());
-    if (logger) {
-      loggingConfig->set_receiving_logger(logger);
-    } else {
-      logger = loggingConfig->get_receiving_logger();
-    }
-
-    m_logger = logger;
-
-    auto pluginConf = make_handle(
-        m_neuray->get_api_component<mi::neuraylib::IPlugin_configuration>());
-    if (mi::Sint32 res = pluginConf->load_plugin_library(
-            "nv_openimageio" MI_BASE_DLL_FILE_EXT);
-        res != 0) {
-      logMessage(mi::base::MESSAGE_SEVERITY_WARNING,
-          "Failed to load the nv_openimageio plugin");
-    }
-    if (mi::Sint32 res =
-            pluginConf->load_plugin_library("dds" MI_BASE_DLL_FILE_EXT);
-        res != 0) {
-      logMessage(
-          mi::base::MESSAGE_SEVERITY_WARNING, "Failed to load the dds plugin");
-    }
-
-    m_neuray->start();
+    m_logger = make_handle(loggingConfig->get_receiving_logger());
+  } else {
+    // A supplied sink is offered to the shared instance as its receiving
+    // logger: the first Core in installs it, later ones leave it alone, since
+    // the SDK takes only one per instance. That governs where the SDK's own
+    // diagnostics go.
+    //
+    // This Core keeps its own sink regardless, so the messages VisRTX logs
+    // itself -- which never pass through the SDK's logger -- still reach the
+    // device they belong to. Only Cores given no sink fall back to the
+    // instance's.
+    if (logger)
+      m_logger = mi::base::make_handle_dup(logger);
+    m_shared = detail::acquireSharedNeuray(m_logger.get());
+    m_neuray = mi::base::make_handle_dup(m_shared->neuray.get());
+    if (!m_logger.is_valid_interface())
+      m_logger = mi::base::make_handle_dup(m_shared->logger.get());
   }
 
   // Get the global scope from the database
@@ -194,12 +349,10 @@ Core::~Core()
   m_executionContext = {};
   m_mdlFactory = {};
   m_globalScope = {};
-  if (m_dllHandle) {
-    m_neuray->shutdown();
-    m_neuray = {};
-    freeLibrary(m_dllHandle);
-  }
-  m_dllHandle = {};
+  m_logger = {};
+  m_neuray = {};
+  // Shuts down and unloads the SDK if this was the last live Core.
+  m_shared = {};
 }
 
 mi::neuraylib::IScope *Core::createScope(
@@ -612,7 +765,7 @@ auto Core::setMdlResourceSearchPaths(nonstd::span<std::filesystem::path> paths)
       m_neuray->get_api_component<mi::neuraylib::IMdl_configuration>());
   mdlConfiguration->clear_resource_paths();
   for (const auto &path : paths) {
-    mdlConfiguration->add_resource_path(path.string().c_str());
+    mdlConfiguration->add_resource_path(path.generic_string().c_str());
   }
 }
 
