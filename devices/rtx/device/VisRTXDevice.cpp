@@ -569,6 +569,20 @@ int VisRTXDevice::deviceGetProperty(const char *name,
     helium::writeToVoidP(mem, count);
     return 1;
   }
+  // Counterpart to the `ineuray` device parameter: lets an application hand
+  // this device's MDL SDK instance to another MDL-capable device (possibly
+  // from a different vendor). mi_factory yields at most one live INeuray per
+  // loaded library image, so without this handoff the second device's own
+  // acquisition fails. Ownership stays here; the recipient must not start or
+  // shut the instance down, and must outlive neither it nor this device.
+  if (prop == "ineuray" && type == ANARI_VOID_POINTER) {
+    auto &state = *deviceState();
+    if (!state.mdl)
+      return 0; // MDL not initialized (or unavailable): nothing to hand over.
+    helium::writeToVoidP(
+        mem, static_cast<void *>(state.mdl->core.getINeuray()));
+    return 1;
+  }
   if (prop == "maxConcurrentMdlCompiles" && type == ANARI_UINT32) {
     auto &state = *deviceState();
     if (flags & ANARI_WAIT)

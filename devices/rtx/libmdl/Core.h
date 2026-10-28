@@ -32,19 +32,27 @@
 
 #include <array>
 #include <filesystem>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
 
 namespace visrtx::libmdl {
 
+namespace detail {
+// Process-wide owner of the MDL SDK library image and its single INeuray
+// instance. See Core.cpp.
+struct SharedNeuray;
+} // namespace detail
+
 class Core
 {
  public:
-  // The main neuray interface can only be acquired once. Possibly get it
-  // as a parameter instead of allocating it internally.
-  // Note that we allow overriding the logger only if we own the
-  // neuray instance, otherwise we assume logging is already taken care of
+  // `mi_factory` hands out at most one live INeuray per loaded library image,
+  // so several self-owned Core instances (one per ANARI device) share a single
+  // refcounted SDK instance. The SDK is shut down and unloaded once the last
+  // Core is destroyed. Alternatively an externally owned INeuray can be passed
+  // in, in which case its lifetime and logging stay with the caller.
   Core();
   Core(mi::base::ILogger *logger);
   Core(mi::neuraylib::INeuray *neuray);
@@ -72,9 +80,9 @@ class Core
   const mi::neuraylib::IModule *accessModule(
       std::string_view moduleName, mi::neuraylib::ITransaction *transaction);
 
-  // The main neuray interface can only be acquired once. Make sure it can be
-  // shared if taken from there. The original subsystem keeps the ownership of
-  // the returned value.
+  // The returned instance is shared with every other Core in this process and
+  // possibly with the application. Ownership stays with the original
+  // subsystem; do not start or shut it down.
   mi::neuraylib::INeuray *getINeuray() const;
 
   mi::neuraylib::IMdl_factory *getMdlFactory() const;
@@ -152,8 +160,8 @@ class Core
       std::string_view moduleSource,
       mi::neuraylib::ITransaction *transaction);
 
-  using DllHandle = void *;
-  DllHandle m_dllHandle;
+  // Null when an externally owned INeuray was provided.
+  std::shared_ptr<detail::SharedNeuray> m_shared;
   mi::base::Handle<mi::neuraylib::INeuray> m_neuray;
   mi::base::Handle<mi::neuraylib::IScope> m_globalScope;
   mi::base::Handle<mi::neuraylib::IMdl_factory> m_mdlFactory;
