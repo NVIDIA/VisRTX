@@ -38,6 +38,7 @@
 // std
 #include <initializer_list>
 #include <optional>
+#include <string>
 #include <vector>
 
 namespace visrtx {
@@ -93,7 +94,8 @@ struct Geometry : public RegisteredObject<GeometryGPUData>
 
  protected:
   // Opt-in preparation reuse: list every subtype parameter except the five
-  // geometry-wide attributes. The base adds primitive and vertex arrays.
+  // geometry-wide attributes. This declaration must stay fixed for the subtype;
+  // lookup names are cached. The base adds primitive and vertex arrays.
   // Returns false after preparation reuse and registry publication, or if
   // preparation cannot start.
   bool beginPreparation(std::initializer_list<const char *> parameters = {});
@@ -123,7 +125,10 @@ struct Geometry : public RegisteredObject<GeometryGPUData>
 
     bool operator==(const PreparationParameter &other) const;
   };
+  bool canRetainPreparationInputs() const;
+
   std::vector<PreparationParameter> m_preparedParameters;
+  std::vector<std::string> m_preparationParameterNames;
   bool m_hasPreparedData{false};
   bool m_preparationPreserved{false};
   bool m_preparationFailed{false};

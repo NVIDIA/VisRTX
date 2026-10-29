@@ -267,6 +267,23 @@ int main(int argc, char **argv)
     anari::render(d, frame);
     anari::wait(d, frame);
     ok = completions == 1 && errors == beforeErrors && ok;
+    if (sphereFailure) {
+      // Preparation-preserving bounds queries must not drain the work stream.
+      // Leave the injection armed, then change radius to require the fence.
+      failure = Failure::WORK_SYNC;
+      anari::setParameter(
+          d, geometry, "color", std::array<float, 4>{1, 0, 0, 1});
+      anari::commitParameters(d, geometry);
+      ok = haveBounds() && injections == 1 && errors == beforeErrors && ok;
+      anari::setParameter(d, geometry, "radius", 0.3f);
+      anari::commitParameters(d, geometry);
+      ok = !haveBounds() && injections == 2 && errors > beforeErrors && ok;
+      const int retirementErrors = errors;
+      // Change the value to force a retry through deferred commit processing.
+      anari::setParameter(d, geometry, "radius", 0.4f);
+      anari::commitParameters(d, geometry);
+      ok = haveBounds() && errors == retirementErrors && ok;
+    }
     anari::release(d, array);
   } else {
     ok = haveBounds() && ok;
