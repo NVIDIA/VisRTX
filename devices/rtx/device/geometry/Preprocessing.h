@@ -38,6 +38,8 @@ namespace visrtx {
 struct Geometry;
 
 // GPU views use logical array beginnings, never application allocation bases.
+// Geometry::beginPreparation() completes authored host-array uploads before
+// these views are consumed; kernels need no legacy default-stream dependency.
 struct PrimitiveInput
 {
   GeometryType type{GeometryType::TRIANGLE};
@@ -81,7 +83,6 @@ struct Preprocessing
 bool checkPreparation(
     Geometry *geometry, cudaError_t error, const char *operation);
 bool reservePreparation(Geometry *geometry, DeviceBuffer &buffer, size_t bytes);
-bool waitForPreparationInputs(Geometry *geometry);
 bool finishPreparation(Geometry *geometry);
 bool generateQuadIndices(Geometry *geometry,
     const uvec4 *indices,

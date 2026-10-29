@@ -105,7 +105,15 @@ serialized; each event wait captures the corresponding record before the event
 is reused.
 
 - Full preparation imports prior render work before overwriting derived buffers.
-- Legacy array uploads are imported through an event on the default stream.
+- For the seven opt-in geometry types, pending host uploads of declared arrays
+  are batched on the preparation stream before finalization. The committed
+  snapshot retains source arrays through completion. Uploaded timestamps and
+  device-pointer snapshots are published only after the whole batch succeeds;
+  partial failures remain dirty and are retried. Legacy consumers can safely
+  use the completed device copy afterward.
+- These checked geometry kernels no longer import the default stream: authored
+  inputs are ready before they run. Other array consumers retain their existing
+  upload path.
 - The BVH builder imports both render-stream producers (including legacy field
   and isosurface work) and default-stream input uploads. Its build, readbacks,
   and compaction execute on the preparation stream.
@@ -120,15 +128,17 @@ is reused.
 This is not concurrent in-place scene replacement. Legacy default-stream events
 can include preceding work on blocking streams; tangent generation and field-grid
 preparation retain their legacy synchronization, and `cudaMalloc`/`cudaFree` can
-still serialize work. Removing those dependencies requires stream-aware upload
-and allocation ownership. Overlapping replacement with active rendering also
+still serialize work. Removing the remaining dependencies requires stream-aware
+instance/registry uploads and allocation ownership. Overlapping replacement with active rendering also
 requires separate storage generations and last-use tracking for all consumers,
 including shared geometry and registries.
 
 `TestPreparationStream` checks explicit producer ordering and independence from
 an unrelated nonblocking stream. The shared-cudart failure tests additionally
 cover preparation dependency/completion failures and BLAS/TLAS readback/completion
-failures, publication suppression, and retry.
+failures, publication suppression, and retry. Host-upload cases also check copy
+stream selection, allocation/copy/completion failures, partial-batch retry, and
+an in-place unmap coalesced with a uniform commit.
 
 ## Remaining work
 
