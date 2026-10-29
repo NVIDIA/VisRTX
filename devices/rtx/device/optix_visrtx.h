@@ -31,6 +31,7 @@
 
 #pragma once
 
+#include "geometry/ReadbackPool.h"
 #include "gpu/gpu_objects.h"
 #include "utility/DeviceObjectArray.h"
 #include "utility/PreparationStream.h"
@@ -177,6 +178,7 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
   CUcontext cudaContext;
   CUstream stream;
   PreparationStream preparation;
+  GeometryReadbackPool geometryReadbacks;
   cudaDeviceProp deviceProps;
 
   OptixDeviceContext optixContext;

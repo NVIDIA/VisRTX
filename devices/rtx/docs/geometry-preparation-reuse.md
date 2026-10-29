@@ -179,9 +179,26 @@ Status callbacks cannot reenter device property queries or rendering while
 collection is resolving results; those calls are refused instead of publishing
 a partially collected scene.
 
-Pinned readback storage is reused per geometry. Pooling these small allocations
-is a future scaling improvement. Host input upload batches still complete per
-geometry to preserve their source lifetime and existing legacy consumers;
+Pinned readback storage is leased from the device's `GeometryReadbackPool`.
+Each page holds 256 geometry leases, each containing two result slots (a 4 KiB
+page with the current result layout). A geometry keeps its lease across updates;
+returning it after collection makes the slot reusable without a CUDA allocation.
+The pool caches pages at its high-water mark until device teardown rather than
+trimming on every geometry destruction. A lease retains its page independently
+of the pool's lifetime, so cleanup cannot free storage while a lease still exists.
+This reduces allocation count, not necessarily requested bytes for tiny scenes:
+a partially occupied page still reserves the whole page.
+
+Pool/page locks protect slot accounting but are never held across CUDA allocation
+or free. A failed page allocation leaves existing leases intact and clears CUDA
+last-error state before retry. Concurrent growth may allocate an extra page;
+source/result lifetime ordering remains the collection queue's responsibility.
+`TestGeometryReadbackPool` covers first-page/growth failure and retry, slot reuse,
+move/reset, pool-before-lease teardown, concurrent leases, and asynchronous DMA
+into separate slots on a page.
+
+Host input upload batches still complete per geometry to preserve their source
+lifetime and existing legacy consumers;
 quad/curve generated-data completion, tangent generation, and field/isosurface
 preparation retain their current synchronous paths. This does not introduce
 independent scene generations or concurrent in-place replacement during tracing.

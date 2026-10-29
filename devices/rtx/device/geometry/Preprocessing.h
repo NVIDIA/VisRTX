@@ -31,6 +31,7 @@
 
 #pragma once
 
+#include "ReadbackPool.h"
 #include "gpu/gpu_objects.h"
 #include "utility/DeviceBuffer.h"
 
@@ -54,12 +55,6 @@ struct PrimitiveInput
   float blendFactor{1.f};
   float blendLerpFactor{0.5f};
   float noiseFactor{0.f};
-};
-
-struct PreparationResult
-{
-  float value;
-  uint32_t invalid;
 };
 
 // Per-geometry reusable workspace. Submission retains pinned readback storage;
@@ -89,6 +84,7 @@ struct Preprocessing
 
  private:
   bool reserveReadback(Geometry *geometry);
+  GeometryReadbackPool::Lease m_readbackLease;
   PreparationResult *m_readback{nullptr};
   float *m_scale{nullptr};
   float *m_total{nullptr};
