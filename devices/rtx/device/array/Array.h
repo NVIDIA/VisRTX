@@ -82,6 +82,11 @@ struct Array : public UploadableArray
 
   void uploadArrayData() const override;
 
+  // Queue a pending host upload without marking it complete. Caller retains
+  // the array and orders prior GPU readers before this stream, then waits for
+  // completion before markDataUploaded() or exposing the pointer to consumers.
+  cudaError_t enqueueUpload(cudaStream_t stream) const;
+
   // VisRTX interface //
 
   ANARIDataType elementType() const;
