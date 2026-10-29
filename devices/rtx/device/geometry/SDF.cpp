@@ -101,7 +101,7 @@ void SDF::finalize()
                 source,
                 bytes,
                 cudaMemcpyDeviceToDevice,
-                deviceState()->stream),
+                deviceState()->preparation.stream()),
             "aligning SDF input"))
       return;
     m_primitives = m_alignedPrimitives.ptrAs<SDFPrimitive>();
