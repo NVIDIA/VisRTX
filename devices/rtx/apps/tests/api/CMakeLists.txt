@@ -75,6 +75,9 @@ target_link_libraries(BenchmarkCudaOrdering PRIVATE CUDA::cudart)
 set_target_properties(BenchmarkCudaOrdering PROPERTIES CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}")
 add_executable(BenchmarkGeometryPreprocessing BenchmarkGeometryPreprocessing.cpp)
 target_link_libraries(BenchmarkGeometryPreprocessing PRIVATE anari_library_visrtx anari::anari_static CUDA::cudart)
+add_executable(TestPreparationStream TestPreparationStream.cpp)
+target_link_libraries(TestPreparationStream PRIVATE CUDA::cudart Threads::Threads)
+add_test(NAME TestPreparationStream COMMAND TestPreparationStream)
 make_test(TestGeometryPreparationReuse)
 target_link_libraries(TestGeometryPreparationReuse PRIVATE CUDA::cudart)
 make_test(TestSharedGeometryLifecycle)
@@ -93,9 +96,13 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CUDA_RUNTIME_LIBRARY STREQUAL "S
   set_target_properties(TestCudaPreparationFailure PROPERTIES ENABLE_EXPORTS ON)
   add_test(NAME TestIsosurfacePreparationRecovery
     COMMAND TestCudaPreparationFailure isosurface)
-  foreach(geometry sphere sphere-indexed)
+  foreach(geometry sphere sphere-indexed sphere-completion sphere-dependency)
     add_test(NAME TestSpherePreparationRecovery_${geometry}
       COMMAND TestCudaPreparationFailure ${geometry})
+  endforeach()
+  foreach(failure bvh-copy bvh-sync tlas-sync)
+    add_test(NAME TestBvhPreparationRecovery_${failure}
+      COMMAND TestCudaPreparationFailure ${failure})
   endforeach()
   foreach(failure allocation copy work-sync copy-sync)
     add_test(NAME TestArrayPrivatizationFailure_${failure}

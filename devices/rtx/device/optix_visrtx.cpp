@@ -40,7 +40,7 @@
 
 namespace visrtx {
 
-void buildOptixBVH(std::vector<OptixBuildInput> buildInput,
+bool buildOptixBVH(std::vector<OptixBuildInput> buildInput,
     DeviceBuffer &bvh,
     OptixTraversableHandle &traversable,
     box3 &bounds,
@@ -48,82 +48,127 @@ void buildOptixBVH(std::vector<OptixBuildInput> buildInput,
 {
   traversable = {};
   bounds = {};
-
   if (buildInput.empty()) {
     obj->reportMessage(ANARI_SEVERITY_DEBUG, "skipping BVH build");
-    return;
+    return true;
   }
 
   auto &state = *obj->deviceState();
+  auto &preparation = state.preparation;
+  const auto stream = preparation.stream();
+  auto check = [&](cudaError_t error, const char *operation) {
+    if (error == cudaSuccess)
+      return true;
+    preparation.finish(); // Drain queued consumers before scratch is freed.
+    cudaGetLastError();
+    obj->reportMessage(ANARI_SEVERITY_ERROR,
+        "BVH preparation failed during %s: %s",
+        operation,
+        cudaGetErrorString(error));
+    return false;
+  };
+  auto checkOptix = [&](OptixResult result, const char *operation) {
+    if (result == OPTIX_SUCCESS)
+      return true;
+    preparation.finish();
+    obj->reportMessage(ANARI_SEVERITY_ERROR,
+        "BVH preparation failed during %s: %s",
+        operation,
+        optixGetErrorName(result));
+    return false;
+  };
+  auto reserve = [&](DeviceBuffer &buffer, size_t bytes) {
+    if (!buffer)
+      buffer.reset();
+    buffer.reserve(bytes);
+    const auto error = cudaGetLastError();
+    return check(error != cudaSuccess ? error
+            : bytes && (!buffer || buffer.bytes() < bytes)
+            ? cudaErrorMemoryAllocation
+            : cudaSuccess,
+        "allocating device storage");
+  };
 
-  // TLAS setup //
+  // Legacy producers include field/isosurface work on the render stream and
+  // authored arrays/instance uploads on the default stream. Previous rendering
+  // must also finish before the existing BVH storage can be reused.
+  if (!check(preparation.waitFor(state.stream), "previous BVH consumers")
+      || !check(preparation.waitFor(nullptr), "input upload dependency"))
+    return false;
 
-  OptixAccelBuildOptions accelOptions{};
-  accelOptions.buildFlags = OPTIX_BUILD_FLAG_ALLOW_COMPACTION;
-  accelOptions.operation = OPTIX_BUILD_OPERATION_BUILD;
+  OptixAccelBuildOptions options{};
+  options.buildFlags = OPTIX_BUILD_FLAG_ALLOW_COMPACTION;
+  options.operation = OPTIX_BUILD_OPERATION_BUILD;
+  OptixAccelBufferSizes sizes{};
+  if (!checkOptix(optixAccelComputeMemoryUsage(state.optixContext,
+                      &options,
+                      buildInput.data(),
+                      buildInput.size(),
+                      &sizes),
+          "memory requirements"))
+    return false;
 
-  OptixAccelBufferSizes tlasBufferSizes;
-  OPTIX_CHECK_OBJECT(optixAccelComputeMemoryUsage(state.optixContext,
-                         &accelOptions,
-                         buildInput.data(),
-                         buildInput.size(),
-                         &tlasBufferSizes),
-      obj);
+  DeviceBuffer compactedSizeBuffer, aabbBuffer, tempBuffer, outputBuffer;
+  if (!reserve(compactedSizeBuffer, sizeof(uint64_t))
+      || !reserve(aabbBuffer, sizeof(box3))
+      || !reserve(tempBuffer, sizes.tempSizeInBytes)
+      || !reserve(outputBuffer, sizes.outputSizeInBytes))
+    return false;
 
-  // Prepare compaction //
+  OptixAccelEmitDesc emit[2]{};
+  emit[0].type = OPTIX_PROPERTY_TYPE_COMPACTED_SIZE;
+  emit[0].result = (CUdeviceptr)compactedSizeBuffer.ptr();
+  emit[1].type = OPTIX_PROPERTY_TYPE_AABBS;
+  emit[1].result = (CUdeviceptr)aabbBuffer.ptr();
+  OptixTraversableHandle built{};
+  if (!checkOptix(optixAccelBuild(state.optixContext,
+                      stream,
+                      &options,
+                      buildInput.data(),
+                      buildInput.size(),
+                      (CUdeviceptr)tempBuffer.ptr(),
+                      tempBuffer.bytes(),
+                      (CUdeviceptr)outputBuffer.ptr(),
+                      outputBuffer.bytes(),
+                      &built,
+                      emit,
+                      2),
+          "build"))
+    return false;
 
-  DeviceBuffer compactedSizeBuffer;
-  compactedSizeBuffer.reserve(sizeof(uint64_t));
+  box3 builtBounds;
+  uint64_t compactedSize = 0;
+  if (!check(cudaMemcpyAsync(&builtBounds,
+                 aabbBuffer.ptr(),
+                 sizeof(box3),
+                 cudaMemcpyDeviceToHost,
+                 stream),
+          "bounds readback")
+      || !check(cudaMemcpyAsync(&compactedSize,
+                    compactedSizeBuffer.ptr(),
+                    sizeof(compactedSize),
+                    cudaMemcpyDeviceToHost,
+                    stream),
+          "compaction size readback")
+      || !check(preparation.finish(), "build completion"))
+    return false;
 
-  OptixAccelEmitDesc emitDesc[2];
-  emitDesc[0].type = OPTIX_PROPERTY_TYPE_COMPACTED_SIZE;
-  emitDesc[0].result = (CUdeviceptr)compactedSizeBuffer.ptr();
-
-  DeviceBuffer aabbBuffer;
-  aabbBuffer.reserve(sizeof(box3));
-
-  emitDesc[1].type = OPTIX_PROPERTY_TYPE_AABBS;
-  emitDesc[1].result = (CUdeviceptr)aabbBuffer.ptr();
-
-  // Execute BVH build //
-
-  DeviceBuffer tempBuffer;
-  tempBuffer.reserve(tlasBufferSizes.tempSizeInBytes);
-
-  DeviceBuffer outputBuffer;
-  outputBuffer.reserve(tlasBufferSizes.outputSizeInBytes);
-
-  OPTIX_CHECK_OBJECT(optixAccelBuild(state.optixContext,
-                         state.stream,
-                         &accelOptions,
-                         buildInput.data(),
-                         buildInput.size(),
-                         (CUdeviceptr)tempBuffer.ptr(),
-                         tempBuffer.bytes(),
-                         (CUdeviceptr)outputBuffer.ptr(),
-                         outputBuffer.bytes(),
-                         &traversable,
-                         emitDesc,
-                         2),
-      obj);
-  CUDA_SYNC_CHECK_OBJECT(obj);
-
-  aabbBuffer.download(&bounds);
-
-  // Perform compaction //
-
-  uint64_t compactedSize;
-  compactedSizeBuffer.download(&compactedSize, 1);
-
-  bvh.reserve(compactedSize);
-  OPTIX_CHECK_OBJECT(optixAccelCompact(state.optixContext,
-                         state.stream,
-                         traversable,
+  if (!reserve(bvh, compactedSize)
+      || !checkOptix(optixAccelCompact(state.optixContext,
+                         stream,
+                         built,
                          (CUdeviceptr)bvh.ptr(),
                          bvh.bytes(),
-                         &traversable),
-      obj);
-  CUDA_SYNC_CHECK_OBJECT(obj);
+                         &built),
+          "compaction")
+      || !check(preparation.finish(), "compaction completion"))
+    return false;
+
+  // Publication and scratch destruction happen only after this stream's work
+  // completes. Subsequent tracing needs no device-wide barrier.
+  traversable = built;
+  bounds = builtBounds;
+  return true;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

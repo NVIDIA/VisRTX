@@ -253,6 +253,8 @@ WorldGPUData World::gpuData() const
 
 bool World::preparationFailed() const
 {
+  if (m_bvhBuildFailed)
+    return true;
   for (auto *instance : m_instances) {
     if (instance->group()->preparationFailed())
       return true;
@@ -262,6 +264,9 @@ bool World::preparationFailed() const
 
 void World::rebuildWorld()
 {
+  if (m_bvhBuildFailed)
+    m_objectUpdates.lastTLASBuild = 0;
+  m_bvhBuildFailed = false;
   const auto &state = *deviceState();
 
   const auto &updates = state.objectUpdates;
@@ -290,16 +295,21 @@ void World::rebuildWorld()
     if (preparationFailed())
       return;
     buildLightProxies();
+    if (preparationFailed())
+      return;
 
     populateOptixInstances();
     reportMessage(ANARI_SEVERITY_DEBUG,
         "visrtx::World building surface BVH over %zu instances",
         m_optixSurfaceInstances.size());
-    buildOptixBVH(createOBI(m_optixSurfaceInstances),
-        m_bvhSurfaces,
-        m_traversableSurfaces,
-        m_surfaceBounds,
-        this);
+    if (!buildOptixBVH(createOBI(m_optixSurfaceInstances),
+            m_bvhSurfaces,
+            m_traversableSurfaces,
+            m_surfaceBounds,
+            this)) {
+      m_bvhBuildFailed = true;
+      return;
+    }
     reportMessage(
         ANARI_SEVERITY_DEBUG, "visrtx::World building surface gpu data");
     buildInstanceSurfaceGPUData();
@@ -307,11 +317,14 @@ void World::rebuildWorld()
     reportMessage(ANARI_SEVERITY_DEBUG,
         "visrtx::World building volume BVH over %zu instances",
         m_optixVolumeInstances.size());
-    buildOptixBVH(createOBI(m_optixVolumeInstances),
-        m_bvhVolumes,
-        m_traversableVolumes,
-        m_volumeBounds,
-        this);
+    if (!buildOptixBVH(createOBI(m_optixVolumeInstances),
+            m_bvhVolumes,
+            m_traversableVolumes,
+            m_volumeBounds,
+            this)) {
+      m_bvhBuildFailed = true;
+      return;
+    }
     reportMessage(
         ANARI_SEVERITY_DEBUG, "visrtx::World building volume gpu data");
     buildInstanceVolumeGPUData();
@@ -319,6 +332,8 @@ void World::rebuildWorld()
     // Both TLASs have reported their bounds, so the extent of the illuminated
     // scene can be resolved and the infinite lights weighted against it.
     buildIlluminatedBounds();
+    if (preparationFailed())
+      return;
     buildLightPickCdf();
 
     reportMessage(ANARI_SEVERITY_DEBUG,
@@ -454,7 +469,8 @@ void World::rebuildBLASs()
     group->rebuildLights();
   });
 
-  m_objectUpdates.lastBLASCheck = helium::newTimeStamp();
+  if (!preparationFailed())
+    m_objectUpdates.lastBLASCheck = helium::newTimeStamp();
 }
 
 void World::buildInstanceSurfaceGPUData()
@@ -788,12 +804,15 @@ void World::buildIlluminatedBounds()
   DeviceBuffer geometryBvh;
   OptixTraversableHandle geometryTraversable{};
   box3 geometryBounds;
-  buildOptixBVH(
-      createOBI(m_optixSurfaceInstances, m_numGeometrySurfaceInstances),
-      geometryBvh,
-      geometryTraversable,
-      geometryBounds,
-      this);
+  if (!buildOptixBVH(
+          createOBI(m_optixSurfaceInstances, m_numGeometrySurfaceInstances),
+          geometryBvh,
+          geometryTraversable,
+          geometryBounds,
+          this)) {
+    m_bvhBuildFailed = true;
+    return;
+  }
 
   m_illuminatedBounds = geometryBounds;
   m_illuminatedBounds.extend(m_volumeBounds);
@@ -1015,7 +1034,7 @@ void World::buildLightProxies()
   buildInput.customPrimitiveArray.numSbtRecords = 1;
 
   box3 proxyBounds;
-  buildOptixBVH({buildInput},
+  m_bvhBuildFailed = !buildOptixBVH({buildInput},
       m_bvhLightProxies,
       m_traversableLightProxies,
       proxyBounds,

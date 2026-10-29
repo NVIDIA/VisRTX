@@ -211,6 +211,12 @@ const std::vector<Surface *> &Group::surfacesUser() const
 
 bool Group::preparationFailed() const
 {
+  return m_surfaceBuildFailed || m_volumeBuildFailed
+      || geometryPreparationFailed();
+}
+
+bool Group::geometryPreparationFailed() const
+{
   if (!m_surfaceData)
     return false;
   auto surfaces = make_Span(
@@ -225,13 +231,14 @@ bool Group::preparationFailed() const
 
 void Group::rebuildSurfaceBVHs()
 {
-  if (preparationFailed())
+  if (geometryPreparationFailed())
     return;
   const auto &state = *deviceState();
   if (state.objectUpdates.lastSurfaceBLASChange
       < m_objectUpdates.lastSurfaceBVHBuilt)
     return;
 
+  m_surfaceBuildFailed = false;
   partitionValidGeometriesByType();
 
   m_triangleBounds = box3();
@@ -241,25 +248,22 @@ void Group::rebuildSurfaceBVHs()
   m_traversableCurve = {};
   m_traversableUser = {};
 
-  // populateBuildInput can trigger a first upload of an authored index array.
-  // Establish its default-stream producer edge before any BLAS consumes it.
+  // populateBuildInput can upload authored indices. The BVH builder imports
+  // those default-stream producers before submitting the build.
   auto triangles = createOBI(m_surfacesTriangle);
   auto curves = createOBI(m_surfacesCurve);
   auto users = createOBI(m_surfacesUser);
-  Surface *first = !m_surfacesTriangle.empty() ? m_surfacesTriangle.front()
-      : !m_surfacesCurve.empty()               ? m_surfacesCurve.front()
-      : !m_surfacesUser.empty()                ? m_surfacesUser.front()
-                                               : nullptr;
-  if (first && !waitForPreparationInputs(first->geometry()))
-    return;
 
   if (!m_surfacesTriangle.empty()) {
     reportMessage(ANARI_SEVERITY_DEBUG, "visrtx::Group building triangle BVH");
-    buildOptixBVH(std::move(triangles),
-        m_bvhTriangle,
-        m_traversableTriangle,
-        m_triangleBounds,
-        this);
+    if (!buildOptixBVH(std::move(triangles),
+            m_bvhTriangle,
+            m_traversableTriangle,
+            m_triangleBounds,
+            this)) {
+      m_surfaceBuildFailed = true;
+      return;
+    }
   } else {
     reportMessage(
         ANARI_SEVERITY_DEBUG, "visrtx::Group skipping triangle BVH build");
@@ -267,8 +271,14 @@ void Group::rebuildSurfaceBVHs()
 
   if (!m_surfacesCurve.empty()) {
     reportMessage(ANARI_SEVERITY_DEBUG, "visrtx::Group building curve BVH");
-    buildOptixBVH(
-        std::move(curves), m_bvhCurve, m_traversableCurve, m_curveBounds, this);
+    if (!buildOptixBVH(std::move(curves),
+            m_bvhCurve,
+            m_traversableCurve,
+            m_curveBounds,
+            this)) {
+      m_surfaceBuildFailed = true;
+      return;
+    }
   } else {
     reportMessage(
         ANARI_SEVERITY_DEBUG, "visrtx::Group skipping curve BVH build");
@@ -276,8 +286,14 @@ void Group::rebuildSurfaceBVHs()
 
   if (!m_surfacesUser.empty()) {
     reportMessage(ANARI_SEVERITY_DEBUG, "visrtx::Group building user BVH");
-    buildOptixBVH(
-        std::move(users), m_bvhUser, m_traversableUser, m_userBounds, this);
+    if (!buildOptixBVH(std::move(users),
+            m_bvhUser,
+            m_traversableUser,
+            m_userBounds,
+            this)) {
+      m_surfaceBuildFailed = true;
+      return;
+    }
   } else {
     reportMessage(
         ANARI_SEVERITY_DEBUG, "visrtx::Group skipping user BVH build");
@@ -295,6 +311,7 @@ void Group::rebuildVolumeBVH()
       < m_objectUpdates.lastVolumeBVHBuilt)
     return;
 
+  m_volumeBuildFailed = false;
   partitionValidVolumes();
   if (m_volumes.empty()) {
     m_volumeBounds = box3();
@@ -306,11 +323,14 @@ void Group::rebuildVolumeBVH()
   }
 
   reportMessage(ANARI_SEVERITY_DEBUG, "visrtx::Group building volume BVH");
-  buildOptixBVH(createOBI(m_volumes),
-      m_bvhVolume,
-      m_traversableVolume,
-      m_volumeBounds,
-      this);
+  if (!buildOptixBVH(createOBI(m_volumes),
+          m_bvhVolume,
+          m_traversableVolume,
+          m_volumeBounds,
+          this)) {
+    m_volumeBuildFailed = true;
+    return;
+  }
 
   buildVolumeGPUData();
 
