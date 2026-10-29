@@ -266,7 +266,12 @@ bool Geometry::beginPreparation(std::initializer_list<const char *> parameters)
   m_preparedParameters = std::move(current);
   m_hasPreparedData = false;
   m_preparationFailed = false;
-  return true;
+  // Full preparation can overwrite derived buffers read by earlier frames.
+  // Keep that dependency on the GPU; parameter-reference retirement above
+  // still requires a host wait before releasing old application storage.
+  return checkPreparation(this,
+      deviceState()->preparation.waitFor(deviceState()->stream),
+      "previous geometry consumers");
 }
 
 bool Geometry::preparationFailed() const

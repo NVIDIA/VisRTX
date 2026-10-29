@@ -86,6 +86,7 @@ struct Group : public Object
   void rebuildLights();
 
  private:
+  bool geometryPreparationFailed() const;
   void partitionValidGeometriesByType();
   void partitionValidVolumes();
   void partitionValidLights();
@@ -121,6 +122,9 @@ struct Group : public Object
   DeviceObjectIndex m_firstHDRI{-1};
 
   // BVH //
+
+  bool m_surfaceBuildFailed{false};
+  bool m_volumeBuildFailed{false};
 
   struct ObjectUpdates
   {

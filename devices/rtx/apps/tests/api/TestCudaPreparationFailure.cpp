@@ -51,8 +51,15 @@ enum class Failure
   ALLOCATION,
   COPY,
   WORK_SYNC,
-  COPY_SYNC
+  COPY_SYNC,
+  PREPARATION_SYNC,
+  PREPARATION_DEPENDENCY,
+  BVH_SYNC,
+  BVH_COPY
 };
+cudaStream_t preparationStream = nullptr;
+bool bvhReadback = false;
+int bvhReadbacksToSkip = 0;
 Failure failure = Failure::NONE;
 size_t allocationBytes = 0;
 int injections = 0;
@@ -117,13 +124,56 @@ extern "C" cudaError_t cudaMemcpy(
   return next<decltype(&cudaMemcpy)>("cudaMemcpy")(dst, src, bytes, kind);
 }
 
+extern "C" cudaError_t cudaStreamCreateWithFlags(
+    cudaStream_t *stream, unsigned flags)
+{
+  const auto result = next<decltype(&cudaStreamCreateWithFlags)>(
+      "cudaStreamCreateWithFlags")(stream, flags);
+  if (result == cudaSuccess && (flags & cudaStreamNonBlocking))
+    preparationStream = *stream;
+  return result;
+}
+
+extern "C" cudaError_t cudaStreamWaitEvent(
+    cudaStream_t stream, cudaEvent_t event, unsigned flags)
+{
+  if (stream == preparationStream && inject(Failure::PREPARATION_DEPENDENCY))
+    return cudaErrorInvalidValue;
+  return next<decltype(&cudaStreamWaitEvent)>("cudaStreamWaitEvent")(
+      stream, event, flags);
+}
+
+extern "C" cudaError_t cudaMemcpyAsync(void *dst,
+    const void *src,
+    size_t bytes,
+    cudaMemcpyKind kind,
+    cudaStream_t stream)
+{
+  if (stream == preparationStream && kind == cudaMemcpyDeviceToHost
+      && bytes == 6 * sizeof(float)
+      && (failure == Failure::BVH_COPY || failure == Failure::BVH_SYNC)) {
+    if (bvhReadbacksToSkip)
+      --bvhReadbacksToSkip;
+    else {
+      if (inject(Failure::BVH_COPY))
+        return cudaErrorInvalidValue;
+      bvhReadback = true;
+    }
+  }
+  return next<decltype(&cudaMemcpyAsync)>("cudaMemcpyAsync")(
+      dst, src, bytes, kind, stream);
+}
+
 extern "C" cudaError_t cudaStreamSynchronize(cudaStream_t stream)
 {
   // Drain real work even when simulating a failed completion report.
   const auto result =
       next<decltype(&cudaStreamSynchronize)>("cudaStreamSynchronize")(stream);
   if ((stream && inject(Failure::WORK_SYNC))
-      || (!stream && inject(Failure::COPY_SYNC)))
+      || (!stream && inject(Failure::COPY_SYNC))
+      || (stream == preparationStream && inject(Failure::PREPARATION_SYNC))
+      || (stream == preparationStream && bvhReadback
+          && inject(Failure::BVH_SYNC)))
     return cudaErrorUnknown;
   return result;
 }
@@ -132,9 +182,11 @@ int main(int argc, char **argv)
 {
   const bool isosurfaceFailure =
       argc > 1 && std::strcmp(argv[1], "isosurface") == 0;
-  const bool sphereFailure = argc > 1
-      && (std::strcmp(argv[1], "sphere") == 0
-          || std::strcmp(argv[1], "sphere-indexed") == 0);
+  const bool sphereFailure =
+      argc > 1 && std::strncmp(argv[1], "sphere", 6) == 0;
+  const bool bvhFailure = argc > 1
+      && (std::strncmp(argv[1], "bvh-", 4) == 0
+          || std::strcmp(argv[1], "tlas-sync") == 0);
   const bool curveFailure = argc == 1 || isosurfaceFailure || sphereFailure;
   auto d = makeVisRTXDevice(status);
   using vec3 = std::array<float, 3>;
@@ -236,7 +288,34 @@ int main(int argc, char **argv)
         != 0;
   };
   bool ok = errors == 0;
-  if (curveFailure) {
+  if (bvhFailure) {
+    const auto injected = std::strcmp(argv[1], "bvh-copy") == 0
+        ? Failure::BVH_COPY
+        : Failure::BVH_SYNC;
+    bvhReadbacksToSkip = std::strcmp(argv[1], "tlas-sync") == 0 ? 1 : 0;
+    failure = injected;
+    ok = !haveBounds() && injections == 1 && errors > 0 && ok;
+    ok = !anariGetProperty(d,
+             world,
+             "bounds",
+             ANARI_FLOAT32_BOX3,
+             bounds.data(),
+             sizeof(bounds),
+             ANARI_NO_WAIT)
+        && ok;
+    failure = injected;
+    bvhReadback = false;
+    bvhReadbacksToSkip = 0;
+    anari::render(d, frame);
+    anari::wait(d, frame);
+    ok = injections == 2 && completions == 0 && ok;
+    const int beforeErrors = errors;
+    ok = haveBounds() && errors == beforeErrors && ok;
+    anari::render(d, frame);
+    anari::wait(d, frame);
+    ok = completions == 1 && errors == beforeErrors && ok;
+    anari::release(d, array);
+  } else if (curveFailure) {
     if (isosurfaceFailure) {
       ok = haveBounds() && ok;
       anari::setParameter(d, geometry, "isovalue", 2.5f);
@@ -252,6 +331,10 @@ int main(int argc, char **argv)
             * 2 * sizeof(vec3)
         : 3 * sizeof(unsigned);
     failure = isosurfaceFailure ? Failure::WORK_SYNC : Failure::ALLOCATION;
+    if (sphereFailure && std::strcmp(argv[1], "sphere-completion") == 0)
+      failure = Failure::PREPARATION_SYNC;
+    if (sphereFailure && std::strcmp(argv[1], "sphere-dependency") == 0)
+      failure = Failure::PREPARATION_DEPENDENCY;
     ok = !haveBounds() && ok;
     // The unaffected sibling must not inherit the first geometry's OOM.
     // Recovery below must succeed without recommitting the sibling.

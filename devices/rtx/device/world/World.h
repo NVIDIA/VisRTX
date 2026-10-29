@@ -99,6 +99,7 @@ struct World : public Object
   size_t m_numUserInstances{0};
   size_t m_numVolumeInstances{0};
 
+  bool m_bvhBuildFailed{false};
   box3 m_surfaceBounds;
   box3 m_volumeBounds;
   // m_surfaceBounds minus the light-proxy instance, unioned with the volumes.
