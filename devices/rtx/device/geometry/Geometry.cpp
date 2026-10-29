@@ -47,6 +47,7 @@
 // std
 #include <cstring>
 #include <string_view>
+#include <utility>
 // helium
 #include <helium/helium_math.h>
 
@@ -227,6 +228,9 @@ bool Geometry::beginPreparation(std::initializer_list<const char *> parameters)
         m_preparationParameterNames.emplace_back(name);
     }
     current.reserve(m_preparedParameters.size());
+    // Indices remain valid if current grows; its AnariAny values retain every
+    // source array until the batch completes (including on failure).
+    std::vector<std::pair<size_t, Array *>> pendingUploads;
     size_t parameterIndex = 0;
     auto append = [&](const std::string &name) {
       PreparationParameter parameter;
@@ -243,7 +247,10 @@ bool Geometry::beginPreparation(std::initializer_list<const char *> parameters)
             parameter.modified = array->lastDataModified();
             // Privatization can change backing pointers without changing values
             // or the array timestamp. Never reuse cached aliases in that case.
-            parameter.devicePointer = array->dataGPU();
+            if (array->needToUploadData() && array->dataHost())
+              pendingUploads.emplace_back(current.size(), array);
+            else
+              parameter.devicePointer = array->dataGPU();
           }
         }
       }
@@ -251,6 +258,29 @@ bool Geometry::beginPreparation(std::initializer_list<const char *> parameters)
     };
     for (const auto &name : m_preparationParameterNames)
       append(name);
+
+    if (!pendingUploads.empty()) {
+      auto &state = *deviceState();
+      if (!checkPreparation(this,
+              state.preparation.waitFor(state.stream),
+              "previous array consumers"))
+        return false;
+      for (const auto &[index, array] : pendingUploads) {
+        if (!checkPreparation(this,
+                array->enqueueUpload(state.preparation.stream()),
+                "geometry array upload"))
+          return false;
+      }
+      if (!checkPreparation(this,
+              state.preparation.finish(),
+              "geometry array upload completion"))
+        return false;
+      // Never mark a partial/failed batch uploaded: a later commit must retry.
+      for (const auto &[index, array] : pendingUploads) {
+        array->markDataUploaded();
+        current[index].devicePointer = array->dataGPU();
+      }
+    }
 
     // Observer-only updates always take the preparation path. A geometry-wide
     // attribute edit coalesced with an array change cannot hide that change;

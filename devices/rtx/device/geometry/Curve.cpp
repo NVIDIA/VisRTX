@@ -70,8 +70,7 @@ void Curve::finalize()
   if (preparationFailed())
     return;
   computeRadii();
-  if (preparationFailed() || !waitForPreparationInputs(this)
-      || !finishPreparation(this))
+  if (preparationFailed() || !finishPreparation(this))
     return;
 
   m_vertexBufferPtr = (CUdeviceptr)m_vertexPosition->begin(AddressSpace::GPU);

@@ -221,8 +221,6 @@ VISRTX_GLOBAL void curveRadii(size_t n, float radius, float *out)
 bool generateQuadIndices(
     Geometry *g, const uvec4 *indices, size_t n, DeviceBuffer &out)
 {
-  if (!waitForPreparationInputs(g))
-    return false;
   if (!reservePreparation(g, out, 2 * n * sizeof(uvec3)))
     return false;
   if (n)
@@ -236,8 +234,6 @@ bool generateQuadIndices(
 
 bool generateCurveIndices(Geometry *g, size_t n, DeviceBuffer &out)
 {
-  if (!waitForPreparationInputs(g))
-    return false;
   if (!reservePreparation(g, out, n * sizeof(uint32_t)))
     return false;
   if (n)
@@ -250,8 +246,6 @@ bool generateCurveIndices(Geometry *g, size_t n, DeviceBuffer &out)
 
 bool generateCurveRadii(Geometry *g, size_t n, float radius, DeviceBuffer &out)
 {
-  if (!waitForPreparationInputs(g))
-    return false;
   if (!reservePreparation(g, out, n * sizeof(float)))
     return false;
   if (n)
@@ -299,16 +293,6 @@ bool reservePreparation(Geometry *g, DeviceBuffer &buffer, size_t bytes)
       "allocating device storage");
 }
 
-bool waitForPreparationInputs(Geometry *g)
-{
-  // Legacy Array uploads use synchronous cudaMemcpy on the default stream.
-  // Pageable H2D may return after staging, not DMA completion: make that
-  // producer dependency explicit before launching on the preparation stream.
-  return checkPreparation(g,
-      g->deviceState()->preparation.waitFor(nullptr),
-      "input upload dependency");
-}
-
 bool finishPreparation(Geometry *g)
 {
   // Also establishes an explicit boundary for legacy default-stream consumers.
@@ -320,8 +304,6 @@ bool finishPreparation(Geometry *g)
 bool Preprocessing::bounds(
     Geometry *g, const PrimitiveInput &in, DeviceBuffer &aabbs, float &scale)
 {
-  if (!waitForPreparationInputs(g))
-    return false;
   const auto stream = g->deviceState()->preparation.stream();
   scale = 0.f;
   if (!reservePreparation(g, aabbs, in.count * sizeof(box3))
@@ -355,8 +337,6 @@ bool Preprocessing::bounds(
 bool Preprocessing::areas(
     Geometry *g, const PrimitiveInput &in, DeviceBuffer &cdf, float &total)
 {
-  if (!waitForPreparationInputs(g))
-    return false;
   total = 0.f;
   if (in.count == 0) {
     cdf.reset();
