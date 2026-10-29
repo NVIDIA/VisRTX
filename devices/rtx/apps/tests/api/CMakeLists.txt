@@ -109,6 +109,11 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CUDA_RUNTIME_LIBRARY STREQUAL "S
   make_test(TestFramePublicationRecovery)
   target_link_libraries(TestFramePublicationRecovery PRIVATE CUDA::cudart ${CMAKE_DL_LIBS})
   set_target_properties(TestFramePublicationRecovery PROPERTIES ENABLE_EXPORTS ON)
+  add_executable(TestGeometryReadbackPool TestGeometryReadbackPool.cpp)
+  target_link_libraries(TestGeometryReadbackPool PRIVATE
+    CUDA::cudart ${CMAKE_DL_LIBS} Threads::Threads)
+  set_target_properties(TestGeometryReadbackPool PROPERTIES ENABLE_EXPORTS ON)
+  add_test(NAME TestGeometryReadbackPool COMMAND TestGeometryReadbackPool)
   make_test(TestCudaPreparationFailure)
   target_link_libraries(TestCudaPreparationFailure PRIVATE CUDA::cudart ${CMAKE_DL_LIBS} Threads::Threads)
   target_include_directories(TestCudaPreparationFailure PRIVATE ${OptiX_ROOT_DIR}/include)
