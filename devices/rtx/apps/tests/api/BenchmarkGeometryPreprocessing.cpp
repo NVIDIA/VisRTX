@@ -67,7 +67,7 @@ int main(int argc, char **argv)
 {
   if (argc < 5 || argc > 10) {
     fprintf(stderr,
-        "usage: %s triangle|sphere|cone|cylinder|quad|curve|sdf count device repeats [shared-surfaces] [distinct-geometries] [recommit|replace|unchanged] [frames:0=bounds] [emissive:0|1]\n",
+        "usage: %s triangle|sphere|cone|cylinder|quad|curve|sdf count device repeats [shared-surfaces] [distinct-geometries] [recommit|replace|unchanged|overlap] [frames:0=bounds] [emissive:0|1]\n",
         argv[0]);
     return 2;
   }
@@ -82,7 +82,9 @@ int main(int argc, char **argv)
   const bool emissive = argc >= 10 ? std::atoi(argv[9]) != 0 : true;
   if (!n || repeats < 2 || sharedSurfaces < 1 || distinctGeometries < 1
       || numFrames < 0
-      || (mode != "recommit" && mode != "replace" && mode != "unchanged")
+      || (mode != "recommit" && mode != "replace" && mode != "unchanged"
+          && mode != "overlap")
+      || (mode == "overlap" && numFrames != 1)
       || (type != "triangle" && type != "sphere" && type != "cone"
           && type != "cylinder" && type != "quad" && type != "curve"
           && type != "sdf"))
@@ -187,10 +189,13 @@ int main(int argc, char **argv)
     anari::commitParameters(d, camera);
     auto renderer = anari::newObject<anari::Renderer>(d, "interactive");
     anari::setParameter(d, renderer, "sampleLimit", 0);
-    anari::setParameter(d, renderer, "pixelSamples", 1);
+    anari::setParameter(
+        d, renderer, "pixelSamples", mode == "overlap" ? 32 : 1);
     anari::commitParameters(d, renderer);
     auto frame = anari::newObject<anari::Frame>(d);
-    anari::setParameter(d, frame, "size", std::array<unsigned, 2>{64, 64});
+    const unsigned resolution = mode == "overlap" ? 1024 : 64;
+    anari::setParameter(
+        d, frame, "size", std::array<unsigned, 2>{resolution, resolution});
     anari::setParameter(d, frame, "channel.color", ANARI_FLOAT32_VEC4);
     anari::setParameter(d, frame, "world", world);
     ANARIFrameCompletionCallback callback = complete;
@@ -224,6 +229,31 @@ int main(int argc, char **argv)
     for (auto frame : frames)
       anari::render(d, frame);
     const auto submitted = std::chrono::steady_clock::now();
+    if (mode == "overlap") {
+      for (auto geometry : geometries) {
+        anari::setParameter(
+            d, geometry, "attribute0", vec4{float(iteration), 0, 0, 0});
+        anari::commitParameters(d, geometry);
+      }
+      std::array<float, 6> overlapBounds{};
+      const auto queryStart = std::chrono::steady_clock::now();
+      if (!anariGetProperty(d,
+              world,
+              "bounds",
+              ANARI_FLOAT32_BOX3,
+              overlapBounds.data(),
+              sizeof(overlapBounds),
+              ANARI_WAIT))
+        return 1;
+      const auto queryEnd = std::chrono::steady_clock::now();
+      for (float value : overlapBounds)
+        if (!std::isfinite(value))
+          return 1;
+      printf("overlap iteration=%d query_ms=%.6f\n",
+          iteration,
+          std::chrono::duration<double, std::milli>(queryEnd - queryStart)
+              .count());
+    }
     for (auto frame : frames)
       anari::wait(d, frame);
     std::array<float, 6> bounds{};

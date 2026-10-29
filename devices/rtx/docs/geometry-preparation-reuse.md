@@ -19,8 +19,15 @@ preparation-preserving finalization path. Changing only geometry-wide attributes
 republishes the geometry registry slot without regenerating tangents, indices,
 radii, bounds, or area CDFs, and without invalidating the surface BLAS timestamp.
 Normal object-finalization timestamps still advance, so automatic accumulation
-reset remains intact. No stream or synchronization policy is changed; the
-existing input-retirement check still runs on a parameter commit.
+reset remains intact. Before replacing parameter references, the input-retirement
+check compares the declared committed preparation inputs and referenced-object
+versions with the last successful preparation. Unchanged inputs skip the work-
+stream wait; first preparation, changed inputs, failed preparation, and non-opt-in
+types retain it. This check performs no GPU uploads. Parameter lookup names are
+cached once per geometry rather than rebuilt on every finalization. Finalization
+still revalidates values, object versions, and backing pointers before reusing
+derived data: dependencies can be updated between commit and finalization, so the
+earlier retirement verdict is not a reusable preparation verdict.
 
 This is deliberately not general fine-grained invalidation. Any changed
 preparation input takes the existing full preparation path, including shading
@@ -35,7 +42,8 @@ existing full-preparation behavior; they do not opt in.
 read lazily by tangent generation or `gpuData()`. These are the subtype's
 preparation inputs. The base adds primitive and vertex
 attribute arrays and primitive IDs. When adding a subtype parameter, update its
-list or keep that subtype on the default conservative path.
+list or keep that subtype on the default conservative path. The declaration is
+fixed per subtype; do not conditionally add/remove names based on current values.
 
 The helper compares committed parameter values, not live staging iterators.
 For referenced arrays it also records object update/finalization timestamps,
@@ -54,7 +62,7 @@ retain internal references to the current input objects until replacement or
 geometry destruction; they do not copy authored data. This also prevents cached
 parameter identity from becoming a dangling object pointer. The extra reference
 lifetime is intentional; old snapshot references are dropped on the next full
-preparation after the existing retirement check.
+preparation after the retirement check.
 
 Geometry-wide attribute values are excluded because they do not change geometric
 area or bounds.
@@ -89,8 +97,8 @@ boundaries and local result interpretation; no historical baseline is required.
 
 ## Remaining work
 
-Broader array/shading invalidation precision, avoiding retirement waits when no
-ownership changes, batched readback/dispatch, and fine-grained area-vs-bounds
+Broader array/shading invalidation precision, reducing the extra CPU snapshot
+comparison cost, batched readback/dispatch, and fine-grained area-vs-bounds
 invalidation are separate improvements. This change does not repack or download
 inputs, introduce CPU preprocessing, or weaken the guarantee that changed inputs
 are prepared on the GPU before their derived data is published.
