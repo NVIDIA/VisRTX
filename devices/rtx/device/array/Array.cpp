@@ -189,6 +189,10 @@ void Array::privatize()
     // Existing frames may still read the shared pointer. The application may
     // free it as soon as this last PUBLIC release returns.
     auto completion = cudaStreamSynchronize(state.stream);
+    // Deferred preprocessing can still read this external allocation even
+    // when no frame is in flight. Retain it through that stream's completion.
+    if (completion == cudaSuccess && state.hasPendingGeometryPreparations())
+      completion = state.finishGeometryPreparation();
     if (completion == cudaSuccess)
       completion = m_data.shared.device.privatize();
     if (completion != cudaSuccess) {

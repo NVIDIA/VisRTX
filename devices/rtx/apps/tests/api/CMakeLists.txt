@@ -86,6 +86,8 @@ target_link_libraries(TestRegistrySnapshot PRIVATE
   CUDA::cudart anari::anari_static visrtx::glm)
 target_compile_definitions(TestRegistrySnapshot PRIVATE GLM_ENABLE_EXPERIMENTAL)
 add_test(NAME TestRegistrySnapshot COMMAND TestRegistrySnapshot)
+make_test(TestDeferredGeometryPreparation)
+target_link_libraries(TestDeferredGeometryPreparation PRIVATE CUDA::cudart)
 make_test(TestGeometryPreparationReuse)
 target_link_libraries(TestGeometryPreparationReuse PRIVATE CUDA::cudart)
 make_test(TestSharedGeometryLifecycle)
@@ -100,12 +102,15 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CUDA_RUNTIME_LIBRARY STREQUAL "S
   target_link_libraries(TestFramePublicationRecovery PRIVATE CUDA::cudart ${CMAKE_DL_LIBS})
   set_target_properties(TestFramePublicationRecovery PROPERTIES ENABLE_EXPORTS ON)
   make_test(TestCudaPreparationFailure)
-  target_link_libraries(TestCudaPreparationFailure PRIVATE CUDA::cudart ${CMAKE_DL_LIBS})
+  target_link_libraries(TestCudaPreparationFailure PRIVATE CUDA::cudart ${CMAKE_DL_LIBS} Threads::Threads)
   target_include_directories(TestCudaPreparationFailure PRIVATE ${OptiX_ROOT_DIR}/include)
   set_target_properties(TestCudaPreparationFailure PROPERTIES ENABLE_EXPORTS ON)
   add_test(NAME TestIsosurfacePreparationRecovery
     COMMAND TestCudaPreparationFailure isosurface)
   foreach(geometry sphere sphere-indexed sphere-completion sphere-dependency
+      sphere-undrained-completion
+      sphere-readback-allocation sphere-batch-completion
+      sphere-batch-upload-completion
       sphere-upload-allocation sphere-upload-copy sphere-upload-completion
       sphere-upload-partial)
     add_test(NAME TestSpherePreparationRecovery_${geometry}
@@ -120,7 +125,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CUDA_RUNTIME_LIBRARY STREQUAL "S
     add_test(NAME TestBvhPreparationRecovery_${failure}
       COMMAND TestCudaPreparationFailure ${failure})
   endforeach()
-  foreach(failure allocation copy work-sync copy-sync)
+  foreach(failure allocation copy work-sync copy-sync pending-retirement)
     add_test(NAME TestArrayPrivatizationFailure_${failure}
       COMMAND TestCudaPreparationFailure ${failure})
   endforeach()

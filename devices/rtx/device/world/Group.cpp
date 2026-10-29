@@ -231,6 +231,8 @@ bool Group::geometryPreparationFailed() const
 
 void Group::rebuildSurfaceBVHs()
 {
+  if (!deviceState()->collectGeometryPreparations())
+    return;
   if (geometryPreparationFailed())
     return;
   const auto &state = *deviceState();

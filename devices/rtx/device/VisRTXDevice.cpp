@@ -346,6 +346,10 @@ int VisRTXDevice::getProperty(ANARIObject object,
     uint64_t size,
     uint32_t mask)
 {
+  // A status callback during collection must not flush/re-finalize geometry
+  // whose readbacks and registry publication are still being resolved.
+  if (deviceState()->collectingGeometryPreparations())
+    return 0;
   if (!initDevice())
     return 0;
   CUDADeviceScope ds(this);
@@ -375,6 +379,8 @@ const void *VisRTXDevice::frameBufferMap(ANARIFrame f,
 
 void VisRTXDevice::renderFrame(ANARIFrame f)
 {
+  if (deviceState()->collectingGeometryPreparations())
+    return;
   if (!initDevice())
     return;
   CUDADeviceScope ds(this);
@@ -426,6 +432,7 @@ VisRTXDevice::~VisRTXDevice()
   // material dying here releases its samplers into the registry, so the MDL
   // teardown below must come after (also what empties the registry before its
   // "not empty on destruction" check).
+  state.collectGeometryPreparations();
   state.commitBuffer.clear();
 
 #ifdef USE_MDL

@@ -77,14 +77,15 @@ struct Geometry : public RegisteredObject<GeometryGPUData>
   void commitParameters() override;
   void markFinalized() override;
   void upload();
+  void deferPreparation();
+  void completePreparation();
 
   virtual void populateBuildInput(OptixBuildInput &) const = 0;
   virtual int optixGeometryType() const = 0;
 
-  // Geometry Light area sampling. Only types that can be sampled by area as an
-  // Emissive Surface override these (Stage 1: Triangle). ensureAreaData()
-  // builds the per-primitive area CDF; totalArea() is the object-space emitting
-  // area.
+  // Geometry Light area sampling. ensureAreaData() submits a per-primitive
+  // CDF if needed. Collect device geometry preparations before reading
+  // totalArea(), the object-space emitting area, or publishing a registry.
   virtual bool isAreaSamplingSupported() const;
   virtual void ensureAreaData();
   virtual float totalArea() const;
@@ -133,6 +134,7 @@ struct Geometry : public RegisteredObject<GeometryGPUData>
   bool m_preparationPreserved{false};
   bool m_preparationFailed{false};
   bool m_inputRetirementFailed{false};
+  bool m_preparationQueued{false};
 };
 
 } // namespace visrtx
