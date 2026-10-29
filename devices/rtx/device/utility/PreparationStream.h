@@ -51,6 +51,11 @@ struct PreparationStream
   cudaError_t waitFor(cudaStream_t producer);
   cudaError_t finish();
 
+  // All sources must remain stable until this returns. Drain a partial batch
+  // on failure; callers acknowledge dirty state only after success.
+  template <typename... Arrays>
+  cudaError_t upload(cudaStream_t previousConsumers, Arrays &...arrays);
+
  private:
   cudaStream_t m_stream{nullptr};
   cudaEvent_t m_dependency{nullptr};
@@ -103,6 +108,22 @@ inline cudaError_t PreparationStream::waitFor(cudaStream_t producer)
 inline cudaError_t PreparationStream::finish()
 {
   return cudaStreamSynchronize(m_stream);
+}
+
+template <typename... Arrays>
+inline cudaError_t PreparationStream::upload(
+    cudaStream_t previousConsumers, Arrays &...arrays)
+{
+  auto error = waitFor(previousConsumers);
+  auto enqueue = [&](auto &array) {
+    if (error == cudaSuccess)
+      error = array.enqueueUpload(m_stream);
+  };
+  (enqueue(arrays), ...);
+  const auto completion = finish();
+  if (error != cudaSuccess || completion != cudaSuccess)
+    cudaGetLastError(); // Keep a recoverable API error out of the next batch.
+  return error == cudaSuccess ? completion : error;
 }
 
 } // namespace visrtx

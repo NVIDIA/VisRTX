@@ -117,6 +117,16 @@ is reused.
 - The BVH builder imports both render-stream producers (including legacy field
   and isosurface work) and default-stream input uploads. Its build, readbacks,
   and compaction execute on the preparation stream.
+- OptiX instance arrays and proxy AABBs are uploaded on the preparation stream
+  before their builds. World tracing tables (surface/volume/light records, proxy
+  records, and Light Pick arrays) are batched after their final CPU edits; proxy
+  flags no longer require a separate re-upload.
+- All dirty object registries are uploaded in one preparation-stream batch before
+  tracing. Registry pointer access no longer performs implicit uploads. Stable
+  host snapshots survive object creation or edits during the batch; only dirty
+  slots are staged unless registry growth requires a full copy. Edits made after
+  a snapshot remain dirty for the next batch. No registry lock is held during
+  CUDA waits, so completion callbacks cannot be blocked by that lock.
 - Host bounds/area summaries and BVH publication still require preparation-stream
   completion. BVH scratch survives through that completion; handles/bounds are
   published only on success. Group/World failure state prevents failed builds
@@ -128,8 +138,9 @@ is reused.
 This is not concurrent in-place scene replacement. Legacy default-stream events
 can include preceding work on blocking streams; tangent generation and field-grid
 preparation retain their legacy synchronization, and `cudaMalloc`/`cudaFree` can
-still serialize work. Removing the remaining dependencies requires stream-aware
-instance/registry uploads and allocation ownership. Overlapping replacement with active rendering also
+still serialize work. Frame/renderer payloads and group index tables still use
+legacy uploads. Removing those dependencies requires further producer migration
+and allocation ownership changes. Overlapping replacement with active rendering also
 requires separate storage generations and last-use tracking for all consumers,
 including shared geometry and registries.
 
@@ -138,12 +149,19 @@ an unrelated nonblocking stream. The shared-cudart failure tests additionally
 cover preparation dependency/completion failures and BLAS/TLAS readback/completion
 failures, publication suppression, and retry. Host-upload cases also check copy
 stream selection, allocation/copy/completion failures, partial-batch retry, and
-an in-place unmap coalesced with a uniform commit.
+an in-place unmap coalesced with a geometry-wide attribute commit. Scene-upload cases cover
+instance allocation, instance/world copy and completion errors, registry copy
+and completion errors, partial registry batches, and retry without recommitting
+already-finalized objects. `TestRegistrySnapshot` verifies stable copy sources
+across host-vector growth and preservation of newer dirty edits.
 
 ## Remaining work
 
 Broader array/shading invalidation precision, reducing the extra CPU snapshot
 comparison cost, batched readback/dispatch, and fine-grained area-vs-bounds
-invalidation are separate improvements. This change does not repack or download
+invalidation are separate improvements. Registry batching spans geometries, but
+geometry input/bounds/area preparation still completes per geometry. Batching
+that work across geometries requires splitting finalization into submission and
+result collection while preserving source lifetimes and failure propagation. This change does not repack or download
 inputs, introduce CPU preprocessing, or weaken the guarantee that changed inputs
 are prepared on the GPU before their derived data is published.

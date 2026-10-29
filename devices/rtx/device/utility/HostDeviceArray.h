@@ -56,6 +56,12 @@ struct HostDeviceArray
   void upload();
   void download();
 
+  cudaError_t enqueueUpload(cudaStream_t stream);
+  cudaError_t enqueueUploadFrom(
+      const T *source, size_t count, size_t startIndex, cudaStream_t stream);
+  cudaError_t enqueueUpload(
+      cudaStream_t stream, size_t startIndex, size_t endIndex);
+
   Span<T> hostSpan() const;
   Span<T> deviceSpan() const;
 
@@ -119,6 +125,34 @@ inline void HostDeviceArray<T>::upload(size_t startIndex, size_t endIndex)
         endIndex - startIndex,
         startIndex * sizeof(T));
   }
+}
+
+template <typename T>
+inline cudaError_t HostDeviceArray<T>::enqueueUpload(
+    cudaStream_t stream, size_t startIndex, size_t endIndex)
+{
+  if (startIndex > endIndex || endIndex > size())
+    return cudaErrorInvalidValue;
+  if (startIndex == endIndex)
+    return cudaSuccess;
+  return m_deviceBuffer.enqueueUpload(&m_hostArray[startIndex],
+      endIndex - startIndex,
+      stream,
+      startIndex * sizeof(T));
+}
+
+template <typename T>
+inline cudaError_t HostDeviceArray<T>::enqueueUploadFrom(
+    const T *source, size_t count, size_t startIndex, cudaStream_t stream)
+{
+  return m_deviceBuffer.enqueueUpload(
+      source, count, stream, startIndex * sizeof(T));
+}
+
+template <typename T>
+inline cudaError_t HostDeviceArray<T>::enqueueUpload(cudaStream_t stream)
+{
+  return enqueueUpload(stream, 0, size());
 }
 
 template <typename T>
