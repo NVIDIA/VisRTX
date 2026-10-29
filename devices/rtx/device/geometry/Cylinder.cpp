@@ -53,7 +53,14 @@ Cylinder::Cylinder(DeviceGlobalState *d)
       m_radius(this),
       m_vertex(this),
       m_vertexCaps(this)
-{}
+{
+  declarePreparationParameters({"primitive.index",
+      "vertex.position",
+      "primitive.radius",
+      "vertex.cap",
+      "caps",
+      "radius"});
+}
 
 Cylinder::~Cylinder() = default;
 
@@ -88,12 +95,7 @@ PrimitiveInput Cylinder::primitiveInput() const
 
 void Cylinder::finalize()
 {
-  if (!beginPreparation({"primitive.index",
-          "vertex.position",
-          "primitive.radius",
-          "vertex.cap",
-          "caps",
-          "radius"}))
+  if (!beginPreparation())
     return;
   if (!m_vertex) {
     reportMessage(ANARI_SEVERITY_WARNING,

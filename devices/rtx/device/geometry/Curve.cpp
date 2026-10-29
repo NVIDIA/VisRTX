@@ -37,7 +37,10 @@ namespace visrtx {
 
 Curve::Curve(DeviceGlobalState *d)
     : Geometry(d), m_index(this), m_vertexPosition(this), m_vertexRadius(this)
-{}
+{
+  declarePreparationParameters(
+      {"primitive.index", "vertex.position", "vertex.radius", "radius"});
+}
 
 Curve::~Curve() = default;
 
@@ -53,8 +56,7 @@ void Curve::commitParameters()
 
 void Curve::finalize()
 {
-  if (!beginPreparation(
-          {"primitive.index", "vertex.position", "vertex.radius", "radius"}))
+  if (!beginPreparation())
     return;
   if (!m_vertexPosition) {
     reportMessage(ANARI_SEVERITY_WARNING,

@@ -183,6 +183,77 @@ DeviceGlobalState::DeviceGlobalState(ANARIDevice d)
 
 DeviceGlobalState::~DeviceGlobalState() = default;
 
+void DeviceGlobalState::enqueueGeometryInputUploads(Geometry *geometry)
+{
+  m_geometryInputUploads.emplace_back(geometry);
+}
+
+cudaError_t DeviceGlobalState::stageGeometryArray(
+    Array *array, helium::TimeStamp modified)
+{
+  const auto found = m_geometryInputVersions.find(array);
+  if (found != m_geometryInputVersions.end() && found->second == modified)
+    return cudaSuccess;
+  const auto error = array->enqueueUpload(preparation.stream());
+  if (error == cudaSuccess)
+    m_geometryInputVersions.insert_or_assign(array, modified);
+  return error;
+}
+
+bool DeviceGlobalState::collectingGeometryInputUploads() const
+{
+  return m_collectingGeometryInputUploads;
+}
+
+bool DeviceGlobalState::collectGeometryInputUploads()
+{
+  if (m_collectingGeometryInputUploads)
+    return false;
+  if (m_geometryInputUploads.empty())
+    return true;
+  m_collectingGeometryInputUploads = true;
+  bool completed = false;
+  auto collecting = nonstd::make_scope_exit([&] {
+    if (!completed) {
+      // A host allocation or callback can unwind after copies were submitted.
+      // Keep sources alive and drain before permitting public release again.
+      for (auto &geometry : m_geometryInputUploads)
+        geometry->failInputUploads();
+      finishGeometryPreparation();
+      m_geometryInputVersions.clear();
+    }
+    m_collectingGeometryInputUploads = false;
+  });
+  // Commits capture sources; the first geometry finalizer submits every input
+  // batch before waiting. No legacy finalizer sees partially uploaded arrays.
+  // Retire obsolete cached copies before allocating a whole replacement cohort.
+  // A single geometry retains the existing allocation/retirement order.
+  if (m_geometryInputUploads.size() > 1)
+    for (auto &geometry : m_geometryInputUploads)
+      geometry->retirePreparationSnapshot();
+  auto error = preparation.waitFor(stream);
+  if (error == cudaSuccess) {
+    for (auto &geometry : m_geometryInputUploads)
+      geometry->submitInputUploads();
+    error = finishGeometryPreparation();
+  }
+  if (error != cudaSuccess) {
+    for (auto &geometry : m_geometryInputUploads)
+      geometry->failInputUploads();
+    checkPreparation(m_geometryInputUploads.front().ptr,
+        error,
+        "geometry input batch completion");
+  }
+  completed = true;
+  m_geometryInputVersions.clear();
+  auto pending = std::move(m_geometryInputUploads);
+  for (auto &geometry : pending)
+    geometry->completeInputUploads();
+  pending.clear();
+  m_geometryInputUploads.swap(pending);
+  return true;
+}
+
 void DeviceGlobalState::enqueueGeometryPreparation(Geometry *geometry)
 {
   m_geometryPreparations.emplace_back(geometry);
@@ -190,12 +261,13 @@ void DeviceGlobalState::enqueueGeometryPreparation(Geometry *geometry)
 
 bool DeviceGlobalState::collectingGeometryPreparations() const
 {
-  return m_collectingGeometryPreparations;
+  return m_collectingGeometryPreparations || m_collectingGeometryInputUploads;
 }
 
 bool DeviceGlobalState::hasPendingGeometryPreparations() const
 {
-  return m_collectingGeometryPreparations || !m_geometryPreparations.empty();
+  return m_collectingGeometryPreparations || !m_geometryPreparations.empty()
+      || m_collectingGeometryInputUploads;
 }
 
 cudaError_t DeviceGlobalState::finishGeometryPreparation()
@@ -206,12 +278,16 @@ cudaError_t DeviceGlobalState::finishGeometryPreparation()
     // point. Its stream-completion error affects all already queued results.
     for (auto &geometry : m_geometryPreparations)
       geometry->setPreparationFailed(true);
+    for (auto &geometry : m_geometryInputUploads)
+      geometry->failInputUploads();
   }
   return error;
 }
 
 bool DeviceGlobalState::collectGeometryPreparations()
 {
+  if (!collectGeometryInputUploads())
+    return false;
   if (m_collectingGeometryPreparations)
     return false;
   if (m_geometryPreparations.empty())

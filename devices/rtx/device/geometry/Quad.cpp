@@ -34,7 +34,14 @@
 
 namespace visrtx {
 
-Quad::Quad(DeviceGlobalState *d) : Geometry(d), m_index(this), m_vertex(this) {}
+Quad::Quad(DeviceGlobalState *d) : Geometry(d), m_index(this), m_vertex(this)
+{
+  declarePreparationParameters({"primitive.index",
+      "vertex.position",
+      "vertex.normal",
+      "vertex.tangent",
+      "cullBackfaces"});
+}
 
 Quad::~Quad() = default;
 
@@ -51,11 +58,7 @@ void Quad::commitParameters()
 
 void Quad::finalize()
 {
-  if (!beginPreparation({"primitive.index",
-          "vertex.position",
-          "vertex.normal",
-          "vertex.tangent",
-          "cullBackfaces"}))
+  if (!beginPreparation())
     return;
   if (!m_vertex) {
     reportMessage(ANARI_SEVERITY_WARNING,
