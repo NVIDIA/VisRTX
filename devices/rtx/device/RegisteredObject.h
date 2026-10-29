@@ -86,9 +86,7 @@ inline void RegisteredObject<GPU_DATA_T>::finalize()
 template <typename GPU_DATA_T>
 inline void RegisteredObject<GPU_DATA_T>::upload()
 {
-  auto &data = m_registryArray->map(index());
-  data = gpuData();
-  m_registryArray->unmap(index());
+  m_registryArray->set(index(), gpuData());
 }
 
 template <typename GPU_DATA_T>

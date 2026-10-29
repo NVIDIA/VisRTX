@@ -33,6 +33,7 @@
 
 #include "MemoryAllocation.h"
 // std
+#include <limits>
 #include <stdexcept>
 #include <type_traits>
 #include <vector>
@@ -50,10 +51,20 @@ struct DeviceBuffer
   template <typename T>
   void upload(const std::vector<T> &v);
 
+  // Caller orders previous readers and retains src through stream completion.
+  template <typename T>
+  cudaError_t enqueueUpload(const T *src,
+      size_t numElements,
+      cudaStream_t stream,
+      size_t byteOffsetStart = 0);
+
   template <typename T>
   void download(T *dst, size_t numElements = 1, size_t byteOffsetStart = 0);
 
-  HostMemoryAllocation hostCopy() const { return m_mem; }
+  HostMemoryAllocation hostCopy() const
+  {
+    return m_mem;
+  }
 
   template <typename T>
   T *ptrAs() const;
@@ -101,6 +112,38 @@ template <typename T>
 inline void DeviceBuffer::upload(const std::vector<T> &v)
 {
   upload(v.data(), v.size());
+}
+
+template <typename T>
+inline cudaError_t DeviceBuffer::enqueueUpload(const T *src,
+    size_t numElements,
+    cudaStream_t stream,
+    size_t byteOffsetStart)
+{
+  static_assert(std::is_trivially_copyable<T>::value);
+  if (numElements == 0)
+    return cudaSuccess;
+  if (!src
+      || numElements
+          > (std::numeric_limits<size_t>::max() - byteOffsetStart) / sizeof(T))
+    return cudaErrorInvalidValue;
+  const auto copyBytes = bytesof<T>(numElements);
+  const auto needed = copyBytes + byteOffsetStart;
+  if (!ptr())
+    reset(); // A failed allocation may retain capacity without storage.
+  if (needed > bytes()) {
+    alloc(needed);
+    const auto error = cudaGetLastError();
+    if (error != cudaSuccess)
+      return error;
+  }
+  if (!ptr() || bytes() < needed)
+    return cudaErrorMemoryAllocation;
+  return cudaMemcpyAsync(static_cast<uint8_t *>(ptr()) + byteOffsetStart,
+      src,
+      copyBytes,
+      cudaMemcpyHostToDevice,
+      stream);
 }
 
 template <typename T>

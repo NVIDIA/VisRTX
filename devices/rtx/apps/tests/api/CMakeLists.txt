@@ -86,6 +86,14 @@ target_link_libraries(BenchmarkGeometryPreprocessing PRIVATE anari_library_visrt
 add_executable(TestPreparationStream TestPreparationStream.cpp)
 target_link_libraries(TestPreparationStream PRIVATE CUDA::cudart Threads::Threads)
 add_test(NAME TestPreparationStream COMMAND TestPreparationStream)
+add_executable(TestRegistrySnapshot TestRegistrySnapshot.cpp
+  ../../../device/utility/MemoryAllocation.cpp)
+target_include_directories(TestRegistrySnapshot PRIVATE
+  ../../../device ../../../external/nanovdb/include ${OptiX_ROOT_DIR}/include)
+target_link_libraries(TestRegistrySnapshot PRIVATE
+  CUDA::cudart anari::anari_static visrtx::glm)
+target_compile_definitions(TestRegistrySnapshot PRIVATE GLM_ENABLE_EXPERIMENTAL)
+add_test(NAME TestRegistrySnapshot COMMAND TestRegistrySnapshot)
 make_test(TestGeometryPreparationReuse)
 target_link_libraries(TestGeometryPreparationReuse PRIVATE CUDA::cudart)
 make_test(TestSharedGeometryLifecycle)
@@ -101,6 +109,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CUDA_RUNTIME_LIBRARY STREQUAL "S
   set_target_properties(TestFramePublicationRecovery PROPERTIES ENABLE_EXPORTS ON)
   make_test(TestCudaPreparationFailure)
   target_link_libraries(TestCudaPreparationFailure PRIVATE CUDA::cudart ${CMAKE_DL_LIBS})
+  target_include_directories(TestCudaPreparationFailure PRIVATE ${OptiX_ROOT_DIR}/include)
   set_target_properties(TestCudaPreparationFailure PROPERTIES ENABLE_EXPORTS ON)
   add_test(NAME TestIsosurfacePreparationRecovery
     COMMAND TestCudaPreparationFailure isosurface)
@@ -109,6 +118,11 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CUDA_RUNTIME_LIBRARY STREQUAL "S
       sphere-upload-partial)
     add_test(NAME TestSpherePreparationRecovery_${geometry}
       COMMAND TestCudaPreparationFailure ${geometry})
+  endforeach()
+  foreach(failure registry-copy registry-sync registry-partial
+      instance-allocation instance-copy instance-sync world-copy world-sync)
+    add_test(NAME TestSceneUploadRecovery_${failure}
+      COMMAND TestCudaPreparationFailure ${failure})
   endforeach()
   foreach(failure bvh-copy bvh-sync tlas-sync)
     add_test(NAME TestBvhPreparationRecovery_${failure}

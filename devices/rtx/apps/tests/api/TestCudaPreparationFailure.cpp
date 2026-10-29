@@ -36,6 +36,7 @@
 #include <anari/ext/visrtx/makeVisRTXDevice.h>
 #include <cuda_runtime_api.h>
 #include <dlfcn.h>
+#include <optix_types.h>
 #include <anari/anari_cpp.hpp>
 #include <array>
 #include <atomic>
@@ -58,8 +59,14 @@ enum class Failure
   BVH_SYNC,
   BVH_COPY,
   UPLOAD_COPY,
-  UPLOAD_SYNC
+  UPLOAD_SYNC,
+  BATCH_COPY,
+  BATCH_SYNC
 };
+bool trackBatch = false;
+bool batchQueued = false;
+int batchCopiesToSkip = 0;
+int batchCopies = 0;
 const void *uploadSource = nullptr;
 int uploadCopies = 0;
 bool uploadOnWrongStream = false;
@@ -167,6 +174,20 @@ extern "C" cudaError_t cudaMemcpyAsync(void *dst,
       return cudaErrorInvalidValue;
     uploadQueued = true;
   }
+  if (trackBatch && stream == preparationStream
+      && kind == cudaMemcpyHostToDevice) {
+    ++batchCopies;
+    if (batchCopiesToSkip)
+      --batchCopiesToSkip;
+    else {
+      if (inject(Failure::BATCH_COPY)) {
+        // Exercise real CUDA last-error state as well as the returned status.
+        return next<decltype(&cudaMemcpyAsync)>("cudaMemcpyAsync")(
+            nullptr, src, bytes, kind, stream);
+      }
+      batchQueued = true;
+    }
+  }
   if (stream == preparationStream && kind == cudaMemcpyDeviceToHost
       && bytes == 6 * sizeof(float)
       && (failure == Failure::BVH_COPY || failure == Failure::BVH_SYNC)) {
@@ -193,7 +214,9 @@ extern "C" cudaError_t cudaStreamSynchronize(cudaStream_t stream)
       || (stream == preparationStream && uploadQueued
           && inject(Failure::UPLOAD_SYNC))
       || (stream == preparationStream && bvhReadback
-          && inject(Failure::BVH_SYNC)))
+          && inject(Failure::BVH_SYNC))
+      || (stream == preparationStream && batchQueued
+          && inject(Failure::BATCH_SYNC)))
     return cudaErrorUnknown;
   return result;
 }
@@ -211,6 +234,15 @@ int main(int argc, char **argv)
   const bool bvhFailure = argc > 1
       && (std::strncmp(argv[1], "bvh-", 4) == 0
           || std::strcmp(argv[1], "tlas-sync") == 0);
+  const bool registryFailure =
+      argc > 1 && std::strncmp(argv[1], "registry-", 9) == 0;
+  const bool registryPartial =
+      registryFailure && std::strcmp(argv[1], "registry-partial") == 0;
+  const bool instanceFailure = argc > 1
+      && (std::strncmp(argv[1], "instance-", 9) == 0
+          || std::strncmp(argv[1], "world-", 6) == 0);
+  const bool worldRecords =
+      instanceFailure && std::strncmp(argv[1], "world-", 6) == 0;
   const bool curveFailure = argc == 1 || isosurfaceFailure || sphereFailure;
   auto d = makeVisRTXDevice(status);
   using vec3 = std::array<float, 3>;
@@ -286,6 +318,12 @@ int main(int argc, char **argv)
     anari::commitParameters(d, siblingSurface);
     surfaces.push_back(siblingSurface);
   }
+  if (registryPartial) {
+    sibling = anari::newObject<anari::Geometry>(d, "curve");
+    anari::setParameter(d, sibling, "vertex.position", array);
+    anari::setParameter(d, sibling, "radius", 0.1f);
+    anari::commitParameters(d, sibling);
+  }
   auto world = anari::newObject<anari::World>(d);
   anari::setParameterArray1D(
       d, world, "surface", surfaces.data(), surfaces.size());
@@ -296,7 +334,10 @@ int main(int argc, char **argv)
   anari::setParameter(d, camera, "position", vec3{0, 0, -3});
   anari::setParameter(d, camera, "direction", vec3{0, 0, 1});
   anari::commitParameters(d, camera);
-  auto renderer = anari::newObject<anari::Renderer>(d, "debug");
+  auto renderer = anari::newObject<anari::Renderer>(
+      d, registryFailure ? "interactive" : "debug");
+  if (registryFailure)
+    anari::setParameter(d, renderer, "sampleLimit", 0);
   anari::commitParameters(d, renderer);
   auto frame = anari::newObject<anari::Frame>(d);
   anari::setParameter(d, frame, "size", std::array<unsigned, 2>{8, 8});
@@ -323,10 +364,49 @@ int main(int argc, char **argv)
         != 0;
   };
   bool ok = errors == 0;
-  if (bvhFailure) {
-    const auto injected = std::strcmp(argv[1], "bvh-copy") == 0
-        ? Failure::BVH_COPY
-        : Failure::BVH_SYNC;
+  if (registryFailure) {
+    ok = haveBounds() && ok;
+    anari::render(d, frame);
+    anari::wait(d, frame);
+    ok = completions == 1 && errors == 0 && ok;
+    for (auto g : {geometry, sibling}) {
+      if (!g)
+        continue;
+      anari::setParameter(d, g, "color", std::array<float, 4>{1, 0, 0, 1});
+      anari::commitParameters(d, g);
+    }
+    trackBatch = true;
+    batchCopiesToSkip = registryPartial ? 1 : 0;
+    failure = std::strcmp(argv[1], "registry-sync") == 0 ? Failure::BATCH_SYNC
+                                                         : Failure::BATCH_COPY;
+    anari::render(d, frame);
+    anari::wait(d, frame);
+    ok = injections == 1 && errors > 0 && completions == 1 && ok;
+    const int beforeErrors = errors;
+    // No recommit: failed upload must retain all dirty slots, including the
+    // first successful copy in the partial-batch case.
+    anari::render(d, frame);
+    anari::wait(d, frame);
+    ok = errors == beforeErrors && completions == 2
+        && batchCopies == (registryPartial ? 4 : 2) && ok;
+    anari::render(d, frame);
+    anari::wait(d, frame);
+    ok = errors == beforeErrors && completions == 3
+        && batchCopies == (registryPartial ? 4 : 2) && ok;
+    anari::release(d, array);
+  } else if (bvhFailure || instanceFailure) {
+    auto injected = std::strcmp(argv[1], "bvh-copy") == 0 ? Failure::BVH_COPY
+                                                          : Failure::BVH_SYNC;
+    if (instanceFailure) {
+      trackBatch = true;
+      batchCopiesToSkip = worldRecords ? 1 : 0;
+      injected = std::strstr(argv[1], "copy") ? Failure::BATCH_COPY
+                                              : Failure::BATCH_SYNC;
+      if (std::strcmp(argv[1], "instance-allocation") == 0) {
+        allocationBytes = sizeof(OptixInstance);
+        injected = Failure::ALLOCATION;
+      }
+    }
     bvhReadbacksToSkip = std::strcmp(argv[1], "tlas-sync") == 0 ? 1 : 0;
     failure = injected;
     ok = !haveBounds() && injections == 1 && errors > 0 && ok;
@@ -341,6 +421,8 @@ int main(int argc, char **argv)
     failure = injected;
     bvhReadback = false;
     bvhReadbacksToSkip = 0;
+    batchCopiesToSkip = worldRecords ? 1 : 0;
+    batchQueued = false;
     anari::render(d, frame);
     anari::wait(d, frame);
     ok = injections == 2 && completions == 0 && ok;

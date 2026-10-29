@@ -230,6 +230,9 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
     DeviceObjectArray<LightGPUData> lights;
     DeviceObjectArray<SpatialFieldGPUData> fields;
     DeviceObjectArray<VolumeGPUData> volumes;
+
+    cudaError_t upload(
+        PreparationStream &preparation, cudaStream_t renderStream);
   } registry;
 
   // MDL
