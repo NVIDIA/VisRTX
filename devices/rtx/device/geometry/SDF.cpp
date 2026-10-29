@@ -91,8 +91,6 @@ void SDF::finalize()
   input.type = GeometryType::SDF;
   input.count = m_numPrimitives;
   const void *source = m_sdf->begin(AddressSpace::GPU);
-  if (!waitForPreparationInputs(this))
-    return;
   if (reinterpret_cast<uintptr_t>(source) % alignof(SDFPrimitive) != 0) {
     const size_t bytes = m_numPrimitives * sizeof(SDFPrimitive);
     if (!reservePreparation(this, m_alignedPrimitives, bytes)

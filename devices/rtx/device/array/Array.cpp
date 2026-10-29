@@ -33,6 +33,7 @@
 #include "optix_visrtx.h"
 // std
 #include <cstring>
+#include <utility>
 
 namespace visrtx {
 
@@ -220,6 +221,45 @@ void Array::uploadArrayData() const
     m_data.managed.device = m_data.managed.host;
 
   markDataUploaded();
+}
+
+cudaError_t Array::enqueueUpload(cudaStream_t stream) const
+{
+  if (anari::isObject(elementType()))
+    return cudaErrorInvalidValue; // ObjectArray has its own handle translation.
+  if (!needToUploadData())
+    return cudaSuccess;
+
+  const HostMemoryAllocation *host = nullptr;
+  CudaMemoryAllocation *device = nullptr;
+  if (m_data.shared.host.isValid()) {
+    host = &m_data.shared.host;
+    device = &m_data.shared.device;
+  } else if (m_data.captured.host.isValid()) {
+    host = &m_data.captured.host;
+    device = &m_data.captured.device;
+  } else if (m_data.managed.host.isValid()) {
+    host = &m_data.managed.host;
+    device = &m_data.managed.device;
+  } else
+    return cudaSuccess; // Application-owned device inputs are already resident.
+
+  if (!device->isValid()) {
+    CudaMemoryAllocation allocation(host->bytes());
+    const auto error = cudaGetLastError();
+    if (error != cudaSuccess)
+      return error;
+    if (!allocation)
+      return cudaErrorMemoryAllocation;
+    *device = std::move(allocation);
+  }
+  if (device->bytes() != host->bytes())
+    return cudaErrorInvalidValue;
+  return cudaMemcpyAsync(device->ptr(),
+      host->ptr(),
+      host->bytes(),
+      cudaMemcpyHostToDevice,
+      stream);
 }
 
 ANARIDataType Array::elementType() const

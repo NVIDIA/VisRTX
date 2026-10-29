@@ -104,7 +104,9 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CUDA_RUNTIME_LIBRARY STREQUAL "S
   set_target_properties(TestCudaPreparationFailure PROPERTIES ENABLE_EXPORTS ON)
   add_test(NAME TestIsosurfacePreparationRecovery
     COMMAND TestCudaPreparationFailure isosurface)
-  foreach(geometry sphere sphere-indexed sphere-completion sphere-dependency)
+  foreach(geometry sphere sphere-indexed sphere-completion sphere-dependency
+      sphere-upload-allocation sphere-upload-copy sphere-upload-completion
+      sphere-upload-partial)
     add_test(NAME TestSpherePreparationRecovery_${geometry}
       COMMAND TestCudaPreparationFailure ${geometry})
   endforeach()

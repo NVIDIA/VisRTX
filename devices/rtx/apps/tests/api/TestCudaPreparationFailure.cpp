@@ -39,6 +39,7 @@
 #include <anari/anari_cpp.hpp>
 #include <array>
 #include <atomic>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -55,8 +56,14 @@ enum class Failure
   PREPARATION_SYNC,
   PREPARATION_DEPENDENCY,
   BVH_SYNC,
-  BVH_COPY
+  BVH_COPY,
+  UPLOAD_COPY,
+  UPLOAD_SYNC
 };
+const void *uploadSource = nullptr;
+int uploadCopies = 0;
+bool uploadOnWrongStream = false;
+bool uploadQueued = false;
 cudaStream_t preparationStream = nullptr;
 bool bvhReadback = false;
 int bvhReadbacksToSkip = 0;
@@ -119,6 +126,10 @@ extern "C" cudaError_t cudaMalloc(void **ptr, size_t bytes)
 extern "C" cudaError_t cudaMemcpy(
     void *dst, const void *src, size_t bytes, cudaMemcpyKind kind)
 {
+  if (uploadSource && src == uploadSource && kind == cudaMemcpyHostToDevice) {
+    ++uploadCopies;
+    uploadOnWrongStream = true;
+  }
   if (kind == cudaMemcpyDeviceToDevice && inject(Failure::COPY))
     return cudaErrorInvalidValue;
   return next<decltype(&cudaMemcpy)>("cudaMemcpy")(dst, src, bytes, kind);
@@ -149,6 +160,13 @@ extern "C" cudaError_t cudaMemcpyAsync(void *dst,
     cudaMemcpyKind kind,
     cudaStream_t stream)
 {
+  if (uploadSource && src == uploadSource && kind == cudaMemcpyHostToDevice) {
+    ++uploadCopies;
+    uploadOnWrongStream |= stream != preparationStream;
+    if (inject(Failure::UPLOAD_COPY))
+      return cudaErrorInvalidValue;
+    uploadQueued = true;
+  }
   if (stream == preparationStream && kind == cudaMemcpyDeviceToHost
       && bytes == 6 * sizeof(float)
       && (failure == Failure::BVH_COPY || failure == Failure::BVH_SYNC)) {
@@ -172,6 +190,8 @@ extern "C" cudaError_t cudaStreamSynchronize(cudaStream_t stream)
   if ((stream && inject(Failure::WORK_SYNC))
       || (!stream && inject(Failure::COPY_SYNC))
       || (stream == preparationStream && inject(Failure::PREPARATION_SYNC))
+      || (stream == preparationStream && uploadQueued
+          && inject(Failure::UPLOAD_SYNC))
       || (stream == preparationStream && bvhReadback
           && inject(Failure::BVH_SYNC)))
     return cudaErrorUnknown;
@@ -184,13 +204,17 @@ int main(int argc, char **argv)
       argc > 1 && std::strcmp(argv[1], "isosurface") == 0;
   const bool sphereFailure =
       argc > 1 && std::strncmp(argv[1], "sphere", 6) == 0;
+  const bool sphereUpload =
+      argc > 1 && std::strncmp(argv[1], "sphere-upload-", 14) == 0;
+  const bool partialUpload =
+      sphereUpload && std::strcmp(argv[1], "sphere-upload-partial") == 0;
   const bool bvhFailure = argc > 1
       && (std::strncmp(argv[1], "bvh-", 4) == 0
           || std::strcmp(argv[1], "tlas-sync") == 0);
   const bool curveFailure = argc == 1 || isosurfaceFailure || sphereFailure;
   auto d = makeVisRTXDevice(status);
   using vec3 = std::array<float, 3>;
-  const std::array<vec3, 6> vertices = {
+  std::array<vec3, 6> vertices = {
       {{-1, 0, 0}, {1, 0, 0}, {-1, 1, 0}, {1, 1, 0}, {-1, 2, 0}, {1, 2, 0}}};
   void *deviceVertices = nullptr;
   if (cudaMalloc(&deviceVertices, sizeof(vertices)) != cudaSuccess
@@ -200,12 +224,23 @@ int main(int argc, char **argv)
              cudaMemcpyHostToDevice)
           != cudaSuccess)
     return 1;
-  auto array = anariNewArray1D(
-      d, deviceVertices, nullptr, nullptr, ANARI_FLOAT32_VEC3, vertices.size());
+  if (sphereUpload)
+    uploadSource = vertices.data();
+  auto array = anariNewArray1D(d,
+      sphereUpload ? static_cast<void *>(vertices.data()) : deviceVertices,
+      nullptr,
+      nullptr,
+      ANARI_FLOAT32_VEC3,
+      vertices.size());
   auto geometry = anari::newObject<anari::Geometry>(d,
       isosurfaceFailure   ? "isosurface"
           : sphereFailure ? "sphere"
                           : "curve");
+  if (partialUpload) {
+    const std::array<float, 6> radii{0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f};
+    anari::setParameterArray1D(
+        d, geometry, "vertex.radius", radii.data(), radii.size());
+  }
   if (sphereFailure && std::strcmp(argv[1], "sphere-indexed") == 0) {
     const std::array<unsigned, 3> indices{5, 1, 3};
     anari::setParameterArray1D(
@@ -330,7 +365,14 @@ int main(int argc, char **argv)
         ? (std::strcmp(argv[1], "sphere-indexed") == 0 ? 3 : vertices.size())
             * 2 * sizeof(vec3)
         : 3 * sizeof(unsigned);
+    if (sphereUpload)
+      allocationBytes =
+          partialUpload ? vertices.size() * sizeof(float) : sizeof(vertices);
     failure = isosurfaceFailure ? Failure::WORK_SYNC : Failure::ALLOCATION;
+    if (sphereUpload && std::strcmp(argv[1], "sphere-upload-copy") == 0)
+      failure = Failure::UPLOAD_COPY;
+    if (sphereUpload && std::strcmp(argv[1], "sphere-upload-completion") == 0)
+      failure = Failure::UPLOAD_SYNC;
     if (sphereFailure && std::strcmp(argv[1], "sphere-completion") == 0)
       failure = Failure::PREPARATION_SYNC;
     if (sphereFailure && std::strcmp(argv[1], "sphere-dependency") == 0)
@@ -350,6 +392,24 @@ int main(int argc, char **argv)
     anari::render(d, frame);
     anari::wait(d, frame);
     ok = completions == 1 && errors == beforeErrors && ok;
+    if (sphereUpload) {
+      const int expected =
+          std::strcmp(argv[1], "sphere-upload-allocation") == 0 ? 1 : 2;
+      ok = uploadCopies == expected && !uploadOnWrongStream && ok;
+      auto *mapped = static_cast<vec3 *>(anariMapArray(d, array));
+      if (!mapped)
+        return 1;
+      mapped[0][0] -= 0.2f;
+      anariUnmapArray(d, array);
+      anari::setParameter(
+          d, geometry, "attribute0", std::array<float, 4>{1, 0, 0, 1});
+      anari::commitParameters(d, geometry);
+      ok = haveBounds() && errors == beforeErrors
+          && uploadCopies == expected + 1 && !uploadOnWrongStream
+          && std::fabs(bounds[0] - (-1.2f - (partialUpload ? 0.1f : 0.2f)))
+              < 1e-4f
+          && ok;
+    }
     if (sphereFailure) {
       // Preparation-preserving bounds queries must not drain the work stream.
       // Leave the injection armed, then change radius to require the fence.
