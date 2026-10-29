@@ -35,7 +35,10 @@ namespace visrtx {
 
 Sphere::Sphere(DeviceGlobalState *d)
     : Geometry(d), m_index(this), m_vertex(this), m_vertexRadius(this)
-{}
+{
+  declarePreparationParameters(
+      {"primitive.index", "vertex.position", "vertex.radius", "radius"});
+}
 
 Sphere::~Sphere() = default;
 
@@ -51,8 +54,7 @@ void Sphere::commitParameters()
 
 void Sphere::finalize()
 {
-  if (!beginPreparation(
-          {"primitive.index", "vertex.position", "vertex.radius", "radius"}))
+  if (!beginPreparation())
     return;
   if (!m_vertex) {
     reportMessage(ANARI_SEVERITY_WARNING,

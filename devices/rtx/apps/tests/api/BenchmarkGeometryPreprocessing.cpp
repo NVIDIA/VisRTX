@@ -32,6 +32,7 @@
 // Manual evidence tool, deliberately not a wall-clock CTest assertion.
 #include <anari/anari_cpp/ext/std.h>
 #include <anari/ext/visrtx/makeVisRTXDevice.h>
+#include <algorithm>
 #include <anari/anari_cpp.hpp>
 #include <array>
 #include <atomic>
@@ -67,7 +68,7 @@ int main(int argc, char **argv)
 {
   if (argc < 5 || argc > 10) {
     fprintf(stderr,
-        "usage: %s triangle|sphere|cone|cylinder|quad|curve|sdf count device repeats [shared-surfaces] [distinct-geometries] [recommit|replace|unchanged|overlap] [frames:0=bounds] [emissive:0|1]\n",
+        "usage: %s triangle|sphere|cone|cylinder|quad|curve|sdf count device repeats [shared-surfaces] [distinct-geometries] [recommit|replace|unchanged|overlap|update] [frames:0=bounds] [emissive:0|1]\n",
         argv[0]);
     return 2;
   }
@@ -83,7 +84,8 @@ int main(int argc, char **argv)
   if (!n || repeats < 2 || sharedSurfaces < 1 || distinctGeometries < 1
       || numFrames < 0
       || (mode != "recommit" && mode != "replace" && mode != "unchanged"
-          && mode != "overlap")
+          && mode != "overlap" && mode != "update")
+      || (mode == "update" && (device || type == "sdf"))
       || (mode == "overlap" && numFrames != 1)
       || (type != "triangle" && type != "sphere" && type != "cone"
           && type != "cylinder" && type != "quad" && type != "curve"
@@ -92,6 +94,7 @@ int main(int argc, char **argv)
   auto d = makeVisRTXDevice(status);
   const auto setupStart = std::chrono::steady_clock::now();
   std::vector<anari::Geometry> geometries;
+  std::vector<anari::Array1D> positionArrays;
   std::vector<vec3> positions;
   std::vector<float> radii;
   std::vector<unsigned> sphereIndices;
@@ -135,7 +138,13 @@ int main(int argc, char **argv)
   auto setInputs = [&](anari::Geometry geometry) {
     if (type == "sdf")
       setTestArray(d, geometry, "primitive.sdf", sdf, device, 0);
-    else
+    else if (mode == "update") {
+      auto array = anari::newArray1D(d, ANARI_FLOAT32_VEC3, positions.size());
+      std::copy(positions.begin(), positions.end(), anari::map<vec3>(d, array));
+      anari::unmap(d, array);
+      anari::setParameter(d, geometry, "vertex.position", array);
+      positionArrays.push_back(array);
+    } else
       setTestArray(d, geometry, "vertex.position", positions, device, 0);
     if (type == "triangle")
       setTestArray(d, geometry, "primitive.index", triIndices, device, 0);
@@ -216,10 +225,20 @@ int main(int argc, char **argv)
   for (int iteration = 0; iteration < repeats; ++iteration) {
     const auto start = std::chrono::steady_clock::now();
     if (iteration > 0) {
-      for (auto geometry : geometries) {
+      for (size_t g = 0; g < geometries.size(); ++g) {
+        auto geometry = geometries[g];
+        if (mode == "update") {
+          auto *mapped = anari::map<vec3>(d, positionArrays[g]);
+          if (!mapped)
+            return 1;
+          std::copy(positions.begin(), positions.end(), mapped);
+          for (size_t i = 0; i < positions.size(); ++i)
+            mapped[i][2] += (iteration % 2) * 0.001f;
+          anari::unmap(d, positionArrays[g]);
+        }
         if (mode == "replace")
           setInputs(geometry); // Include allocation, staging, and H2D costs.
-        else if (mode == "recommit") {
+        else if (mode == "recommit" || mode == "update") {
           anari::setParameter(
               d, geometry, "attribute0", vec4{float(iteration), 0, 0, 0});
           anari::commitParameters(d, geometry);
@@ -319,6 +338,8 @@ int main(int argc, char **argv)
   anari::release(d, world);
   for (auto geometry : geometries)
     anari::release(d, geometry);
+  for (auto array : positionArrays)
+    anari::release(d, array);
   anari::release(d, d);
   return 0;
 }

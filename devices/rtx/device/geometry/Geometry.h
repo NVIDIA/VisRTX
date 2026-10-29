@@ -79,6 +79,10 @@ struct Geometry : public RegisteredObject<GeometryGPUData>
   void upload();
   void deferPreparation();
   void completePreparation();
+  void retirePreparationSnapshot();
+  void submitInputUploads();
+  void completeInputUploads();
+  void failInputUploads();
 
   virtual void populateBuildInput(OptixBuildInput &) const = 0;
   virtual int optixGeometryType() const = 0;
@@ -94,12 +98,14 @@ struct Geometry : public RegisteredObject<GeometryGPUData>
   void setPreparationFailed(bool failed);
 
  protected:
-  // Opt-in preparation reuse: list every subtype parameter except the five
-  // geometry-wide attributes. This declaration must stay fixed for the subtype;
-  // lookup names are cached. The base adds primitive and vertex arrays.
+  // Declare once in the subtype constructor, before the first commit. List
+  // every consumed parameter except geometry-wide attributes; the base adds
+  // primitive and vertex arrays. These inputs determine preparation reuse.
+  void declarePreparationParameters(
+      std::initializer_list<const char *> parameters);
   // Returns false after preparation reuse and registry publication, or if
   // preparation cannot start.
-  bool beginPreparation(std::initializer_list<const char *> parameters = {});
+  bool beginPreparation();
   GeometryGPUData gpuData() const override = 0;
 
   void commitAttributes(const char *prefix, GeometryAttributes &attrs);
@@ -127,7 +133,18 @@ struct Geometry : public RegisteredObject<GeometryGPUData>
     bool operator==(const PreparationParameter &other) const;
   };
   bool canRetainPreparationInputs() const;
+  void stageInputUploads();
 
+  struct InputUpload
+  {
+    helium::IntrusivePtr<Array> array;
+    helium::TimeStamp modified{0};
+    bool submitted{false};
+  };
+  std::vector<InputUpload> m_inputUploads;
+  bool m_inputUploadsQueued{false};
+  bool m_inputUploadFailed{false};
+  helium::TimeStamp m_failedInputUpdate{0};
   std::vector<PreparationParameter> m_preparedParameters;
   std::vector<std::string> m_preparationParameterNames;
   bool m_hasPreparedData{false};

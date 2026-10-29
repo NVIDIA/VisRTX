@@ -61,6 +61,7 @@
 #include <set>
 #include <sstream>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #ifdef OPAQUE
@@ -159,6 +160,7 @@ namespace visrtx {
 
 struct Object;
 struct Geometry;
+struct Array;
 struct MDL;
 
 struct ptx_blob
@@ -277,6 +279,10 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
   DeviceGlobalState(ANARIDevice d);
   ~DeviceGlobalState() override;
 
+  void enqueueGeometryInputUploads(Geometry *geometry);
+  cudaError_t stageGeometryArray(Array *array, helium::TimeStamp modified);
+  bool collectGeometryInputUploads();
+  bool collectingGeometryInputUploads() const;
   void enqueueGeometryPreparation(Geometry *geometry);
   bool collectGeometryPreparations();
   cudaError_t finishGeometryPreparation();
@@ -284,6 +290,9 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
   bool hasPendingGeometryPreparations() const;
 
  private:
+  std::vector<helium::IntrusivePtr<Geometry>> m_geometryInputUploads;
+  std::unordered_map<const Array *, helium::TimeStamp> m_geometryInputVersions;
+  bool m_collectingGeometryInputUploads{false};
   std::vector<helium::IntrusivePtr<Geometry>> m_geometryPreparations;
   bool m_collectingGeometryPreparations{false};
 };
