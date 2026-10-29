@@ -49,6 +49,7 @@
 #include <mutex>
 #include <thread>
 #include <vector>
+#include "../../../device/geometry/ReadbackPool.h"
 
 namespace {
 enum class Failure
@@ -162,9 +163,12 @@ void complete(const void *, ANARIDevice, ANARIFrame)
 
 extern "C" cudaError_t cudaMallocHost(void **ptr, size_t bytes)
 {
-  if (bytes == 16 && inject(Failure::READBACK_ALLOCATION)) {
+  constexpr size_t readbackPageBytes = 2
+      * visrtx::GeometryReadbackPool::SLOTS_PER_PAGE
+      * sizeof(visrtx::PreparationResult);
+  if (bytes == readbackPageBytes && inject(Failure::READBACK_ALLOCATION)) {
     *ptr = nullptr;
-    return cudaErrorMemoryAllocation;
+    return next<decltype(&cudaMallocHost)>("cudaMallocHost")(ptr, size_t(-1));
   }
   return next<decltype(&cudaMallocHost)>("cudaMallocHost")(ptr, bytes);
 }

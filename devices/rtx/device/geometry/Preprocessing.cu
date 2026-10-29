@@ -299,23 +299,17 @@ bool finishPreparation(Geometry *g)
           "execution completion");
 }
 
-Preprocessing::~Preprocessing()
-{
-  if (m_readback)
-    cudaFreeHost(m_readback);
-}
+Preprocessing::~Preprocessing() = default;
 
 bool Preprocessing::reserveReadback(Geometry *g)
 {
   if (m_readback)
     return true;
-  Result *readback = nullptr;
   if (!checkPreparation(g,
-          cudaMallocHost(
-              reinterpret_cast<void **>(&readback), 2 * sizeof(Result)),
+          g->deviceState()->geometryReadbacks.acquire(m_readbackLease),
           "allocating preparation readback"))
     return false;
-  m_readback = readback;
+  m_readback = m_readbackLease.data();
   return true;
 }
 
