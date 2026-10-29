@@ -56,15 +56,25 @@ struct PrimitiveInput
   float noiseFactor{0.f};
 };
 
-// Per-geometry reusable workspace. Only the compact result crosses to the host.
+struct PreparationResult
+{
+  float value;
+  uint32_t invalid;
+};
+
+// Per-geometry reusable workspace. Submission retains pinned readback storage;
+// complete() publishes scalar results after the device's collection barrier.
 struct Preprocessing
 {
   Preprocessing() = default;
+  ~Preprocessing();
   Preprocessing(const Preprocessing &) = delete;
   Preprocessing &operator=(const Preprocessing &) = delete;
   Preprocessing(Preprocessing &&) = delete;
   Preprocessing &operator=(Preprocessing &&) = delete;
 
+  // Success means submitted, not published. Output references must be owned
+  // by the retained geometry and remain valid until collection completes.
   bool areas(Geometry *geometry,
       const PrimitiveInput &input,
       DeviceBuffer &cdf,
@@ -74,7 +84,15 @@ struct Preprocessing
       DeviceBuffer &aabbs,
       float &scale);
 
+  bool pending() const;
+  bool complete(Geometry *geometry);
+
  private:
+  bool reserveReadback(Geometry *geometry);
+  PreparationResult *m_readback{nullptr};
+  float *m_scale{nullptr};
+  float *m_total{nullptr};
+  DeviceBuffer *m_cdf{nullptr};
   DeviceBuffer m_prefix;
   DeviceBuffer m_scratch;
   DeviceBuffer m_result;

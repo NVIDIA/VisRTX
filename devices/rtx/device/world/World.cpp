@@ -264,6 +264,8 @@ bool World::preparationFailed() const
 
 void World::rebuildWorld()
 {
+  if (!deviceState()->collectGeometryPreparations())
+    return;
   if (m_bvhBuildFailed)
     m_objectUpdates.lastTLASBuild = 0;
   m_bvhBuildFailed = false;
@@ -636,7 +638,6 @@ void World::synthesizeGeometryLights()
   auto configure = [](Surface *surface) {
     if (surface->isSampleableEmitter()) {
       auto *geometry = surface->geometry();
-      geometry->ensureAreaData();
       if (geometry->preparationFailed())
         return;
       const float area = geometry->totalArea();
@@ -652,15 +653,25 @@ void World::synthesizeGeometryLights()
   };
 
   std::set<Group *> visited;
+  std::vector<Surface *> candidates;
   for (auto *inst : m_instances) {
     auto *group = inst->group();
     if (!visited.insert(group).second)
       continue;
     for (auto *surface : group->surfacesTriangle())
-      configure(surface);
+      candidates.push_back(surface);
     for (auto *surface : group->surfacesUser())
-      configure(surface);
+      candidates.push_back(surface);
   }
+  // Submit every newly requested CDF before collecting scalar areas. Shared
+  // geometry's validity flag prevents duplicate submissions across surfaces.
+  for (auto *surface : candidates)
+    if (surface->isSampleableEmitter())
+      surface->geometry()->ensureAreaData();
+  if (!deviceState()->collectGeometryPreparations())
+    return;
+  for (auto *surface : candidates)
+    configure(surface);
 }
 
 void World::buildInstanceLightGPUData()

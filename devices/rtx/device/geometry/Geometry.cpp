@@ -114,6 +114,8 @@ Geometry *Geometry::createInstance(
 
 void Geometry::commitParameters()
 {
+  if (m_preparationQueued)
+    deviceState()->collectGeometryPreparations();
   // Array observers can re-finalize without a parameter commit, but parameter
   // replacement can release the last reference to an aliased device array.
   // Complete earlier consumers before subclasses replace those references.
@@ -195,14 +197,40 @@ bool Geometry::canRetainPreparationInputs() const
   return present == m_preparedParameters.size();
 }
 
+void Geometry::deferPreparation()
+{
+  if (!m_preparationQueued) {
+    deviceState()->enqueueGeometryPreparation(this);
+    m_preparationQueued = true;
+  }
+}
+
+void Geometry::completePreparation()
+{
+  m_preparationQueued = false;
+  if (!m_preprocessing.complete(this)) {
+    m_hasPreparedData = false;
+    return;
+  }
+  upload();
+}
+
 void Geometry::upload()
 {
+  if (m_preprocessing.pending()) {
+    deferPreparation();
+    return;
+  }
   RegisteredObject<GeometryGPUData>::upload();
   m_hasPreparedData = !preparationFailed() && isValid();
 }
 
 bool Geometry::beginPreparation(std::initializer_list<const char *> parameters)
 {
+  // Observer-only finalization can arrive before a prior submission is
+  // collected.
+  if (m_preparationQueued)
+    deviceState()->collectGeometryPreparations();
   m_preparationPreserved = false;
   if (m_inputRetirementFailed)
     return false;
@@ -272,7 +300,7 @@ bool Geometry::beginPreparation(std::initializer_list<const char *> parameters)
           return false;
       }
       if (!checkPreparation(this,
-              state.preparation.finish(),
+              state.finishGeometryPreparation(),
               "geometry array upload completion"))
         return false;
       // Never mark a partial/failed batch uploaded: a later commit must retry.

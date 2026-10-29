@@ -40,6 +40,7 @@
 // anari
 #include <anari/anari_cpp.hpp>
 // optix
+#include <helium/utility/IntrusivePtr.h>
 #include <helium/utility/TimeStamp.h>
 #include <optix.h>
 #include <optix_stubs.h>
@@ -156,6 +157,7 @@ VISRTX_ANARI_TYPEFOR_SPECIALIZATION(visrtx::box3, ANARI_FLOAT32_BOX3);
 namespace visrtx {
 
 struct Object;
+struct Geometry;
 struct MDL;
 
 struct ptx_blob
@@ -272,6 +274,16 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
 
   DeviceGlobalState(ANARIDevice d);
   ~DeviceGlobalState() override;
+
+  void enqueueGeometryPreparation(Geometry *geometry);
+  bool collectGeometryPreparations();
+  cudaError_t finishGeometryPreparation();
+  bool collectingGeometryPreparations() const;
+  bool hasPendingGeometryPreparations() const;
+
+ private:
+  std::vector<helium::IntrusivePtr<Geometry>> m_geometryPreparations;
+  bool m_collectingGeometryPreparations{false};
 };
 
 bool buildOptixBVH(std::vector<OptixBuildInput> buildInput,

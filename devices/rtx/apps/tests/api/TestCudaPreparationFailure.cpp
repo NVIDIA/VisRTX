@@ -40,10 +40,14 @@
 #include <anari/anari_cpp.hpp>
 #include <array>
 #include <atomic>
+#include <chrono>
 #include <cmath>
+#include <condition_variable>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <mutex>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -51,10 +55,12 @@ enum class Failure
 {
   NONE,
   ALLOCATION,
+  READBACK_ALLOCATION,
   COPY,
   WORK_SYNC,
   COPY_SYNC,
   PREPARATION_SYNC,
+  PREPARATION_EARLY_SYNC,
   PREPARATION_DEPENDENCY,
   BVH_SYNC,
   BVH_COPY,
@@ -79,6 +85,39 @@ size_t allocationBytes = 0;
 int injections = 0;
 int errors = 0;
 std::atomic<int> completions{0};
+
+struct PendingCompletion
+{
+  cudaEvent_t done{};
+  const void *scratch{nullptr};
+  bool queued{false};
+  bool failed{false};
+  bool drained{false};
+  bool pendingAtFailure{false};
+  bool pendingAtDrain{false};
+  bool prematureFree{false};
+  bool prematureReport{false};
+  bool retired{false};
+  std::atomic<bool> released{false};
+  std::atomic<bool> timedOut{false};
+  std::mutex mutex;
+  std::condition_variable condition;
+} pendingCompletion;
+
+void releasePendingWork()
+{
+  {
+    std::lock_guard<std::mutex> lock(pendingCompletion.mutex);
+    pendingCompletion.released = true;
+  }
+  pendingCompletion.condition.notify_one();
+}
+
+void CUDART_CB blockPreparation(void *)
+{
+  while (!pendingCompletion.released.load())
+    std::this_thread::yield();
+}
 
 bool inject(Failure kind)
 {
@@ -109,6 +148,8 @@ void status(const void *,
     const char *message)
 {
   if (severity <= ANARI_SEVERITY_ERROR) {
+    pendingCompletion.prematureReport |=
+        pendingCompletion.failed && !pendingCompletion.drained;
     ++errors;
     fprintf(stderr, "%s\n", message);
   }
@@ -119,6 +160,15 @@ void complete(const void *, ANARIDevice, ANARIFrame)
 }
 } // namespace
 
+extern "C" cudaError_t cudaMallocHost(void **ptr, size_t bytes)
+{
+  if (bytes == 16 && inject(Failure::READBACK_ALLOCATION)) {
+    *ptr = nullptr;
+    return cudaErrorMemoryAllocation;
+  }
+  return next<decltype(&cudaMallocHost)>("cudaMallocHost")(ptr, bytes);
+}
+
 extern "C" cudaError_t cudaMalloc(void **ptr, size_t bytes)
 {
   if (bytes == allocationBytes && inject(Failure::ALLOCATION)) {
@@ -128,6 +178,15 @@ extern "C" cudaError_t cudaMalloc(void **ptr, size_t bytes)
     return next<decltype(&cudaMalloc)>("cudaMalloc")(ptr, size_t(-1));
   }
   return next<decltype(&cudaMalloc)>("cudaMalloc")(ptr, bytes);
+}
+
+extern "C" cudaError_t cudaFree(void *ptr)
+{
+  if (ptr && ptr == pendingCompletion.scratch) {
+    pendingCompletion.retired = true;
+    pendingCompletion.prematureFree |= !pendingCompletion.drained;
+  }
+  return next<decltype(&cudaFree)>("cudaFree")(ptr);
 }
 
 extern "C" cudaError_t cudaMemcpy(
@@ -199,13 +258,49 @@ extern "C" cudaError_t cudaMemcpyAsync(void *dst,
       bvhReadback = true;
     }
   }
+  if (failure == Failure::PREPARATION_EARLY_SYNC && stream == preparationStream
+      && kind == cudaMemcpyDeviceToHost
+      && bytes == sizeof(float) + sizeof(uint32_t)
+      && !pendingCompletion.queued) {
+    // The bounds summary is a float scale and uint32 status. Gate its pinned
+    // readback after kernel submission, with no subsequent allocation or
+    // pageable copy to supply a hidden wait.
+    auto error = cudaLaunchHostFunc(stream, blockPreparation, nullptr);
+    if (error != cudaSuccess)
+      return error;
+    pendingCompletion.queued = true;
+    pendingCompletion.scratch = src;
+    error = next<decltype(&cudaMemcpyAsync)>("cudaMemcpyAsync")(
+        dst, src, bytes, kind, stream);
+    if (error == cudaSuccess)
+      error = cudaEventRecord(pendingCompletion.done, stream);
+    return error;
+  }
   return next<decltype(&cudaMemcpyAsync)>("cudaMemcpyAsync")(
       dst, src, bytes, kind, stream);
 }
 
 extern "C" cudaError_t cudaStreamSynchronize(cudaStream_t stream)
 {
-  // Drain real work even when simulating a failed completion report.
+  if (stream == preparationStream && pendingCompletion.queued) {
+    if (inject(Failure::PREPARATION_EARLY_SYNC)) {
+      pendingCompletion.pendingAtFailure =
+          cudaEventQuery(pendingCompletion.done) == cudaErrorNotReady;
+      pendingCompletion.failed = true;
+      return cudaErrorUnknown; // Deliberately do NOT drain the real work.
+    }
+    if (pendingCompletion.failed && !pendingCompletion.drained) {
+      pendingCompletion.pendingAtDrain =
+          cudaEventQuery(pendingCompletion.done) == cudaErrorNotReady;
+      releasePendingWork(); // Only the fallback drain releases the producer.
+      const auto error = next<decltype(&cudaStreamSynchronize)>(
+          "cudaStreamSynchronize")(stream);
+      pendingCompletion.drained = error == cudaSuccess
+          && cudaEventQuery(pendingCompletion.done) == cudaSuccess;
+      return error;
+    }
+  }
+  // Other cases simulate a failed completion report after draining real work.
   const auto result =
       next<decltype(&cudaStreamSynchronize)>("cudaStreamSynchronize")(stream);
   if ((stream && inject(Failure::WORK_SYNC))
@@ -223,10 +318,18 @@ extern "C" cudaError_t cudaStreamSynchronize(cudaStream_t stream)
 
 int main(int argc, char **argv)
 {
+  const bool pendingRetirement =
+      argc > 1 && std::strcmp(argv[1], "pending-retirement") == 0;
   const bool isosurfaceFailure =
       argc > 1 && std::strcmp(argv[1], "isosurface") == 0;
   const bool sphereFailure =
       argc > 1 && std::strncmp(argv[1], "sphere", 6) == 0;
+  const bool earlyCompletion =
+      sphereFailure && std::strcmp(argv[1], "sphere-undrained-completion") == 0;
+  const bool batchCompletion =
+      sphereFailure && std::strncmp(argv[1], "sphere-batch-", 13) == 0;
+  const bool batchUploadCompletion = batchCompletion
+      && std::strcmp(argv[1], "sphere-batch-upload-completion") == 0;
   const bool sphereUpload =
       argc > 1 && std::strncmp(argv[1], "sphere-upload-", 14) == 0;
   const bool partialUpload =
@@ -265,9 +368,9 @@ int main(int argc, char **argv)
       ANARI_FLOAT32_VEC3,
       vertices.size());
   auto geometry = anari::newObject<anari::Geometry>(d,
-      isosurfaceFailure   ? "isosurface"
-          : sphereFailure ? "sphere"
-                          : "curve");
+      isosurfaceFailure                          ? "isosurface"
+          : (sphereFailure || pendingRetirement) ? "sphere"
+                                                 : "curve");
   if (partialUpload) {
     const std::array<float, 6> radii{0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f};
     anari::setParameterArray1D(
@@ -303,10 +406,15 @@ int main(int argc, char **argv)
   anari::commitParameters(d, surface);
   std::vector<anari::Surface> surfaces{surface};
   anari::Geometry sibling = nullptr;
-  if (curveFailure && !isosurfaceFailure && !sphereFailure) {
-    sibling = anari::newObject<anari::Geometry>(d, "curve");
-    anari::setParameterArray1D(
-        d, sibling, "vertex.position", vertices.data(), 4);
+  if ((curveFailure && !isosurfaceFailure && !sphereFailure)
+      || batchCompletion) {
+    sibling = anari::newObject<anari::Geometry>(
+        d, batchCompletion ? "sphere" : "curve");
+    if (batchCompletion && !batchUploadCompletion)
+      anari::setParameter(d, sibling, "vertex.position", array);
+    else
+      anari::setParameterArray1D(
+          d, sibling, "vertex.position", vertices.data(), 4);
     anari::setParameter(d, sibling, "radius", 0.1f);
     anari::commitParameters(d, sibling);
     auto siblingMaterial = anari::newObject<anari::Material>(d, "matte");
@@ -364,7 +472,22 @@ int main(int argc, char **argv)
         != 0;
   };
   bool ok = errors == 0;
-  if (registryFailure) {
+  if (pendingRetirement) {
+    uint8_t valid = 0;
+    ok =
+        anariGetProperty(
+            d, geometry, "valid", ANARI_BOOL, &valid, sizeof(valid), ANARI_WAIT)
+        && valid && ok;
+    failure = Failure::PREPARATION_SYNC;
+    anari::release(d, array);
+    ok = injections == 1 && errors > 0 && ok;
+    cudaFree(deviceVertices);
+    deviceVertices = nullptr;
+    ok = !haveBounds() && ok;
+    anari::render(d, frame);
+    anari::wait(d, frame);
+    ok = completions == 0 && ok;
+  } else if (registryFailure) {
     ok = haveBounds() && ok;
     anari::render(d, frame);
     anari::wait(d, frame);
@@ -455,11 +578,42 @@ int main(int argc, char **argv)
       failure = Failure::UPLOAD_COPY;
     if (sphereUpload && std::strcmp(argv[1], "sphere-upload-completion") == 0)
       failure = Failure::UPLOAD_SYNC;
-    if (sphereFailure && std::strcmp(argv[1], "sphere-completion") == 0)
+    if (sphereFailure
+        && std::strcmp(argv[1], "sphere-readback-allocation") == 0)
+      failure = Failure::READBACK_ALLOCATION;
+    if ((sphereFailure && std::strcmp(argv[1], "sphere-completion") == 0)
+        || batchCompletion)
       failure = Failure::PREPARATION_SYNC;
     if (sphereFailure && std::strcmp(argv[1], "sphere-dependency") == 0)
       failure = Failure::PREPARATION_DEPENDENCY;
+    std::thread watchdog;
+    if (earlyCompletion) {
+      if (cudaEventCreateWithFlags(
+              &pendingCompletion.done, cudaEventDisableTiming)
+          != cudaSuccess)
+        return 1;
+      failure = Failure::PREPARATION_EARLY_SYNC;
+      watchdog = std::thread([] {
+        std::unique_lock<std::mutex> lock(pendingCompletion.mutex);
+        if (!pendingCompletion.condition.wait_for(lock,
+                std::chrono::seconds(5),
+                [] { return pendingCompletion.released.load(); })) {
+          pendingCompletion.timedOut = true;
+          pendingCompletion.released = true;
+        }
+      });
+    }
     ok = !haveBounds() && ok;
+    if (earlyCompletion) {
+      // Cleanup cannot conceal a missing fallback drain. Snapshot its outcome
+      // before unblocking the gate ourselves and destroying any resources.
+      ok = pendingCompletion.queued && pendingCompletion.pendingAtFailure
+          && pendingCompletion.pendingAtDrain && pendingCompletion.drained
+          && !pendingCompletion.timedOut && !pendingCompletion.prematureFree
+          && !pendingCompletion.prematureReport && ok;
+      releasePendingWork();
+      watchdog.join();
+    }
     // The unaffected sibling must not inherit the first geometry's OOM.
     // Recovery below must succeed without recommitting the sibling.
     ok = injections == 1 && errors == 1 && ok;
@@ -470,6 +624,13 @@ int main(int argc, char **argv)
     anari::setParameter(
         d, geometry, isosurfaceFailure ? "isovalue" : "radius", 0.2f);
     anari::commitParameters(d, geometry);
+    if (batchCompletion) {
+      // A completion error invalidates the whole pending batch, not just its
+      // first geometry. Repreparing only that geometry cannot publish a world.
+      ok = !haveBounds() && errors == beforeErrors && ok;
+      anari::setParameter(d, sibling, "radius", 0.25f);
+      anari::commitParameters(d, sibling);
+    }
     ok = haveBounds() && errors == beforeErrors && ok;
     anari::render(d, frame);
     anari::wait(d, frame);
@@ -547,6 +708,10 @@ int main(int argc, char **argv)
   if (sibling)
     anari::release(d, sibling);
   anari::release(d, d);
+  if (earlyCompletion) {
+    ok = pendingCompletion.retired && !pendingCompletion.prematureFree && ok;
+    cudaEventDestroy(pendingCompletion.done);
+  }
   printf("%s injections=%d %s\n",
       curveFailure ? "curve" : argv[1],
       injections,
