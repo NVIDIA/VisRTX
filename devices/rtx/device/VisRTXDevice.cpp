@@ -448,6 +448,7 @@ VisRTXDevice::~VisRTXDevice()
 
   optixModuleDestroy(state.intersectionModules.customIntersectors);
 
+  state.preparation.reset();
   optixDeviceContextDestroy(state.optixContext);
 
   cudaStreamDestroy(state.stream);
@@ -850,6 +851,13 @@ DeviceInitStatus VisRTXDevice::initOptix()
       &builtinISOptions,
       &state.intersectionModules.curveIntersector));
 
+  const auto preparationStatus = state.preparation.initialize();
+  if (preparationStatus != cudaSuccess) {
+    reportMessage(ANARI_SEVERITY_FATAL_ERROR,
+        "could not initialize preparation stream: %s",
+        cudaGetErrorString(preparationStatus));
+    return DeviceInitStatus::FAILURE;
+  }
   return DeviceInitStatus::SUCCESS;
 }
 

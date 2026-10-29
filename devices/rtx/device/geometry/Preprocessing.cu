@@ -226,7 +226,10 @@ bool generateQuadIndices(
   if (!reservePreparation(g, out, 2 * n * sizeof(uvec3)))
     return false;
   if (n)
-    quadIndices<<<(n + 255) / 256, 256, 0, g->deviceState()->stream>>>(
+    quadIndices<<<(n + 255) / 256,
+        256,
+        0,
+        g->deviceState()->preparation.stream()>>>(
         indices, n, out.ptrAs<uvec3>());
   return finishPreparation(g);
 }
@@ -238,8 +241,10 @@ bool generateCurveIndices(Geometry *g, size_t n, DeviceBuffer &out)
   if (!reservePreparation(g, out, n * sizeof(uint32_t)))
     return false;
   if (n)
-    curveIndices<<<(n + 255) / 256, 256, 0, g->deviceState()->stream>>>(
-        n, out.ptrAs<uint32_t>());
+    curveIndices<<<(n + 255) / 256,
+        256,
+        0,
+        g->deviceState()->preparation.stream()>>>(n, out.ptrAs<uint32_t>());
   return checkPreparation(g, cudaGetLastError(), "curve indices");
 }
 
@@ -250,7 +255,10 @@ bool generateCurveRadii(Geometry *g, size_t n, float radius, DeviceBuffer &out)
   if (!reservePreparation(g, out, n * sizeof(float)))
     return false;
   if (n)
-    curveRadii<<<(n + 255) / 256, 256, 0, g->deviceState()->stream>>>(
+    curveRadii<<<(n + 255) / 256,
+        256,
+        0,
+        g->deviceState()->preparation.stream()>>>(
         n, radius, out.ptrAs<float>());
   return checkPreparation(g, cudaGetLastError(), "curve radii");
 }
@@ -261,7 +269,10 @@ bool checkPreparation(Geometry *g, cudaError_t error, const char *operation)
     return true;
   g->setPreparationFailed(true);
   // A failed dispatch/readback can follow successful queued kernels. Drain
-  // their stream before callers can retry, resize, or retire owned storage.
+  // preparation before retrying or freeing scratch. Keep the render-stream
+  // drain on this error path too: this helper also handles input retirement
+  // and dependency failures, which may precede a successful producer edge.
+  g->deviceState()->preparation.finish();
   cudaStreamSynchronize(g->deviceState()->stream);
   g->reportMessage(ANARI_SEVERITY_ERROR,
       "geometry preprocessing failed during %s: %s",
@@ -292,18 +303,18 @@ bool waitForPreparationInputs(Geometry *g)
 {
   // Legacy Array uploads use synchronous cudaMemcpy on the default stream.
   // Pageable H2D may return after staging, not DMA completion: make that
-  // producer dependency explicit before launching on the device work stream.
-  return checkPreparation(
-      g, cudaStreamSynchronize(nullptr), "input upload completion");
+  // producer dependency explicit before launching on the preparation stream.
+  return checkPreparation(g,
+      g->deviceState()->preparation.waitFor(nullptr),
+      "input upload dependency");
 }
 
 bool finishPreparation(Geometry *g)
 {
   // Also establishes an explicit boundary for legacy default-stream consumers.
   return checkPreparation(g, cudaGetLastError(), "launch")
-      && checkPreparation(g,
-          cudaStreamSynchronize(g->deviceState()->stream),
-          "execution completion");
+      && checkPreparation(
+          g, g->deviceState()->preparation.finish(), "execution completion");
 }
 
 bool Preprocessing::bounds(
@@ -311,7 +322,7 @@ bool Preprocessing::bounds(
 {
   if (!waitForPreparationInputs(g))
     return false;
-  const auto stream = g->deviceState()->stream;
+  const auto stream = g->deviceState()->preparation.stream();
   scale = 0.f;
   if (!reservePreparation(g, aabbs, in.count * sizeof(box3))
       || !reservePreparation(g, m_result, sizeof(Result))
@@ -353,7 +364,7 @@ bool Preprocessing::areas(
   }
   if (in.count > size_t(std::numeric_limits<int>::max()))
     return checkPreparation(g, cudaErrorInvalidValue, "primitive count");
-  const auto stream = g->deviceState()->stream;
+  const auto stream = g->deviceState()->preparation.stream();
   size_t scratchBytes = 0;
   if (!reservePreparation(g, m_prefix, in.count * sizeof(double))
       || !reservePreparation(g, cdf, in.count * sizeof(float))

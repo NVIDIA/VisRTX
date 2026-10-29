@@ -95,6 +95,41 @@ completed render. Keep replacement and unchanged-frame cases as guards.
 The [benchmark guide](geometry-preprocessing-performance.md) defines the timed
 boundaries and local result interpretation; no historical baseline is required.
 
+## Preparation stream and retirement
+
+Checked geometry preprocessing (bounds, area CDFs, generated quad/curve indices
+and radii, and SDF alignment) and OptiX BVH build/compaction use one device-owned
+nonblocking preparation stream. `utility/PreparationStream.h` owns its lifetime
+and the event used to import producer dependencies. Scene-update submission is
+serialized; each event wait captures the corresponding record before the event
+is reused.
+
+- Full preparation imports prior render work before overwriting derived buffers.
+- Legacy array uploads are imported through an event on the default stream.
+- The BVH builder imports both render-stream producers (including legacy field
+  and isosurface work) and default-stream input uploads. Its build, readbacks,
+  and compaction execute on the preparation stream.
+- Host bounds/area summaries and BVH publication still require preparation-stream
+  completion. BVH scratch survives through that completion; handles/bounds are
+  published only on success. Group/World failure state prevents failed builds
+  from being treated as ready and permits a later retry.
+- Parameter-reference replacement and last-public-release privatization retain
+  host waits for old render consumers. Error handling drains participating work
+  before storage can be retired or retried.
+
+This is not concurrent in-place scene replacement. Legacy default-stream events
+can include preceding work on blocking streams; tangent generation and field-grid
+preparation retain their legacy synchronization, and `cudaMalloc`/`cudaFree` can
+still serialize work. Removing those dependencies requires stream-aware upload
+and allocation ownership. Overlapping replacement with active rendering also
+requires separate storage generations and last-use tracking for all consumers,
+including shared geometry and registries.
+
+`TestPreparationStream` checks explicit producer ordering and independence from
+an unrelated nonblocking stream. The shared-cudart failure tests additionally
+cover preparation dependency/completion failures and BLAS/TLAS readback/completion
+failures, publication suppression, and retry.
+
 ## Remaining work
 
 Broader array/shading invalidation precision, reducing the extra CPU snapshot

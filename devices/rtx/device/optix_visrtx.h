@@ -33,6 +33,7 @@
 
 #include "gpu/gpu_objects.h"
 #include "utility/DeviceObjectArray.h"
+#include "utility/PreparationStream.h"
 
 // helium
 #include "helium/BaseGlobalDeviceState.h"
@@ -173,6 +174,7 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
 
   CUcontext cudaContext;
   CUstream stream;
+  PreparationStream preparation;
   cudaDeviceProp deviceProps;
 
   OptixDeviceContext optixContext;
@@ -269,7 +271,7 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
   ~DeviceGlobalState() override;
 };
 
-void buildOptixBVH(std::vector<OptixBuildInput> buildInput,
+bool buildOptixBVH(std::vector<OptixBuildInput> buildInput,
     DeviceBuffer &bvh,
     OptixTraversableHandle &traversable,
     box3 &bounds,
