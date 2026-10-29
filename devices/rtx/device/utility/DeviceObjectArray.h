@@ -52,14 +52,15 @@ struct DeviceObjectArray
   size_t size() const;
   bool empty() const;
 
-  T &map(DeviceObjectIndex idx);
-  void unmap(DeviceObjectIndex idx);
+  void set(DeviceObjectIndex idx, const T &value);
 
   void *hostObject(DeviceObjectIndex idx) const;
 
-  void upload();
+  bool dirty() const;
+  cudaError_t enqueueUpload(cudaStream_t stream);
+  void markUploaded();
 
-  const T *devicePtr();
+  const T *devicePtr() const;
 
  private:
   bool m_fullReupload{true};
@@ -70,7 +71,13 @@ struct DeviceObjectArray
   std::stack<DOI, std::vector<DOI>> m_freeIndices;
 
   std::vector<DOI> m_objectsToUpload;
-  std::mutex m_allocationMutex;
+  // Stable sources for asynchronous copies even if unrelated objects are
+  // created or finalized while the batch is in flight.
+  std::vector<T> m_uploadSnapshot;
+  std::vector<DOI> m_uploadIndices;
+  size_t m_updateVersion{0};
+  size_t m_uploadVersion{0};
+  mutable std::mutex m_allocationMutex;
 };
 
 // Inlined definitions ////////////////////////////////////////////////////////
@@ -96,6 +103,7 @@ inline DeviceObjectIndex DeviceObjectArray<T>::alloc(void *hostObj)
     m_fullReupload = true;
   }
 
+  ++m_updateVersion;
   return i;
 }
 
@@ -126,15 +134,12 @@ inline bool DeviceObjectArray<T>::empty() const
 }
 
 template <typename T>
-inline T &DeviceObjectArray<T>::map(DeviceObjectIndex idx)
+inline void DeviceObjectArray<T>::set(DeviceObjectIndex idx, const T &value)
 {
-  return *(m_objects.dataHost() + idx);
-}
-
-template <typename T>
-inline void DeviceObjectArray<T>::unmap(DeviceObjectIndex idx)
-{
+  std::scoped_lock<std::mutex> lock(m_allocationMutex);
+  m_objects.dataHost()[idx] = value;
   m_objectsToUpload.push_back(idx);
+  ++m_updateVersion;
 }
 
 template <typename T>
@@ -144,26 +149,59 @@ inline void *DeviceObjectArray<T>::hostObject(DeviceObjectIndex idx) const
 }
 
 template <typename T>
-inline void DeviceObjectArray<T>::upload()
+inline bool DeviceObjectArray<T>::dirty() const
 {
-  if (m_objectsToUpload.empty())
-    return;
+  std::scoped_lock<std::mutex> lock(m_allocationMutex);
+  return !m_objectsToUpload.empty();
+}
 
-  if (m_fullReupload)
-    m_objects.upload();
-  else {
-    for (auto i : m_objectsToUpload)
-      m_objects.upload(i, i + 1);
+template <typename T>
+inline cudaError_t DeviceObjectArray<T>::enqueueUpload(cudaStream_t stream)
+{
+  bool full = false;
+  {
+    std::scoped_lock<std::mutex> lock(m_allocationMutex);
+    m_uploadVersion = m_updateVersion;
+    m_uploadIndices = m_objectsToUpload;
+    if (m_uploadIndices.empty())
+      return cudaSuccess;
+    full = m_fullReupload;
+    if (full)
+      m_uploadSnapshot.assign(m_objects.begin(), m_objects.end());
+    else {
+      m_uploadSnapshot.clear();
+      m_uploadSnapshot.reserve(m_uploadIndices.size());
+      for (auto i : m_uploadIndices)
+        m_uploadSnapshot.push_back(m_objects.dataHost()[i]);
+    }
   }
+  // Do not hold the registry lock during CUDA calls/waits: completion
+  // callbacks may create objects. The snapshot outlives the entire batch.
+  if (full)
+    return m_objects.enqueueUploadFrom(
+        m_uploadSnapshot.data(), m_uploadSnapshot.size(), 0, stream);
+  for (size_t i = 0; i < m_uploadIndices.size(); ++i) {
+    const auto error = m_objects.enqueueUploadFrom(
+        &m_uploadSnapshot[i], 1, m_uploadIndices[i], stream);
+    if (error != cudaSuccess)
+      return error;
+  }
+  return cudaSuccess;
+}
 
+template <typename T>
+inline void DeviceObjectArray<T>::markUploaded()
+{
+  std::scoped_lock<std::mutex> lock(m_allocationMutex);
+  if (m_uploadIndices.empty() || m_uploadVersion != m_updateVersion)
+    return; // Retain edits made after the snapshot for the next batch.
   m_objectsToUpload.clear();
   m_fullReupload = false;
 }
 
 template <typename T>
-inline const T *DeviceObjectArray<T>::devicePtr()
+inline const T *DeviceObjectArray<T>::devicePtr() const
 {
-  upload();
   return m_objects.dataDevice();
 }
 

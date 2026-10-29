@@ -61,6 +61,8 @@ struct World : public Object
   void rebuildWorld();
 
  private:
+  template <typename... Arrays>
+  bool uploadArrays(Arrays &...arrays);
   void populateOptixInstances();
   void rebuildBLASs();
   void buildInstanceSurfaceGPUData();
@@ -162,6 +164,22 @@ struct World : public Object
   float m_hdriPower{0.f};
   float m_sceneRadius{0.f};
 };
+
+template <typename... Arrays>
+inline bool World::uploadArrays(Arrays &...arrays)
+{
+  if ((arrays.empty() && ...))
+    return true;
+  auto &state = *deviceState();
+  const auto error = state.preparation.upload(state.stream, arrays...);
+  if (error == cudaSuccess)
+    return true;
+  m_bvhBuildFailed = true;
+  reportMessage(ANARI_SEVERITY_ERROR,
+      "world upload failed: %s",
+      cudaGetErrorString(error));
+  return false;
+}
 
 } // namespace visrtx
 

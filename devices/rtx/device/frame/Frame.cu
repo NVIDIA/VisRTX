@@ -730,6 +730,17 @@ void Frame::renderFrame()
     hd.fb.buffers.trimTopK = nullptr;
   }
 
+  const auto registryUpload =
+      state.registry.upload(state.preparation, state.stream);
+  if (registryUpload != cudaSuccess) {
+    reportMessage(ANARI_SEVERITY_ERROR,
+        "skipping render after registry upload failure: %s",
+        cudaGetErrorString(registryUpload));
+    instrument::rangePop(); // frame setup
+    instrument::rangePop(); // Frame::renderFrame()
+    instrument::rangePop(); // frame + map
+    return;
+  }
   hd.registry.samplers = state.registry.samplers.devicePtr();
   hd.registry.geometries = state.registry.geometries.devicePtr();
   hd.registry.materials = state.registry.materials.devicePtr();
@@ -749,8 +760,9 @@ void Frame::renderFrame()
   upload();
   instrument::rangePop(); // Frame::upload()
 
-  // Frame and Registry uploads are legacy default-stream copies. Complete
-  // that producer before work-stream tracing sees newly published geometry.
+  // Frame/renderer uploads still use legacy default-stream copies. Registries
+  // are already complete on the preparation stream; finish the remaining
+  // producers before tracing.
   const auto publication = cudaStreamSynchronize(nullptr);
   if (publication != cudaSuccess) {
     // newFrame() already advanced the checkerboard phase and may have cleared

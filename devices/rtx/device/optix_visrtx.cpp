@@ -181,6 +181,33 @@ DeviceGlobalState::DeviceGlobalState(ANARIDevice d)
 
 DeviceGlobalState::~DeviceGlobalState() = default;
 
+cudaError_t DeviceGlobalState::DeviceObjectRegistry::upload(
+    PreparationStream &preparation, cudaStream_t renderStream)
+{
+  if (!(samplers.dirty() || geometries.dirty() || materials.dirty()
+          || surfaces.dirty() || lights.dirty() || fields.dirty()
+          || volumes.dirty()))
+    return cudaSuccess;
+  const auto error = preparation.upload(renderStream,
+      samplers,
+      geometries,
+      materials,
+      surfaces,
+      lights,
+      fields,
+      volumes);
+  if (error != cudaSuccess)
+    return error;
+  samplers.markUploaded();
+  geometries.markUploaded();
+  materials.markUploaded();
+  surfaces.markUploaded();
+  lights.markUploaded();
+  fields.markUploaded();
+  volumes.markUploaded();
+  return cudaSuccess;
+}
+
 #ifdef USE_MDL
 namespace {
 

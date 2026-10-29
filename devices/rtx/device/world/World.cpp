@@ -299,6 +299,8 @@ void World::rebuildWorld()
       return;
 
     populateOptixInstances();
+    if (preparationFailed())
+      return;
     reportMessage(ANARI_SEVERITY_DEBUG,
         "visrtx::World building surface BVH over %zu instances",
         m_optixSurfaceInstances.size());
@@ -335,6 +337,16 @@ void World::rebuildWorld()
     if (preparationFailed())
       return;
     buildLightPickCdf();
+    // These records are consumed only by tracing, not by the intervening BVH
+    // builds. Upload their final values together, including proxy flag edits.
+    if (!uploadArrays(m_instanceSurfaceGPUData,
+            m_instanceVolumeGPUData,
+            m_instanceLightGPUData,
+            m_instanceHdriLightGPUData,
+            m_lightProxyGPUData,
+            m_lightPickCdf,
+            m_lightPickDelta))
+      return;
 
     reportMessage(ANARI_SEVERITY_DEBUG,
         "visrtx::World finished building world over %zu instances",
@@ -374,8 +386,8 @@ void World::populateOptixInstances()
       m_numTriangleInstances + m_numCurveInstances + m_numUserInstances;
 
   m_optixSurfaceInstances.resize(
-      m_numGeometrySurfaceInstances + (hasLightProxies ? 1 : 0));
-  m_optixVolumeInstances.resize(m_numVolumeInstances);
+      m_numGeometrySurfaceInstances + (hasLightProxies ? 1 : 0), false);
+  m_optixVolumeInstances.resize(m_numVolumeInstances, false);
 
   auto prepInstance = [](auto &i,
                           int instID,
@@ -454,8 +466,7 @@ void World::populateOptixInstances()
     instID++;
   }
 
-  m_optixSurfaceInstances.upload();
-  m_optixVolumeInstances.upload();
+  uploadArrays(m_optixSurfaceInstances, m_optixVolumeInstances);
 }
 
 void World::rebuildBLASs()
@@ -476,7 +487,7 @@ void World::rebuildBLASs()
 void World::buildInstanceSurfaceGPUData()
 {
   m_instanceSurfaceGPUData.resize(
-      m_numTriangleInstances + m_numCurveInstances + m_numUserInstances);
+      m_numTriangleInstances + m_numCurveInstances + m_numUserInstances, false);
 
   auto makeInstanceGPUData = [](const DeviceObjectIndex *s,
                                  const UniformAttributes &ua,
@@ -569,12 +580,12 @@ void World::buildInstanceSurfaceGPUData()
     }
   });
 
-  m_instanceSurfaceGPUData.upload();
+  // Published with the other tracing records at the end of rebuildWorld().
 }
 
 void World::buildInstanceVolumeGPUData()
 {
-  m_instanceVolumeGPUData.resize(m_numVolumeInstances);
+  m_instanceVolumeGPUData.resize(m_numVolumeInstances, false);
 
   int instID = 0;
   std::for_each(m_instances.begin(), m_instances.end(), [&](auto *inst) {
@@ -598,7 +609,7 @@ void World::buildInstanceVolumeGPUData()
     }
   });
 
-  m_instanceVolumeGPUData.upload();
+  // Published with the other tracing records at the end of rebuildWorld().
 }
 
 size_t World::countGeometryLights(Group *group) const
@@ -690,10 +701,10 @@ void World::buildInstanceLightGPUData()
       totalHdriLights);
 
   // Allocate the instance-data, HDRI, and pick arrays.
-  m_instanceLightGPUData.resize(totalLights);
-  m_instanceHdriLightGPUData.resize(totalHdriLights);
-  m_lightPickCdf.resize(totalLights);
-  m_lightPickDelta.resize(totalLights);
+  m_instanceLightGPUData.resize(totalLights, false);
+  m_instanceHdriLightGPUData.resize(totalHdriLights, false);
+  m_lightPickCdf.resize(totalLights, false);
+  m_lightPickDelta.resize(totalLights, false);
 
   m_lightInstanceObjects.clear();
   m_lightInstanceObjects.resize(totalLights, nullptr);
@@ -763,8 +774,7 @@ void World::buildInstanceLightGPUData()
   // surface instance and emit silently wrong radiance — catch it here.
   assert(surfaceInstanceCursor == m_instanceSurfaceGPUData.size());
 
-  m_instanceLightGPUData.upload();
-  m_instanceHdriLightGPUData.upload();
+  // Keep records host-side until proxy flags and Light Pick are finalized.
 }
 
 void World::buildIlluminatedBounds()
@@ -890,8 +900,7 @@ void World::buildLightPickCdf()
     }
   }
 
-  m_lightPickCdf.upload();
-  m_lightPickDelta.upload();
+  // Published with the other tracing records at the end of rebuildWorld().
 }
 
 // An area light is flat, so its world AABB is degenerate along one axis
@@ -1008,17 +1017,15 @@ void World::buildLightProxies()
   if (proxies.empty())
     return;
 
-  // Re-upload: the hasAreaProxy flags were written after
-  // buildInstanceLightGPUData's own upload.
-  m_instanceLightGPUData.upload();
-
-  m_lightProxyGPUData.resize(proxies.size());
+  // Tracing records (including hasAreaProxy) are uploaded once after the TLAS
+  // build; only the proxy AABBs are needed by the BLAS below.
+  m_lightProxyGPUData.resize(proxies.size(), false);
   std::copy(proxies.begin(), proxies.end(), m_lightProxyGPUData.dataHost());
-  m_lightProxyGPUData.upload();
 
-  m_lightProxyAabbs.resize(aabbs.size());
+  m_lightProxyAabbs.resize(aabbs.size(), false);
   std::copy(aabbs.begin(), aabbs.end(), m_lightProxyAabbs.dataHost());
-  m_lightProxyAabbs.upload();
+  if (!uploadArrays(m_lightProxyAabbs))
+    return;
 
   reportMessage(ANARI_SEVERITY_DEBUG,
       "visrtx::World building light-proxy BLAS over %zu proxies",
