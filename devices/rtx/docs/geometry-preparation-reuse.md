@@ -127,8 +127,9 @@ is reused.
   slots are staged unless registry growth requires a full copy. Edits made after
   a snapshot remain dirty for the next batch. No registry lock is held during
   CUDA waits, so completion callbacks cannot be blocked by that lock.
-- Host bounds/area summaries and BVH publication still require preparation-stream
-  completion. BVH scratch survives through that completion; handles/bounds are
+- Host bounds/area summaries are collected after batched submission (see below).
+  BVH publication still requires preparation-stream completion. BVH scratch
+  survives through that completion; handles/bounds are
   published only on success. Group/World failure state prevents failed builds
   from being treated as ready and permits a later retry.
 - Parameter-reference replacement and last-public-release privatization retain
@@ -155,13 +156,50 @@ and completion errors, partial registry batches, and retry without recommitting
 already-finalized objects. `TestRegistrySnapshot` verifies stable copy sources
 across host-vector growth and preservation of newer dirty edits.
 
+## Geometry submission and collection
+
+Checked bounds and area-CDF preparation submit kernels and asynchronous readbacks
+into geometry-owned pinned storage. A successful submission is not publication:
+scalar outputs, numeric validation, and geometry registry updates happen only
+after collection. The device queue retains each submitted geometry, and thereby
+its arrays and derived buffers, until those operations finish.
+
+Group/World rebuilds collect queued finalizations before constructing BVHs. Lazy
+Geometry Light area requests are submitted for all candidate surfaces first,
+then collected together before configuring lights. Shared geometry is queued
+once. A numeric failure invalidates its geometry only; a stream-completion error
+invalidates every pending generation, including errors observed by an intervening
+upload or legacy completion wait. Failed generations cannot take preparation reuse.
+
+A recommit or observer-only re-finalization drains the geometry's previous queued
+work before reusing its storage. Last-public-release privatization of shared CUDA
+arrays also drains pending preparation readers, not just rendering. Device
+teardown collects the queue before releasing objects or CUDA/OptiX resources.
+Status callbacks cannot reenter device property queries or rendering while
+collection is resolving results; those calls are refused instead of publishing
+a partially collected scene.
+
+Pinned readback storage is reused per geometry. Pooling these small allocations
+is a future scaling improvement. Host input upload batches still complete per
+geometry to preserve their source lifetime and existing legacy consumers;
+quad/curve generated-data completion, tangent generation, and field/isosurface
+preparation retain their current synchronous paths. This does not introduce
+independent scene generations or concurrent in-place replacement during tracing.
+
+`TestDeferredGeometryPreparation` covers recommitting a queued geometry, retained
+captured-device inputs, last-reference queue ownership through teardown, unrelated
+numeric failures, and collection-time callback reentry. Injection cases also
+cover pinned-readback allocation failure, completion failure across multiple
+queued geometries, an intervening upload completion failure, and shared CUDA
+array retirement while preparation remains pending.
+
 ## Remaining work
 
 Broader array/shading invalidation precision, reducing the extra CPU snapshot
 comparison cost, batched readback/dispatch, and fine-grained area-vs-bounds
-invalidation are separate improvements. Registry batching spans geometries, but
-geometry input/bounds/area preparation still completes per geometry. Batching
-that work across geometries requires splitting finalization into submission and
-result collection while preserving source lifetimes and failure propagation. This change does not repack or download
+invalidation are separate improvements. Registry, bounds, and area-result
+collection now span geometries. Batching the remaining host-input uploads and
+legacy finalizers requires further producer migration while preserving source
+lifetimes and failure propagation. This change does not repack or download
 inputs, introduce CPU preprocessing, or weaken the guarantee that changed inputs
 are prepared on the GPU before their derived data is published.
