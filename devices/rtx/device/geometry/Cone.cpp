@@ -53,7 +53,13 @@ Cone::Cone(DeviceGlobalState *d)
       m_radius(this),
       m_vertex(this),
       m_vertexCaps(this)
-{}
+{
+  declarePreparationParameters({"primitive.index",
+      "vertex.position",
+      "vertex.radius",
+      "vertex.cap",
+      "caps"});
+}
 
 Cone::~Cone() = default;
 
@@ -87,11 +93,7 @@ PrimitiveInput Cone::primitiveInput() const
 
 void Cone::finalize()
 {
-  if (!beginPreparation({"primitive.index",
-          "vertex.position",
-          "vertex.radius",
-          "vertex.cap",
-          "caps"}))
+  if (!beginPreparation())
     return;
   if (!m_vertex) {
     reportMessage(ANARI_SEVERITY_WARNING,

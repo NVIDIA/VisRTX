@@ -42,7 +42,18 @@ static_assert(offsetof(visrtx::SDFPrimitive, neighboursIndex) == 56,
 
 namespace visrtx {
 
-SDF::SDF(DeviceGlobalState *d) : Geometry(d), m_sdf(this), m_neighbour(this) {}
+SDF::SDF(DeviceGlobalState *d) : Geometry(d), m_sdf(this), m_neighbour(this)
+{
+  declarePreparationParameters({"primitive.sdf",
+      "primitive.neighbor",
+      "epsilon",
+      "nbMarchIterations",
+      "blendFactor",
+      "blendLerpFactor",
+      "omega",
+      "distanceFromCamera",
+      "noiseFactor"});
+}
 
 SDF::~SDF() = default;
 
@@ -63,15 +74,7 @@ void SDF::commitParameters()
 
 void SDF::finalize()
 {
-  if (!beginPreparation({"primitive.sdf",
-          "primitive.neighbor",
-          "epsilon",
-          "nbMarchIterations",
-          "blendFactor",
-          "blendLerpFactor",
-          "omega",
-          "distanceFromCamera",
-          "noiseFactor"}))
+  if (!beginPreparation())
     return;
   if (!m_sdf) {
     reportMessage(ANARI_SEVERITY_WARNING,

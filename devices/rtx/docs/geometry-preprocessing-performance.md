@@ -59,7 +59,7 @@ The executable can also run one workload directly:
 ```text
 BenchmarkGeometryPreprocessing TYPE COUNT DEVICE REPEATS \
   [SHARED_SURFACES] [DISTINCT_GEOMETRIES] \
-  [recommit|replace|unchanged|overlap] [FRAMES:0=bounds] [EMISSIVE:0|1]
+  [recommit|replace|unchanged|overlap|update] [FRAMES:0=bounds] [EMISSIVE:0|1]
 ```
 
 - COUNT is primitives **per geometry**. The paired runner uses emissive geometry,
@@ -68,6 +68,12 @@ BenchmarkGeometryPreprocessing TYPE COUNT DEVICE REPEATS \
 - `recommit` changes a geometry-wide attribute; `replace` replaces inputs, including
   allocation, host staging, application H2D copy and parameter installation in
   the measured interval; `unchanged` retains the initial inputs.
+- `update` maps and changes existing host position arrays in place, unmaps them,
+  and commits a geometry-wide attribute on each geometry. It measures coalesced array
+  updates plus geometry commits without replacing the input allocations; it is
+  not an observer-only workload. Supported for host inputs of non-SDF types.
+  For example, add `--extra-case in-place-ready:32:64:update:0` and
+  `--extra-case in-place-frame:32:64:update:1` to the paired runner.
 - FRAMES=0 ends at completed bounds/BVH readiness. FRAMES>0 includes submission
   and completion of all frames, registry publication and tracing, then bounds.
   Multiple frames share one device/world; this is not a concurrency benchmark.

@@ -53,13 +53,15 @@ for spec in a.extra_case:
         name, count, geometries, mode, frames = spec.split(":")
         case = (name, int(count), int(geometries), mode, int(frames))
         if (not name or case[1] < 1 or case[2] < 1 or case[4] < 0
-                or mode not in {"recommit", "replace", "unchanged"}
+                or mode not in {"recommit", "replace", "unchanged", "update"}
+                or (mode == "update" and (a.device or a.geometry == "sdf"))
                 or name in {c[0] for c in cases}):
             raise ValueError()
         cases.append(case)
     except ValueError:
         p.error(f"bad --extra-case {spec!r}; use a unique NAME, positive COUNT/GEOMETRIES, "
-                "recommit|replace|unchanged, and nonnegative FRAMES")
+                "recommit|replace|unchanged|update, and nonnegative FRAMES; "
+                "update requires host inputs and non-SDF geometry")
 records = []
 
 
