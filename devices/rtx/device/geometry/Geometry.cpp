@@ -114,12 +114,16 @@ Geometry *Geometry::createInstance(
 
 void Geometry::commitParameters()
 {
+  if (m_inputUploadsQueued)
+    deviceState()->collectGeometryInputUploads();
+  m_inputUploadFailed = false;
   if (m_preparationQueued)
     deviceState()->collectGeometryPreparations();
   // Array observers can re-finalize without a parameter commit, but parameter
   // replacement can release the last reference to an aliased device array.
   // Complete earlier consumers before subclasses replace those references.
-  m_inputRetirementFailed = !canRetainPreparationInputs()
+  const bool retain = canRetainPreparationInputs();
+  m_inputRetirementFailed = !retain
       && !checkPreparation(this,
           cudaStreamSynchronize(deviceState()->stream),
           "retiring previous geometry inputs");
@@ -140,6 +144,8 @@ void Geometry::commitParameters()
   m_uniformAttributes.attribute3 = getUniformAttribute("attribute3");
   m_uniformAttributes.color = getUniformAttribute("color");
   m_primitiveId = getParamObject<Array1D>("primitive.id");
+  if (!retain && !m_inputRetirementFailed)
+    stageInputUploads();
 }
 
 void Geometry::markFinalized()
@@ -225,37 +231,120 @@ void Geometry::upload()
   m_hasPreparedData = !preparationFailed() && isValid();
 }
 
-bool Geometry::beginPreparation(std::initializer_list<const char *> parameters)
+void Geometry::declarePreparationParameters(
+    std::initializer_list<const char *> parameters)
 {
+  for (const char *name : {"primitive.attribute0",
+           "primitive.attribute1",
+           "primitive.attribute2",
+           "primitive.attribute3",
+           "primitive.color",
+           "primitive.id",
+           "vertex.attribute0",
+           "vertex.attribute1",
+           "vertex.attribute2",
+           "vertex.attribute3",
+           "vertex.color"})
+    m_preparationParameterNames.emplace_back(name);
+  for (const char *name : parameters)
+    m_preparationParameterNames.emplace_back(name);
+}
+
+void Geometry::stageInputUploads()
+{
+  m_inputUploads.clear();
+  for (const auto &name : m_preparationParameterNames) {
+    const auto value = getParamDirect(name);
+    if (!anari::isObject(value.type()))
+      continue;
+    auto *array = dynamic_cast<Array *>(value.getObject<helium::BaseObject>());
+    if (array && array->needToUploadData() && array->dataHost())
+      m_inputUploads.push_back({array, array->lastDataModified(), false});
+  }
+  if (m_inputUploads.empty())
+    return;
+  deviceState()->enqueueGeometryInputUploads(this);
+  m_inputUploadsQueued = true;
+}
+
+void Geometry::retirePreparationSnapshot()
+{
+  // Only queued by a commit whose render-consumer retirement check succeeded.
+  // Discard obsolete references before allocating a multi-geometry cohort.
+  // Until beginPreparation establishes the new generation, old GPU records
+  // must not be usable if a host exception aborts finalization.
+  m_hasPreparedData = false;
+  m_preparationFailed = true;
+  m_preparedParameters.clear();
+}
+
+void Geometry::submitInputUploads()
+{
+  if (m_inputUploadFailed)
+    return;
+  auto &state = *deviceState();
+  auto fail = [&](cudaError_t error, const char *operation) {
+    if (error == cudaSuccess)
+      return false;
+    failInputUploads();
+    checkPreparation(this, error, operation);
+    return true;
+  };
+  for (auto &upload : m_inputUploads) {
+    upload.modified = upload.array->lastDataModified();
+    const auto error =
+        state.stageGeometryArray(upload.array.ptr, upload.modified);
+    upload.submitted = error == cudaSuccess;
+    if (fail(error, "geometry array upload"))
+      return;
+  }
+}
+
+void Geometry::failInputUploads()
+{
+  m_inputUploadFailed = true;
+  m_preparationFailed = true;
+  m_hasPreparedData = false;
+}
+
+void Geometry::completeInputUploads()
+{
+  m_inputUploadsQueued = false;
+  for (const auto &upload : m_inputUploads)
+    if (!upload.submitted)
+      failInputUploads();
+  if (m_inputUploadFailed)
+    m_failedInputUpdate = lastUpdated();
+  else {
+    for (const auto &upload : m_inputUploads) {
+      // Array finalization or a coalesced unmap may have changed the version
+      // since submission. Leave that array dirty for the conservative path.
+      if (upload.array->lastDataModified() == upload.modified)
+        upload.array->markDataUploaded();
+    }
+  }
+  m_inputUploads.clear();
+}
+
+bool Geometry::beginPreparation()
+{
+  if (!deviceState()->collectGeometryInputUploads())
+    return false;
   // Observer-only finalization can arrive before a prior submission is
   // collected.
   if (m_preparationQueued)
     deviceState()->collectGeometryPreparations();
   m_preparationPreserved = false;
-  if (m_inputRetirementFailed)
+  // A later observer update is a new generation too; it may retry a failed
+  // input batch without requiring a parameter commit on the geometry.
+  if (m_inputUploadFailed && lastUpdated() > m_failedInputUpdate)
+    m_inputUploadFailed = false;
+  if (m_inputRetirementFailed || m_inputUploadFailed)
     return false;
 
   std::vector<PreparationParameter> current;
-  if (parameters.size() != 0) {
-    // Subtype declarations are fixed. Keep the lookup names across commits
-    // instead of allocating/copying their strings on every finalization.
-    if (m_preparationParameterNames.empty()) {
-      for (const char *name : {"primitive.attribute0",
-               "primitive.attribute1",
-               "primitive.attribute2",
-               "primitive.attribute3",
-               "primitive.color",
-               "primitive.id",
-               "vertex.attribute0",
-               "vertex.attribute1",
-               "vertex.attribute2",
-               "vertex.attribute3",
-               "vertex.color"})
-        m_preparationParameterNames.emplace_back(name);
-      for (const char *name : parameters)
-        m_preparationParameterNames.emplace_back(name);
-    }
-    current.reserve(m_preparedParameters.size());
+  if (!m_preparationParameterNames.empty()) {
+    current.reserve(m_preparedParameters.capacity());
     // Indices remain valid if current grows; its AnariAny values retain every
     // source array until the batch completes (including on failure).
     std::vector<std::pair<size_t, Array *>> pendingUploads;

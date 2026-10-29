@@ -172,6 +172,18 @@ void Array::privatize()
     return;
   bool changed = false;
   if (m_data.shared.host.isValid() && !m_data.shared.host.isOwner()) {
+    // A batched H2D copy may still use the application-owned host pointer.
+    // Draining does not release the queue's retained array references.
+    if (state.collectingGeometryInputUploads()) {
+      const auto completion = state.finishGeometryPreparation();
+      if (completion != cudaSuccess) {
+        state.arrayPrivatizationFailed = true;
+        reportMessage(ANARI_SEVERITY_FATAL_ERROR,
+            "array privatization failed; device disabled: %s",
+            cudaGetErrorString(completion));
+        return;
+      }
+    }
     reportMessage(ANARI_SEVERITY_PERFORMANCE_WARNING,
         "making private copy of shared host array (type '%s') | refs: (%i:%i)",
         anari::toString(elementType()),

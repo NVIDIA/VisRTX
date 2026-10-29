@@ -37,7 +37,20 @@ namespace visrtx {
 
 Triangle::Triangle(DeviceGlobalState *d)
     : Geometry(d), m_index(this), m_vertex(this)
-{}
+{
+  declarePreparationParameters({"primitive.index",
+      "vertex.position",
+      "vertex.normal",
+      "faceVarying.normal",
+      "vertex.tangent",
+      "faceVarying.tangent",
+      "cullBackfaces",
+      "faceVarying.attribute0",
+      "faceVarying.attribute1",
+      "faceVarying.attribute2",
+      "faceVarying.attribute3",
+      "faceVarying.color"});
+}
 
 Triangle::~Triangle() = default;
 
@@ -76,18 +89,7 @@ void Triangle::commitParameters()
 
 void Triangle::finalize()
 {
-  if (!beginPreparation({"primitive.index",
-          "vertex.position",
-          "vertex.normal",
-          "faceVarying.normal",
-          "vertex.tangent",
-          "faceVarying.tangent",
-          "cullBackfaces",
-          "faceVarying.attribute0",
-          "faceVarying.attribute1",
-          "faceVarying.attribute2",
-          "faceVarying.attribute3",
-          "faceVarying.color"}))
+  if (!beginPreparation())
     return;
   if (!m_vertex) {
     reportMessage(ANARI_SEVERITY_WARNING,
