@@ -116,9 +116,10 @@ void Geometry::commitParameters()
   // Array observers can re-finalize without a parameter commit, but parameter
   // replacement can release the last reference to an aliased device array.
   // Complete earlier consumers before subclasses replace those references.
-  m_inputRetirementFailed = !checkPreparation(this,
-      cudaStreamSynchronize(deviceState()->stream),
-      "retiring previous geometry inputs");
+  m_inputRetirementFailed = !canRetainPreparationInputs()
+      && !checkPreparation(this,
+          cudaStreamSynchronize(deviceState()->stream),
+          "retiring previous geometry inputs");
   commitAttributes("primitive.", m_primitiveAttributes);
 
   auto getUniformAttribute =
@@ -158,6 +159,41 @@ bool Geometry::PreparationParameter::operator==(
       && modified == other.modified && devicePointer == other.devicePointer;
 }
 
+bool Geometry::canRetainPreparationInputs() const
+{
+  if (!m_hasPreparedData || preparationFailed() || m_inputRetirementFailed
+      || m_preparationParameterNames.empty())
+    return false;
+
+  // Inspect committed values only, before subclasses replace their references.
+  // Do not call dataGPU(): it can upload/replace storage. Pointer validation
+  // remains in beginPreparation(), after references have been retained safely.
+  size_t present = 0;
+  for (size_t i = 0; i < m_preparationParameterNames.size(); ++i) {
+    const auto value = getParamDirect(m_preparationParameterNames[i]);
+    if (!value.valid())
+      continue;
+    if (present == m_preparedParameters.size())
+      return false;
+    const auto &previous = m_preparedParameters[present++];
+    if (previous.parameterIndex != i || !(previous.value == value))
+      return false;
+    if (anari::isObject(value.type())) {
+      auto *object = value.getObject<helium::BaseObject>();
+      if (object) {
+        if (previous.updated != object->lastUpdated()
+            || previous.finalized != object->lastFinalized())
+          return false;
+        if (auto *array = dynamic_cast<Array *>(object)) {
+          if (previous.modified != array->lastDataModified())
+            return false;
+        }
+      }
+    }
+  }
+  return present == m_preparedParameters.size();
+}
+
 void Geometry::upload()
 {
   RegisteredObject<GeometryGPUData>::upload();
@@ -172,9 +208,27 @@ bool Geometry::beginPreparation(std::initializer_list<const char *> parameters)
 
   std::vector<PreparationParameter> current;
   if (parameters.size() != 0) {
+    // Subtype declarations are fixed. Keep the lookup names across commits
+    // instead of allocating/copying their strings on every finalization.
+    if (m_preparationParameterNames.empty()) {
+      for (const char *name : {"primitive.attribute0",
+               "primitive.attribute1",
+               "primitive.attribute2",
+               "primitive.attribute3",
+               "primitive.color",
+               "primitive.id",
+               "vertex.attribute0",
+               "vertex.attribute1",
+               "vertex.attribute2",
+               "vertex.attribute3",
+               "vertex.color"})
+        m_preparationParameterNames.emplace_back(name);
+      for (const char *name : parameters)
+        m_preparationParameterNames.emplace_back(name);
+    }
     current.reserve(m_preparedParameters.size());
     size_t parameterIndex = 0;
-    auto append = [&](const char *name) {
+    auto append = [&](const std::string &name) {
       PreparationParameter parameter;
       parameter.parameterIndex = parameterIndex++;
       parameter.value = getParamDirect(name); // committed snapshot, not staging
@@ -195,19 +249,7 @@ bool Geometry::beginPreparation(std::initializer_list<const char *> parameters)
       }
       current.push_back(std::move(parameter));
     };
-    for (const char *name : {"primitive.attribute0",
-             "primitive.attribute1",
-             "primitive.attribute2",
-             "primitive.attribute3",
-             "primitive.color",
-             "primitive.id",
-             "vertex.attribute0",
-             "vertex.attribute1",
-             "vertex.attribute2",
-             "vertex.attribute3",
-             "vertex.color"})
-      append(name);
-    for (const char *name : parameters)
+    for (const auto &name : m_preparationParameterNames)
       append(name);
 
     // Observer-only updates always take the preparation path. A geometry-wide

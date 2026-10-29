@@ -59,7 +59,7 @@ The executable can also run one workload directly:
 ```text
 BenchmarkGeometryPreprocessing TYPE COUNT DEVICE REPEATS \
   [SHARED_SURFACES] [DISTINCT_GEOMETRIES] \
-  [recommit|replace|unchanged] [FRAMES:0=bounds] [EMISSIVE:0|1]
+  [recommit|replace|unchanged|overlap] [FRAMES:0=bounds] [EMISSIVE:0|1]
 ```
 
 - COUNT is primitives **per geometry**. The paired runner uses emissive geometry,
@@ -71,6 +71,13 @@ BenchmarkGeometryPreprocessing TYPE COUNT DEVICE REPEATS \
 - FRAMES=0 ends at completed bounds/BVH readiness. FRAMES>0 includes submission
   and completion of all frames, registry publication and tracing, then bounds.
   Multiple frames share one device/world; this is not a concurrency benchmark.
+- `overlap` requires FRAMES=1 and uses a 1024x1024 frame with 32 pixel samples.
+  It submits rendering, commits geometry-wide attribute updates, then queries bounds before
+  waiting for the frame. `overlap ... query_ms` measures the bounds query alone;
+  `sample ... ms` still includes completed rendering. This isolates CPU blocking
+  on an outstanding frame, not a rendering-throughput improvement. Run it
+  directly (the paired runner does not summarize query latency):
+  `BENCHMARK cylinder 32 0 11 1 64 overlap 1 1`.
 - Initial setup is outside each iteration's timer. `setup_to_ready_ms` also
   includes fixture generation and initial input setup, but not device creation.
   Iteration zero is reported separately and excluded from warm statistics.
