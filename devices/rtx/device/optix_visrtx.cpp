@@ -30,7 +30,9 @@
  */
 
 #include "optix_visrtx.h"
+#include <nonstd/scope.hpp>
 #include "Object.h"
+#include "geometry/Geometry.h"
 
 #ifdef USE_MDL
 #include <algorithm>
@@ -180,6 +182,60 @@ DeviceGlobalState::DeviceGlobalState(ANARIDevice d)
 {}
 
 DeviceGlobalState::~DeviceGlobalState() = default;
+
+void DeviceGlobalState::enqueueGeometryPreparation(Geometry *geometry)
+{
+  m_geometryPreparations.emplace_back(geometry);
+}
+
+bool DeviceGlobalState::collectingGeometryPreparations() const
+{
+  return m_collectingGeometryPreparations;
+}
+
+bool DeviceGlobalState::hasPendingGeometryPreparations() const
+{
+  return m_collectingGeometryPreparations || !m_geometryPreparations.empty();
+}
+
+cudaError_t DeviceGlobalState::finishGeometryPreparation()
+{
+  const auto error = preparation.finish();
+  if (error != cudaSuccess) {
+    // An intervening upload/legacy consumer may wait before the collection
+    // point. Its stream-completion error affects all already queued results.
+    for (auto &geometry : m_geometryPreparations)
+      geometry->setPreparationFailed(true);
+  }
+  return error;
+}
+
+bool DeviceGlobalState::collectGeometryPreparations()
+{
+  if (m_collectingGeometryPreparations)
+    return false;
+  if (m_geometryPreparations.empty())
+    return true;
+  m_collectingGeometryPreparations = true;
+  auto collecting = nonstd::make_scope_exit(
+      [&] { m_collectingGeometryPreparations = false; });
+  auto pending = std::move(m_geometryPreparations);
+  const auto error = preparation.finish();
+  if (error != cudaSuccess) {
+    // A stream error invalidates every generation in this batch. Mark them
+    // before reporting, so callbacks cannot see a partially valid generation.
+    for (auto &geometry : pending)
+      geometry->setPreparationFailed(true);
+    checkPreparation(pending.front().ptr, error, "batch completion");
+  }
+  for (auto &geometry : pending)
+    geometry->completePreparation();
+  pending.clear();
+  m_geometryPreparations.swap(pending); // Reuse queue capacity next batch.
+  // Failure is local to the affected geometries; unrelated worlds remain
+  // usable.
+  return true;
+}
 
 cudaError_t DeviceGlobalState::DeviceObjectRegistry::upload(
     PreparationStream &preparation, cudaStream_t renderStream)

@@ -36,14 +36,11 @@
 #include <cmath>
 #include <cub/device/device_scan.cuh>
 #include <limits>
+#include <utility>
 
 namespace visrtx {
 namespace {
-struct Result
-{
-  float value;
-  uint32_t invalid;
-};
+using Result = PreparationResult;
 
 VISRTX_GLOBAL void primitiveAreas(
     PrimitiveInput in, double *areas, Result *result)
@@ -106,7 +103,7 @@ VISRTX_GLOBAL void normalizeAreas(
     result->value = area;
 }
 // Encode numeric failure in the scalar readback; cone/cylinder bounds have
-// already returned their status word for this generation.
+// have a separate status readback for this generation.
 VISRTX_GLOBAL void publishArea(Result *result)
 {
   if (result->invalid)
@@ -266,7 +263,7 @@ bool checkPreparation(Geometry *g, cudaError_t error, const char *operation)
   // preparation before retrying or freeing scratch. Keep the render-stream
   // drain on this error path too: this helper also handles input retirement
   // and dependency failures, which may precede a successful producer edge.
-  g->deviceState()->preparation.finish();
+  g->deviceState()->finishGeometryPreparation();
   cudaStreamSynchronize(g->deviceState()->stream);
   g->reportMessage(ANARI_SEVERITY_ERROR,
       "geometry preprocessing failed during %s: %s",
@@ -297,8 +294,56 @@ bool finishPreparation(Geometry *g)
 {
   // Also establishes an explicit boundary for legacy default-stream consumers.
   return checkPreparation(g, cudaGetLastError(), "launch")
-      && checkPreparation(
-          g, g->deviceState()->preparation.finish(), "execution completion");
+      && checkPreparation(g,
+          g->deviceState()->finishGeometryPreparation(),
+          "execution completion");
+}
+
+Preprocessing::~Preprocessing()
+{
+  if (m_readback)
+    cudaFreeHost(m_readback);
+}
+
+bool Preprocessing::reserveReadback(Geometry *g)
+{
+  if (m_readback)
+    return true;
+  Result *readback = nullptr;
+  if (!checkPreparation(g,
+          cudaMallocHost(
+              reinterpret_cast<void **>(&readback), 2 * sizeof(Result)),
+          "allocating preparation readback"))
+    return false;
+  m_readback = readback;
+  return true;
+}
+
+bool Preprocessing::pending() const
+{
+  return m_scale || m_total;
+}
+
+bool Preprocessing::complete(Geometry *g)
+{
+  auto *scale = std::exchange(m_scale, nullptr);
+  auto *total = std::exchange(m_total, nullptr);
+  auto *cdf = std::exchange(m_cdf, nullptr);
+  if (g->preparationFailed())
+    return false;
+  if (scale && m_readback[0].invalid)
+    return checkPreparation(g, cudaErrorInvalidValue, "non-finite bounds");
+  if (total && !std::isfinite(m_readback[1].value))
+    return checkPreparation(
+        g, cudaErrorInvalidValue, "non-publishable primitive area");
+  if (scale)
+    *scale = m_readback[0].value;
+  if (total) {
+    *total = m_readback[1].value;
+    if (*total == 0.f)
+      cdf->reset();
+  }
+  return true;
 }
 
 bool Preprocessing::bounds(
@@ -306,6 +351,11 @@ bool Preprocessing::bounds(
 {
   const auto stream = g->deviceState()->preparation.stream();
   scale = 0.f;
+  if (!reserveReadback(g))
+    return false;
+  g->deferPreparation();
+  m_scale = &scale;
+  m_readback[0] = {};
   if (!reservePreparation(g, aabbs, in.count * sizeof(box3))
       || !reservePreparation(g, m_result, sizeof(Result))
       || !checkPreparation(g,
@@ -315,7 +365,7 @@ bool Preprocessing::bounds(
   if (in.count)
     primitiveBounds<<<(in.count + 255) / 256, 256, 0, stream>>>(
         in, aabbs.ptrAs<box3>(), m_result.ptrAs<Result>());
-  Result host{};
+  auto &host = m_readback[0];
   const bool sdf = in.type == GeometryType::SDF;
   if (!checkPreparation(g, cudaGetLastError(), "bounds evaluation")
       || !checkPreparation(g,
@@ -325,12 +375,8 @@ bool Preprocessing::bounds(
               sdf ? sizeof(host.invalid) : sizeof(host),
               cudaMemcpyDeviceToHost,
               stream),
-          "bounds summary")
-      || !finishPreparation(g))
+          "bounds summary"))
     return false;
-  if (host.invalid)
-    return checkPreparation(g, cudaErrorInvalidValue, "non-finite bounds");
-  scale = host.value;
   return true;
 }
 
@@ -344,6 +390,12 @@ bool Preprocessing::areas(
   }
   if (in.count > size_t(std::numeric_limits<int>::max()))
     return checkPreparation(g, cudaErrorInvalidValue, "primitive count");
+  if (!reserveReadback(g))
+    return false;
+  g->deferPreparation();
+  m_total = &total;
+  m_cdf = &cdf;
+  m_readback[1] = {};
   const auto stream = g->deviceState()->preparation.stream();
   size_t scratchBytes = 0;
   if (!reservePreparation(g, m_prefix, in.count * sizeof(double))
@@ -377,7 +429,7 @@ bool Preprocessing::areas(
   if (!checkPreparation(g, cudaGetLastError(), "CDF normalization"))
     return false;
   publishArea<<<1, 1, 0, stream>>>(result);
-  Result host{};
+  auto &host = m_readback[1];
   if (!checkPreparation(g, cudaGetLastError(), "area publication")
       || !checkPreparation(g,
           cudaMemcpyAsync(&host.value,
@@ -385,15 +437,8 @@ bool Preprocessing::areas(
               sizeof(host.value),
               cudaMemcpyDeviceToHost,
               stream),
-          "area readback")
-      || !finishPreparation(g))
+          "area readback"))
     return false;
-  if (!std::isfinite(host.value))
-    return checkPreparation(
-        g, cudaErrorInvalidValue, "non-publishable primitive area");
-  total = host.value;
-  if (total == 0.f)
-    cdf.reset();
   return true;
 }
 } // namespace visrtx
