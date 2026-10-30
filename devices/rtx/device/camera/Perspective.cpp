@@ -40,6 +40,7 @@ Perspective::Perspective(DeviceGlobalState *s) : Camera(s) {}
 void Perspective::commitParameters()
 {
   Camera::commitParameters();
+  commitClipPlanes(false);
 
   m_fovy = getParam<float>("fovy", glm::radians(60.f));
   m_focusDistance = getParam<float>("focusDistance", 1.f);

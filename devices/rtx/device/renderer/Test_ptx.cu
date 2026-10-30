@@ -57,7 +57,7 @@ VISRTX_GLOBAL void __raygen__()
     return;
   auto ray = makePrimaryRay(ss, 0u);
 
-  setPixelIds(frameData.fb, ss.pixel, 1.0f, ~0u, ~0u, ~0u);
+  setPixelIds(frameData.fb, ss.pixel, ray.t.upper, ~0u, ~0u, ~0u);
 
   accumPixelSample(frameData, ss.pixel, vec4(ray.dir, 1.f), ray.dir, -ray.dir);
 }
