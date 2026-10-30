@@ -84,6 +84,36 @@ void Camera::populateBaseFrameData(CameraGPUData &fd) const
   fd.pos = m_pos;
   fd.dir = m_dir;
   fd.up = m_up;
+  fd.nearPlane = m_near;
+  fd.farPlane = m_far;
+}
+
+void Camera::commitClipPlanes(bool allowZeroNear)
+{
+  m_near = 0.f;
+  m_far = std::numeric_limits<float>::max();
+
+  float nearPlane = m_near;
+  float farPlane = m_far;
+  const bool hasNear = getParam("near", ANARI_FLOAT32, &nearPlane);
+  const bool hasFar = getParam("far", ANARI_FLOAT32, &farPlane);
+  if (!hasNear && !hasFar)
+    return;
+
+  // An unset 'near' means no near clipping, which is valid for any camera.
+  const bool validNear =
+      !hasNear || (allowZeroNear ? nearPlane >= 0.f : nearPlane > 0.f);
+  if (!validNear || !(nearPlane < farPlane)) {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "camera 'near' (%f) and 'far' (%f) must satisfy %s; ignoring both",
+        nearPlane,
+        farPlane,
+        allowZeroNear ? "0 <= near < far" : "0 < near < far");
+    return;
+  }
+
+  m_near = nearPlane;
+  m_far = farPlane;
 }
 
 float Camera::effectiveAspect(uvec2 frameSize) const

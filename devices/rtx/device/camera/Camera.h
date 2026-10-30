@@ -34,6 +34,7 @@
 #include "Object.h"
 #include "gpu/gpu_objects.h"
 // std
+#include <limits>
 #include <optional>
 
 namespace visrtx {
@@ -51,12 +52,17 @@ struct Camera : public Object
  protected:
   void populateBaseFrameData(CameraGPUData &fd) const;
   float effectiveAspect(uvec2 frameSize) const;
+  // Reads 'near'/'far'; an invalid pair is ignored with a warning, leaving no
+  // clipping. Orthographic cameras allow near == 0, perspective ones do not.
+  void commitClipPlanes(bool allowZeroNear);
 
   vec4 m_region{0.f, 0.f, 1.f, 1.f};
   vec3 m_pos{0.f};
   vec3 m_dir{0.f, 0.f, 1.f};
   vec3 m_up{0.f, 1.f, 0.f};
   std::optional<float> m_aspect;
+  float m_near{0.f};
+  float m_far{std::numeric_limits<float>::max()};
 };
 
 } // namespace visrtx

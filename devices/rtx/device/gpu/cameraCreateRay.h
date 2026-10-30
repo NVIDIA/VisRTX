@@ -69,6 +69,17 @@ VISRTX_DEVICE Ray cameraCreateRay(const CameraGPUData &c, vec2 screen, vec2 r)
     break;
   }
 
+  // Bound the ray by the near/far clip planes. The ray's t.upper is then the
+  // pixel's Far Limit: the distance along this ray to the far plane.
+  const float cosTheta = dot(ray.dir, c.dir);
+  const float orgDepth = dot(ray.org - c.pos, c.dir);
+  if (c.nearPlane > 0.f)
+    ray.t.lower = fmaxf((c.nearPlane - orgDepth) / cosTheta, 0.f);
+  if (c.farPlane < std::numeric_limits<float>::max()) {
+    ray.t.upper = fminf(
+        (c.farPlane - orgDepth) / cosTheta, std::numeric_limits<float>::max());
+  }
+
   return ray;
 }
 
@@ -80,7 +91,10 @@ VISRTX_DEVICE Ray rayBufferCreateRay(const CameraGPUData &c, uvec2 pixel)
   if (!rb.valid) {
     ray.org = c.pos;
     ray.dir = c.dir;
-    ray.t = {0.f, 0.f}; // zero-length interval: every ray misses
+    // Empty interval at the default Far Limit: every ray misses, and a Miss
+    // reports FLT_MAX as its depth.
+    ray.t = {
+        std::numeric_limits<float>::max(), std::numeric_limits<float>::max()};
     return ray;
   }
 

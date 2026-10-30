@@ -38,6 +38,7 @@ Orthographic::Orthographic(DeviceGlobalState *s) : Camera(s) {}
 void Orthographic::commitParameters()
 {
   Camera::commitParameters();
+  commitClipPlanes(true);
 
   m_height = getParam<float>("height", 1.f);
 }
