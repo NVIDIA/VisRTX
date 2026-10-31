@@ -106,6 +106,9 @@ VISRTX_DEVICE void renderPixel(FrameGPUData &frameData, ScreenSample ss)
       else
         return radiance;
     };
+    // A Miss reports the camera's Far Limit, not where a cutting plane ends
+    // the ray (ADR 0011).
+    const float farLimit = ray.t.upper;
     applyCuttingPlane(rendererParams.cutPlane, ray);
     float tmax = ray.t.upper;
 
@@ -119,7 +122,7 @@ VISRTX_DEVICE void renderPixel(FrameGPUData &frameData, ScreenSample ss)
     vec3 remainingT(1.f);
 
     // First hit metadata (for picking)
-    float depth = std::numeric_limits<float>::max();
+    float depth = farLimit;
     uint32_t primID = ~0u;
     uint32_t objID = ~0u;
     uint32_t instID = ~0u;

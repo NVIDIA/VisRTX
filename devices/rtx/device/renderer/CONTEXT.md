@@ -19,6 +19,23 @@ One Launch's worth of samples, blended into the accumulated result. A
 converged image is many Accumulation Frames.
 _Avoid_: sub-frame, iteration, pass
 
+**Miss**:
+A pixel whose camera ray records no surface or volume hit. A ray shortened
+by a clip plane or a ray-buffer `tmax`, or one that never enters the scene,
+is a Miss — not a hit at the end of its interval.
+_Avoid_: background pixel (the backdrop color is unrelated to hit status)
+
+**Far Limit**:
+How far a camera ray may travel: the distance along that ray to the camera's
+far clip plane, or the ray's own `tmax` for a ray-buffer camera. With no far
+plane set there is no clipping, and the Far Limit is the largest finite
+float.
+_Avoid_: tfar (not an ANARI parameter; the camera parameter is `far`)
+
+**Miss Depth**:
+The depth reported for a Miss: always that pixel's Far Limit, regardless of
+what else shortened the ray. Every renderer reports it the same way.
+
 **Callable**:
 A GPU function linked into a pipeline but dispatched by index at runtime. The
 unit that lets shading change without rebuilding the pipeline.

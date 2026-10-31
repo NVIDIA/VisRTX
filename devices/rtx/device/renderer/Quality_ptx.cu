@@ -628,10 +628,12 @@ VISRTX_GLOBAL void __raygen__()
     // run when the shaded RGB is completely replaced by fog.
     double appearanceWeight = 1.0;
 
+    // A Miss reports the camera's Far Limit, not where a cutting plane ends
+    // the ray (ADR 0011).
+    const float farLimit = ray.t.upper;
     applyCuttingPlane(rendererParams.cutPlane, ray);
 
-    SampleDetails sample = {
-        vec3(0.0f), 0.0f, vec3(0.0f), ray.t.upper, vec3(0.0f)};
+    SampleDetails sample = {vec3(0.0f), 0.0f, vec3(0.0f), farLimit, vec3(0.0f)};
 
     auto sampleContribution = vec3(1.0f);
 
@@ -1060,7 +1062,7 @@ VISRTX_GLOBAL void __raygen__()
         }
 
         if (isFirstBounce)
-          setPixelIds(frameData.fb, ss.pixel, ray.t.upper, ~0u, ~0u, ~0u);
+          setPixelIds(frameData.fb, ss.pixel, farLimit, ~0u, ~0u, ~0u);
 
         break;
       }

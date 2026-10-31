@@ -112,6 +112,10 @@ struct CameraGPUData
   vec3 pos;
   vec3 dir;
   vec3 up;
+  // Clip plane distances along 'dir' from 'pos'; farPlane at FLT_MAX means no
+  // far clipping, and every Miss reports FLT_MAX as its depth (ADR 0011).
+  float nearPlane;
+  float farPlane;
   union
   {
     PerspectiveCameraGPUData perspective;
