@@ -711,6 +711,7 @@ DeviceInitStatus VisRTXDevice::initOptix()
   OPTIX_CHECK_RETURN_VALUE(optixInit(), DeviceInitStatus::FAILURE);
   setCUDADevice();
   cudaStreamCreate(&state.stream);
+  state.renderRetirement.initialize(state.stream);
 
   cudaGetDeviceProperties(&state.deviceProps, m_gpuID);
   reportMessage(ANARI_SEVERITY_DEBUG,
