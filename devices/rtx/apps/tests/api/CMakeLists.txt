@@ -108,6 +108,9 @@ add_test(NAME TestGeometryBoundsFailure COMMAND TestGeometryPreprocessingFailure
 # CUDA API interposition needs ELF dynamic symbols; static cudart calls cannot
 # be intercepted. Configure with -DCMAKE_CUDA_RUNTIME_LIBRARY=Shared to run.
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CUDA_RUNTIME_LIBRARY STREQUAL "Shared")
+  target_link_libraries(TestSmallGeometryBatch PRIVATE ${CMAKE_DL_LIBS})
+  target_compile_definitions(TestSmallGeometryBatch PRIVATE VISRTX_TEST_INTERPOSE_CUDA)
+  set_target_properties(TestSmallGeometryBatch PROPERTIES ENABLE_EXPORTS ON)
   make_test(TestFramePublicationRecovery)
   target_link_libraries(TestFramePublicationRecovery PRIVATE CUDA::cudart ${CMAKE_DL_LIBS})
   set_target_properties(TestFramePublicationRecovery PROPERTIES ENABLE_EXPORTS ON)
@@ -128,6 +131,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CUDA_RUNTIME_LIBRARY STREQUAL "S
   foreach(geometry sphere sphere-indexed sphere-completion sphere-dependency
       sphere-undrained-completion
       sphere-batch-small-copy sphere-batch-small-launch sphere-batch-small-readback
+      sphere-batch-small-result-allocation sphere-batch-small-pinned-allocation
       sphere-readback-allocation sphere-batch-completion
       sphere-batch-upload-completion sphere-batch-input-completion
       sphere-upload-allocation sphere-upload-copy sphere-upload-completion
