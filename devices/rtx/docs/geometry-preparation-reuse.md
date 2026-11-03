@@ -21,9 +21,10 @@ radii, bounds, or area CDFs, and without invalidating the surface BLAS timestamp
 Normal object-finalization timestamps still advance, so automatic accumulation
 reset remains intact. Before replacing parameter references, the input-retirement
 check compares the declared committed preparation inputs and referenced-object
-versions with the last successful preparation. Unchanged inputs skip the work-
-stream wait; first preparation, changed inputs, failed preparation, and non-opt-in
-types retain it. This check performs no GPU uploads. Parameter lookup names are
+versions with the last successful preparation. Unchanged inputs skip retirement;
+first preparation, changed inputs, failed preparation, and non-opt-in types request
+retirement. A device-local completion certificate deduplicates successful waits
+until another render/work-stream workload is submitted. This check performs no GPU uploads. Parameter lookup names are
 cached once per geometry rather than rebuilt on every finalization. Finalization
 still revalidates values, object versions, and backing pointers before reusing
 derived data: dependencies can be updated between commit and finalization, so the
@@ -143,9 +144,20 @@ is reused.
   survives through that completion; handles/bounds are
   published only on success. Group/World failure state prevents failed builds
   from being treated as ready and permits a later retry.
-- Parameter-reference replacement and last-public-release privatization retain
-  host waits for old render consumers. Error handling drains participating work
-  before storage can be retired or retried.
+- Parameter-reference replacement and last-public-release privatization require
+  completed old render consumers. `StreamRetirement` caches a successful wait
+  for the generation captured before synchronization. Frame submission,
+  denoiser setup/launch/conversion, channel resolution, and isosurface brick
+  preparation invalidate that certificate before submitting work. Shared arrays
+  and different frames use the same device-local generation. A generation
+  invalidated during a wait cannot inherit that wait's certificate; errors never
+  certify completion. Scene submission remains serialized. Error handling uses
+  unconditional drains, not the cached retirement path, before storage can be
+  retired or retried.
+
+`TestStreamRetirement` checks repeated retirement requests, a gated producer,
+generation changes during a wait, and failure/retry. The existing shared-array,
+privatization, frame, denoiser and isosurface tests exercise the producer paths.
 
 This is not concurrent in-place scene replacement. Legacy default-stream events
 can include preceding work on blocking streams; tangent generation and field-grid

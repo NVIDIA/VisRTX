@@ -119,6 +119,7 @@ void Isosurface::finalize()
   // active macrocells, so the BVH culls rays missing the surface while the
   // in-program DDA still does fine per-cell skipping inside each brick.
   auto &state = *deviceState();
+  state.renderRetirement.invalidate();
   m_numBricks = buildIsosurfaceBricks(state.stream,
       m_field->m_uniformGrid.gpuData(),
       m_isovaluesDev,

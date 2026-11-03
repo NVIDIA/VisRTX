@@ -125,7 +125,7 @@ void Geometry::commitParameters()
   const bool retain = canRetainPreparationInputs();
   m_inputRetirementFailed = !retain
       && !checkPreparation(this,
-          cudaStreamSynchronize(deviceState()->stream),
+          deviceState()->renderRetirement.retire(),
           "retiring previous geometry inputs");
   commitAttributes("primitive.", m_primitiveAttributes);
 

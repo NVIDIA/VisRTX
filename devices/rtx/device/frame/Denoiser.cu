@@ -92,6 +92,7 @@ void Denoiser::setup(uvec2 size,
     m_averageColor.reserve(3 * sizeof(float));
 
     // Setup must be sized for the largest padded tile the tiled invoke feeds.
+    state.renderRetirement.invalidate();
     OPTIX_CHECK(optixDenoiserSetup(m_denoiser,
         state.stream,
         m_tileW + 2 * m_overlap,
@@ -143,6 +144,7 @@ void Denoiser::cleanup()
 void Denoiser::launch()
 {
   auto &state = *deviceState();
+  state.renderRetirement.invalidate();
 
   // Tiled invoke normalizes each tile independently unless handed whole-frame
   // HDR exposure values. Compute them over the full input and share them so
@@ -185,6 +187,7 @@ void Denoiser::convertOutput()
   if (m_format == ANARI_FLOAT32_VEC4)
     return;
   auto &state = *deviceState();
+  state.renderRetirement.invalidate();
   instrument::rangePush("denoiser transform pixels");
   auto numPixels = size_t(m_layer.output.width) * size_t(m_layer.output.height);
   auto begin = thrust::device_ptr<vec4>((vec4 *)m_pixelBuffer->dataDevice());
