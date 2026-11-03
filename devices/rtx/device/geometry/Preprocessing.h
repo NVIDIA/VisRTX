@@ -31,6 +31,7 @@
 
 #pragma once
 
+#include <vector>
 #include "ReadbackPool.h"
 #include "gpu/gpu_objects.h"
 #include "utility/DeviceBuffer.h"
@@ -57,6 +58,36 @@ struct PrimitiveInput
   float noiseFactor{0.f};
 };
 
+// One block handles one small geometry. Bounds and area inputs are separate:
+// a lazily requested sphere area distribution need not carry vertex positions.
+struct SmallGeometryJob
+{
+  PrimitiveInput boundsInput;
+  PrimitiveInput areaInput;
+  box3 *bounds{nullptr};
+  float *cdf{nullptr};
+  PreparationResult *results{nullptr};
+};
+
+struct Preprocessing;
+
+// Device-owned, single-flight batch. The geometry collection queue retains
+// owners until finish() drains every queued descriptor, kernel and readback.
+struct SmallGeometryBatch
+{
+  static constexpr size_t MAX_PRIMITIVES = 256;
+  SmallGeometryBatch() = default;
+  SmallGeometryBatch(const SmallGeometryBatch &) = delete;
+  SmallGeometryBatch &operator=(const SmallGeometryBatch &) = delete;
+  void enqueue(Preprocessing *preprocessing);
+  cudaError_t finish(cudaStream_t stream);
+
+ private:
+  std::vector<Preprocessing *> m_pending;
+  std::vector<SmallGeometryJob> m_jobs;
+  DeviceBuffer m_descriptors;
+};
+
 // Per-geometry reusable workspace. Submission retains pinned readback storage;
 // complete() publishes scalar results after the device's collection barrier.
 struct Preprocessing
@@ -68,7 +99,8 @@ struct Preprocessing
   Preprocessing(Preprocessing &&) = delete;
   Preprocessing &operator=(Preprocessing &&) = delete;
 
-  // Success means submitted, not published. Output references must be owned
+  // Success means queued, not published. Small jobs defer GPU submission to
+  // the next preparation completion boundary. Output references must be owned
   // by the retained geometry and remain valid until collection completes.
   bool areas(Geometry *geometry,
       const PrimitiveInput &input,
@@ -83,7 +115,11 @@ struct Preprocessing
   bool complete(Geometry *geometry);
 
  private:
+  friend struct SmallGeometryBatch;
   bool reserveReadback(Geometry *geometry);
+  void enqueueSmall(Geometry *geometry);
+  SmallGeometryJob m_small;
+  bool m_smallQueued{false};
   GeometryReadbackPool::Lease m_readbackLease;
   PreparationResult *m_readback{nullptr};
   float *m_scale{nullptr};

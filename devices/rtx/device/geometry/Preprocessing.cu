@@ -34,6 +34,8 @@
 #include "gpu/intersectPrimitives.h"
 
 #include <cmath>
+#include <cub/block/block_reduce.cuh>
+#include <cub/block/block_scan.cuh>
 #include <cub/device/device_scan.cuh>
 #include <limits>
 #include <utility>
@@ -42,12 +44,8 @@ namespace visrtx {
 namespace {
 using Result = PreparationResult;
 
-VISRTX_GLOBAL void primitiveAreas(
-    PrimitiveInput in, double *areas, Result *result)
+VISRTX_DEVICE double primitiveArea(PrimitiveInput in, size_t i)
 {
-  const size_t i = size_t(blockIdx.x) * blockDim.x + threadIdx.x;
-  if (i >= in.count)
-    return;
   double area;
   if (in.type == GeometryType::SPHERE) {
     const auto *indices = static_cast<const uint32_t *>(in.indices);
@@ -82,6 +80,16 @@ VISRTX_GLOBAL void primitiveAreas(
         * glm::length(glm::cross(in.vertices[t.y] - in.vertices[t.x],
             in.vertices[t.z] - in.vertices[t.x]));
   }
+  return area;
+}
+
+VISRTX_GLOBAL void primitiveAreas(
+    PrimitiveInput in, double *areas, Result *result)
+{
+  const size_t i = size_t(blockIdx.x) * blockDim.x + threadIdx.x;
+  if (i >= in.count)
+    return;
+  const double area = primitiveArea(in, i);
   if (!isfinite(area) || area < 0.0)
     atomicOr(&result->invalid, 1u);
   areas[i] = area;
@@ -140,12 +148,9 @@ VISRTX_DEVICE box3 computeSDFPrimitiveAABB(const SDFPrimitive &g)
   }
 }
 
-VISRTX_GLOBAL void primitiveBounds(
-    PrimitiveInput in, box3 *bounds, Result *result)
+VISRTX_DEVICE Result primitiveBound(PrimitiveInput in, size_t i, box3 &bound)
 {
-  const size_t i = size_t(blockIdx.x) * blockDim.x + threadIdx.x;
-  if (i >= in.count)
-    return;
+  Result result{};
   if (in.type == GeometryType::SDF) {
     const SDFPrimitive &g = in.sdf[i];
     box3 b = computeSDFPrimitiveAABB(g);
@@ -159,12 +164,12 @@ VISRTX_GLOBAL void primitiveBounds(
     }
     b.lower -= padding;
     b.upper += padding;
-    bounds[i] = b;
+    bound = b;
     for (int axis = 0; axis < 3; ++axis) {
       if (!isfinite(b.lower[axis]) || !isfinite(b.upper[axis]))
-        atomicOr(&result->invalid, 1u);
+        result.invalid = 1u;
     }
-    return;
+    return result;
   }
   const bool sphere = in.type == GeometryType::SPHERE;
   const auto *indices = static_cast<const uvec2 *>(in.indices);
@@ -179,17 +184,76 @@ VISRTX_GLOBAL void primitiveBounds(
       : glm::abs(in.radii ? in.radii[sphere ? center : i] : in.radius);
   const vec3 v0 = in.vertices[c.x], v1 = in.vertices[c.y];
   const box3 b(glm::min(v0, v1) - r, glm::max(v0, v1) + r);
-  bounds[i] = b;
+  bound = b;
   const vec3 m = glm::max(glm::abs(b.lower), glm::abs(b.upper));
   const float scale = glm::max(m.x, glm::max(m.y, m.z));
   if (!isfinite(r) || !isfinite(v0.x) || !isfinite(v0.y) || !isfinite(v0.z)
       || !isfinite(v1.x) || !isfinite(v1.y) || !isfinite(v1.z)
       || !isfinite(scale))
+    result.invalid = 1u;
+  else
+    result.value = scale;
+  return result;
+}
+
+VISRTX_GLOBAL void primitiveBounds(
+    PrimitiveInput in, box3 *bounds, Result *result)
+{
+  const size_t i = size_t(blockIdx.x) * blockDim.x + threadIdx.x;
+  if (i >= in.count)
+    return;
+  const auto summary = primitiveBound(in, i, bounds[i]);
+  if (summary.invalid)
     atomicOr(&result->invalid, 1u);
   else
-    atomicMax(
-        reinterpret_cast<unsigned *>(&result->value), __float_as_uint(scale));
+    atomicMax(reinterpret_cast<unsigned *>(&result->value),
+        __float_as_uint(summary.value));
 }
+
+// A batch is one launch, with independent block-local reductions/scans. The
+// general multi-block/CUB path remains available above MAX_PRIMITIVES.
+VISRTX_GLOBAL void smallGeometry(const SmallGeometryJob *jobs)
+{
+  constexpr int threads = SmallGeometryBatch::MAX_PRIMITIVES;
+  using FloatReduce = cub::BlockReduce<float, threads>;
+  using StatusReduce = cub::BlockReduce<unsigned, threads>;
+  using Scan = cub::BlockScan<double, threads>;
+  __shared__ typename FloatReduce::TempStorage scaleStorage;
+  __shared__ typename StatusReduce::TempStorage statusStorage;
+  __shared__ typename Scan::TempStorage scanStorage;
+  const auto &job = jobs[blockIdx.x];
+  const unsigned i = threadIdx.x;
+  if (job.bounds) {
+    Result local{};
+    if (i < job.boundsInput.count)
+      local = primitiveBound(job.boundsInput, i, job.bounds[i]);
+    const float scale =
+        FloatReduce(scaleStorage)
+            .Reduce(local.value,
+                [] __device__(float a, float b) { return glm::max(a, b); });
+    const unsigned invalid = StatusReduce(statusStorage).Sum(local.invalid);
+    if (i == 0)
+      job.results[0] = {scale, invalid};
+    __syncthreads(); // statusStorage is reused for the area validation.
+  }
+  if (job.cdf) {
+    const auto n = job.areaInput.count;
+    const double area = i < n ? primitiveArea(job.areaInput, i) : 0.0;
+    double prefix, total;
+    Scan(scanStorage).InclusiveSum(area, prefix, total);
+    const float value = float(total);
+    const unsigned localInvalid = !isfinite(area) || area < 0.0
+        || !isfinite(prefix) || prefix < 0.0 || !isfinite(value)
+        || (total > 0.0 && value == 0.f);
+    if (i < n)
+      job.cdf[i] =
+          total > 0.0 ? (i + 1 == n ? 1.f : float(prefix / total)) : 0.f;
+    const unsigned invalid = StatusReduce(statusStorage).Sum(localInvalid);
+    if (i == 0)
+      job.results[1] = {invalid ? __int_as_float(0x7fffffff) : value, invalid};
+  }
+}
+
 VISRTX_GLOBAL void quadIndices(const uvec4 *indices, size_t n, uvec3 *out)
 {
   const size_t i = size_t(blockIdx.x) * blockDim.x + threadIdx.x;
@@ -299,6 +363,64 @@ bool finishPreparation(Geometry *g)
           "execution completion");
 }
 
+void SmallGeometryBatch::enqueue(Preprocessing *preprocessing)
+{
+  m_pending.push_back(preprocessing);
+}
+
+cudaError_t SmallGeometryBatch::finish(cudaStream_t stream)
+{
+  cudaError_t error = cudaSuccess;
+  if (!m_pending.empty()) {
+    // No host allocations after submission: descriptors and readback sources
+    // remain stable even when an error requires a subsequent fallback drain.
+    m_jobs.clear();
+    m_jobs.reserve(m_pending.size());
+    for (auto *p : m_pending)
+      m_jobs.push_back(p->m_small);
+    if (m_jobs.size() > size_t(std::numeric_limits<int>::max()))
+      error = cudaErrorInvalidValue;
+    else
+      error = m_descriptors.enqueueUpload(m_jobs.data(), m_jobs.size(), stream);
+    if (error == cudaSuccess) {
+      smallGeometry<<<unsigned(m_jobs.size()), MAX_PRIMITIVES, 0, stream>>>(
+          m_descriptors.ptrAs<SmallGeometryJob>());
+      error = cudaGetLastError();
+    }
+    for (auto *p : m_pending) {
+      if (error == cudaSuccess && p->m_small.bounds)
+        error = cudaMemcpyAsync(p->m_readback,
+            p->m_small.results,
+            sizeof(Result),
+            cudaMemcpyDeviceToHost,
+            stream);
+      if (error == cudaSuccess && p->m_small.cdf)
+        error = cudaMemcpyAsync(&p->m_readback[1].value,
+            &p->m_small.results[1].value,
+            sizeof(float),
+            cudaMemcpyDeviceToHost,
+            stream);
+    }
+  }
+  const auto completion = cudaStreamSynchronize(stream);
+  for (auto *p : m_pending) {
+    p->m_smallQueued = false;
+    p->m_small = {};
+  }
+  m_pending.clear();
+  if (error != cudaSuccess || completion != cudaSuccess)
+    cudaGetLastError();
+  return error == cudaSuccess ? completion : error;
+}
+
+void Preprocessing::enqueueSmall(Geometry *g)
+{
+  if (!m_smallQueued) {
+    g->deviceState()->smallGeometryBatch.enqueue(this);
+    m_smallQueued = true;
+  }
+}
+
 Preprocessing::~Preprocessing() = default;
 
 bool Preprocessing::reserveReadback(Geometry *g)
@@ -350,6 +472,16 @@ bool Preprocessing::bounds(
   g->deferPreparation();
   m_scale = &scale;
   m_readback[0] = {};
+  if (in.count > 0 && in.count <= SmallGeometryBatch::MAX_PRIMITIVES) {
+    if (!reservePreparation(g, aabbs, in.count * sizeof(box3))
+        || !reservePreparation(g, m_result, 2 * sizeof(Result)))
+      return false;
+    m_small.boundsInput = in;
+    m_small.bounds = aabbs.ptrAs<box3>();
+    m_small.results = m_result.ptrAs<Result>();
+    enqueueSmall(g);
+    return true;
+  }
   if (!reservePreparation(g, aabbs, in.count * sizeof(box3))
       || !reservePreparation(g, m_result, sizeof(Result))
       || !checkPreparation(g,
@@ -390,6 +522,16 @@ bool Preprocessing::areas(
   m_total = &total;
   m_cdf = &cdf;
   m_readback[1] = {};
+  if (in.count <= SmallGeometryBatch::MAX_PRIMITIVES) {
+    if (!reservePreparation(g, cdf, in.count * sizeof(float))
+        || !reservePreparation(g, m_result, 2 * sizeof(Result)))
+      return false;
+    m_small.areaInput = in;
+    m_small.cdf = cdf.ptrAs<float>();
+    m_small.results = m_result.ptrAs<Result>();
+    enqueueSmall(g);
+    return true;
+  }
   const auto stream = g->deviceState()->preparation.stream();
   size_t scratchBytes = 0;
   if (!reservePreparation(g, m_prefix, in.count * sizeof(double))
