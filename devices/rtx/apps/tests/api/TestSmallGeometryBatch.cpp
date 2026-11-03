@@ -37,8 +37,15 @@
 #include <string>
 #include <vector>
 #include "DeviceTestArray.h"
+#ifdef VISRTX_TEST_INTERPOSE_CUDA
+#include <dlfcn.h>
+#endif
 
 namespace {
+#ifdef VISRTX_TEST_INTERPOSE_CUDA
+bool trackSummaries = false;
+int summaryCopies = 0;
+#endif
 using vec3 = std::array<float, 3>;
 int errors = 0;
 void status(const void *,
@@ -133,6 +140,10 @@ bool run(bool device)
     // One world query flushes all geometries together, including lazy area
     // requests on the first generation and bounds+area jobs on later ones.
     std::array<float, 6> worldBounds{};
+#ifdef VISRTX_TEST_INTERPOSE_CUDA
+    summaryCopies = 0;
+    trackSummaries = true;
+#endif
     ok = anariGetProperty(d,
              world,
              "bounds",
@@ -141,6 +152,20 @@ bool run(bool device)
              sizeof(worldBounds),
              ANARI_WAIT)
         && ok;
+#ifdef VISRTX_TEST_INTERPOSE_CUDA
+    trackSummaries = false;
+    // Initial bounds and lazy areas are separate collections. Once area data
+    // is wanted, finalization batches both together. Large-path scalar copies
+    // and OptiX's 8/24-byte readbacks are not batch summaries.
+    const int expectedCopies = generation == 0 ? 2 : 1;
+    if (summaryCopies != expectedCopies)
+      std::fprintf(stderr,
+          "generation=%d summary copies=%d expected=%d\n",
+          generation,
+          summaryCopies,
+          expectedCopies);
+    ok = summaryCopies == expectedCopies && ok;
+#endif
     uint32_t lights = 0;
     ok = anariGetProperty(d,
              world,
@@ -203,6 +228,26 @@ bool run(bool device)
   return ok;
 }
 } // namespace
+
+#ifdef VISRTX_TEST_INTERPOSE_CUDA
+extern "C" cudaError_t cudaMemcpyAsync(void *dst,
+    const void *src,
+    size_t bytes,
+    cudaMemcpyKind kind,
+    cudaStream_t stream)
+{
+  constexpr size_t pairBytes = 2 * (sizeof(float) + sizeof(uint32_t));
+  if (trackSummaries && kind == cudaMemcpyDeviceToHost && bytes
+      && bytes % pairBytes == 0)
+    ++summaryCopies;
+  using Copy = cudaError_t (*)(
+      void *, const void *, size_t, cudaMemcpyKind, cudaStream_t);
+  auto real = reinterpret_cast<Copy>(dlsym(RTLD_NEXT, "cudaMemcpyAsync"));
+  if (!real)
+    std::abort();
+  return real(dst, src, bytes, kind, stream);
+}
+#endif
 
 int main()
 {

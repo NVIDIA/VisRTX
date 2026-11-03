@@ -77,6 +77,7 @@ struct SmallGeometryBatch
 {
   static constexpr size_t MAX_PRIMITIVES = 256;
   SmallGeometryBatch() = default;
+  ~SmallGeometryBatch();
   SmallGeometryBatch(const SmallGeometryBatch &) = delete;
   SmallGeometryBatch &operator=(const SmallGeometryBatch &) = delete;
   void enqueue(Preprocessing *preprocessing);
@@ -86,6 +87,10 @@ struct SmallGeometryBatch
   std::vector<Preprocessing *> m_pending;
   std::vector<SmallGeometryJob> m_jobs;
   DeviceBuffer m_descriptors;
+  DeviceBuffer m_results;
+  PreparationResult *m_readback{nullptr};
+  size_t m_readbackCapacity{0};
+  cudaError_t reserveResults(size_t count);
 };
 
 // Per-geometry reusable workspace. Submission retains pinned readback storage;
