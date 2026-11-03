@@ -35,6 +35,7 @@
 #include "gpu/gpu_objects.h"
 #include "utility/DeviceObjectArray.h"
 #include "utility/PreparationStream.h"
+#include "utility/StreamRetirement.h"
 
 // helium
 #include "helium/BaseGlobalDeviceState.h"
@@ -180,6 +181,7 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
   CUcontext cudaContext;
   CUstream stream;
   PreparationStream preparation;
+  StreamRetirement renderRetirement;
   GeometryReadbackPool geometryReadbacks;
   SmallGeometryBatch smallGeometryBatch;
   cudaDeviceProp deviceProps;
