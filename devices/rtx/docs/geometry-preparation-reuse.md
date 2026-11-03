@@ -169,7 +169,7 @@ across host-vector growth and preservation of newer dirty edits.
 
 ## Geometry submission and collection
 
-Checked bounds and area-CDF preparation submit kernels and asynchronous readbacks
+Checked bounds and area-CDF preparation queue kernels and asynchronous readbacks
 into geometry-owned pinned storage. A successful submission is not publication:
 scalar outputs, numeric validation, and geometry registry updates happen only
 after collection. The device queue retains each submitted geometry, and thereby
@@ -189,6 +189,33 @@ teardown collects the queue before releasing objects or CUDA/OptiX resources.
 Status callbacks cannot reenter device property queries or rendering while
 collection is resolving results; those calls are refused instead of publishing
 a partially collected scene.
+
+### Small-geometry computation batches
+
+For 1–256 primitives, bounds and area requests are held as device-owned batches
+of descriptors. One CUDA block handles each geometry in a single batch launch:
+block-local reductions produce its bounds summary, and a double-precision
+block scan produces its area CDF. Bounds and area requests for the same geometry
+share a descriptor when both arrive before the completion boundary. Requests
+above 256 primitives retain the general multi-block/CUB path. Zero-count
+handling is unchanged. SDF bounds retain their zero epsilon-scale convention.
+
+Every `finishGeometryPreparation()` flushes these descriptors before waiting,
+including intervening upload waits and shared-array privatization. This is
+necessary because a queued descriptor still references its original inputs even
+before GPU work has been launched. Collection retains owners through descriptor
+upload, dispatch and readback completion. Descriptors remain stable through
+fallback drains; dispatch or transfer failure invalidates the pending batch,
+while numeric failures remain local to their geometry. The first step retains
+per-geometry summary copies; batching computation does not itself consolidate
+readbacks.
+
+`TestSmallGeometryBatch` exercises mixed sphere/cone/cylinder/triangle batches
+at 1, 31, 32, 33, 255, 256 and 257 primitives with host and device-backed logical
+array slices. It checks independent bounds, zero-area light removal, recovery,
+and transitions between small and general paths. Failure injection covers the
+descriptor upload, dispatch-status check and readback, including batch-wide
+invalidation and retry.
 
 Pinned readback storage is leased from the device's `GeometryReadbackPool`.
 Each page holds 256 geometry leases, each containing two result slots (a 4 KiB
