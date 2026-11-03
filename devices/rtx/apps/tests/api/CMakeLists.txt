@@ -96,6 +96,8 @@ target_compile_definitions(TestRegistrySnapshot PRIVATE GLM_ENABLE_EXPERIMENTAL)
 add_test(NAME TestRegistrySnapshot COMMAND TestRegistrySnapshot)
 make_test(TestDeferredGeometryPreparation)
 target_link_libraries(TestDeferredGeometryPreparation PRIVATE CUDA::cudart)
+make_test(TestSmallGeometryBatch)
+target_link_libraries(TestSmallGeometryBatch PRIVATE CUDA::cudart)
 make_test(TestGeometryPreparationReuse)
 target_link_libraries(TestGeometryPreparationReuse PRIVATE CUDA::cudart)
 make_test(TestSharedGeometryLifecycle)
@@ -125,6 +127,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CUDA_RUNTIME_LIBRARY STREQUAL "S
     COMMAND TestCudaPreparationFailure isosurface)
   foreach(geometry sphere sphere-indexed sphere-completion sphere-dependency
       sphere-undrained-completion
+      sphere-batch-small-copy sphere-batch-small-launch sphere-batch-small-readback
       sphere-readback-allocation sphere-batch-completion
       sphere-batch-upload-completion sphere-batch-input-completion
       sphere-upload-allocation sphere-upload-copy sphere-upload-completion

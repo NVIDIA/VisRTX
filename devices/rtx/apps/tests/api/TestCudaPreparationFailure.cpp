@@ -62,6 +62,9 @@ enum class Failure
   COPY_SYNC,
   PREPARATION_SYNC,
   PREPARATION_EARLY_SYNC,
+  SMALL_DESCRIPTOR_COPY,
+  SMALL_LAUNCH,
+  SMALL_READBACK,
   PREPARATION_DEPENDENCY,
   BVH_SYNC,
   BVH_COPY,
@@ -70,6 +73,7 @@ enum class Failure
   BATCH_COPY,
   BATCH_SYNC
 };
+bool smallDescriptorSubmitted = false;
 bool trackBatch = false;
 bool batchQueued = false;
 int batchCopiesToSkip = 0;
@@ -224,12 +228,32 @@ extern "C" cudaError_t cudaStreamWaitEvent(
       stream, event, flags);
 }
 
+extern "C" cudaError_t cudaGetLastError()
+{
+  const auto error = next<decltype(&cudaGetLastError)>("cudaGetLastError")();
+  // The launch-status check follows the descriptor upload. Inject a failed
+  // report after real dispatch so cleanup must still drain the queued kernel.
+  if (smallDescriptorSubmitted && inject(Failure::SMALL_LAUNCH)) {
+    smallDescriptorSubmitted = false;
+    return cudaErrorInvalidConfiguration;
+  }
+  return error;
+}
+
 extern "C" cudaError_t cudaMemcpyAsync(void *dst,
     const void *src,
     size_t bytes,
     cudaMemcpyKind kind,
     cudaStream_t stream)
 {
+  // These cases use device-backed sphere inputs. The first preparation H2D
+  // transfer is the descriptor batch, not an authored-array upload.
+  if (stream == preparationStream
+      && ((kind == cudaMemcpyHostToDevice
+              && inject(Failure::SMALL_DESCRIPTOR_COPY))
+          || (kind == cudaMemcpyDeviceToHost
+              && inject(Failure::SMALL_READBACK))))
+    return cudaErrorInvalidValue;
   if (uploadSource && src == uploadSource && kind == cudaMemcpyHostToDevice) {
     ++uploadCopies;
     uploadOnWrongStream |= stream != preparationStream;
@@ -280,8 +304,12 @@ extern "C" cudaError_t cudaMemcpyAsync(void *dst,
       error = cudaEventRecord(pendingCompletion.done, stream);
     return error;
   }
-  return next<decltype(&cudaMemcpyAsync)>("cudaMemcpyAsync")(
+  const auto error = next<decltype(&cudaMemcpyAsync)>("cudaMemcpyAsync")(
       dst, src, bytes, kind, stream);
+  if (error == cudaSuccess && failure == Failure::SMALL_LAUNCH
+      && kind == cudaMemcpyHostToDevice && stream == preparationStream)
+    smallDescriptorSubmitted = true;
+  return error;
 }
 
 extern "C" cudaError_t cudaStreamSynchronize(cudaStream_t stream)
@@ -597,6 +625,13 @@ int main(int argc, char **argv)
       failure = Failure::PREPARATION_SYNC;
     if (sphereFailure && std::strcmp(argv[1], "sphere-dependency") == 0)
       failure = Failure::PREPARATION_DEPENDENCY;
+    if (sphereFailure && std::strcmp(argv[1], "sphere-batch-small-copy") == 0)
+      failure = Failure::SMALL_DESCRIPTOR_COPY;
+    if (sphereFailure && std::strcmp(argv[1], "sphere-batch-small-launch") == 0)
+      failure = Failure::SMALL_LAUNCH;
+    if (sphereFailure
+        && std::strcmp(argv[1], "sphere-batch-small-readback") == 0)
+      failure = Failure::SMALL_READBACK;
     std::thread watchdog;
     if (earlyCompletion) {
       if (cudaEventCreateWithFlags(

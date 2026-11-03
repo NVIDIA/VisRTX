@@ -272,7 +272,9 @@ bool DeviceGlobalState::hasPendingGeometryPreparations() const
 
 cudaError_t DeviceGlobalState::finishGeometryPreparation()
 {
-  const auto error = preparation.finish();
+  // Flush deferred small jobs even at intervening upload/retirement waits:
+  // their input pointers must be consumed before a backing allocation changes.
+  const auto error = smallGeometryBatch.finish(preparation.stream());
   if (error != cudaSuccess) {
     // An intervening upload/legacy consumer may wait before the collection
     // point. Its stream-completion error affects all already queued results.
@@ -296,7 +298,7 @@ bool DeviceGlobalState::collectGeometryPreparations()
   auto collecting = nonstd::make_scope_exit(
       [&] { m_collectingGeometryPreparations = false; });
   auto pending = std::move(m_geometryPreparations);
-  const auto error = preparation.finish();
+  const auto error = finishGeometryPreparation();
   if (error != cudaSuccess) {
     // A stream error invalidates every generation in this batch. Mark them
     // before reporting, so callbacks cannot see a partially valid generation.
