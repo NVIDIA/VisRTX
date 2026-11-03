@@ -65,6 +65,7 @@ enum class Failure
   SMALL_DESCRIPTOR_COPY,
   SMALL_LAUNCH,
   SMALL_READBACK,
+  SMALL_PINNED_ALLOCATION,
   PREPARATION_DEPENDENCY,
   BVH_SYNC,
   BVH_COPY,
@@ -170,7 +171,9 @@ extern "C" cudaError_t cudaMallocHost(void **ptr, size_t bytes)
   constexpr size_t readbackPageBytes = 2
       * visrtx::GeometryReadbackPool::SLOTS_PER_PAGE
       * sizeof(visrtx::PreparationResult);
-  if (bytes == readbackPageBytes && inject(Failure::READBACK_ALLOCATION)) {
+  if ((bytes == readbackPageBytes && inject(Failure::READBACK_ALLOCATION))
+      || (bytes == 4 * sizeof(visrtx::PreparationResult)
+          && inject(Failure::SMALL_PINNED_ALLOCATION))) {
     *ptr = nullptr;
     return next<decltype(&cudaMallocHost)>("cudaMallocHost")(ptr, size_t(-1));
   }
@@ -288,11 +291,12 @@ extern "C" cudaError_t cudaMemcpyAsync(void *dst,
   }
   if (failure == Failure::PREPARATION_EARLY_SYNC && stream == preparationStream
       && kind == cudaMemcpyDeviceToHost
-      && bytes == sizeof(float) + sizeof(uint32_t)
+      && (bytes == sizeof(visrtx::PreparationResult)
+          || (bytes && bytes % (2 * sizeof(visrtx::PreparationResult)) == 0))
       && !pendingCompletion.queued) {
-    // The bounds summary is a float scale and uint32 status. Gate its pinned
-    // readback after kernel submission, with no subsequent allocation or
-    // pageable copy to supply a hidden wait.
+    // Gate either the general bounds summary or the consolidated small-batch
+    // summary after kernel submission. No subsequent allocation or pageable
+    // copy can supply a hidden wait.
     auto error = cudaLaunchHostFunc(stream, blockPreparation, nullptr);
     if (error != cudaSuccess)
       return error;
@@ -632,6 +636,15 @@ int main(int argc, char **argv)
     if (sphereFailure
         && std::strcmp(argv[1], "sphere-batch-small-readback") == 0)
       failure = Failure::SMALL_READBACK;
+    if (sphereFailure
+        && std::strcmp(argv[1], "sphere-batch-small-result-allocation") == 0) {
+      allocationBytes =
+          4 * sizeof(visrtx::PreparationResult); // Two geometries.
+      failure = Failure::ALLOCATION;
+    }
+    if (sphereFailure
+        && std::strcmp(argv[1], "sphere-batch-small-pinned-allocation") == 0)
+      failure = Failure::SMALL_PINNED_ALLOCATION;
     std::thread watchdog;
     if (earlyCompletion) {
       if (cudaEventCreateWithFlags(

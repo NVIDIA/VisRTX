@@ -206,16 +206,25 @@ necessary because a queued descriptor still references its original inputs even
 before GPU work has been launched. Collection retains owners through descriptor
 upload, dispatch and readback completion. Descriptors remain stable through
 fallback drains; dispatch or transfer failure invalidates the pending batch,
-while numeric failures remain local to their geometry. The first step retains
-per-geometry summary copies; batching computation does not itself consolidate
-readbacks.
+while numeric failures remain local to their geometry.
+
+Small jobs write both result slots into a contiguous device-owned result buffer.
+The batch performs one asynchronous transfer into a reusable pinned host buffer,
+then scatters only completed, requested slots into the geometries' summaries.
+Even unused slots are initialized before transfer. A bounds-only flush followed
+by a later area request preserves the earlier bounds summary. Failed transfers
+or completion do not scatter partial results. Both batch buffers grow to their
+high-water size and remain alive through fallback drains; the per-geometry
+pinned leases and general-path readbacks retain their existing ownership.
 
 `TestSmallGeometryBatch` exercises mixed sphere/cone/cylinder/triangle batches
 at 1, 31, 32, 33, 255, 256 and 257 primitives with host and device-backed logical
 array slices. It checks independent bounds, zero-area light removal, recovery,
 and transitions between small and general paths. Failure injection covers the
-descriptor upload, dispatch-status check and readback, including batch-wide
-invalidation and retry.
+descriptor upload, dispatch-status check, readback and batch device/pinned
+allocation, including batch-wide invalidation and retry. With shared CUDA runtime
+interposition, the mixed-size test also checks one summary copy per collection
+(two initial collections for bounds and lazy areas, then one for combined jobs).
 
 Pinned readback storage is leased from the device's `GeometryReadbackPool`.
 Each page holds 256 geometry leases, each containing two result slots (a 4 KiB
