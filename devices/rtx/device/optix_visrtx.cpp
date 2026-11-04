@@ -231,7 +231,10 @@ bool DeviceGlobalState::collectGeometryInputUploads()
   if (m_geometryInputUploads.size() > 1)
     for (auto &geometry : m_geometryInputUploads)
       geometry->retirePreparationSnapshot();
-  auto error = preparation.waitFor(stream);
+  auto error = geometryInputAllocations->reclaim(
+      [&] { return finishGeometryPreparation(); });
+  if (error == cudaSuccess)
+    error = preparation.waitFor(stream);
   if (error == cudaSuccess) {
     for (auto &geometry : m_geometryInputUploads)
       geometry->submitInputUploads();

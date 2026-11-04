@@ -30,6 +30,8 @@
  */
 
 #include "MemoryAllocation.h"
+#include <utility>
+#include "DeviceAllocationCache.h"
 // cuda
 #include <cuda_runtime.h>
 // std
@@ -100,7 +102,8 @@ HostMemoryAllocation &HostMemoryAllocation::operator=(
   return *this;
 }
 
-HostMemoryAllocation::HostMemoryAllocation(const CudaMemoryAllocation &o) {
+HostMemoryAllocation::HostMemoryAllocation(const CudaMemoryAllocation &o)
+{
   (*this) = o;
 }
 
@@ -181,6 +184,15 @@ CudaMemoryAllocation::~CudaMemoryAllocation()
   freeMemory();
 }
 
+CudaMemoryAllocation CudaMemoryAllocation::fromCache(
+    void *memory, size_t bytes, std::shared_ptr<DeviceAllocationCache> cache)
+{
+  CudaMemoryAllocation allocation(memory, bytes);
+  allocation.m_owner = true;
+  allocation.m_cache = std::move(cache);
+  return allocation;
+}
+
 void *CudaMemoryAllocation::ptr() const
 {
   return m_ptr;
@@ -219,7 +231,8 @@ CudaMemoryAllocation &CudaMemoryAllocation::operator=(
   return *this;
 }
 
-CudaMemoryAllocation::CudaMemoryAllocation(const HostMemoryAllocation &o) {
+CudaMemoryAllocation::CudaMemoryAllocation(const HostMemoryAllocation &o)
+{
   (*this) = o;
 }
 
@@ -252,6 +265,7 @@ CudaMemoryAllocation::CudaMemoryAllocation(CudaMemoryAllocation &&o)
   m_deleter = o.m_deleter;
   m_deleterPtr = o.m_deleterPtr;
   m_owner = o.m_owner;
+  m_cache = std::move(o.m_cache);
   o.clearPointers();
 }
 
@@ -263,6 +277,7 @@ CudaMemoryAllocation &CudaMemoryAllocation::operator=(CudaMemoryAllocation &&o)
   m_deleter = o.m_deleter;
   m_deleterPtr = o.m_deleterPtr;
   m_owner = o.m_owner;
+  m_cache = std::move(o.m_cache);
   o.clearPointers();
   return *this;
 }
@@ -270,7 +285,9 @@ CudaMemoryAllocation &CudaMemoryAllocation::operator=(CudaMemoryAllocation &&o)
 void CudaMemoryAllocation::freeMemory()
 {
   if (isValid()) {
-    if (isOwner())
+    if (isOwner() && m_cache)
+      m_cache->release(m_ptr, m_bytes);
+    else if (isOwner())
       cudaFree(m_ptr);
     else if (m_deleter)
       m_deleter(m_deleterPtr, m_ptr);
@@ -283,6 +300,7 @@ void CudaMemoryAllocation::clearPointers()
   m_ptr = nullptr;
   m_deleter = nullptr;
   m_deleterPtr = nullptr;
+  m_cache.reset();
 }
 
 } // namespace visrtx

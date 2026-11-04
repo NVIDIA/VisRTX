@@ -261,10 +261,17 @@ cudaError_t Array::enqueueUpload(cudaStream_t stream) const
     return cudaSuccess; // Application-owned device inputs are already resident.
 
   if (!device->isValid()) {
-    CudaMemoryAllocation allocation(host->bytes());
-    const auto error = cudaGetLastError();
-    if (error != cudaSuccess)
-      return error;
+    auto cache = static_cast<DeviceGlobalState *>(deviceState())
+                     ->geometryInputAllocations;
+    void *memory = nullptr;
+    const auto allocationError = cache->allocate(host->bytes(), &memory);
+    auto allocation = CudaMemoryAllocation::fromCache(
+        memory, host->bytes(), std::move(cache));
+    const auto lastError = cudaGetLastError();
+    if (allocationError != cudaSuccess)
+      return allocationError;
+    if (lastError != cudaSuccess)
+      return lastError;
     if (!allocation)
       return cudaErrorMemoryAllocation;
     *device = std::move(allocation);

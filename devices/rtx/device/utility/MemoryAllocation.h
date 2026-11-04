@@ -35,11 +35,13 @@
 #include <anari/anari_cpp.hpp>
 // CUDA
 #include <cuda_runtime_api.h>
+#include <memory>
 
 namespace visrtx {
 
 struct HostMemoryAllocation;
 struct CudaMemoryAllocation;
+struct DeviceAllocationCache;
 
 struct HostMemoryAllocation
 {
@@ -90,6 +92,8 @@ struct CudaMemoryAllocation
   CudaMemoryAllocation(size_t bytes);
   CudaMemoryAllocation() = default;
   ~CudaMemoryAllocation();
+  static CudaMemoryAllocation fromCache(
+      void *memory, size_t bytes, std::shared_ptr<DeviceAllocationCache> cache);
 
   void *ptr() const;
   size_t bytes() const;
@@ -119,6 +123,7 @@ struct CudaMemoryAllocation
   anari::MemoryDeleter m_deleter{nullptr};
   const void *m_deleterPtr{nullptr};
   bool m_owner{false};
+  std::shared_ptr<DeviceAllocationCache> m_cache;
 };
 
 } // namespace visrtx
