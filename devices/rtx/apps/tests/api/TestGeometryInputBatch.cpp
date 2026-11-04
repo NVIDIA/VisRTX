@@ -50,7 +50,10 @@ const void *replacementSource = nullptr;
 void *deviceA = nullptr;
 bool watchReplacement = false;
 bool oldDeviceFreed = false;
-bool allocatedBeforeRetirement = false;
+bool replacementAllocated = false;
+bool cohortCompleted = false;
+bool replacementReused = false;
+bool failCohort = false;
 cudaStream_t preparationStream = nullptr;
 int copies = 0;
 int firstSyncCopies = -1;
@@ -109,8 +112,8 @@ extern "C" cudaError_t cudaStreamCreateWithFlags(
 
 extern "C" cudaError_t cudaMalloc(void **ptr, size_t bytes)
 {
-  if (watchReplacement && bytes == sizeof(vec3) && !oldDeviceFreed)
-    allocatedBeforeRetirement = true;
+  if (watchReplacement && bytes == sizeof(vec3))
+    replacementAllocated = true;
   return next<decltype(&cudaMalloc)>("cudaMalloc")(ptr, bytes);
 }
 
@@ -119,6 +122,19 @@ extern "C" cudaError_t cudaFree(void *ptr)
   const auto error = next<decltype(&cudaFree)>("cudaFree")(ptr);
   if (error == cudaSuccess && watchReplacement && ptr == deviceA)
     oldDeviceFreed = true;
+  return error;
+}
+
+extern "C" cudaError_t cudaDeviceSynchronize()
+{
+  const auto error =
+      next<decltype(&cudaDeviceSynchronize)>("cudaDeviceSynchronize")();
+  if (failCohort) {
+    failCohort = false;
+    return cudaErrorUnknown;
+  }
+  if (watchReplacement && error == cudaSuccess)
+    cohortCompleted = true;
   return error;
 }
 
@@ -141,6 +157,9 @@ extern "C" cudaError_t cudaMemcpyAsync(void *dst,
   const bool tracked = kind == cudaMemcpyHostToDevice && trackedSource(src);
   if (kind == cudaMemcpyHostToDevice && src == trackedA)
     deviceA = dst;
+  if (watchReplacement && src == replacementSource
+      && kind == cudaMemcpyHostToDevice)
+    replacementReused = dst == deviceA && cohortCompleted;
   if (tracked) {
     ++copies;
     wrongStream |= stream != preparationStream;
@@ -254,8 +273,8 @@ int main()
   commitGeometryWideAttributes(2.f);
   ok = bounds(-1.25f, 3.25f) && copies == 2 && firstSyncCopies == 2
       && !wrongStream && ok;
-  // Replacement must retire obsolete cached copies before allocating the
-  // whole new cohort, rather than keeping both cohorts resident at once.
+  // Replacement must retire the obsolete snapshot cohort, then reuse its
+  // certified backend storage rather than allocating a second resident cohort.
   void *replacement = nullptr;
   if (cudaMallocHost(&replacement, sizeof(vec3)) != cudaSuccess)
     return 1;
@@ -274,9 +293,20 @@ int main()
   };
   watchReplacement = true;
   replaceShared(c);
-  ok = bounds(-1.25f, 3.25f) && oldDeviceFreed && !allocatedBeforeRetirement
-      && ok;
+  ok = bounds(-1.25f, 3.25f) && replacementReused && !oldDeviceFreed
+      && !replacementAllocated && ok;
   watchReplacement = false;
+  replaceShared(a);
+  ok = bounds(-1.25f, 3.25f) && ok;
+  // A failed shared retirement boundary cannot publish or reuse the cohort.
+  // Recommit the failed inputs to retry once the completion error is gone.
+  const int beforeFailureCopies = copies;
+  failCohort = true;
+  replaceShared(c);
+  ok = !bounds(-1.25f, 3.25f) && !failCohort && errors == 1
+      && copies == beforeFailureCopies && ok;
+  commitGeometryWideAttributes(4.f);
+  ok = bounds(-1.25f, 3.25f) && errors == 1 && ok;
   replaceShared(a);
   ok = bounds(-1.25f, 3.25f) && ok;
   anariRelease(device, c);
@@ -298,7 +328,7 @@ int main()
     cudaFreeHost(sourceA);
   cudaFreeHost(sourceB);
   anari::release(device, device);
-  ok = errors == 0 && ok;
+  ok = errors == 1 && ok;
   std::printf("geometry input batches: %s\n", ok ? "PASS" : "FAIL");
   return ok ? 0 : 1;
 }
