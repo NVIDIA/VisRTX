@@ -108,6 +108,11 @@ add_test(NAME TestGeometryBoundsFailure COMMAND TestGeometryPreprocessingFailure
 # CUDA API interposition needs ELF dynamic symbols; static cudart calls cannot
 # be intercepted. Configure with -DCMAKE_CUDA_RUNTIME_LIBRARY=Shared to run.
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CUDA_RUNTIME_LIBRARY STREQUAL "Shared")
+  add_executable(TestDeviceAllocationCache TestDeviceAllocationCache.cpp
+    ../../../device/utility/MemoryAllocation.cpp)
+  target_link_libraries(TestDeviceAllocationCache PRIVATE CUDA::cudart anari::anari_static ${CMAKE_DL_LIBS} Threads::Threads)
+  set_target_properties(TestDeviceAllocationCache PROPERTIES ENABLE_EXPORTS ON)
+  add_test(NAME TestDeviceAllocationCache COMMAND TestDeviceAllocationCache)
   add_executable(TestStreamRetirement TestStreamRetirement.cpp)
   target_link_libraries(TestStreamRetirement PRIVATE CUDA::cudart ${CMAKE_DL_LIBS} Threads::Threads)
   set_target_properties(TestStreamRetirement PROPERTIES ENABLE_EXPORTS ON)

@@ -147,8 +147,9 @@ is reused.
 - Parameter-reference replacement and last-public-release privatization require
   completed old render consumers. `StreamRetirement` caches a successful wait
   for the generation captured before synchronization. Frame submission,
-  denoiser setup/launch/conversion, channel resolution, and isosurface brick
-  preparation invalidate that certificate before submitting work. Shared arrays
+  denoiser setup/launch/conversion, channel resolution, transfer-function opacity
+  bounds, and isosurface brick preparation invalidate that certificate before
+  submitting work. Shared arrays
   and different frames use the same device-local generation. A generation
   invalidated during a wait cannot inherit that wait's certificate; errors never
   certify completion. Scene submission remains serialized. Error handling uses
@@ -201,6 +202,39 @@ teardown collects the queue before releasing objects or CUDA/OptiX resources.
 Status callbacks cannot reenter device property queries or rendering while
 collection is resolving results; those calls are refused instead of publishing
 a partially collected scene.
+
+### Backend input allocation cache
+
+Only backend-owned device copies created by `Array::enqueueUpload()` participate
+in `DeviceAllocationCache`. Imported CUDA pointers, captured-device deleters,
+privatization copies, generic device buffers and legacy uploads retain their
+existing allocation behavior. Reuse is exact-size, so logical array capacity
+never grows to match an oversized cached block.
+
+Returned blocks enter a pending cohort, not the reusable list. After retiring
+obsolete snapshots, committed input collection freezes that cohort, flushes
+pending geometry preparation, then performs one checked `cudaDeviceSynchronize`
+before promoting the blocks. This deliberately preserves the conservative
+coverage of legacy consumers that ordinary `cudaFree` provided per allocation;
+it is not a claim of stream-isolated replacement. Returns during the boundary
+belong to the next cohort. Failure or a host exception keeps the cohort pending,
+and affected input generations cannot publish until a later successful retry.
+No cache mutex is held during CUDA operations or callbacks.
+
+The device-local cache retains at most 64 MiB and 256 returned blocks, counting
+pending, reusable and frozen cohorts together. Overflow uses ordinary freeing.
+On allocation OOM, certified reusable blocks of other sizes are released and
+the allocation is retried once if any were freed. Pending blocks are not reused
+as an OOM shortcut. Teardown closes and drains the cache before destroying its
+streams; outstanding owned allocations retain the closed cache and late returns
+use ordinary freeing rather than resurrecting it.
+
+`TestDeviceAllocationCache` checks exact-size reuse, deferred submission,
+completion failure, cohort freezing, byte/entry bounds, concurrent returns,
+host exceptions, OOM trimming/retry, move ownership, captured deleters and late
+returns after close. `TestGeometryInputBatch` checks actual replacement reuse
+without a second allocation cohort and rejects/retries a failed shared completion
+boundary.
 
 ### Small-geometry computation batches
 
