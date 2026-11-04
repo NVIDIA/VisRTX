@@ -259,17 +259,18 @@ bool DeviceGlobalState::collectGeometryInputUploads()
 
 void DeviceGlobalState::enqueueGeometryPreparation(Geometry *geometry)
 {
-  m_geometryPreparations.emplace_back(geometry);
+  m_geometryPreparations.enqueue(helium::IntrusivePtr<Geometry>(geometry));
 }
 
 bool DeviceGlobalState::collectingGeometryPreparations() const
 {
-  return m_collectingGeometryPreparations || m_collectingGeometryInputUploads;
+  return m_geometryPreparations.collecting()
+      || m_collectingGeometryInputUploads;
 }
 
 bool DeviceGlobalState::hasPendingGeometryPreparations() const
 {
-  return m_collectingGeometryPreparations || !m_geometryPreparations.empty()
+  return m_geometryPreparations.collecting() || !m_geometryPreparations.empty()
       || m_collectingGeometryInputUploads;
 }
 
@@ -281,8 +282,8 @@ cudaError_t DeviceGlobalState::finishGeometryPreparation()
   if (error != cudaSuccess) {
     // An intervening upload/legacy consumer may wait before the collection
     // point. Its stream-completion error affects all already queued results.
-    for (auto &geometry : m_geometryPreparations)
-      geometry->setPreparationFailed(true);
+    m_geometryPreparations.forEach(
+        [](Geometry *geometry) { geometry->setPreparationFailed(true); });
     for (auto &geometry : m_geometryInputUploads)
       geometry->failInputUploads();
   }
@@ -293,29 +294,15 @@ bool DeviceGlobalState::collectGeometryPreparations()
 {
   if (!collectGeometryInputUploads())
     return false;
-  if (m_collectingGeometryPreparations)
-    return false;
-  if (m_geometryPreparations.empty())
-    return true;
-  m_collectingGeometryPreparations = true;
-  auto collecting = nonstd::make_scope_exit(
-      [&] { m_collectingGeometryPreparations = false; });
-  auto pending = std::move(m_geometryPreparations);
-  const auto error = finishGeometryPreparation();
-  if (error != cudaSuccess) {
-    // A stream error invalidates every generation in this batch. Mark them
+  return m_geometryPreparations.collect([&](Geometry *first) {
+    // Owners remain in the queue if descriptor allocation or later registry
+    // publication throws. CUDA failure still invalidates the pending batch
     // before reporting, so callbacks cannot see a partially valid generation.
-    for (auto &geometry : pending)
-      geometry->setPreparationFailed(true);
-    checkPreparation(pending.front().ptr, error, "batch completion");
-  }
-  for (auto &geometry : pending)
-    geometry->completePreparation();
-  pending.clear();
-  m_geometryPreparations.swap(pending); // Reuse queue capacity next batch.
-  // Failure is local to the affected geometries; unrelated worlds remain
-  // usable.
-  return true;
+    const auto error = finishGeometryPreparation();
+    if (error != cudaSuccess)
+      checkPreparation(first, error, "batch completion");
+    // Numeric failures remain local to their geometries during publication.
+  });
 }
 
 cudaError_t DeviceGlobalState::DeviceObjectRegistry::upload(
