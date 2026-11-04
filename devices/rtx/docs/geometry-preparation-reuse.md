@@ -186,7 +186,16 @@ Checked bounds and area-CDF preparation queue kernels and asynchronous readbacks
 into geometry-owned pinned storage. A successful submission is not publication:
 scalar outputs, numeric validation, and geometry registry updates happen only
 after collection. The device queue retains each submitted geometry, and thereby
-its arrays and derived buffers, until those operations finish.
+its arrays and derived buffers, until those operations finish. Ownership stays
+in the queue through descriptor allocation and registry publication; queued flags
+are cleared only after every publication completes. A host exception leaves the
+owners and queued flags available for retry, including already-drained results
+whose publication must be retried. Collection reentry remains refused.
+
+`TestPreparationQueue` tests this ownership transaction directly with throwing
+completion/publication callbacks, orphaned owners, retry and teardown. It does
+not route exceptions through ANARI's fatal C API handler or change that public
+exception policy.
 
 Group/World rebuilds collect queued finalizations before constructing BVHs. Lazy
 Geometry Light area requests are submitted for all candidate surfaces first,
