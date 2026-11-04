@@ -455,6 +455,9 @@ VisRTXDevice::~VisRTXDevice()
 
   optixModuleDestroy(state.intersectionModules.customIntersectors);
 
+  // Disable cached returns and free idle/pending blocks before destroying
+  // streams. Any allocation outliving the device falls back to ordinary free.
+  state.geometryInputAllocations->close();
   state.preparation.reset();
   optixDeviceContextDestroy(state.optixContext);
 

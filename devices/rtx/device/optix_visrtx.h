@@ -33,6 +33,7 @@
 
 #include "geometry/Preprocessing.h"
 #include "gpu/gpu_objects.h"
+#include "utility/DeviceAllocationCache.h"
 #include "utility/DeviceObjectArray.h"
 #include "utility/PreparationStream.h"
 #include "utility/StreamRetirement.h"
@@ -182,6 +183,8 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
   CUstream stream;
   PreparationStream preparation;
   StreamRetirement renderRetirement;
+  std::shared_ptr<DeviceAllocationCache> geometryInputAllocations{
+      std::make_shared<DeviceAllocationCache>()};
   GeometryReadbackPool geometryReadbacks;
   SmallGeometryBatch smallGeometryBatch;
   cudaDeviceProp deviceProps;
