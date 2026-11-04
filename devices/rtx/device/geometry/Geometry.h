@@ -79,6 +79,7 @@ struct Geometry : public RegisteredObject<GeometryGPUData>
   void upload();
   void deferPreparation();
   void completePreparation();
+  void markPreparationCollected() noexcept;
   void retirePreparationSnapshot();
   void submitInputUploads();
   void completeInputUploads();

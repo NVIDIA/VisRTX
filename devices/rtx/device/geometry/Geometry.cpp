@@ -213,12 +213,16 @@ void Geometry::deferPreparation()
 
 void Geometry::completePreparation()
 {
-  m_preparationQueued = false;
   if (!m_preprocessing.complete(this)) {
     m_hasPreparedData = false;
     return;
   }
   upload();
+}
+
+void Geometry::markPreparationCollected() noexcept
+{
+  m_preparationQueued = false;
 }
 
 void Geometry::upload()

@@ -35,6 +35,7 @@
 #include "gpu/gpu_objects.h"
 #include "utility/DeviceAllocationCache.h"
 #include "utility/DeviceObjectArray.h"
+#include "utility/PreparationQueue.h"
 #include "utility/PreparationStream.h"
 #include "utility/StreamRetirement.h"
 
@@ -299,8 +300,7 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
   std::vector<helium::IntrusivePtr<Geometry>> m_geometryInputUploads;
   std::unordered_map<const Array *, helium::TimeStamp> m_geometryInputVersions;
   bool m_collectingGeometryInputUploads{false};
-  std::vector<helium::IntrusivePtr<Geometry>> m_geometryPreparations;
-  bool m_collectingGeometryPreparations{false};
+  PreparationQueue<helium::IntrusivePtr<Geometry>> m_geometryPreparations;
 };
 
 bool buildOptixBVH(std::vector<OptixBuildInput> buildInput,
