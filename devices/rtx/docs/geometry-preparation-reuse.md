@@ -281,6 +281,17 @@ allocation, including batch-wide invalidation and retry. With shared CUDA runtim
 interposition, the mixed-size test also checks one summary copy per collection
 (two initial collections for bounds and lazy areas, then one for combined jobs).
 
+`TestGeometryAreaCDF` checks the actual published GPU records after completed
+frames, using the device's build definitions and matching runtime library. An
+independent double-precision analytic oracle checks every prefix and total area
+for triangles, spheres, cones and cylinders. Counts straddle warp boundaries
+(31/32/33) and the small/general cutoff (255/256/257 at the current cutoff), with
+indexed/unindexed geometry and host/device-backed logical slices. Unequal weights,
+sharp weight changes, zero-area bins, varying segment caps, an all-zero generation
+and restoration with new weights discriminate weighting, order, normalization
+and stale sampling data rather than just bounds or light counts. No public debug
+property or shared production area helper is used by the oracle.
+
 Pinned readback storage is leased from the device's `GeometryReadbackPool`.
 Each page holds 256 geometry leases, each containing two result slots (a 4 KiB
 page with the current result layout). A geometry keeps its lease across updates;

@@ -93,6 +93,20 @@ make_test(TestDeferredGeometryPreparation)
 target_link_libraries(TestDeferredGeometryPreparation PRIVATE CUDA::cudart)
 make_test(TestSmallGeometryBatch)
 target_link_libraries(TestSmallGeometryBatch PRIVATE CUDA::cudart)
+make_test(TestGeometryAreaCDF)
+target_sources(TestGeometryAreaCDF PRIVATE ../../../device/utility/MemoryAllocation.cpp)
+# Inspect published device records without adding a public debug property.
+# Match private host layouts, including optional MDL fields, to the device.
+target_compile_definitions(TestGeometryAreaCDF PRIVATE
+  $<TARGET_PROPERTY:anari_library_visrtx,COMPILE_DEFINITIONS>)
+target_include_directories(TestGeometryAreaCDF PRIVATE
+  $<TARGET_PROPERTY:anari_library_visrtx,INCLUDE_DIRECTORIES>)
+target_link_libraries(TestGeometryAreaCDF PRIVATE
+  CUDA::cudart visrtx::glm nonstd::scope-lite)
+# Private layouts also require the matching built library, not a stale install
+# selected by the developer shell's LD_LIBRARY_PATH.
+set_tests_properties(TestGeometryAreaCDF PROPERTIES ENVIRONMENT
+  "LD_LIBRARY_PATH=$<TARGET_FILE_DIR:anari_library_visrtx>:$ENV{LD_LIBRARY_PATH}")
 make_test(TestGeometryPreparationReuse)
 target_link_libraries(TestGeometryPreparationReuse PRIVATE CUDA::cudart)
 make_test(TestSharedGeometryLifecycle)
