@@ -54,6 +54,7 @@
       "khr_sampler_transform",
       "khr_spatial_field_nanovdb",
       "khr_spatial_field_structured_regular",
+      "khr_spatial_field_structured_regular_cell_centered",
       "khr_volume_transfer_function1d",
       "nv_array_cuda",
       "nv_frame_buffers_cuda",

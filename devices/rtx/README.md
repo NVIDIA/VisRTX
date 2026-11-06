@@ -128,6 +128,12 @@ or at the center of grid cells (cell-centered).
 > When set to `"node"`, the extent is `[origin, origin + (data.size - 1) × spacing]`.
 > When set to `"cell"`, the extent is `[origin, origin + data.size × spacing]`.
 
+The equivalent standardized boolean spelling `cellCentered` from
+`KHR_SPATIAL_FIELD_STRUCTURED_REGULAR_CELL_CENTERED` is also supported on
+`structuredRegular` fields (`cellCentered=true` is equivalent to
+`dataCentering="cell"`). When both parameters are set, `cellCentered` takes
+precedence and a status message is emitted if they disagree.
+
 #### VISRTX_SPATIAL_FIELD_REGION_OF_INTEREST
 
 Allows clipping a spatial field to an application-defined box in object space.
@@ -343,6 +349,7 @@ The following extensions are either partially or fully implemented by VisRTX:
 - `KHR_SAMPLER_TRANSFORM`
 - `KHR_SPATIAL_FIELD_NANOVDB`
 - `KHR_SPATIAL_FIELD_STRUCTURED_REGULAR`
+- `KHR_SPATIAL_FIELD_STRUCTURED_REGULAR_CELL_CENTERED`
 - `KHR_VOLUME_TRANSFER_FUNCTION1D`
 - `EXT_SAMPLER_COMPRESSED_IMAGE2D`
 - `EXT_SAMPLER_COMPRESSED_FORMAT_BC123`

@@ -101,6 +101,19 @@ void StructuredRegularField::commitParameters()
 
   auto dataCentering = getParamString("dataCentering", "node");
   m_cellCentered = (dataCentering == "cell");
+  // KHR_SPATIAL_FIELD_STRUCTURED_REGULAR_CELL_CENTERED: standard boolean
+  // spelling of the same concept; takes precedence over the VISRTX
+  // 'dataCentering' string parameter when both are provided.
+  if (hasParam("cellCentered", ANARI_BOOL)) {
+    bool khrCellCentered = getParam<bool>("cellCentered", false);
+    if (hasParam("dataCentering", ANARI_STRING)
+        && khrCellCentered != m_cellCentered) {
+      reportMessage(ANARI_SEVERITY_INFO,
+          "both 'cellCentered' and 'dataCentering' set on structuredRegular "
+          "spatial field; using 'cellCentered'");
+    }
+    m_cellCentered = khrCellCentered;
+  }
   m_filter = getParamString("filter", "linear");
   m_data = getParamObject<Array3D>("data");
 
