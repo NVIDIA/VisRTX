@@ -69,6 +69,7 @@ enum class Failure
   PREPARATION_DEPENDENCY,
   BVH_SYNC,
   BVH_COPY,
+  BVH_PINNED_ALLOCATION,
   UPLOAD_COPY,
   UPLOAD_SYNC,
   BATCH_COPY,
@@ -168,6 +169,14 @@ void complete(const void *, ANARIDevice, ANARIFrame)
 
 extern "C" cudaError_t cudaMallocHost(void **ptr, size_t bytes)
 {
+  // BVH results contain six bounds floats and a 64-bit compaction size.
+  constexpr size_t bvhPageBytes = 2
+      * visrtx::GeometryReadbackPool::SLOTS_PER_PAGE
+      * (6 * sizeof(float) + sizeof(uint64_t));
+  if (bytes == bvhPageBytes && inject(Failure::BVH_PINNED_ALLOCATION)) {
+    *ptr = nullptr;
+    return next<decltype(&cudaMallocHost)>("cudaMallocHost")(ptr, size_t(-1));
+  }
   constexpr size_t readbackPageBytes = 2
       * visrtx::GeometryReadbackPool::SLOTS_PER_PAGE
       * sizeof(visrtx::PreparationResult);
@@ -561,6 +570,8 @@ int main(int argc, char **argv)
   } else if (bvhFailure || instanceFailure) {
     auto injected = std::strcmp(argv[1], "bvh-copy") == 0 ? Failure::BVH_COPY
                                                           : Failure::BVH_SYNC;
+    if (std::strcmp(argv[1], "bvh-pinned-allocation") == 0)
+      injected = Failure::BVH_PINNED_ALLOCATION;
     if (instanceFailure) {
       trackBatch = true;
       batchCopiesToSkip = worldRecords ? 1 : 0;
