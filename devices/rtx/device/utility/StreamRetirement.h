@@ -43,6 +43,7 @@ namespace visrtx {
 // Failure cleanup must still use an unconditional drain, not this cache.
 struct StreamRetirement
 {
+  bool isRetired() const;
   void initialize(cudaStream_t stream);
   void invalidate();
   cudaError_t retire();
@@ -52,6 +53,12 @@ struct StreamRetirement
   std::atomic<uint64_t> m_submitted{1};
   std::atomic<uint64_t> m_retired{0};
 };
+
+inline bool StreamRetirement::isRetired() const
+{
+  const auto generation = m_submitted.load(std::memory_order_acquire);
+  return m_retired.load(std::memory_order_acquire) >= generation;
+}
 
 inline void StreamRetirement::initialize(cudaStream_t stream)
 {

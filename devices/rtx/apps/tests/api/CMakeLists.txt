@@ -162,7 +162,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CUDA_RUNTIME_LIBRARY STREQUAL "S
     add_test(NAME TestSceneUploadRecovery_${failure}
       COMMAND TestCudaPreparationFailure ${failure})
   endforeach()
-  foreach(failure bvh-copy bvh-sync tlas-sync)
+  foreach(failure bvh-copy bvh-sync tlas-sync bvh-pinned-allocation)
     add_test(NAME TestBvhPreparationRecovery_${failure}
       COMMAND TestCudaPreparationFailure ${failure})
   endforeach()

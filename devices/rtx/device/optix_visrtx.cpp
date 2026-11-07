@@ -94,7 +94,7 @@ bool buildOptixBVH(std::vector<OptixBuildInput> buildInput,
   // Legacy producers include field/isosurface work on the render stream and
   // authored arrays/instance uploads on the default stream. Previous rendering
   // must also finish before the existing BVH storage can be reused.
-  if (!check(preparation.waitFor(state.stream), "previous BVH consumers")
+  if (!check(state.waitForRenderConsumers(), "previous BVH consumers")
       || !check(preparation.waitFor(nullptr), "input upload dependency"))
     return false;
 
@@ -108,6 +108,12 @@ bool buildOptixBVH(std::vector<OptixBuildInput> buildInput,
                       buildInput.size(),
                       &sizes),
           "memory requirements"))
+    return false;
+
+  // Acquire before submitting GPU work: allocation may throw, and a lease
+  // must never be returned while a readback still targets it.
+  PinnedReadbackPool<DeviceGlobalState::BvhReadback>::Lease readback;
+  if (!check(state.bvhReadbacks.acquire(readback), "allocating BVH readback"))
     return false;
 
   DeviceBuffer compactedSizeBuffer, aabbBuffer, tempBuffer, outputBuffer;
@@ -138,8 +144,8 @@ bool buildOptixBVH(std::vector<OptixBuildInput> buildInput,
           "build"))
     return false;
 
-  box3 builtBounds;
-  uint64_t compactedSize = 0;
+  auto &builtBounds = readback.data()->bounds;
+  auto &compactedSize = readback.data()->compactedSize;
   if (!check(cudaMemcpyAsync(&builtBounds,
                  aabbBuffer.ptr(),
                  sizeof(box3),
@@ -234,7 +240,7 @@ bool DeviceGlobalState::collectGeometryInputUploads()
   auto error = geometryInputAllocations->reclaim(
       [&] { return finishGeometryPreparation(); });
   if (error == cudaSuccess)
-    error = preparation.waitFor(stream);
+    error = waitForRenderConsumers();
   if (error == cudaSuccess) {
     for (auto &geometry : m_geometryInputUploads)
       geometry->submitInputUploads();
@@ -255,6 +261,14 @@ bool DeviceGlobalState::collectGeometryInputUploads()
   pending.clear();
   m_geometryInputUploads.swap(pending);
   return true;
+}
+
+cudaError_t DeviceGlobalState::waitForRenderConsumers()
+{
+  // Scene submission is serialized. A completed retirement already covers
+  // these consumers; new render-stream producers invalidate that certificate.
+  return renderRetirement.isRetired() ? cudaSuccess
+                                      : preparation.waitFor(stream);
 }
 
 void DeviceGlobalState::enqueueGeometryPreparation(Geometry *geometry)
