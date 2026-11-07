@@ -187,6 +187,12 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
   std::shared_ptr<DeviceAllocationCache> geometryInputAllocations{
       std::make_shared<DeviceAllocationCache>()};
   GeometryReadbackPool geometryReadbacks;
+  struct BvhReadback
+  {
+    box3 bounds;
+    uint64_t compactedSize;
+  };
+  PinnedReadbackPool<BvhReadback> bvhReadbacks;
   SmallGeometryBatch smallGeometryBatch;
   cudaDeviceProp deviceProps;
 
@@ -293,6 +299,7 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
   void enqueueGeometryPreparation(Geometry *geometry);
   bool collectGeometryPreparations();
   cudaError_t finishGeometryPreparation();
+  cudaError_t waitForRenderConsumers();
   bool collectingGeometryPreparations() const;
   bool hasPendingGeometryPreparations() const;
 
