@@ -79,7 +79,9 @@ int main()
     return 1;
   visrtx::StreamRetirement retirement;
   retirement.initialize(tracked);
-  bool ok = retirement.retire() == cudaSuccess && waits == 1;
+  bool ok = !retirement.isRetired();
+  ok = retirement.retire() == cudaSuccess && waits == 1
+      && retirement.isRetired() && ok;
   for (int i = 0; i < 64; ++i)
     ok = retirement.retire() == cudaSuccess && waits == 1 && ok;
 
@@ -88,6 +90,7 @@ int main()
       != cudaSuccess)
     return 1;
   retirement.invalidate();
+  ok = !retirement.isRetired() && ok;
   ok = cudaLaunchHostFunc(tracked, block, nullptr) == cudaSuccess && ok;
   ok = cudaMemsetAsync(device, 0x2a, sizeof(int), tracked) == cudaSuccess && ok;
   int gpu = 0;
@@ -113,18 +116,21 @@ int main()
     released = true;
   }
   waiter.join();
-  ok = completion == cudaSuccess && ok;
+  ok = completion == cudaSuccess && !retirement.isRetired() && ok;
   int result = 0;
   ok = cudaMemcpy(&result, device, sizeof(int), cudaMemcpyDeviceToHost)
           == cudaSuccess
       && result == 0x2a2a2a2a && ok;
-  ok = retirement.retire() == cudaSuccess && waits == 3 && ok;
+  ok = retirement.retire() == cudaSuccess && waits == 3
+      && retirement.isRetired() && ok;
   ok = retirement.retire() == cudaSuccess && waits == 3 && ok;
 
   retirement.invalidate();
   failNext = true;
-  ok = retirement.retire() == cudaErrorUnknown && waits == 4 && ok;
-  ok = retirement.retire() == cudaSuccess && waits == 5 && ok;
+  ok = retirement.retire() == cudaErrorUnknown && waits == 4
+      && !retirement.isRetired() && ok;
+  ok = retirement.retire() == cudaSuccess && waits == 5
+      && retirement.isRetired() && ok;
   ok = retirement.retire() == cudaSuccess && waits == 5 && ok;
   cudaFree(device);
   cudaStreamDestroy(tracked);
