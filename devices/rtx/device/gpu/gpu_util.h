@@ -36,6 +36,7 @@
 #include "gpu/owenSobol.h"
 #include "gpu_objects.h"
 #include "gpu_tonemap.h"
+#include "samplingMath.h"
 #include "shadingState.h"
 // optix
 #include <optix_device.h>
@@ -142,12 +143,6 @@ VISRTX_DEVICE void accumulateNormal(T &a, const T &b, float interp)
   accumulateValue(a, b, interp);
 }
 
-// Rec.709 luminance.
-VISRTX_DEVICE float luminance(const vec3 &c)
-{
-  return glm::dot(c, vec3(0.2126f, 0.7152f, 0.0722f));
-}
-
 namespace detail {
 
 VISRTX_DEVICE void packPointer(void *ptr, uint32_t &i0, uint32_t &i1)
@@ -216,39 +211,6 @@ VISRTX_DEVICE vec3 randomDir(RandState &rs, const vec3 &normal)
 {
   const auto dir = randomDir(rs);
   return dot(dir, normal) > 0.f ? dir : -dir;
-}
-
-VISRTX_DEVICE mat3 computeOrthonormalBasis(const vec3 &normal)
-{
-  // https://graphics.pixar.com/library/OrthonormalB/paper.pdf
-  auto sign = normal.z >= 0.0f ? 1.0f : -1.0f;
-  auto a = -1.0f / (sign + normal.z);
-  auto b = normal.x * normal.y * a;
-  auto u =
-      vec3(1.0f + sign * normal.x * normal.x * a, sign * b, -sign * normal.x);
-  auto v = vec3(b, sign + normal.y * normal.y * a, -normal.y);
-
-  return mat3(u, v, normal);
-}
-
-// Cosine-weighted hemisphere sample (Malley's method); pdf = cos(theta)/pi.
-// u1/u2 in [0, 1). The RandState overload draws them from PCG in that order.
-// Quality env/ambient NEE intentionally shares Owen-scrambled Sobol dims 0–1,
-// with per-surface-bounce/transparency reseeding.
-VISRTX_DEVICE vec3 sampleHemisphere(float u1, float u2, const vec3 &normal)
-{
-  const float r = sqrtf(u1);
-  const float z = sqrtf(fmaxf(0.f, 1.f - r * r));
-  const float phi = kTwoPi * u2;
-  const vec3 sample(r * cosf(phi), r * sinf(phi), z);
-  return computeOrthonormalBasis(normal) * sample;
-}
-
-VISRTX_DEVICE vec3 sampleHemisphere(RandState &rs, const vec3 &normal)
-{
-  const float u = pcg_uniform(&rs);
-  const float v = pcg_uniform(&rs);
-  return sampleHemisphere(u, v, normal);
 }
 
 VISRTX_DEVICE vec3 sampleUnitSphere(RandState &rs, const vec3 &normal)

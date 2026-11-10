@@ -57,7 +57,7 @@ VISRTX_CALLABLE void __direct_callable__init(MatteShadingState *shadingState,
 }
 
 VISRTX_CALLABLE NextRay __direct_callable__nextRay(
-    const MatteShadingState *, const Ray *, RandState *)
+    const MatteShadingState *, const Ray *, RandState *, const NextRayQmc *)
 {
   return NextRay{vec3(0.0f), vec3(0.0f), 0.0f};
 }
