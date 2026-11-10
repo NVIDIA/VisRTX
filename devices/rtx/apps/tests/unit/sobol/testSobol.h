@@ -88,7 +88,7 @@ static Columns referenceColumns()
 struct Input
 {
   uint32_t index, dimension, seed;
-  uint32_t x = 0, y = 0;
+  uint32_t x = 0, y = 0, scrambleSeed = 0;
   int bounce = 0, transparency = 0;
   bool pixelSeedInput = false;
 };
@@ -107,7 +107,7 @@ struct Output
 VISRTX_HOST_DEVICE Output evaluate(Input in)
 {
   const auto pixelKey = in.pixelSeedInput
-      ? visrtx::owenPixelSeed(in.x, in.y)
+      ? visrtx::owenPixelSeed(in.x, in.y, in.scrambleSeed)
       : in.seed;
   const auto vertexKey =
       visrtx::owenBounceSeed(pixelKey, in.bounce, in.transparency);
@@ -254,8 +254,76 @@ static void checkDevice(const std::vector<Input> &inputs)
 }
 #endif
 
+static void checkPixelKeys()
+{
+  // Worked uint32 finalizer vectors, independent of production evaluation.
+  struct Pixel
+  {
+    uint32_t x, y;
+    std::array<uint32_t, 4> keys;
+  };
+  const Pixel pixels[] = {
+      {0, 0, {0xf1a85082u, 0x9921c042u, 0x044f4c14u, 0x96c0d2c8u}},
+      {1, 2, {0x339b28e2u, 0x5b12b822u, 0xc67c3474u, 0x54f3aaa8u}},
+      {1920, 1080, {0xeebd993au, 0x863409fau, 0x1b5a85acu, 0x89d51b70u}},
+      {0xffffffffu,
+          0xffffffffu,
+          {0x4ab06c79u, 0x2239fcb9u, 0xbf5770efu, 0x2dd8ee33u}}};
+  const uint32_t seeds[] = {0, 1, 0x12345678u, 0xffffffffu};
+  for (const auto &pixel : pixels) {
+    require(visrtx::owenPixelSeed(pixel.x, pixel.y) == pixel.keys[0],
+        "default pixel key preserves legacy vector");
+    for (unsigned s = 0; s < 4; ++s) {
+      require(
+          visrtx::owenPixelSeed(pixel.x, pixel.y, seeds[s]) == pixel.keys[s],
+          "explicit scramble seed pixel-key vector");
+      require(
+          visrtx::owenPixelSeed(pixel.x, pixel.y, seeds[s]) == pixel.keys[s],
+          "repeated scramble seed reproduces pixel key");
+    }
+  }
+}
+
+static void checkSeedVectors(std::vector<Input> &inputs)
+{
+  std::ifstream vectors(SOBOL_SEED_VECTOR_FILE);
+  require(bool(vectors), "cannot open pixel/depth vectors");
+  std::string line;
+  std::getline(vectors, line);
+  std::getline(vectors, line);
+  Input in{};
+  in.pixelSeedInput = true;
+  uint32_t pixel, vertex, grid;
+  unsigned count = 0;
+  while (vectors >> std::hex >> in.x >> in.y >> in.scrambleSeed >> in.bounce
+      >> in.transparency >> in.index >> in.dimension >> pixel >> vertex
+      >> grid) {
+    const auto actual = evaluate(in);
+    require(actual.pixelKey == pixel && actual.vertexKey == vertex,
+        "fixed pixel/bounce/coverage key vector " + std::to_string(count));
+    require(sameFloat(actual.sample, std::ldexp(float(grid), -24)),
+        "fixed controlled-scramble sample vector " + std::to_string(count));
+    require(sameFloat(evaluate(in).sample, actual.sample),
+        "repeated controlled scramble reproduces sample");
+    inputs.push_back(in);
+    ++count;
+  }
+  require(vectors.eof() && count == 768, "incomplete pixel/depth vectors");
+  // Only selected vectors must change, not every float or arbitrary depth
+  // tuple.
+  for (uint32_t seed : {1u, 0x12345678u, 0xffffffffu}) {
+    const auto base = visrtx::owenSobolHemi(16, visrtx::owenPixelSeed(1, 2));
+    const auto alternate =
+        visrtx::owenSobolHemi(16, visrtx::owenPixelSeed(1, 2, seed));
+    require(!sameFloat(base.x, alternate.x) || !sameFloat(base.y, alternate.y),
+        "selected alternate scramble changes transport vector");
+  }
+  std::cout << count << " fixed pixel/depth sampler vectors pass\n";
+}
+
 inline int run()
 try {
+  checkPixelKeys();
   // Direct endpoints exercise production conversion, not accidental samples.
   require(visrtx::sobolFloat(0) == 0.f && visrtx::sobolFloat(0xffu) == 0.f
           && visrtx::sobolFloat(0x100u) == 0x1p-24f
@@ -335,6 +403,7 @@ try {
       }
     }
   }
+  checkSeedVectors(inputs);
   for (uint32_t endpoint : {0u, 0xffu, 0x100u, 0xffffffffu})
     inputs.push_back({endpoint, 0, 0});
 #ifdef SOBOL_CUDA

@@ -117,16 +117,31 @@ VISRTX_HOST_DEVICE uint32_t sobolUInt(uint32_t index, uint32_t dimension)
   return x;
 }
 
-VISRTX_HOST_DEVICE uint32_t owenPixelSeed(uint32_t x, uint32_t y)
+namespace detail {
+// Bijective on uint32: XOR-right-shifts are invertible bit by bit, and odd
+// multipliers have inverses modulo 2^32. Each operation fixes zero, so M(0)=0.
+VISRTX_HOST_DEVICE uint32_t owenSeedFinalizer(uint32_t v)
 {
-  // Preserve the legacy Halton pixel hash, now seeding Owen rather than index.
-  uint32_t v = x + y * 0x9E3779B9u + 0xB5297A4Du;
   v ^= v >> 16;
   v *= 0x7feb352du;
   v ^= v >> 15;
   v *= 0x846ca68bu;
   v ^= v >> 16;
   return v;
+}
+} // namespace detail
+
+VISRTX_HOST_DEVICE uint32_t owenPixelSeed(
+    uint32_t x, uint32_t y, uint32_t scrambleSeed = 0)
+{
+  // Legacy Halton pixel hash, now seeding Owen rather than the index. Zero
+  // preserves pixel keys, not old images after table/addressing fixes.
+  // Distinct seeds at a fixed pixel give distinct keys, not independent floats.
+  // Renderer callers keep the default: full-render replicate/PCG/reset policy
+  // remains deferred; this is only reproducible internal sampler control.
+  const uint32_t legacy =
+      detail::owenSeedFinalizer(x + y * 0x9E3779B9u + 0xB5297A4Du);
+  return legacy ^ detail::owenSeedFinalizer(scrambleSeed);
 }
 
 // Bounce 0 / no alpha pass-through keeps the transport pixel seed (XOR 0).
