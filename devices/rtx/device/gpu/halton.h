@@ -34,22 +34,23 @@
 #include "gpu/gpu_decl.h"
 
 #include <vector_types.h> // ::float4
+#include <cmath>
 #include <cstdint>
 
 // Halton low-discrepancy sequence for the 2–4D top of the path (camera
-// jitter + DoF lens). Pattern: PCG everywhere, QMC at the camera.
+// jitter + DoF lens). Transport uses a separate Sobol sequence with PCG
+// fallback.
 //   dims 0..1 (bases 2, 3): pixel x/y sub-pixel jitter
 //   dims 2..3 (bases 5, 7): lens u/v for DoF
 //
 // Pixel decorrelation: additive offset = haltonPixelHash(pixel). Not full
-// Owen scrambling — adequate at 4D, full scrambling is more code for
-// negligible win.
+// Owen scrambling.
 
 namespace visrtx {
 
 // Per-pixel scramble hash — PCG-style integer mixer, additive offset on
 // the Halton sample index.
-VISRTX_DEVICE uint32_t haltonPixelHash(uint32_t x, uint32_t y)
+VISRTX_HOST_DEVICE uint32_t haltonPixelHash(uint32_t x, uint32_t y)
 {
   // Salt breaks the (0, 0) zero fixed point — otherwise pixel (0, 0) would
   // share its Halton subsequence with the origin.
@@ -66,7 +67,7 @@ VISRTX_DEVICE uint32_t haltonPixelHash(uint32_t x, uint32_t y)
 // decimal point. Generic loop covers bases 2/3/5/7; Base=2 could specialise
 // to __brev but the saving is marginal at this dimensionality.
 template <uint32_t Base>
-VISRTX_DEVICE float radicalInverse(uint32_t i)
+VISRTX_HOST_DEVICE float radicalInverse(uint32_t i)
 {
   static_assert(Base >= 2u, "radicalInverse requires Base >= 2");
   constexpr float invBase = 1.0f / float(Base);
@@ -83,7 +84,7 @@ VISRTX_DEVICE float radicalInverse(uint32_t i)
 
 // Halton 4D point (Φ_2, Φ_3, Φ_5, Φ_7), each in [0, 1). Combine sampleIdx
 // with haltonPixelHash for per-pixel decorrelation.
-VISRTX_DEVICE ::float4 halton4D(uint32_t sampleIdx)
+VISRTX_HOST_DEVICE ::float4 halton4D(uint32_t sampleIdx)
 {
   return ::float4{
       radicalInverse<2>(sampleIdx),

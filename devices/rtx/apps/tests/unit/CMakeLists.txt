@@ -91,6 +91,18 @@ target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_17)
 
 add_test(NAME rtx::LightGeometryOracle COMMAND ${PROJECT_NAME})
 
+# Shared production ordinal seam (no GPU initialization).
+add_executable(rtx_test_SampleOrdinal test_SampleOrdinal.cpp)
+target_include_directories(rtx_test_SampleOrdinal PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}/../../../device
+  ${CMAKE_CURRENT_LIST_DIR}/../../../external/nanovdb/include
+  ${OptiX_ROOT_DIR}/include)
+target_link_libraries(rtx_test_SampleOrdinal PRIVATE
+  CUDA::cudart visrtx::glm anari::anari_headers)
+target_compile_definitions(rtx_test_SampleOrdinal PRIVATE GLM_ENABLE_EXPERIMENTAL)
+target_compile_features(rtx_test_SampleOrdinal PRIVATE cxx_std_17)
+add_test(NAME rtx::SampleOrdinal COMMAND rtx_test_SampleOrdinal)
+
 # Standard-library-only executor tests.
 find_package(Threads REQUIRED)
 add_executable(rtx_test_TaskExecutor

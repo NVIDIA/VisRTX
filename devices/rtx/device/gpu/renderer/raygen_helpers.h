@@ -37,6 +37,7 @@
 #include "gpu/lightProxyRadiance.h"
 #include "gpu/renderer/common.h"
 #include "gpu/renderer/fog.h"
+#include "gpu/sampleOrdinal.h"
 #include "gpu/shadingState.h"
 #include "gpu/volumeIntegration.h"
 
@@ -89,9 +90,7 @@ VISRTX_DEVICE void renderPixel(FrameGPUData &frameData, ScreenSample ss)
 
   for (int i = 0; i < frameData.renderer.numIterations; i++) {
     bool isVeryFirstRay = i == 0 && ss.frameData->fb.frameID == 0;
-    const uint32_t sampleIdx = uint32_t(ss.frameData->fb.frameID)
-            * uint32_t(rendererParams.numIterations)
-        + uint32_t(i);
+    const uint32_t sampleIdx = sampleOrdinal(ss.frameData->fb.frameID, i);
     auto ray = makePrimaryRay(ss, sampleIdx, isVeryFirstRay);
     // Visibility clipping may re-origin the traversal ray, but fog measures
     // from the original camera sample (including its sampled lens position).
