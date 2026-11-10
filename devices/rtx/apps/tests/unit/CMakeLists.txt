@@ -103,6 +103,37 @@ target_compile_definitions(rtx_test_SampleOrdinal PRIVATE GLM_ENABLE_EXPERIMENTA
 target_compile_features(rtx_test_SampleOrdinal PRIVATE cxx_std_17)
 add_test(NAME rtx::SampleOrdinal COMMAND rtx_test_SampleOrdinal)
 
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+add_test(NAME rtx::SobolTableHeader
+  COMMAND Python3::Interpreter -B
+    ${CMAKE_CURRENT_LIST_DIR}/sobol/test_table_header.py)
+add_test(NAME rtx::SobolReferencePublication
+  COMMAND Python3::Interpreter -B
+    ${CMAKE_CURRENT_LIST_DIR}/sobol/test_reference.py)
+set_tests_properties(rtx::SobolTableHeader rtx::SobolReferencePublication
+  PROPERTIES TIMEOUT 30)
+
+# Production Sobol sampler against independently sourced Joe-Kuo parameters.
+add_executable(rtx_test_Sobol test_Sobol.cpp)
+add_executable(rtx_test_SobolCUDA test_SobolCUDA.cu)
+foreach(sobol_target rtx_test_Sobol rtx_test_SobolCUDA)
+  target_include_directories(${sobol_target} PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}/../../../device)
+  target_link_libraries(${sobol_target} PRIVATE CUDA::cudart)
+  target_compile_features(${sobol_target} PRIVATE cxx_std_17)
+  set_target_properties(${sobol_target} PROPERTIES
+    CUDA_STANDARD 17 CUDA_STANDARD_REQUIRED ON)
+  target_compile_definitions(${sobol_target} PRIVATE
+    SOBOL_PARAMETER_FILE="${CMAKE_CURRENT_LIST_DIR}/sobol/joe-kuo.txt"
+    SOBOL_VECTOR_FILE="${CMAKE_CURRENT_LIST_DIR}/sobol/vectors.txt")
+endforeach()
+# Match the RTX PTX's arithmetic configuration.
+target_compile_options(rtx_test_SobolCUDA PRIVATE
+  $<$<COMPILE_LANGUAGE:CUDA>:--use_fast_math;--expt-relaxed-constexpr>)
+add_test(NAME rtx::Sobol COMMAND rtx_test_Sobol)
+add_test(NAME rtx::SobolCUDA COMMAND rtx_test_SobolCUDA)
+set_tests_properties(rtx::Sobol rtx::SobolCUDA PROPERTIES TIMEOUT 60)
+
 # Standard-library-only executor tests.
 find_package(Threads REQUIRED)
 add_executable(rtx_test_TaskExecutor
