@@ -33,6 +33,7 @@
 
 #include "cameraCreateRay.h"
 #include "gpu/gpu_debug.h"
+#include "gpu/owenSobol.h"
 #include "gpu_objects.h"
 #include "gpu_tonemap.h"
 #include "shadingState.h"
@@ -231,15 +232,23 @@ VISRTX_DEVICE mat3 computeOrthonormalBasis(const vec3 &normal)
 }
 
 // Cosine-weighted hemisphere sample (Malley's method); pdf = cos(theta)/pi.
-VISRTX_DEVICE vec3 sampleHemisphere(RandState &rs, const vec3 &normal)
+// u1/u2 in [0, 1). The RandState overload draws them from PCG in that order.
+// Quality env/ambient NEE intentionally shares Owen-scrambled Sobol dims 0–1,
+// with per-surface-bounce/transparency reseeding.
+VISRTX_DEVICE vec3 sampleHemisphere(float u1, float u2, const vec3 &normal)
 {
-  const float u1 = pcg_uniform(&rs);
-  const float u2 = pcg_uniform(&rs);
   const float r = sqrtf(u1);
   const float z = sqrtf(fmaxf(0.f, 1.f - r * r));
   const float phi = kTwoPi * u2;
   const vec3 sample(r * cosf(phi), r * sinf(phi), z);
   return computeOrthonormalBasis(normal) * sample;
+}
+
+VISRTX_DEVICE vec3 sampleHemisphere(RandState &rs, const vec3 &normal)
+{
+  const float u = pcg_uniform(&rs);
+  const float v = pcg_uniform(&rs);
+  return sampleHemisphere(u, v, normal);
 }
 
 VISRTX_DEVICE vec3 sampleUnitSphere(RandState &rs, const vec3 &normal)
@@ -600,17 +609,20 @@ VISRTX_DEVICE void setPixelIds(const FramebufferGPUData &fb,
 // bulk), but a sample above the cap contributes only the capped value. This is
 // the base-excluding threshold — letting raw outliers into the stats lets one
 // firefly inflate σ enough to raise its own future cap, so a moderate k never
-// fires (the σ-inflation trap). Feeding the clamped value bounds that inflation,
-// which is what lets k drop to a value that actually bites. The cost is that a
-// genuinely legitimate >kσ excursion on a high-variance pixel is clipped and
-// cannot grow the cap — unavoidable for a per-pixel online clamp, which is why
-// CLAMP is the deliberately-aggressive, biased mode.
+// fires (the σ-inflation trap). Feeding the clamped value bounds that
+// inflation, which is what lets k drop to a value that actually bites. The cost
+// is that a genuinely legitimate >kσ excursion on a high-variance pixel is
+// clipped and cannot grow the cap — unavoidable for a per-pixel online clamp,
+// which is why CLAMP is the deliberately-aggressive, biased mode.
 //
 // Each channel is clamped independently to its own cap, so a chromatic
 // (single-channel) outlier is caught even when its luminance is unremarkable,
 // without a near-zero channel dragging the whole (saturated-color) pixel dark.
-VISRTX_DEVICE vec4 fireflyClamp(
-    PixelLumStats *lumStatsBuf, uint32_t idx, vec4 color, float kSigma, int warmupSamples)
+VISRTX_DEVICE vec4 fireflyClamp(PixelLumStats *lumStatsBuf,
+    uint32_t idx,
+    vec4 color,
+    float kSigma,
+    int warmupSamples)
 {
   constexpr float kWarmupCapFactor = 8.0f; // warmup cap = factor * running mean
 
