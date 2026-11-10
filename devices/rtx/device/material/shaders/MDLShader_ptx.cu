@@ -224,8 +224,10 @@ vec3 __direct_callable__evalBsdf(
 
 // Signature must match the call inside shaderMDLSurface in MDLShader.cuh.
 VISRTX_CALLABLE
-NextRay __direct_callable__nextRay(
-    const MDLShadingState *shadingState, const Ray *ray, RandState *rs)
+NextRay __direct_callable__nextRay(const MDLShadingState *shadingState,
+    const Ray *ray,
+    RandState *rs,
+    const NextRayQmc *qmc)
 {
   // Sample
   BsdfSampleData sample_data = {};
@@ -237,8 +239,7 @@ NextRay __direct_callable__nextRay(
     sample_data.ior2 = make_float3(1.0f, 1.0f, 1.0f);
   }
   sample_data.k1 = make_float3(-ray->dir);
-  sample_data.xi = make_float4(
-      pcg_uniform(rs), pcg_uniform(rs), pcg_uniform(rs), pcg_uniform(rs));
+  sample_data.xi = materialUniform4(*rs, qmc);
 
   mdlBsdf_sample(&sample_data,
       &shadingState->state,
@@ -259,8 +260,7 @@ NextRay __direct_callable__nextRay(
   // the finite sampling pdf and are MIS-combined with NEE.
   const bool isSpecular =
       (sample_data.event_type & mi::neuraylib::BSDF_EVENT_SPECULAR) != 0;
-  const float pdf =
-      (isSpecular || (flags & NEXT_RAY_CONTINUES_THROUGH_SURFACE))
+  const float pdf = (isSpecular || (flags & NEXT_RAY_CONTINUES_THROUGH_SURFACE))
       ? INFINITY
       : sample_data.pdf;
   return NextRay{direction,
@@ -315,9 +315,9 @@ vec3 __direct_callable__evaluateEmission(
       &shadingState->state, &shadingState->resData, shadingState->argBlock);
 
   // Emitted radiance L(k1) = edf(k1) * intensity. `intensity` is radiant
-  // exitance (the material pre-multiplies by PI), and df::diffuse_edf's value is
-  // 1/PI, so this yields the authored radiance. The `cos/pdf` factors are the
-  // sample-path `edf_over_pdf` quantity, not part of radiance evaluation;
+  // exitance (the material pre-multiplies by PI), and df::diffuse_edf's value
+  // is 1/PI, so this yields the authored radiance. The `cos/pdf` factors are
+  // the sample-path `edf_over_pdf` quantity, not part of radiance evaluation;
   // including them cancelled to `intensity` and made emission PI x too bright.
   // Matches NVIDIA's df_cuda reference renderer. NOTE: assumes
   // intensity_radiant_exitance mode; intensity_power is not yet handled.

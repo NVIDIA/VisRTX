@@ -69,6 +69,8 @@ make_test(TestGroundSphereShadows)
 make_test(TestPowerLightPick)
 make_test(TestRayBufferCamera)
 make_test(TestCameraNearFar)
+make_test(TestMaterialSampling)
+set_tests_properties(TestMaterialSampling PROPERTIES TIMEOUT 120)
 make_test(TestSampleAddressing)
 target_include_directories(TestSampleAddressing PRIVATE
   ${CMAKE_CURRENT_LIST_DIR}/../../../device)
@@ -113,6 +115,8 @@ make_test(TestEmissiveRecommit)
 # The raw `mdl` material type and the `physicallyBasedMDL` subtype only exist
 # with MDL support compiled in.
 if (VISRTX_ENABLE_MDL_SUPPORT)
+  target_compile_definitions(
+    TestMaterialSampling PRIVATE VISRTX_TEST_MDL_WRAPPER)
   target_compile_definitions(
     TestEmissiveRecommit PRIVATE VISRTX_TEST_MDL_WRAPPER)
   # Adds the physicallyBasedMDL leg, so the module's specular default is

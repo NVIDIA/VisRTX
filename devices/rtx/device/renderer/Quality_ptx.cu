@@ -1051,7 +1051,12 @@ VISRTX_GLOBAL void __raygen__()
         // accepted surface. Subsequent transport must not apply another fog
         // operation, even if it crosses more coverage layers.
         appearanceWeight = surfaceAppearanceWeight;
-        auto nextRay = materialNextRay(shadingState, ray, ss.rs);
+        NextRayQmc nextQmc{};
+        nextQmc.n = 4;
+        for (int d = 0; d < 4; ++d)
+          nextQmc.u[d] =
+              owenSobol(sampleIdx, kSobolDimNextRay0 + uint32_t(d), qmcSeed);
+        auto nextRay = materialNextRay(shadingState, ray, ss.rs, &nextQmc);
         sampleContribution *= nextRay.contributionWeight;
 
         // Carry the bounce's solid-angle pdf for the env-MIS weight at a miss.

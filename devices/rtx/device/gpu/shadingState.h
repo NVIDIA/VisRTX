@@ -34,6 +34,8 @@
 #include "gpu_decl.h"
 #include "gpu_math.h"
 #include "gpu_objects.h"
+#include "pcg.h"
+#include "samplerContracts.h"
 
 #ifdef USE_MDL
 #include <mi/neuraylib/target_code_types.h>
@@ -69,6 +71,46 @@ struct NextRay
   float pdf{INFINITY};
   uint32_t flags{NEXT_RAY_NONE};
 };
+
+// Optional Sobol overlay for EvaluateNextRay. First `n` uniforms come from
+// u[0..n); the rest fall back to PCG. n==0 means all PCG; Interactive uses
+// nullptr by default. Quality fills n=4 from Sobol dims 8–11 per surface
+// vertex, with bounce/transparency reseeding. Categorical material decisions
+// consume this same branch-dependent sequence, not a separate PCG stream.
+// Initialize cursor=0. Non-null overlays require 0<=n<=4, 0<=cursor<=n;
+// exhausted cursors saturate at n. Null overlays require cursor=0 and leave it
+// unchanged. Invalid states abort/trap even with NDEBUG. PCG must be valid
+// whenever a fallback draw is needed; supplied values never touch PCG.
+struct NextRayQmc
+{
+  float u[4];
+  int n;
+};
+
+VISRTX_DEVICE float nextRayUniform(
+    RandState *rs, const NextRayQmc *qmc, int &cursor)
+{
+  if (qmc) {
+    if (qmc->n < 0 || qmc->n > 4 || cursor < 0 || cursor > qmc->n)
+      detail::samplerContractFailure();
+    if (cursor < qmc->n)
+      return qmc->u[cursor++];
+  } else if (cursor != 0)
+    detail::samplerContractFailure();
+  return pcg_uniform(rs);
+}
+
+// MDL requests a fixed four-component sample; native PBR must keep its
+// conditional cursor consumption instead of eagerly calling this helper.
+VISRTX_DEVICE ::float4 materialUniform4(RandState &rs, const NextRayQmc *qmc)
+{
+  int cursor = 0;
+  const float x = nextRayUniform(&rs, qmc, cursor);
+  const float y = nextRayUniform(&rs, qmc, cursor);
+  const float z = nextRayUniform(&rs, qmc, cursor);
+  const float w = nextRayUniform(&rs, qmc, cursor);
+  return {x, y, z, w};
+}
 
 // Matte
 struct MatteShadingState

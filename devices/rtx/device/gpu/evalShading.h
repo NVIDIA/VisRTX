@@ -84,8 +84,10 @@ VISRTX_DEVICE vec3 materialEvaluateNormal(
       &shadingState.data);
 }
 
-VISRTX_DEVICE NextRay materialNextRay(
-    const MaterialShadingState &shadingState, const Ray &ray, RandState &rs)
+VISRTX_DEVICE NextRay materialNextRay(const MaterialShadingState &shadingState,
+    const Ray &ray,
+    RandState &rs,
+    const NextRayQmc *qmc = nullptr)
 {
   if (shadingState.callableBaseIndex
       == ~DeviceObjectIndex(0)) // No next ray by default
@@ -95,16 +97,16 @@ VISRTX_DEVICE NextRay materialNextRay(
           + int(SurfaceShaderEntryPoints::EvaluateNextRay),
       &shadingState.data,
       &ray,
-      &rs);
+      &rs,
+      qmc);
 }
 
 // Solid-angle pdf the material's BSDF sampler would assign to direction `wi`
 // given outgoing direction `wo` (both world space), for environment MIS. 0 for
 // no material and for materials whose sampler cannot produce `wi` (e.g. Matte,
 // which has no continuation ray).
-VISRTX_DEVICE float materialEvalPdf(const MaterialShadingState &shadingState,
-    const vec3 &wo,
-    const vec3 &wi)
+VISRTX_DEVICE float materialEvalPdf(
+    const MaterialShadingState &shadingState, const vec3 &wo, const vec3 &wi)
 {
   if (shadingState.callableBaseIndex == ~DeviceObjectIndex(0))
     return 0.0f;
@@ -122,9 +124,8 @@ VISRTX_DEVICE float materialEvalPdf(const MaterialShadingState &shadingState,
 // toward the viewer. Pairs with materialEvalPdf: same lobe mixture, same
 // conventions, reflection side only (transmission returns 0, as NEE cannot
 // reach it).
-VISRTX_DEVICE vec3 materialEvalBsdf(const MaterialShadingState &shadingState,
-    const vec3 &wo,
-    const vec3 &wi)
+VISRTX_DEVICE vec3 materialEvalBsdf(
+    const MaterialShadingState &shadingState, const vec3 &wo, const vec3 &wi)
 {
   if (shadingState.callableBaseIndex == ~DeviceObjectIndex(0))
     return vec3(0.0f); // No material: no reflected energy
