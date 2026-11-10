@@ -151,7 +151,8 @@ foreach(sobol_target rtx_test_Sobol rtx_test_SobolCUDA)
     CUDA_STANDARD 17 CUDA_STANDARD_REQUIRED ON)
   target_compile_definitions(${sobol_target} PRIVATE
     SOBOL_PARAMETER_FILE="${CMAKE_CURRENT_LIST_DIR}/sobol/joe-kuo.txt"
-    SOBOL_VECTOR_FILE="${CMAKE_CURRENT_LIST_DIR}/sobol/vectors.txt")
+    SOBOL_VECTOR_FILE="${CMAKE_CURRENT_LIST_DIR}/sobol/vectors.txt"
+    SOBOL_SEED_VECTOR_FILE="${CMAKE_CURRENT_LIST_DIR}/sobol/seed-vectors.txt")
 endforeach()
 # Match the RTX PTX's arithmetic configuration.
 target_compile_options(rtx_test_SobolCUDA PRIVATE
