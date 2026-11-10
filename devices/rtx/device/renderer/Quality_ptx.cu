@@ -44,6 +44,7 @@
 #include "gpu/renderer/fog.h"
 #include "gpu/renderer/shadowTransmittance.h"
 #include "gpu/sampleLight.h"
+#include "gpu/sampleOrdinal.h"
 #include "gpu/shadingState.h"
 #include "gpu/volumeIntegration.h"
 
@@ -613,13 +614,8 @@ VISRTX_GLOBAL void __raygen__()
 
   for (int i = 0; i < rendererParams.numIterations; ++i) {
     bool isVeryFirstRay = i == 0 && ss.frameData->fb.frameID == 0;
-    // Halton sample index: per-pixel ordinal across the whole frame's
-    // sample budget. Using `frameID * numIterations + i` keeps the
-    // per-pixel Halton indices contiguous [0, totalSpp), which is the
-    // optimal QMC stratification.
-    const uint32_t sampleIdx = uint32_t(ss.frameData->fb.frameID)
-            * uint32_t(rendererParams.numIterations)
-        + uint32_t(i);
+    // frameID already counts accumulated samples, not launches.
+    const uint32_t sampleIdx = sampleOrdinal(ss.frameData->fb.frameID, i);
     auto ray = makePrimaryRay(ss, sampleIdx, isVeryFirstRay);
     const vec3 cameraOrigin = ray.org;
     const vec3 cameraFogColor = fogColor(frameData, ss.pixel, ray.dir);

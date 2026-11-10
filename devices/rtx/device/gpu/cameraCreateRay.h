@@ -109,12 +109,11 @@ VISRTX_DEVICE Ray rayBufferCreateRay(const CameraGPUData &c, uvec2 pixel)
   return ray;
 }
 
-// sampleIdx is a (frame-counter × spp_loop) ordinal advancing once per
-// camera sample within the frame's accumulation; combined with a
-// per-pixel hash offset it indexes a Halton 4D point used for
-// sub-pixel jitter (dims 0/1) + lens aperture (dims 2/3). Halton at
-// the camera level converges the AA / DoF integrals strictly faster
-// than uniform random — see gpu/halton.h.
+// sampleIdx is completedSamples + within-batch iteration (sampleOrdinal),
+// advancing once per camera sample, not frame-counter times spp.
+// Halton bases 2/3 = pixel jitter, 5/7 = aperture. The first sample overrides
+// pixel jitter with the center, but still samples the aperture at ordinal zero.
+// Ray-buffer cameras bypass both. Pixel seeds are independent of batching.
 VISRTX_DEVICE Ray makePrimaryRay(
     ScreenSample &ss, uint32_t sampleIdx, bool centerPixel = false)
 {
