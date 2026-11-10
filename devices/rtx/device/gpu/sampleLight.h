@@ -36,8 +36,8 @@
 #include "gpu/gpu_objects.h"
 #include "gpu/gpu_util.h"
 #include "gpu/intersectPrimitives.h" // CapBit (cylinder/cone cap enablement)
-#include "gpu/quadLightTexture.h"
 #include "gpu/lightGeometry.h" // rect/ring leaves shared with the hit-side deposit
+#include "gpu/quadLightTexture.h"
 
 // glm
 #include <glm/ext/matrix_float3x3.hpp>
@@ -120,12 +120,20 @@ VISRTX_DEVICE LightSample samplePointLight(
   return ls;
 }
 
-VISRTX_DEVICE LightSample sampleSphereLight(
-    const LightGPUData &ld, const mat4 &xfm, const vec3 &origin, RandState &rs)
+VISRTX_DEVICE LightSample sampleSphereLight(const LightGPUData &ld,
+    const mat4 &xfm,
+    const vec3 &origin,
+    RandState &rs,
+    bool useQmc = false,
+    uint32_t sampleIndex = 0,
+    uint32_t pixelSeed = 0)
 {
   LightSample ls;
-  auto u1 = pcg_uniform(&rs);
-  auto u2 = pcg_uniform(&rs);
+  auto u = [&](uint32_t dim) {
+    return useQmc ? owenSobol(sampleIndex, dim, pixelSeed) : pcg_uniform(&rs);
+  };
+  auto u1 = u(kSobolDimCdfY);
+  auto u2 = u(kSobolDimCdfX);
 
   // Uniform sampling on unit sphere using Marsaglia's method
   // u1 maps to z-coordinate: z ∈ [-1, 1]
@@ -166,11 +174,21 @@ VISRTX_DEVICE LightSample sampleSphereLight(
   return ls;
 }
 
-VISRTX_DEVICE LightSample sampleRectLight(
-    const LightGPUData &ld, const mat4 &xfm, const vec3 &origin, RandState &rs)
+VISRTX_DEVICE LightSample sampleRectLight(const LightGPUData &ld,
+    const mat4 &xfm,
+    const vec3 &origin,
+    RandState &rs,
+    bool useQmc = false,
+    uint32_t sampleIndex = 0,
+    uint32_t pixelSeed = 0)
 {
   LightSample ls;
-  auto uv = vec2(pcg_uniform(&rs), pcg_uniform(&rs));
+  auto u = [&](uint32_t dim) {
+    return useQmc ? owenSobol(sampleIndex, dim, pixelSeed) : pcg_uniform(&rs);
+  };
+  const float rectU = u(kSobolDimCdfY);
+  const float rectV = u(kSobolDimCdfX);
+  auto uv = vec2(rectU, rectV);
 
   // Uniform sampling on rectangle: uv ∈ [0,1]² maps to rectangle
   auto rectangleSample = ld.rect.edge1 * uv.x + ld.rect.edge2 * uv.y;
@@ -200,12 +218,20 @@ VISRTX_DEVICE LightSample sampleRectLight(
   return ls;
 }
 
-VISRTX_DEVICE LightSample sampleRingLight(
-    const LightGPUData &ld, const mat4 &xfm, const vec3 &origin, RandState &rs)
+VISRTX_DEVICE LightSample sampleRingLight(const LightGPUData &ld,
+    const mat4 &xfm,
+    const vec3 &origin,
+    RandState &rs,
+    bool useQmc = false,
+    uint32_t sampleIndex = 0,
+    uint32_t pixelSeed = 0)
 {
   LightSample ls;
-  auto u1 = pcg_uniform(&rs);
-  auto u2 = pcg_uniform(&rs);
+  auto u = [&](uint32_t dim) {
+    return useQmc ? owenSobol(sampleIndex, dim, pixelSeed) : pcg_uniform(&rs);
+  };
+  auto u1 = u(kSobolDimCdfY);
+  auto u2 = u(kSobolDimCdfX);
 
   // Sample angle uniformly around the ring: φ ∈ [0, 2π]
   auto phi = kTwoPi * u1;
@@ -782,17 +808,26 @@ VISRTX_DEVICE LightSample sampleHDRILight(
   return ls;
 }
 
-VISRTX_DEVICE LightSample sampleHDRILight(
-    const LightGPUData &ld, const mat4 &xfm, RandState &rs)
+VISRTX_DEVICE LightSample sampleHDRILight(const LightGPUData &ld,
+    const mat4 &xfm,
+    RandState &rs,
+    bool useQmc = false,
+    uint32_t sampleIndex = 0,
+    uint32_t pixelSeed = 0)
 {
   // Importance sampling using hierarchical (marginal/conditional) CDF approach
   // First sample row (y) using marginal CDF, then column (x) using conditional
-  // CDF
-  auto y =
-      inverseSampleCDF(ld.hdri.marginalCDF, ld.hdri.size.y, pcg_uniform(&rs));
-  auto x = inverseSampleCDF(ld.hdri.conditionalCDF + y * ld.hdri.size.x,
-      ld.hdri.size.x,
-      pcg_uniform(&rs));
+  // CDF. Quality NEE feeds Owen-scrambled Sobol dims 6–9, reseeded per
+  // surface bounce/transparency layer. The PCG fallback has the same draw
+  // order.
+  auto u = [&](uint32_t dim) {
+    return useQmc ? owenSobol(sampleIndex, dim, pixelSeed) : pcg_uniform(&rs);
+  };
+  const float rowU = u(kSobolDimCdfY);
+  auto y = inverseSampleCDF(ld.hdri.marginalCDF, ld.hdri.size.y, rowU);
+  const float columnU = u(kSobolDimCdfX);
+  auto x = inverseSampleCDF(
+      ld.hdri.conditionalCDF + y * ld.hdri.size.x, ld.hdri.size.x, columnU);
 
   auto xy = glm::uvec2(x, y);
 
@@ -802,7 +837,9 @@ VISRTX_DEVICE LightSample sampleHDRILight(
   }
 #endif
   // Add sub-pixel jitter to avoid aliasing
-  auto jitter = glm::vec2(pcg_uniform(&rs), pcg_uniform(&rs));
+  const float jitterU = u(kSobolDimCdfJitterU);
+  const float jitterV = u(kSobolDimCdfJitterV);
+  auto jitter = glm::vec2(jitterU, jitterV);
   auto uv =
       glm::clamp((glm::vec2(xy) + jitter) / glm::vec2(ld.hdri.size), 0.f, 1.f);
 
@@ -835,7 +872,10 @@ VISRTX_DEVICE LightSample sampleLight(ScreenSample &ss,
     const vec3 &origin,
     DeviceObjectIndex idx,
     const mat4 &xfm,
-    DeviceObjectIndex surfaceInstanceIndex)
+    DeviceObjectIndex surfaceInstanceIndex,
+    bool useQmc = false,
+    uint32_t sampleIndex = 0,
+    uint32_t pixelSeed = 0)
 {
   auto &ld = ss.frameData->registry.lights[idx];
 
@@ -845,15 +885,19 @@ VISRTX_DEVICE LightSample sampleLight(ScreenSample &ss,
   case LightType::POINT:
     return detail::samplePointLight(ld, xfm, origin);
   case LightType::SPHERE:
-    return detail::sampleSphereLight(ld, xfm, origin, ss.rs);
+    return detail::sampleSphereLight(
+        ld, xfm, origin, ss.rs, useQmc, sampleIndex, pixelSeed);
   case LightType::RECT:
-    return detail::sampleRectLight(ld, xfm, origin, ss.rs);
+    return detail::sampleRectLight(
+        ld, xfm, origin, ss.rs, useQmc, sampleIndex, pixelSeed);
   case LightType::SPOT:
     return detail::sampleSpotLight(ld, xfm, origin);
   case LightType::RING:
-    return detail::sampleRingLight(ld, xfm, origin, ss.rs);
+    return detail::sampleRingLight(
+        ld, xfm, origin, ss.rs, useQmc, sampleIndex, pixelSeed);
   case LightType::HDRI:
-    return detail::sampleHDRILight(ld, xfm, ss.rs);
+    return detail::sampleHDRILight(
+        ld, xfm, ss.rs, useQmc, sampleIndex, pixelSeed);
   case LightType::GEOMETRY:
     return detail::sampleGeometryLight(
         ld, xfm, origin, ss, surfaceInstanceIndex);

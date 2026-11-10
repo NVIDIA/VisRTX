@@ -113,6 +113,21 @@ add_test(NAME rtx::SobolReferencePublication
 set_tests_properties(rtx::SobolTableHeader rtx::SobolReferencePublication
   PROPERTIES TIMEOUT 30)
 
+add_executable(rtx_test_LightDrawOrder test_LightDrawOrder.cu)
+target_include_directories(rtx_test_LightDrawOrder PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}/../../../device
+  ${CMAKE_CURRENT_LIST_DIR}/../../../external/nanovdb/include
+  ${OptiX_ROOT_DIR}/include)
+target_link_libraries(rtx_test_LightDrawOrder PRIVATE
+  CUDA::cudart visrtx::glm anari::anari_headers)
+target_compile_definitions(rtx_test_LightDrawOrder PRIVATE GLM_ENABLE_EXPERIMENTAL)
+set_target_properties(rtx_test_LightDrawOrder PROPERTIES
+  CUDA_STANDARD 17 CUDA_STANDARD_REQUIRED ON)
+target_compile_options(rtx_test_LightDrawOrder PRIVATE
+  --use_fast_math --expt-relaxed-constexpr)
+add_test(NAME rtx::LightDrawOrder COMMAND rtx_test_LightDrawOrder)
+set_tests_properties(rtx::LightDrawOrder PROPERTIES TIMEOUT 60)
+
 # Production Sobol sampler against independently sourced Joe-Kuo parameters.
 add_executable(rtx_test_Sobol test_Sobol.cpp)
 add_executable(rtx_test_SobolCUDA test_SobolCUDA.cu)
