@@ -457,6 +457,14 @@ if (VISRTX_USE_SOVERSION)
       PROPERTIES VERSION "${CMAKE_PROJECT_VERSION}" SOVERSION "${CMAKE_PROJECT_VERSION_MAJOR}")
 endif()
 
+# The derived Sobol table and FastOwen operations retain upstream notices in
+# source and binary distributions, including builds with tests disabled.
+install(FILES
+  ${CMAKE_CURRENT_LIST_DIR}/../apps/tests/unit/sobol/LICENSE.pbrt
+  ${CMAKE_CURRENT_LIST_DIR}/../apps/tests/unit/sobol/LICENSE.joe-kuo
+  ${CMAKE_CURRENT_LIST_DIR}/../apps/tests/unit/sobol/NOTICE
+  DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/VisRTX/licenses/sobol)
+
 install(TARGETS ${PROJECT_NAME}
   EXPORT VisRTX_Exports
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
