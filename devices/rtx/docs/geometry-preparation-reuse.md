@@ -192,6 +192,9 @@ in the queue through descriptor allocation and registry publication; queued flag
 are cleared only after every publication completes. A host exception leaves the
 owners and queued flags available for retry, including already-drained results
 whose publication must be retried. Collection reentry remains refused.
+Committed input uploads are queued and collected by the same `PreparationQueue`
+transaction; their unwind step fails and drains the batch before the owners
+become collectable again.
 
 `TestPreparationQueue` tests this ownership transaction directly with throwing
 completion/publication callbacks, orphaned owners, retry and teardown. It does

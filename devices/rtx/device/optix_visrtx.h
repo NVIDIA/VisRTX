@@ -308,9 +308,10 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
   bool hasPendingGeometryPreparations() const;
 
  private:
-  std::vector<helium::IntrusivePtr<Geometry>> m_geometryInputUploads;
+  void failGeometryInputUploads();
+
+  PreparationQueue<helium::IntrusivePtr<Geometry>> m_geometryInputUploads;
   std::unordered_map<const Array *, helium::TimeStamp> m_geometryInputVersions;
-  bool m_collectingGeometryInputUploads{false};
   PreparationQueue<helium::IntrusivePtr<Geometry>> m_geometryPreparations;
 };
 

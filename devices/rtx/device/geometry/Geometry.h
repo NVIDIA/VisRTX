@@ -84,7 +84,7 @@ struct Geometry : public RegisteredObject<GeometryGPUData>
   void markPreparationCollected() noexcept;
   void retirePreparationSnapshot();
   void submitInputUploads();
-  void completeInputUploads();
+  void completeInputUploads() noexcept;
   void failInputUploads();
 
   virtual void populateBuildInput(OptixBuildInput &) const = 0;

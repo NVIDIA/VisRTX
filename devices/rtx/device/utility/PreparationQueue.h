@@ -38,22 +38,34 @@
 
 namespace visrtx {
 
-// Serialized preparation ownership and publication. Pointer is an owning
-// pointer; its object provides completePreparation() (retryable publication)
-// and noexcept markPreparationCollected(). Submission cannot append while a
-// collection is running. Reentrant collection is refused.
+// Owners of objects waiting for one stage of batched preparation (input
+// uploads, deferred preparation results). Pointer is an owning pointer.
+// collect() runs the stage as one transaction:
+//
+//   run(first)       Batch-wide work, including any per-object publication.
+//                    first is the oldest queued object. May throw.
+//   retire(object)   Per object, after run() returned. Must be noexcept.
+//   unwind()         Only if run() throws, while every owner is still queued.
+//                    Runs during stack unwinding, so it must not throw.
+//
+// Membership is released only after every object is retired, so a throw
+// leaves all owners queued for the next collection. Objects are released while
+// collecting() is still true, so their destructors cannot start another
+// collection. enqueue() is not allowed during a collection.
 template <typename Pointer>
-struct PreparationQueue
+class PreparationQueue
 {
-  // Returns the object's position, stable until the next collection retires it.
+ public:
+  // Returns the object's position, stable until a collection retires it.
   size_t enqueue(Pointer object);
   bool empty() const;
   size_t size() const;
   bool collecting() const;
   template <typename Function>
   void forEach(Function function);
-  template <typename Finish>
-  bool collect(Finish finish);
+  // Returns false, doing nothing, if a collection is already running.
+  template <typename Run, typename Retire, typename Unwind>
+  bool collect(Run run, Retire retire, Unwind unwind);
 
  private:
   std::vector<Pointer> m_pending;
@@ -95,34 +107,36 @@ inline void PreparationQueue<Pointer>::forEach(Function function)
 }
 
 template <typename Pointer>
-template <typename Finish>
-inline bool PreparationQueue<Pointer>::collect(Finish finish)
+template <typename Run, typename Retire, typename Unwind>
+inline bool PreparationQueue<Pointer>::collect(
+    Run run, Retire retire, Unwind unwind)
 {
   if (m_collecting)
     return false;
   if (m_pending.empty())
     return true;
   m_collecting = true;
-  auto collecting = nonstd::make_scope_exit([&] { m_collecting = false; });
-  // Keep owners here through both potentially throwing stages. If descriptor
-  // allocation or registry publication throws, raw jobs and queued flags still
-  // have owners, and another collection can retry without reallocating a queue.
-  finish(m_pending.front().operator->());
-  for (auto &object : m_pending)
-    object->completePreparation();
-  // Only retire queue membership after every publication succeeded. Earlier
-  // objects must remain queued if a later object's publication throws.
+  bool ran = false;
+  // unwind() runs from this guard during stack unwinding, so a throw from it
+  // terminates instead of replacing the original error.
+  auto collecting = nonstd::make_scope_exit([&] {
+    if (!ran)
+      unwind();
+    m_collecting = false;
+  });
+  run(m_pending.front().operator->());
+  ran = true;
   for (auto &object : m_pending) {
     auto *pointer = object.operator->();
-    static_assert(noexcept(pointer->markPreparationCollected()));
-    pointer->markPreparationCollected();
+    static_assert(noexcept(retire(pointer)),
+        "PreparationQueue retire() must be noexcept: a throw would leave "
+        "some objects retired and others not");
+    retire(pointer);
   }
-  // Remove membership before destructors/deleters can reenter the owner.
-  // Unlike the old pre-finish move, this happens only after GPU completion,
-  // successful publication and non-throwing flag retirement.
+  // Release owners only now, and keep the capacity for the next collection.
   auto retired = std::move(m_pending);
   retired.clear();
-  m_pending.swap(retired); // Reuse capacity without allocating on retry.
+  m_pending.swap(retired);
   return true;
 }
 

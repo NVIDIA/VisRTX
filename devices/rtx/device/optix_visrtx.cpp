@@ -30,7 +30,6 @@
  */
 
 #include "optix_visrtx.h"
-#include <nonstd/scope.hpp>
 #include "Object.h"
 #include "geometry/Geometry.h"
 
@@ -189,7 +188,7 @@ DeviceGlobalState::~DeviceGlobalState() = default;
 
 void DeviceGlobalState::enqueueGeometryInputUploads(Geometry *geometry)
 {
-  m_geometryInputUploads.emplace_back(geometry);
+  m_geometryInputUploads.enqueue(helium::IntrusivePtr<Geometry>(geometry));
 }
 
 cudaError_t DeviceGlobalState::stageGeometryArray(
@@ -206,59 +205,52 @@ cudaError_t DeviceGlobalState::stageGeometryArray(
 
 bool DeviceGlobalState::collectingGeometryInputUploads() const
 {
-  return m_collectingGeometryInputUploads;
+  return m_geometryInputUploads.collecting();
 }
 
 bool DeviceGlobalState::collectGeometryInputUploads()
 {
-  if (m_collectingGeometryInputUploads)
-    return false;
-  if (m_geometryInputUploads.empty())
-    return true;
-  m_collectingGeometryInputUploads = true;
-  bool completed = false;
-  auto collecting = nonstd::make_scope_exit([&] {
-    if (!completed) {
-      // A host allocation or callback can unwind after copies were submitted.
-      // Keep sources alive and drain before permitting public release again.
-      for (auto &geometry : m_geometryInputUploads)
-        geometry->failInputUploads();
-      finishGeometryPreparation();
-      m_geometryInputVersions.clear();
-    }
-    m_collectingGeometryInputUploads = false;
-  });
-  // Commits capture sources; the first geometry finalizer submits every input
-  // batch before waiting. No legacy finalizer sees partially uploaded arrays.
-  // Retire obsolete cached copies before allocating a whole replacement cohort.
-  // A single geometry retains the existing allocation/retirement order.
-  if (m_geometryInputUploads.size() > 1)
-    for (auto &geometry : m_geometryInputUploads)
-      geometry->retirePreparationSnapshot();
-  auto error = geometryInputAllocations->reclaim(
-      [&] { return finishGeometryPreparation(); });
-  if (error == cudaSuccess)
-    error = waitForRenderConsumers();
-  if (error == cudaSuccess) {
-    for (auto &geometry : m_geometryInputUploads)
-      geometry->submitInputUploads();
-    error = finishGeometryPreparation();
-  }
-  if (error != cudaSuccess) {
-    for (auto &geometry : m_geometryInputUploads)
-      geometry->failInputUploads();
-    failPreparation(m_geometryInputUploads.front().ptr,
-        error,
-        "geometry input batch completion");
-  }
-  completed = true;
-  m_geometryInputVersions.clear();
-  auto pending = std::move(m_geometryInputUploads);
-  for (auto &geometry : pending)
-    geometry->completeInputUploads();
-  pending.clear();
-  m_geometryInputUploads.swap(pending);
-  return true;
+  return m_geometryInputUploads.collect(
+      [&](Geometry *first) {
+        // Commits capture sources; the first geometry finalizer submits every
+        // input batch before waiting. No legacy finalizer sees partially
+        // uploaded arrays. Retire obsolete cached copies before allocating a
+        // whole replacement cohort. A single geometry retains the existing
+        // allocation/retirement order.
+        if (m_geometryInputUploads.size() > 1)
+          m_geometryInputUploads.forEach([](Geometry *geometry) {
+            geometry->retirePreparationSnapshot();
+          });
+        auto error = geometryInputAllocations->reclaim(
+            [&] { return finishGeometryPreparation(); });
+        if (error == cudaSuccess)
+          error = waitForRenderConsumers();
+        if (error == cudaSuccess) {
+          m_geometryInputUploads.forEach(
+              [](Geometry *geometry) { geometry->submitInputUploads(); });
+          error = finishGeometryPreparation();
+        }
+        if (error != cudaSuccess) {
+          failGeometryInputUploads();
+          failPreparation(first, error, "geometry input batch completion");
+        }
+        m_geometryInputVersions.clear();
+      },
+      [](Geometry *geometry) noexcept { geometry->completeInputUploads(); },
+      [&] {
+        // A host allocation or callback can unwind after copies were
+        // submitted. Keep sources alive and drain before permitting public
+        // release again.
+        failGeometryInputUploads();
+        finishGeometryPreparation();
+        m_geometryInputVersions.clear();
+      });
+}
+
+void DeviceGlobalState::failGeometryInputUploads()
+{
+  m_geometryInputUploads.forEach(
+      [](Geometry *geometry) { geometry->failInputUploads(); });
 }
 
 cudaError_t DeviceGlobalState::waitForRenderConsumers()
@@ -278,13 +270,13 @@ size_t DeviceGlobalState::enqueueGeometryPreparation(Geometry *geometry)
 bool DeviceGlobalState::collectingGeometryPreparations() const
 {
   return m_geometryPreparations.collecting()
-      || m_collectingGeometryInputUploads;
+      || m_geometryInputUploads.collecting();
 }
 
 bool DeviceGlobalState::hasPendingGeometryPreparations() const
 {
   return m_geometryPreparations.collecting() || !m_geometryPreparations.empty()
-      || m_collectingGeometryInputUploads;
+      || m_geometryInputUploads.collecting();
 }
 
 cudaError_t DeviceGlobalState::finishGeometryPreparation()
@@ -305,8 +297,7 @@ cudaError_t DeviceGlobalState::finishGeometryPreparation()
     // point. Its stream-completion error affects all already queued results.
     m_geometryPreparations.forEach(
         [](Geometry *geometry) { geometry->markPreparationFailed(); });
-    for (auto &geometry : m_geometryInputUploads)
-      geometry->failInputUploads();
+    failGeometryInputUploads();
   }
   return error;
 }
@@ -315,15 +306,21 @@ bool DeviceGlobalState::collectGeometryPreparations()
 {
   if (!collectGeometryInputUploads())
     return false;
-  return m_geometryPreparations.collect([&](Geometry *first) {
-    // Owners remain in the queue if descriptor allocation or later registry
-    // publication throws. CUDA failure still invalidates the pending batch
-    // before reporting, so callbacks cannot see a partially valid generation.
-    const auto error = finishGeometryPreparation();
-    if (error != cudaSuccess)
-      failPreparation(first, error, "batch completion");
-    // Numeric failures remain local to their geometries during publication.
-  });
+  // Owners remain queued if descriptor allocation or registry publication
+  // throws. CUDA failure still invalidates the pending batch before reporting,
+  // so callbacks cannot see a partially valid generation. Numeric failures
+  // remain local to their geometries during publication. Every publication
+  // must succeed before any geometry leaves the queue.
+  return m_geometryPreparations.collect(
+      [&](Geometry *first) {
+        const auto error = finishGeometryPreparation();
+        if (error != cudaSuccess)
+          failPreparation(first, error, "batch completion");
+        m_geometryPreparations.forEach(
+            [](Geometry *geometry) { geometry->completePreparation(); });
+      },
+      [](Geometry *geometry) noexcept { geometry->markPreparationCollected(); },
+      [] {});
 }
 
 cudaError_t DeviceGlobalState::DeviceObjectRegistry::upload(
