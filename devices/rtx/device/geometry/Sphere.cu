@@ -79,7 +79,7 @@ void Sphere::finalize()
       ? m_vertexRadius->beginAs<float>(AddressSpace::GPU)
       : nullptr;
   input.radius = m_globalRadius;
-  if (!m_preprocessing.bounds(this, input, m_aabbs, m_epsilonScale))
+  if (!m_preprocessing.bounds(this, input, m_aabbs))
     return;
   m_aabbsBufferPtr = (CUdeviceptr)m_aabbs.ptr();
 
@@ -89,10 +89,8 @@ void Sphere::finalize()
   m_areaDataValid = false;
   if (m_areaDataWanted)
     buildAreaData();
-  else {
-    m_totalArea = 0.f;
-    m_primAreaCdf.reset();
-  }
+  else
+    m_preprocessing.releaseAreas();
 
   if (!preparationFailed())
     upload();
@@ -109,8 +107,7 @@ void Sphere::buildAreaData()
   input.indices =
       m_index ? m_index->beginAs<uint32_t>(AddressSpace::GPU) : nullptr;
   input.radius = m_globalRadius;
-  m_areaDataValid =
-      m_preprocessing.areas(this, input, m_primAreaCdf, m_totalArea);
+  m_areaDataValid = m_preprocessing.areas(this, input);
 }
 
 bool Sphere::isAreaSamplingSupported() const
@@ -130,7 +127,7 @@ void Sphere::ensureAreaData()
 
 float Sphere::totalArea() const
 {
-  return m_totalArea;
+  return m_preprocessing.totalArea();
 }
 
 bool Sphere::isValid() const
@@ -168,10 +165,9 @@ GeometryGPUData Sphere::gpuData() const
   populateAttributeDataSet(m_vertexAttributes, sphere.vertexAttr);
 
   // Geometry Light sampling data; null/zero until ensureAreaData() runs.
-  sphere.primAreaCdf =
-      m_totalArea > 0.f ? m_primAreaCdf.ptrAs<float>() : nullptr;
-  sphere.numPrimitives = m_totalArea > 0.f ? uint32_t(m_numSpheres) : 0;
-  sphere.totalArea = m_totalArea;
+  sphere.primAreaCdf = m_preprocessing.areaCdf();
+  sphere.numPrimitives = sphere.primAreaCdf ? uint32_t(m_numSpheres) : 0;
+  sphere.totalArea = m_preprocessing.totalArea();
 
   return retval;
 }

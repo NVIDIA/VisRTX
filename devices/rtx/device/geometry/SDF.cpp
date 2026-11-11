@@ -112,7 +112,7 @@ void SDF::finalize()
   input.blendFactor = m_blendFactor;
   input.blendLerpFactor = m_blendLerpFactor;
   input.noiseFactor = m_noiseFactor;
-  if (!m_preprocessing.bounds(this, input, m_aabbs, m_epsilonScale))
+  if (!m_preprocessing.bounds(this, input, m_aabbs))
     return;
   m_aabbsBufferPtr = (CUdeviceptr)m_aabbs.ptr();
 

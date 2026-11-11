@@ -107,7 +107,7 @@ void Cylinder::finalize()
       "finalizing %s cylinder geometry",
       m_index ? "indexed" : "soup");
 
-  if (!m_preprocessing.bounds(this, primitiveInput(), m_aabbs, m_epsilonScale))
+  if (!m_preprocessing.bounds(this, primitiveInput(), m_aabbs))
     return;
   m_aabbsBufferPtr = (CUdeviceptr)m_aabbs.ptr();
 
@@ -117,10 +117,8 @@ void Cylinder::finalize()
   m_areaDataValid = false;
   if (m_areaDataWanted)
     buildAreaData();
-  else {
-    m_totalArea = 0.f;
-    m_primAreaCdf.reset();
-  }
+  else
+    m_preprocessing.releaseAreas();
 
   if (!preparationFailed())
     upload();
@@ -128,8 +126,7 @@ void Cylinder::finalize()
 
 void Cylinder::buildAreaData()
 {
-  m_areaDataValid =
-      m_preprocessing.areas(this, primitiveInput(), m_primAreaCdf, m_totalArea);
+  m_areaDataValid = m_preprocessing.areas(this, primitiveInput());
 }
 
 bool Cylinder::isAreaSamplingSupported() const
@@ -149,7 +146,7 @@ void Cylinder::ensureAreaData()
 
 float Cylinder::totalArea() const
 {
-  return m_totalArea;
+  return m_preprocessing.totalArea();
 }
 
 bool Cylinder::isValid() const
@@ -190,11 +187,10 @@ GeometryGPUData Cylinder::gpuData() const
   populateAttributeDataSet(m_vertexAttributes, cylinder.vertexAttr);
 
   // Geometry Light sampling data; null/zero until ensureAreaData() runs.
-  cylinder.primAreaCdf =
-      m_totalArea > 0.f ? m_primAreaCdf.ptrAs<float>() : nullptr;
+  cylinder.primAreaCdf = m_preprocessing.areaCdf();
   cylinder.numPrimitives =
-      m_totalArea > 0.f ? uint32_t(primitiveInput().count) : 0;
-  cylinder.totalArea = m_totalArea;
+      cylinder.primAreaCdf ? uint32_t(primitiveInput().count) : 0;
+  cylinder.totalArea = m_preprocessing.totalArea();
 
   return retval;
 }

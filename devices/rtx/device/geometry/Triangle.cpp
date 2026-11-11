@@ -159,10 +159,8 @@ void Triangle::finalize()
   m_areaDataValid = false;
   if (m_areaDataWanted)
     buildAreaData();
-  else {
-    m_totalArea = 0.f;
-    m_primAreaCdf.reset();
-  }
+  else
+    m_preprocessing.releaseAreas();
 
   if (!preparationFailed())
     upload();
@@ -175,8 +173,7 @@ void Triangle::buildAreaData()
   input.vertices = m_vertex->beginAs<vec3>(AddressSpace::GPU);
   input.indices =
       m_index ? m_index->beginAs<uvec3>(AddressSpace::GPU) : nullptr;
-  m_areaDataValid =
-      m_preprocessing.areas(this, input, m_primAreaCdf, m_totalArea);
+  m_areaDataValid = m_preprocessing.areas(this, input);
 }
 
 bool Triangle::isAreaSamplingSupported() const
@@ -196,7 +193,7 @@ void Triangle::ensureAreaData()
 
 float Triangle::totalArea() const
 {
-  return m_totalArea;
+  return m_preprocessing.totalArea();
 }
 
 void Triangle::populateBuildInput(OptixBuildInput &buildInput) const
@@ -260,11 +257,11 @@ GeometryGPUData Triangle::gpuData() const
   tri.cullBackfaces = m_cullBackfaces;
 
   // Geometry Light sampling data; null/zero until ensureAreaData() runs.
-  tri.primAreaCdf = m_totalArea > 0.f ? m_primAreaCdf.ptrAs<float>() : nullptr;
-  tri.numPrimitives = m_totalArea > 0.f
+  tri.primAreaCdf = m_preprocessing.areaCdf();
+  tri.numPrimitives = tri.primAreaCdf
       ? uint32_t(m_index ? m_index->size() : m_vertex->size() / 3)
       : 0;
-  tri.totalArea = m_totalArea;
+  tri.totalArea = m_preprocessing.totalArea();
 
   return retval;
 }
