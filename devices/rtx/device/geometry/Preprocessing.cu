@@ -45,47 +45,85 @@ namespace visrtx {
 namespace {
 using Result = PreparationResult;
 
-VISRTX_DEVICE double primitiveArea(PrimitiveInput in, size_t i)
+VISRTX_DEVICE double triangleArea(const TriangleInput &in, size_t i)
 {
-  double area;
-  if (in.type == GeometryType::SPHERE) {
-    const auto *indices = static_cast<const uint32_t *>(in.indices);
-    const uint32_t v = indices ? indices[i] : uint32_t(i);
-    const float r = glm::abs(in.radii ? in.radii[v] : in.radius);
-    area = 4.0 * double(kPi) * double(r) * double(r);
-  } else if (in.type == GeometryType::CONE
-      || in.type == GeometryType::CYLINDER) {
-    const auto *indices = static_cast<const uvec2 *>(in.indices);
-    const uvec2 c = indices ? indices[i] : uvec2(2 * i, 2 * i + 1);
-    const bool cone = in.type == GeometryType::CONE;
-    const double r0 =
-        double(glm::abs(in.radii ? in.radii[cone ? c.x : i] : in.radius));
-    const double r1 = cone ? double(glm::abs(in.radii[c.y])) : r0;
-    const double len = double(glm::length(in.vertices[c.y] - in.vertices[c.x]));
-    const bool cap0 = in.caps ? in.caps[c.x] != 0 : in.capFlags & CAP_FIRST;
-    const bool cap1 = in.caps ? in.caps[c.y] != 0 : in.capFlags & CAP_SECOND;
-    area = 0.0;
-    if (len > 0.0 && (cone || r0 > 0.0)) {
-      area = cone
-          ? double(kPi) * (r0 + r1) * sqrt(len * len + (r0 - r1) * (r0 - r1))
-          : 2.0 * double(kPi) * r0 * len;
-      if (cap0)
-        area += double(kPi) * r0 * r0;
-      if (cap1)
-        area += double(kPi) * r1 * r1;
-    }
-  } else {
-    const auto *indices = static_cast<const uvec3 *>(in.indices);
-    const uvec3 t = indices ? indices[i] : uvec3(0, 1, 2) + uint32_t(3 * i);
-    area = 0.5
-        * glm::length(glm::cross(in.vertices[t.y] - in.vertices[t.x],
-            in.vertices[t.z] - in.vertices[t.x]));
-  }
+  const uvec3 t = in.indices ? in.indices[i] : uvec3(0, 1, 2) + uint32_t(3 * i);
+  const vec3 a = in.vertices[t.x], b = in.vertices[t.y], c = in.vertices[t.z];
+  return 0.5 * glm::length(glm::cross(b - a, c - a));
+}
+
+VISRTX_DEVICE double sphereArea(const SphereInput &in, size_t i)
+{
+  const uint32_t v = in.indices ? in.indices[i] : uint32_t(i);
+  const double r = glm::abs(in.radii ? in.radii[v] : in.radius);
+  return 4.0 * double(kPi) * r * r;
+}
+
+VISRTX_DEVICE uvec2 segmentEndpoints(const SegmentInput &in, size_t i)
+{
+  return in.indices ? in.indices[i] : uvec2(2 * i, 2 * i + 1);
+}
+
+VISRTX_DEVICE double segmentLength(const SegmentInput &in, uvec2 c)
+{
+  return double(glm::length(in.vertices[c.y] - in.vertices[c.x]));
+}
+
+// Adds the disk areas of a segment's capped ends, of radii r0 and r1, to its
+// side area.
+VISRTX_DEVICE double addCapAreas(
+    double side, const SegmentInput &in, uvec2 c, double r0, double r1)
+{
+  const bool cap0 = in.caps ? in.caps[c.x] != 0 : in.capFlags & CAP_FIRST;
+  const bool cap1 = in.caps ? in.caps[c.y] != 0 : in.capFlags & CAP_SECOND;
+  double area = side;
+  if (cap0)
+    area += double(kPi) * r0 * r0;
+  if (cap1)
+    area += double(kPi) * r1 * r1;
   return area;
 }
 
+VISRTX_DEVICE double coneArea(const ConeInput &in, size_t i)
+{
+  const uvec2 c = segmentEndpoints(in.segments, i);
+  const double r0 = glm::abs(in.radii[c.x]);
+  const double r1 = glm::abs(in.radii[c.y]);
+  const double len = segmentLength(in.segments, c);
+  if (!(len > 0.0))
+    return 0.0;
+  const double slant = sqrt(len * len + (r0 - r1) * (r0 - r1));
+  return addCapAreas(double(kPi) * (r0 + r1) * slant, in.segments, c, r0, r1);
+}
+
+VISRTX_DEVICE double cylinderArea(const CylinderInput &in, size_t i)
+{
+  const uvec2 c = segmentEndpoints(in.segments, i);
+  const double r = glm::abs(in.radii ? in.radii[i] : in.radius);
+  const double len = segmentLength(in.segments, c);
+  if (!(len > 0.0 && r > 0.0))
+    return 0.0;
+  return addCapAreas(2.0 * double(kPi) * r * len, in.segments, c, r, r);
+}
+
+VISRTX_DEVICE double primitiveArea(const PrimitiveInput &in, size_t i)
+{
+  switch (in.type) {
+  case GeometryType::TRIANGLE:
+    return triangleArea(in.triangle, i);
+  case GeometryType::SPHERE:
+    return sphereArea(in.sphere, i);
+  case GeometryType::CONE:
+    return coneArea(in.cone, i);
+  case GeometryType::CYLINDER:
+    return cylinderArea(in.cylinder, i);
+  default:
+    return NAN; // No area sampling; fails the area validation.
+  }
+}
+
 VISRTX_GLOBAL void primitiveAreas(
-    PrimitiveInput in, double *areas, Result *result)
+    const PrimitiveInput in, double *areas, Result *result)
 {
   const size_t i = size_t(blockIdx.x) * blockDim.x + threadIdx.x;
   if (i >= in.count)
@@ -149,45 +187,37 @@ VISRTX_DEVICE box3 computeSDFPrimitiveAABB(const SDFPrimitive &g)
   }
 }
 
-VISRTX_DEVICE Result primitiveBound(PrimitiveInput in, size_t i, box3 &bound)
+VISRTX_DEVICE Result sdfBound(const SDFInput &in, size_t i, box3 &bound)
 {
-  Result result{};
-  if (in.type == GeometryType::SDF) {
-    const SDFPrimitive &g = in.sdf[i];
-    box3 b = computeSDFPrimitiveAABB(g);
-    float padding = in.noiseFactor * glm::max(0.f, g.r0) * 0.1f;
-    if (g.numNeighbours > 0) {
-      const float r0 = glm::max(0.f, g.r0);
-      const float r1 = glm::max(0.f, g.r1 >= 0.f ? g.r1 : g.r0);
-      padding +=
-          glm::mix(glm::min(r0, r1), glm::max(r0, r1), in.blendLerpFactor)
-          * in.blendFactor;
-    }
-    b.lower -= padding;
-    b.upper += padding;
-    bound = b;
-    for (int axis = 0; axis < 3; ++axis) {
-      if (!isfinite(b.lower[axis]) || !isfinite(b.upper[axis]))
-        result.invalid = 1u;
-    }
-    return result;
+  const SDFPrimitive &g = in.primitives[i];
+  box3 b = computeSDFPrimitiveAABB(g);
+  float padding = in.noiseFactor * glm::max(0.f, g.r0) * 0.1f;
+  if (g.numNeighbours > 0) {
+    const float r0 = glm::max(0.f, g.r0);
+    const float r1 = glm::max(0.f, g.r1 >= 0.f ? g.r1 : g.r0);
+    padding += glm::mix(glm::min(r0, r1), glm::max(r0, r1), in.blendLerpFactor)
+        * in.blendFactor;
   }
-  const bool sphere = in.type == GeometryType::SPHERE;
-  const auto *indices = static_cast<const uvec2 *>(in.indices);
-  const auto *sphereIndices = static_cast<const uint32_t *>(in.indices);
-  const size_t center = sphere ? (sphereIndices ? sphereIndices[i] : i) : 0;
-  const uvec2 c = sphere ? uvec2(center)
-      : indices          ? indices[i]
-                         : uvec2(2 * i, 2 * i + 1);
-  const bool cone = in.type == GeometryType::CONE;
-  const float r = cone
-      ? glm::max(glm::abs(in.radii[c.x]), glm::abs(in.radii[c.y]))
-      : glm::abs(in.radii ? in.radii[sphere ? center : i] : in.radius);
-  const vec3 v0 = in.vertices[c.x], v1 = in.vertices[c.y];
+  b.lower -= padding;
+  b.upper += padding;
+  bound = b;
+  Result result{};
+  for (int axis = 0; axis < 3; ++axis) {
+    if (!isfinite(b.lower[axis]) || !isfinite(b.upper[axis]))
+      result.invalid = 1u;
+  }
+  return result; // SDF bounds carry no epsilon scale.
+}
+
+// Bounds of the sphere of radius r swept from v0 to v1, with the largest
+// coordinate magnitude as the epsilon scale.
+VISRTX_DEVICE Result sweptSphereBound(vec3 v0, vec3 v1, float r, box3 &bound)
+{
   const box3 b(glm::min(v0, v1) - r, glm::max(v0, v1) + r);
   bound = b;
   const vec3 m = glm::max(glm::abs(b.lower), glm::abs(b.upper));
   const float scale = glm::max(m.x, glm::max(m.y, m.z));
+  Result result{};
   if (!isfinite(r) || !isfinite(v0.x) || !isfinite(v0.y) || !isfinite(v0.z)
       || !isfinite(v1.x) || !isfinite(v1.y) || !isfinite(v1.z)
       || !isfinite(scale))
@@ -197,8 +227,49 @@ VISRTX_DEVICE Result primitiveBound(PrimitiveInput in, size_t i, box3 &bound)
   return result;
 }
 
+VISRTX_DEVICE Result sphereBound(const SphereInput &in, size_t i, box3 &bound)
+{
+  const size_t v = in.indices ? in.indices[i] : i;
+  const float r = glm::abs(in.radii ? in.radii[v] : in.radius);
+  return sweptSphereBound(in.vertices[v], in.vertices[v], r, bound);
+}
+
+VISRTX_DEVICE Result coneBound(const ConeInput &in, size_t i, box3 &bound)
+{
+  const uvec2 c = segmentEndpoints(in.segments, i);
+  const float r = glm::max(glm::abs(in.radii[c.x]), glm::abs(in.radii[c.y]));
+  const vec3 *v = in.segments.vertices;
+  return sweptSphereBound(v[c.x], v[c.y], r, bound);
+}
+
+VISRTX_DEVICE Result cylinderBound(
+    const CylinderInput &in, size_t i, box3 &bound)
+{
+  const uvec2 c = segmentEndpoints(in.segments, i);
+  const float r = glm::abs(in.radii ? in.radii[i] : in.radius);
+  const vec3 *v = in.segments.vertices;
+  return sweptSphereBound(v[c.x], v[c.y], r, bound);
+}
+
+VISRTX_DEVICE Result primitiveBound(
+    const PrimitiveInput &in, size_t i, box3 &bound)
+{
+  switch (in.type) {
+  case GeometryType::SPHERE:
+    return sphereBound(in.sphere, i, bound);
+  case GeometryType::CONE:
+    return coneBound(in.cone, i, bound);
+  case GeometryType::CYLINDER:
+    return cylinderBound(in.cylinder, i, bound);
+  case GeometryType::SDF:
+    return sdfBound(in.sdf, i, bound);
+  default:
+    return {0.f, 1u}; // No custom-primitive bounds.
+  }
+}
+
 VISRTX_GLOBAL void primitiveBounds(
-    PrimitiveInput in, box3 *bounds, Result *result)
+    const PrimitiveInput in, box3 *bounds, Result *result)
 {
   const size_t i = size_t(blockIdx.x) * blockDim.x + threadIdx.x;
   if (i >= in.count)
@@ -282,6 +353,25 @@ VISRTX_GLOBAL void curveRadii(size_t n, float radius, float *out)
     out[i] = radius;
 }
 } // namespace
+
+size_t segmentCount(const Array1D &vertices, const Array1D *indices)
+{
+  return indices ? indices->size() : vertices.size() / 2;
+}
+
+SegmentInput segmentInput(const Array1D &vertices,
+    const Array1D *indices,
+    const Array1D *caps,
+    uint8_t capFlags)
+{
+  SegmentInput input{};
+  input.vertices = vertices.beginAs<vec3>(AddressSpace::GPU);
+  input.indices =
+      indices ? indices->beginAs<uvec2>(AddressSpace::GPU) : nullptr;
+  input.caps = caps ? caps->beginAs<uint8_t>(AddressSpace::GPU) : nullptr;
+  input.capFlags = capFlags;
+  return input;
+}
 
 bool generateQuadIndices(
     Geometry *g, const uvec4 *indices, size_t n, DeviceBuffer &out)
