@@ -37,6 +37,7 @@
 
 #include <anari/anari_cpp/ext/linalg.h>
 #include <mi/neuraylib/target_code_types.h>
+#include <mi/neuraylib/version.h>
 #include <optix_device.h>
 #include <glm/ext/matrix_float2x4.hpp>
 #include <glm/ext/vector_float4.hpp>
@@ -60,10 +61,17 @@ using EmissionIntensityExprFunc = mi::neuraylib::Material_function<vec3>::Type;
 using ShadingStateMaterial = mi::neuraylib::Shading_state_material;
 using ResourceData = mi::neuraylib::Resource_data;
 
+#if MI_NEURAYLIB_API_VERSION >= 58
+// MDL-SDK 2026.0.0 added a color-mode template parameter (default: RGB).
+using BsdfSampleData = mi::neuraylib::Bsdf_sample_data<>;
+using BsdfPdfData = mi::neuraylib::Bsdf_pdf_data<>;
+#else
 using BsdfSampleData = mi::neuraylib::Bsdf_sample_data;
+using BsdfPdfData = mi::neuraylib::Bsdf_pdf_data;
+#endif
+
 using BsdfEvaluateData =
     mi::neuraylib::Bsdf_evaluate_data<mi::neuraylib::DF_HSM_NONE>;
-using BsdfPdfData = mi::neuraylib::Bsdf_pdf_data;
 using BsdfAuxiliaryData =
     mi::neuraylib::Bsdf_auxiliary_data<mi::neuraylib::DF_HSM_NONE>;
 
