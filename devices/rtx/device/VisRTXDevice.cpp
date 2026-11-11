@@ -117,7 +117,7 @@ const char **query_extensions();
 
 void *VisRTXDevice::mapArray(ANARIArray a)
 {
-  if (!initDevice())
+  if (refuseIfDisabled("anariMapArray") || !initDevice())
     return nullptr;
   CUDADeviceScope ds(this);
   return helium::BaseDevice::mapArray(a);
@@ -125,7 +125,7 @@ void *VisRTXDevice::mapArray(ANARIArray a)
 
 void VisRTXDevice::unmapArray(ANARIArray a)
 {
-  if (!initDevice())
+  if (refuseIfDisabled("anariUnmapArray") || !initDevice())
     return;
   CUDADeviceScope ds(this);
   helium::BaseDevice::unmapArray(a);
@@ -139,7 +139,7 @@ ANARIArray1D VisRTXDevice::newArray1D(const void *appMemory,
     ANARIDataType type,
     uint64_t numItems)
 {
-  if (!initDevice())
+  if (refuseIfDisabled("anariNewArray1D") || !initDevice())
     return {};
   CUDADeviceScope ds(this);
 
@@ -163,7 +163,7 @@ ANARIArray2D VisRTXDevice::newArray2D(const void *appMemory,
     uint64_t numItems1,
     uint64_t numItems2)
 {
-  if (!initDevice())
+  if (refuseIfDisabled("anariNewArray2D") || !initDevice())
     return {};
   CUDADeviceScope ds(this);
 
@@ -186,7 +186,7 @@ ANARIArray3D VisRTXDevice::newArray3D(const void *appMemory,
     uint64_t numItems2,
     uint64_t numItems3)
 {
-  if (!initDevice())
+  if (refuseIfDisabled("anariNewArray3D") || !initDevice())
     return {};
   CUDADeviceScope ds(this);
 
@@ -204,7 +204,7 @@ ANARIArray3D VisRTXDevice::newArray3D(const void *appMemory,
 
 ANARICamera VisRTXDevice::newCamera(const char *subtype)
 {
-  if (!initDevice())
+  if (refuseIfDisabled("anariNewCamera") || !initDevice())
     return {};
   CUDADeviceScope ds(this);
   return (ANARICamera)Camera::createInstance(subtype, deviceState());
@@ -212,7 +212,7 @@ ANARICamera VisRTXDevice::newCamera(const char *subtype)
 
 ANARIFrame VisRTXDevice::newFrame()
 {
-  if (!initDevice())
+  if (refuseIfDisabled("anariNewFrame") || !initDevice())
     return {};
   CUDADeviceScope ds(this);
   return (ANARIFrame) new Frame(deviceState());
@@ -220,7 +220,7 @@ ANARIFrame VisRTXDevice::newFrame()
 
 ANARIGeometry VisRTXDevice::newGeometry(const char *subtype)
 {
-  if (!initDevice())
+  if (refuseIfDisabled("anariNewGeometry") || !initDevice())
     return {};
   CUDADeviceScope ds(this);
   return (ANARIGeometry)Geometry::createInstance(subtype, deviceState());
@@ -228,7 +228,7 @@ ANARIGeometry VisRTXDevice::newGeometry(const char *subtype)
 
 ANARIGroup VisRTXDevice::newGroup()
 {
-  if (!initDevice())
+  if (refuseIfDisabled("anariNewGroup") || !initDevice())
     return {};
   CUDADeviceScope ds(this);
   return (ANARIGroup) new Group(deviceState());
@@ -236,7 +236,7 @@ ANARIGroup VisRTXDevice::newGroup()
 
 ANARIInstance VisRTXDevice::newInstance(const char *type)
 {
-  if (!initDevice())
+  if (refuseIfDisabled("anariNewInstance") || !initDevice())
     return {};
   CUDADeviceScope ds(this);
   return (ANARIInstance) new Instance(deviceState());
@@ -244,7 +244,7 @@ ANARIInstance VisRTXDevice::newInstance(const char *type)
 
 ANARILight VisRTXDevice::newLight(const char *subtype)
 {
-  if (!initDevice())
+  if (refuseIfDisabled("anariNewLight") || !initDevice())
     return {};
   CUDADeviceScope ds(this);
   return (ANARILight)Light::createInstance(subtype, deviceState());
@@ -252,7 +252,7 @@ ANARILight VisRTXDevice::newLight(const char *subtype)
 
 ANARIMaterial VisRTXDevice::newMaterial(const char *subtype)
 {
-  if (!initDevice())
+  if (refuseIfDisabled("anariNewMaterial") || !initDevice())
     return {};
   CUDADeviceScope ds(this);
   return (ANARIMaterial)Material::createInstance(subtype, deviceState());
@@ -260,7 +260,7 @@ ANARIMaterial VisRTXDevice::newMaterial(const char *subtype)
 
 ANARIRenderer VisRTXDevice::newRenderer(const char *subtype)
 {
-  if (!initDevice())
+  if (refuseIfDisabled("anariNewRenderer") || !initDevice())
     return {};
   CUDADeviceScope ds(this);
   return (ANARIRenderer)Renderer::createInstance(subtype, deviceState());
@@ -268,7 +268,7 @@ ANARIRenderer VisRTXDevice::newRenderer(const char *subtype)
 
 ANARISampler VisRTXDevice::newSampler(const char *subtype)
 {
-  if (!initDevice())
+  if (refuseIfDisabled("anariNewSampler") || !initDevice())
     return {};
   CUDADeviceScope ds(this);
   return (ANARISampler)Sampler::createInstance(subtype, deviceState());
@@ -276,7 +276,7 @@ ANARISampler VisRTXDevice::newSampler(const char *subtype)
 
 ANARISpatialField VisRTXDevice::newSpatialField(const char *subtype)
 {
-  if (!initDevice())
+  if (refuseIfDisabled("anariNewSpatialField") || !initDevice())
     return {};
   CUDADeviceScope ds(this);
   return (ANARISpatialField)SpatialField::createInstance(
@@ -285,7 +285,7 @@ ANARISpatialField VisRTXDevice::newSpatialField(const char *subtype)
 
 ANARISurface VisRTXDevice::newSurface()
 {
-  if (!initDevice())
+  if (refuseIfDisabled("anariNewSurface") || !initDevice())
     return {};
   CUDADeviceScope ds(this);
   return (ANARISurface) new Surface(deviceState());
@@ -293,7 +293,7 @@ ANARISurface VisRTXDevice::newSurface()
 
 ANARIVolume VisRTXDevice::newVolume(const char *subtype)
 {
-  if (!initDevice())
+  if (refuseIfDisabled("anariNewVolume") || !initDevice())
     return {};
   CUDADeviceScope ds(this);
   return (ANARIVolume)Volume::createInstance(subtype, deviceState());
@@ -301,7 +301,7 @@ ANARIVolume VisRTXDevice::newVolume(const char *subtype)
 
 ANARIWorld VisRTXDevice::newWorld()
 {
-  if (!initDevice())
+  if (refuseIfDisabled("anariNewWorld") || !initDevice())
     return {};
   CUDADeviceScope ds(this);
   return (ANARIWorld) new World(deviceState());
@@ -346,11 +346,8 @@ int VisRTXDevice::getProperty(ANARIObject object,
     uint64_t size,
     uint32_t mask)
 {
-  // A status callback during collection must not flush/re-finalize geometry
-  // whose readbacks and registry publication are still being resolved.
-  if (deviceState()->collectingGeometryPreparations())
-    return 0;
-  if (!initDevice())
+  if (refuseDuringCollection("anariGetProperty")
+      || refuseIfDisabled("anariGetProperty") || !initDevice())
     return 0;
   CUDADeviceScope ds(this);
   return helium::BaseDevice::getProperty(object, name, type, mem, size, mask);
@@ -364,7 +361,7 @@ const void *VisRTXDevice::frameBufferMap(ANARIFrame f,
     uint32_t *height,
     ANARIDataType *pixelType)
 {
-  if (!initDevice()) {
+  if (refuseIfDisabled("anariMapFrame") || !initDevice()) {
     *width = 0;
     *height = 0;
     *pixelType = ANARI_UNKNOWN;
@@ -379,9 +376,8 @@ const void *VisRTXDevice::frameBufferMap(ANARIFrame f,
 
 void VisRTXDevice::renderFrame(ANARIFrame f)
 {
-  if (deviceState()->collectingGeometryPreparations())
-    return;
-  if (!initDevice())
+  if (refuseDuringCollection("anariRenderFrame")
+      || refuseIfDisabled("anariRenderFrame") || !initDevice())
     return;
   CUDADeviceScope ds(this);
   helium::BaseDevice::renderFrame(f);
@@ -389,7 +385,7 @@ void VisRTXDevice::renderFrame(ANARIFrame f)
 
 int VisRTXDevice::frameReady(ANARIFrame f, ANARIWaitMask m)
 {
-  if (!initDevice())
+  if (refuseIfDisabled("anariFrameReady") || !initDevice())
     return 1;
   CUDADeviceScope ds(this);
   return helium::BaseDevice::frameReady(f, m);
@@ -397,7 +393,7 @@ int VisRTXDevice::frameReady(ANARIFrame f, ANARIWaitMask m)
 
 void VisRTXDevice::discardFrame(ANARIFrame f)
 {
-  if (!initDevice())
+  if (refuseIfDisabled("anariDiscardFrame") || !initDevice())
     return;
   CUDADeviceScope ds(this);
   return helium::BaseDevice::discardFrame(f);
@@ -464,13 +460,50 @@ VisRTXDevice::~VisRTXDevice()
   cudaStreamDestroy(state.stream);
 }
 
+bool VisRTXDevice::refuseIfDisabled(const char *call) const
+{
+  // A failed last-reference array copy (Array::privatize) disables the device
+  // for good: cached GPU pointers may alias freed application memory. The
+  // failure itself is reported once there; each refused call says so here so
+  // a missing object or frame is never silent.
+  if (!deviceState()->arrayPrivatizationFailed)
+    return false;
+  reportRefusal(ANARI_SEVERITY_ERROR,
+      call,
+      "refused: device disabled after array privatization failure; "
+      "create a new device");
+  return true;
+}
+
+bool VisRTXDevice::refuseDuringCollection(const char *call) const
+{
+  // A status callback reported while geometry preparations are collected must
+  // not flush or re-finalize geometry whose readbacks and registry publication
+  // are still being resolved, so such reentrant calls do nothing.
+  if (!deviceState()->collectingGeometryPreparations())
+    return false;
+  reportRefusal(ANARI_SEVERITY_WARNING,
+      call,
+      "ignored: geometry preparations are being collected "
+      "(reentered from a status callback?)");
+  return true;
+}
+
+void VisRTXDevice::reportRefusal(
+    ANARIStatusSeverity severity, const char *call, const char *reason) const
+{
+  // The report runs the status callback, which may call back into a refused
+  // entry point; report only the outermost refusal on this thread.
+  static thread_local bool reporting = false;
+  if (reporting)
+    return;
+  reporting = true;
+  reportMessage(severity, "%s %s", call, reason);
+  reporting = false;
+}
+
 bool VisRTXDevice::initDevice()
 {
-  if (deviceState()->arrayPrivatizationFailed) {
-    reportMessage(ANARI_SEVERITY_ERROR,
-        "device disabled after array privatization failure; create a new device");
-    return false;
-  }
   if (m_initStatus == DeviceInitStatus::SUCCESS)
     return true;
   else if (m_initStatus == DeviceInitStatus::FAILURE) {

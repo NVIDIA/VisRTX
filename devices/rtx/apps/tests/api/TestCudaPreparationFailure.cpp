@@ -47,6 +47,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <mutex>
+#include <string>
 #include <thread>
 #include <vector>
 #include "../../../device/geometry/PreparationResults.h"
@@ -91,6 +92,8 @@ Failure failure = Failure::NONE;
 size_t allocationBytes = 0;
 int injections = 0;
 int errors = 0;
+int disableReports = 0;
+std::vector<std::string> disabledRefusals;
 std::atomic<int> completions{0};
 
 struct PendingCompletion
@@ -159,7 +162,20 @@ void status(const void *,
         pendingCompletion.failed && !pendingCompletion.drained;
     ++errors;
     fprintf(stderr, "%s\n", message);
+    if (std::strstr(message, "array privatization failed"))
+      ++disableReports;
+    else if (std::strstr(message, "device disabled"))
+      disabledRefusals.emplace_back(message);
   }
+}
+
+// The disable is reported once; each later call reports its own refusal.
+bool refusedWhileDisabled(const char *call)
+{
+  for (const auto &message : disabledRefusals)
+    if (message.find(call) != std::string::npos)
+      return disableReports == 1;
+  return false;
 }
 void complete(const void *, ANARIDevice, ANARIFrame)
 {
@@ -527,8 +543,9 @@ int main(int argc, char **argv)
     ok = injections == 1 && errors > 0 && ok;
     cudaFree(deviceVertices);
     deviceVertices = nullptr;
-    ok = !haveBounds() && ok;
+    ok = !haveBounds() && refusedWhileDisabled("anariGetProperty") && ok;
     anari::render(d, frame);
+    ok = refusedWhileDisabled("anariRenderFrame") && ok;
     anari::wait(d, frame);
     ok = completions == 0 && ok;
   } else if (registryFailure) {
@@ -760,8 +777,9 @@ int main(int argc, char **argv)
     ok = injections == 1 && errors > 0 && ok;
     cudaFree(deviceVertices);
     deviceVertices = nullptr;
-    ok = !haveBounds() && ok;
+    ok = !haveBounds() && refusedWhileDisabled("anariGetProperty") && ok;
     anari::render(d, frame);
+    ok = refusedWhileDisabled("anariRenderFrame") && ok;
     anari::wait(d, frame);
     ok = completions == 1 && ok;
     // No retry or device re-enable after the injected CUDA error is gone.
