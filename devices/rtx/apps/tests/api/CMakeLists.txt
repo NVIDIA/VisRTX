@@ -158,7 +158,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CUDA_RUNTIME_LIBRARY STREQUAL "S
       sphere-undrained-completion
       sphere-batch-small-copy sphere-batch-small-launch sphere-batch-small-readback
       sphere-batch-small-result-allocation sphere-batch-small-pinned-allocation
-      sphere-readback-allocation sphere-batch-completion
+      sphere-readback-allocation sphere-result-allocation
+      sphere-batch-completion
       sphere-batch-upload-completion sphere-batch-input-completion
       sphere-upload-allocation sphere-upload-copy sphere-upload-completion
       sphere-upload-partial sphere-upload-observer)

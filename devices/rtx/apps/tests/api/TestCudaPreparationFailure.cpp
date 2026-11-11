@@ -383,6 +383,11 @@ int main(int argc, char **argv)
       sphereFailure && std::strcmp(argv[1], "sphere-undrained-completion") == 0;
   const bool batchCompletion =
       sphereFailure && std::strncmp(argv[1], "sphere-batch-", 13) == 0;
+  // Over SmallGeometryBatch::MAX_PRIMITIVES: results are reserved at
+  // submission (general path), not at small-batch launch.
+  const bool generalResults = sphereFailure
+      && (std::strcmp(argv[1], "sphere-readback-allocation") == 0
+          || std::strcmp(argv[1], "sphere-result-allocation") == 0);
   const bool inputBatchCompletion = batchCompletion
       && std::strcmp(argv[1], "sphere-batch-input-completion") == 0;
   const bool batchUploadCompletion = batchCompletion
@@ -453,6 +458,13 @@ int main(int argc, char **argv)
     anari::commitParameters(d, field);
     anari::setAndReleaseParameter(d, geometry, "field", field);
     anari::setParameter(d, geometry, "isovalue", 3.5f);
+  } else if (generalResults) {
+    std::vector<vec3> positions(300);
+    for (size_t i = 0; i < positions.size(); ++i)
+      positions[i] = {float(i % 20) * 0.1f - 1.f, float(i / 20) * 0.1f, 0.f};
+    anari::setParameterArray1D(
+        d, geometry, "vertex.position", positions.data(), positions.size());
+    anari::setParameter(d, geometry, "radius", 0.1f);
   } else {
     anari::setParameter(d, geometry, "vertex.position", array);
     anari::setParameter(d, geometry, "radius", observerRecovery ? 0.2f : 0.1f);
@@ -646,6 +658,11 @@ int main(int argc, char **argv)
     if (sphereFailure
         && std::strcmp(argv[1], "sphere-readback-allocation") == 0)
       failure = Failure::READBACK_ALLOCATION;
+    if (sphereFailure
+        && std::strcmp(argv[1], "sphere-result-allocation") == 0) {
+      allocationBytes = RESULTS_BYTES; // Device side of the reservation.
+      failure = Failure::ALLOCATION;
+    }
     if ((sphereFailure && std::strcmp(argv[1], "sphere-completion") == 0)
         || batchCompletion)
       failure = Failure::PREPARATION_SYNC;
