@@ -89,7 +89,7 @@ void Triangle::commitParameters()
 
 void Triangle::finalize()
 {
-  if (!beginPreparation())
+  if (beginPreparation() != PreparationStart::Prepare)
     return;
   if (!m_vertex) {
     reportMessage(ANARI_SEVERITY_WARNING,

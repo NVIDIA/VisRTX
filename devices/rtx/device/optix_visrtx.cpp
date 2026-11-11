@@ -289,7 +289,7 @@ cudaError_t DeviceGlobalState::finishGeometryPreparation()
     // An intervening upload/legacy consumer may wait before the collection
     // point. Its stream-completion error affects all already queued results.
     m_geometryPreparations.forEach(
-        [](Geometry *geometry) { geometry->setPreparationFailed(true); });
+        [](Geometry *geometry) { geometry->markPreparationFailed(); });
     for (auto &geometry : m_geometryInputUploads)
       geometry->failInputUploads();
   }

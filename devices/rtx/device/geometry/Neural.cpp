@@ -29,7 +29,7 @@ void Neural::commitParameters()
 
 void Neural::finalize()
 {
-  if (!beginPreparation())
+  if (beginPreparation() != PreparationStart::Prepare)
     return;
   Geometry::finalize();
   m_aabbs.resize(1);

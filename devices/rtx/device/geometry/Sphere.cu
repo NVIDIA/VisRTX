@@ -54,7 +54,7 @@ void Sphere::commitParameters()
 
 void Sphere::finalize()
 {
-  if (!beginPreparation())
+  if (beginPreparation() != PreparationStart::Prepare)
     return;
   if (!m_vertex) {
     reportMessage(ANARI_SEVERITY_WARNING,
