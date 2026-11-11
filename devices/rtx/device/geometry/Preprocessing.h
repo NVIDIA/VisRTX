@@ -135,7 +135,12 @@ struct Preprocessing
   DeviceBuffer m_result;
 };
 
-bool checkPreparation(
+// Marks the geometry's preparation failed, drains the preparation and render
+// streams so no queued work still targets its storage, and reports the error.
+void failPreparation(
+    Geometry *geometry, cudaError_t error, const char *operation);
+// Returns true on cudaSuccess; otherwise calls failPreparation().
+bool failPreparationOnError(
     Geometry *geometry, cudaError_t error, const char *operation);
 bool reservePreparation(Geometry *geometry, DeviceBuffer &buffer, size_t bytes);
 bool finishPreparation(Geometry *geometry);

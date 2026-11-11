@@ -80,15 +80,7 @@ bool buildOptixBVH(std::vector<OptixBuildInput> buildInput,
     return false;
   };
   auto reserve = [&](DeviceBuffer &buffer, size_t bytes) {
-    if (!buffer)
-      buffer.reset();
-    buffer.reserve(bytes);
-    const auto error = cudaGetLastError();
-    return check(error != cudaSuccess ? error
-            : bytes && (!buffer || buffer.bytes() < bytes)
-            ? cudaErrorMemoryAllocation
-            : cudaSuccess,
-        "allocating device storage");
+    return check(buffer.tryReserve(bytes), "allocating device storage");
   };
 
   // Legacy producers include field/isosurface work on the render stream and
@@ -249,7 +241,7 @@ bool DeviceGlobalState::collectGeometryInputUploads()
   if (error != cudaSuccess) {
     for (auto &geometry : m_geometryInputUploads)
       geometry->failInputUploads();
-    checkPreparation(m_geometryInputUploads.front().ptr,
+    failPreparation(m_geometryInputUploads.front().ptr,
         error,
         "geometry input batch completion");
   }
@@ -314,7 +306,7 @@ bool DeviceGlobalState::collectGeometryPreparations()
     // before reporting, so callbacks cannot see a partially valid generation.
     const auto error = finishGeometryPreparation();
     if (error != cudaSuccess)
-      checkPreparation(first, error, "batch completion");
+      failPreparation(first, error, "batch completion");
     // Numeric failures remain local to their geometries during publication.
   });
 }

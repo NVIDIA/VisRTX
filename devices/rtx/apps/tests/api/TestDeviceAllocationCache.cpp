@@ -42,6 +42,7 @@
 #include <thread>
 #include <vector>
 #include "../../../device/utility/DeviceAllocationCache.h"
+#include "../../../device/utility/DeviceBuffer.h"
 #include "../../../device/utility/MemoryAllocation.h"
 
 namespace {
@@ -315,6 +316,23 @@ int main()
       visrtx::CudaMemoryAllocation captured(p, 32, capturedDelete);
     }
     ok = capturedDeletes == 1 && ok;
+  }
+  {
+    // A failed reservation leaves the buffer empty, consumes the runtime
+    // error, and lets the same size be retried.
+    visrtx::DeviceBuffer buffer;
+    failBytes = 96;
+    ok = buffer.tryReserve(96) == cudaErrorMemoryAllocation && !buffer
+        && buffer.bytes() == 0 && cudaGetLastError() == cudaSuccess && ok;
+    ok = buffer.tryReserve(96) == cudaSuccess && buffer && buffer.bytes() >= 96
+        && ok;
+    const auto *storage = buffer.ptr();
+    ok = buffer.tryReserve(48) == cudaSuccess && buffer.ptr() == storage
+        && buffer.tryReserve(0) == cudaSuccess && buffer.ptr() == storage && ok;
+    failBytes = 192;
+    ok = buffer.tryReserve(192) == cudaErrorMemoryAllocation && !buffer
+        && buffer.bytes() == 0 && cudaGetLastError() == cudaSuccess && ok;
+    ok = buffer.tryReserve(192) == cudaSuccess && buffer.bytes() >= 192 && ok;
   }
   ok = allocations == frees && ok;
   std::printf("allocation cache allocations=%d frees=%d syncs=%d %s\n",
