@@ -493,13 +493,20 @@ void VisRTXDevice::reportRefusal(
     ANARIStatusSeverity severity, const char *call, const char *reason) const
 {
   // The report runs the status callback, which may call back into a refused
-  // entry point; report only the outermost refusal on this thread.
+  // entry point. Only the outermost refusal on this thread is reported;
+  // refusals nested in its callback (on any device) are refused silently.
   static thread_local bool reporting = false;
   if (reporting)
     return;
+  struct Reset
+  {
+    ~Reset()
+    {
+      reporting = false; // Also when the callback throws.
+    }
+  } reset;
   reporting = true;
   reportMessage(severity, "%s %s", call, reason);
-  reporting = false;
 }
 
 bool VisRTXDevice::initDevice()
