@@ -41,8 +41,7 @@ struct Item
 {
   explicit Item(int &destroyed);
   ~Item();
-  void completePreparation();
-  void markPreparationCollected() noexcept;
+  void publish();
   int &destroyed;
   bool queued{true};
   bool failPublication{false};
@@ -56,19 +55,19 @@ Item::~Item()
   if (onDestroy)
     onDestroy();
 }
-void Item::completePreparation()
+void Item::publish()
 {
   if (failPublication)
     throw std::bad_alloc();
   ++publications;
 }
-void Item::markPreparationCollected() noexcept
-{
-  queued = false;
-}
 using Queue = visrtx::PreparationQueue<std::shared_ptr<Item>>;
 
-bool finishFailure(bool retry)
+auto retire = [](Item *item) noexcept { item->queued = false; };
+
+// Batch work that throws before touching any object, like a descriptor
+// reserve. Owners must survive, unwind must see them all, nothing is retired.
+bool runFailure(bool retry)
 {
   int destroyed = 0;
   {
@@ -77,58 +76,46 @@ bool finishFailure(bool retry)
     for (int i = 0; i < 2; ++i) {
       auto item = std::make_shared<Item>(destroyed);
       deferred.push_back(item.get());
-      queue.enqueue(
-          std::move(item)); // Queue is the only owner, like an orphan geometry.
+      queue.enqueue(std::move(item)); // The queue is the only owner.
     }
     bool threw = false;
+    int unwound = 0;
     try {
-      queue.collect([&](Item *) {
-        // SmallGeometryBatch's descriptor reserve can throw before consuming
-        // the raw deferred-job list. Test the same ownership boundary directly,
-        // without routing a host exception through ANARI's fatal C API handler.
-        throw std::bad_alloc();
-      });
+      queue.collect([&](Item *) { throw std::bad_alloc(); },
+          retire,
+          [&] {
+            if (queue.collecting())
+              queue.forEach([&](Item *) { ++unwound; });
+          });
     } catch (const std::bad_alloc &) {
       threw = true;
     }
-    if (!threw || destroyed || queue.empty() || queue.collecting())
-      return false; // Never dereference the raw jobs if ownership was lost.
+    if (!threw || unwound != 2 || destroyed || queue.size() != 2
+        || queue.collecting())
+      return false;
     for (auto *item : deferred)
       if (!item->queued || item->publications)
         return false;
     if (retry) {
       bool refusedReentry = false;
-      if (!queue.collect([&](Item *) {
-            refusedReentry = !queue.collect([](Item *) {});
-            for (auto *item : deferred)
-              if (!item->queued)
-                throw std::bad_alloc();
-            deferred.clear(); // Deferred submission and completion succeeded.
-          })
-          || !refusedReentry || !queue.empty() || queue.collecting()
-          || destroyed != 2)
+      bool unwoundAgain = false;
+      if (!queue.collect(
+              [&](Item *) {
+                refusedReentry = !queue.collect([](Item *) {}, retire, [] {});
+                queue.forEach([](Item *item) { item->publish(); });
+              },
+              retire,
+              [&] { unwoundAgain = true; })
+          || !refusedReentry || unwoundAgain || !queue.empty()
+          || queue.collecting() || destroyed != 2)
         return false;
     }
   }
   return destroyed == 2; // Also covers destruction after an unretried failure.
 }
 
-bool retirementReentry()
-{
-  int destroyed = 0;
-  Queue queue;
-  bool safe = false;
-  auto item = std::make_shared<Item>(destroyed);
-  item->onDestroy = [&] {
-    int visible = 0;
-    queue.forEach([&](Item *) { ++visible; });
-    safe = queue.empty() && queue.collecting() && visible == 0
-        && !queue.collect([](Item *) {});
-  };
-  queue.enqueue(std::move(item));
-  return queue.collect([](Item *) {}) && safe && destroyed == 1;
-}
-
+// A later object's publication throws after an earlier one published. Both
+// stay queued and unretired; a retry publishes both and retires both.
 bool publicationFailure()
 {
   int destroyed = 0;
@@ -138,33 +125,80 @@ bool publicationFailure()
   second->failPublication = true;
   queue.enqueue(first);
   queue.enqueue(second);
-  int drains = 0;
+  auto publishAll = [&](Item *) {
+    queue.forEach([](Item *item) { item->publish(); });
+  };
   bool threw = false;
   try {
-    queue.collect([&](Item *) { ++drains; });
+    queue.collect(publishAll, retire, [] {});
   } catch (const std::bad_alloc &) {
     threw = true;
   }
-  bool ok = threw && drains == 1 && !queue.empty() && !queue.collecting()
-      && first->queued && second->queued && first->publications == 1
+  bool ok = threw && queue.size() == 2 && !queue.collecting() && first->queued
+      && second->queued && first->publications == 1
       && second->publications == 0;
   second->failPublication = false;
-  ok = queue.collect([&](Item *) { ++drains; }) && ok;
-  ok = drains == 2 && queue.empty() && !first->queued && !second->queued
+  ok = queue.collect(publishAll, retire, [] {}) && ok;
+  ok = queue.empty() && !first->queued && !second->queued
       && first->publications == 2 && second->publications == 1 && ok;
-  ok = queue.collect([&](Item *) { ++drains; }) && drains == 2 && ok;
+  ok = queue.collect(publishAll, retire, [] {}) && first->publications == 2
+      && ok;
   first.reset();
   second.reset();
   return destroyed == 2 && ok;
+}
+
+// Retirement sees the object still queued. The last owner is released after
+// membership is gone but while the queue is still collecting, so a destructor
+// can neither see it nor collect again.
+bool retirementReentry()
+{
+  int destroyed = 0;
+  Queue queue;
+  bool safe = false;
+  auto item = std::make_shared<Item>(destroyed);
+  Item *raw = item.get();
+  item->onDestroy = [&] {
+    int visible = 0;
+    queue.forEach([&](Item *) { ++visible; });
+    safe = queue.empty() && queue.collecting() && visible == 0
+        && !queue.collect([](Item *) {}, retire, [] {});
+  };
+  bool retiredBeforeRelease = false;
+  queue.enqueue(std::move(item));
+  const bool collected = queue.collect([](Item *) {},
+      [&](Item *object) noexcept {
+        retiredBeforeRelease = object == raw && !destroyed && queue.size() == 1;
+      },
+      [] {});
+  return collected && retiredBeforeRelease && safe && destroyed == 1
+      && !queue.collecting();
+}
+
+// Positions index the queue in enqueue order and restart after a collection;
+// run() receives the oldest object.
+bool positionsRestartAfterCollection()
+{
+  int destroyed = 0;
+  Queue queue;
+  auto oldest = std::make_shared<Item>(destroyed);
+  bool ok = queue.enqueue(oldest) == 0
+      && queue.enqueue(std::make_shared<Item>(destroyed)) == 1;
+  Item *first = nullptr;
+  ok = queue.collect([&](Item *item) { first = item; }, retire, [] {}) && ok;
+  ok = first == oldest.get() && ok;
+  ok = queue.enqueue(std::make_shared<Item>(destroyed)) == 0 && ok;
+  return ok;
 }
 } // namespace
 
 int main()
 {
-  bool ok = finishFailure(true);
-  ok = finishFailure(false) && ok;
+  bool ok = runFailure(true);
+  ok = runFailure(false) && ok;
   ok = publicationFailure() && ok;
   ok = retirementReentry() && ok;
+  ok = positionsRestartAfterCollection() && ok;
   std::printf(
       "preparation queue exception ownership: %s\n", ok ? "PASS" : "FAIL");
   return ok ? 0 : 1;

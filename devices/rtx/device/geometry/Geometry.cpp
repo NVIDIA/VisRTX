@@ -318,7 +318,7 @@ void Geometry::failInputUploads()
     m_preparationState = PreparationState::InputUploadFailed;
 }
 
-void Geometry::completeInputUploads()
+void Geometry::completeInputUploads() noexcept
 {
   for (const auto &upload : m_inputUploads)
     if (!upload.submitted)
