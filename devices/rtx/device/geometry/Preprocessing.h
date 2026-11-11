@@ -93,10 +93,18 @@ struct SmallGeometryBatch
   cudaError_t reserveResults(size_t count);
 };
 
-// Per-geometry reusable workspace. Submission retains pinned readback storage;
-// complete() publishes scalar results after the device's collection barrier.
+// Per-geometry reusable workspace and the owner of its scalar results.
+// Submission retains pinned readback storage; complete() publishes the epsilon
+// scale, total area and area CDF after the device's collection barrier.
 struct Preprocessing
 {
+  enum class Status
+  {
+    Ready, // Every submitted result is published.
+    Pending, // Submitted results await complete().
+    Failed, // The last collection failed; what it was to publish stays zero.
+  };
+
   Preprocessing() = default;
   ~Preprocessing();
   Preprocessing(const Preprocessing &) = delete;
@@ -104,32 +112,40 @@ struct Preprocessing
   Preprocessing(Preprocessing &&) = delete;
   Preprocessing &operator=(Preprocessing &&) = delete;
 
-  // Success means queued, not published. Small jobs defer GPU submission to
-  // the next preparation completion boundary. Output references must be owned
-  // by the retained geometry and remain valid until collection completes.
-  bool areas(Geometry *geometry,
-      const PrimitiveInput &input,
-      DeviceBuffer &cdf,
-      float &total);
-  bool bounds(Geometry *geometry,
-      const PrimitiveInput &input,
-      DeviceBuffer &aabbs,
-      float &scale);
+  Status status() const;
+  // Published results. The CDF is null when the total area is zero.
+  float epsilonScale() const;
+  float totalArea() const;
+  const float *areaCdf() const;
 
-  bool pending() const;
+  // Success means queued, not published. Small jobs defer GPU submission to
+  // the next preparation completion boundary. Submission zeroes the result it
+  // replaces until complete() publishes the new one.
+  bool areas(Geometry *geometry, const PrimitiveInput &input);
+  bool bounds(
+      Geometry *geometry, const PrimitiveInput &input, DeviceBuffer &aabbs);
+  // Drops the published area distribution and its storage, and cancels the
+  // publication of an area submission still awaiting complete().
+  void releaseAreas();
   bool complete(Geometry *geometry);
 
  private:
   friend struct SmallGeometryBatch;
   bool reserveReadback(Geometry *geometry);
   void enqueueSmall(Geometry *geometry);
+  void submit(Geometry *geometry);
   SmallGeometryJob m_small;
   bool m_smallQueued{false};
   GeometryReadbackPool::Lease m_readbackLease;
   PreparationResult *m_readback{nullptr};
-  float *m_scale{nullptr};
-  float *m_total{nullptr};
-  DeviceBuffer *m_cdf{nullptr};
+  Status m_status{Status::Ready};
+  bool m_boundsSubmitted{false};
+  bool m_areasSubmitted{false};
+  // SDF bounds are padded per primitive and carry no epsilon scale.
+  bool m_boundsHaveEpsilonScale{false};
+  float m_epsilonScale{0.f};
+  float m_totalArea{0.f};
+  DeviceBuffer m_areaCdf;
   DeviceBuffer m_prefix;
   DeviceBuffer m_scratch;
   DeviceBuffer m_result;

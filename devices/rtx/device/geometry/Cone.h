@@ -75,8 +75,6 @@ struct Cone : public Geometry
 
   // Geometry Light sampling data, built lazily by ensureAreaData(); see
   // Triangle.
-  DeviceBuffer m_primAreaCdf;
-  float m_totalArea{0.f};
   bool m_areaDataValid{false};
   bool m_areaDataWanted{false};
 };

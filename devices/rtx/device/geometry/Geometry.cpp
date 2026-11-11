@@ -231,7 +231,7 @@ void Geometry::markPreparationCollected() noexcept
 
 void Geometry::upload()
 {
-  if (m_preprocessing.pending()) {
+  if (m_preprocessing.status() == Preprocessing::Status::Pending) {
     deferPreparation();
     return;
   }
@@ -481,7 +481,7 @@ GeometryGPUData Geometry::gpuData() const
   populateAttributeDataSet(m_primitiveAttributes, retval.attr);
   retval.primitiveId =
       (const uint32_t *)(m_primitiveId ? m_primitiveId->dataGPU() : nullptr);
-  retval.epsilonScale = m_epsilonScale;
+  retval.epsilonScale = m_preprocessing.epsilonScale();
 
   return retval;
 }

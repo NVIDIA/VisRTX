@@ -125,9 +125,6 @@ struct Geometry : public RegisteredObject<GeometryGPUData>
   GeometryAttributes m_primitiveAttributes;
   UniformAttributes m_uniformAttributes;
   helium::IntrusivePtr<Array1D> m_primitiveId;
-  // Set by analytic-primitive subtypes in finalize(); see
-  // GeometryGPUData::epsilonScale.
-  float m_epsilonScale{0.f};
   Preprocessing m_preprocessing;
 
  private:

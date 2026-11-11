@@ -77,8 +77,6 @@ struct Sphere : public Geometry
   // the normalized cumulative object-space area over primitives.
   // m_areaDataWanted persists across recommits so a re-finalize rebuilds it
   // order-independently.
-  DeviceBuffer m_primAreaCdf;
-  float m_totalArea{0.f};
   bool m_areaDataValid{false};
   bool m_areaDataWanted{false};
 };

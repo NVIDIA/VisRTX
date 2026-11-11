@@ -469,43 +469,73 @@ bool Preprocessing::reserveReadback(Geometry *g)
   return true;
 }
 
-bool Preprocessing::pending() const
+void Preprocessing::submit(Geometry *g)
 {
-  return m_scale || m_total;
+  g->deferPreparation();
+  m_status = Status::Pending;
+}
+
+Preprocessing::Status Preprocessing::status() const
+{
+  return m_status;
+}
+
+float Preprocessing::epsilonScale() const
+{
+  return m_epsilonScale;
+}
+
+float Preprocessing::totalArea() const
+{
+  return m_totalArea;
+}
+
+const float *Preprocessing::areaCdf() const
+{
+  return m_totalArea > 0.f ? m_areaCdf.ptrAs<float>() : nullptr;
+}
+
+void Preprocessing::releaseAreas()
+{
+  m_areasSubmitted = false;
+  m_totalArea = 0.f;
+  m_areaCdf.reset();
 }
 
 bool Preprocessing::complete(Geometry *g)
 {
-  auto *scale = std::exchange(m_scale, nullptr);
-  auto *total = std::exchange(m_total, nullptr);
-  auto *cdf = std::exchange(m_cdf, nullptr);
+  const bool bounds = std::exchange(m_boundsSubmitted, false);
+  const bool areas = std::exchange(m_areasSubmitted, false);
+  m_status = Status::Failed;
   if (g->preparationFailed())
     return false;
-  if (scale && m_readback[0].invalid)
+  if (bounds && m_readback[0].invalid)
     return failPreparationOnError(
         g, cudaErrorInvalidValue, "non-finite bounds");
-  if (total && !std::isfinite(m_readback[1].value))
+  if (areas && !std::isfinite(m_readback[1].value))
     return failPreparationOnError(
         g, cudaErrorInvalidValue, "non-publishable primitive area");
-  if (scale)
-    *scale = m_readback[0].value;
-  if (total) {
-    *total = m_readback[1].value;
-    if (*total == 0.f)
-      cdf->reset();
+  if (bounds)
+    m_epsilonScale = m_boundsHaveEpsilonScale ? m_readback[0].value : 0.f;
+  if (areas) {
+    m_totalArea = m_readback[1].value;
+    if (m_totalArea == 0.f)
+      m_areaCdf.reset();
   }
+  m_status = Status::Ready;
   return true;
 }
 
 bool Preprocessing::bounds(
-    Geometry *g, const PrimitiveInput &in, DeviceBuffer &aabbs, float &scale)
+    Geometry *g, const PrimitiveInput &in, DeviceBuffer &aabbs)
 {
   const auto stream = g->deviceState()->preparation.stream();
-  scale = 0.f;
+  m_epsilonScale = 0.f;
   if (!reserveReadback(g))
     return false;
-  g->deferPreparation();
-  m_scale = &scale;
+  submit(g);
+  m_boundsSubmitted = true;
+  m_boundsHaveEpsilonScale = in.type != GeometryType::SDF;
   m_readback[0] = {};
   if (in.count > 0 && in.count <= SmallGeometryBatch::MAX_PRIMITIVES) {
     if (!reservePreparation(g, aabbs, in.count * sizeof(box3)))
@@ -524,14 +554,11 @@ bool Preprocessing::bounds(
   if (in.count)
     primitiveBounds<<<(in.count + 255) / 256, 256, 0, stream>>>(
         in, aabbs.ptrAs<box3>(), m_result.ptrAs<Result>());
-  auto &host = m_readback[0];
-  const bool sdf = in.type == GeometryType::SDF;
   if (!failPreparationOnError(g, cudaGetLastError(), "bounds evaluation")
       || !failPreparationOnError(g,
-          cudaMemcpyAsync(sdf ? static_cast<void *>(&host.invalid) : &host,
-              sdf ? static_cast<void *>(&m_result.ptrAs<Result>()->invalid)
-                  : m_result.ptr(),
-              sdf ? sizeof(host.invalid) : sizeof(host),
+          cudaMemcpyAsync(&m_readback[0],
+              m_result.ptr(),
+              sizeof(Result),
               cudaMemcpyDeviceToHost,
               stream),
           "bounds summary"))
@@ -539,34 +566,32 @@ bool Preprocessing::bounds(
   return true;
 }
 
-bool Preprocessing::areas(
-    Geometry *g, const PrimitiveInput &in, DeviceBuffer &cdf, float &total)
+bool Preprocessing::areas(Geometry *g, const PrimitiveInput &in)
 {
-  total = 0.f;
+  m_totalArea = 0.f;
   if (in.count == 0) {
-    cdf.reset();
+    m_areaCdf.reset();
     return true;
   }
   if (in.count > size_t(std::numeric_limits<int>::max()))
     return failPreparationOnError(g, cudaErrorInvalidValue, "primitive count");
   if (!reserveReadback(g))
     return false;
-  g->deferPreparation();
-  m_total = &total;
-  m_cdf = &cdf;
+  submit(g);
+  m_areasSubmitted = true;
   m_readback[1] = {};
   if (in.count <= SmallGeometryBatch::MAX_PRIMITIVES) {
-    if (!reservePreparation(g, cdf, in.count * sizeof(float)))
+    if (!reservePreparation(g, m_areaCdf, in.count * sizeof(float)))
       return false;
     m_small.areaInput = in;
-    m_small.cdf = cdf.ptrAs<float>();
+    m_small.cdf = m_areaCdf.ptrAs<float>();
     enqueueSmall(g);
     return true;
   }
   const auto stream = g->deviceState()->preparation.stream();
   size_t scratchBytes = 0;
   if (!reservePreparation(g, m_prefix, in.count * sizeof(double))
-      || !reservePreparation(g, cdf, in.count * sizeof(float))
+      || !reservePreparation(g, m_areaCdf, in.count * sizeof(float))
       || !reservePreparation(g, m_result, sizeof(Result))
       || !failPreparationOnError(g,
           cudaMemsetAsync(m_result.ptr(), 0, sizeof(Result), stream),
@@ -592,7 +617,7 @@ bool Preprocessing::areas(
           "area scan"))
     return false;
   normalizeAreas<<<(in.count + 255) / 256, 256, 0, stream>>>(
-      prefix, in.count, cdf.ptrAs<float>(), result);
+      prefix, in.count, m_areaCdf.ptrAs<float>(), result);
   if (!failPreparationOnError(g, cudaGetLastError(), "CDF normalization"))
     return false;
   publishArea<<<1, 1, 0, stream>>>(result);
