@@ -559,12 +559,14 @@ bool Preprocessing::complete(Geometry *g)
     return true;
   }
   const auto &results = g->deviceState()->preparationResults.host(m_position);
-  if (bounds && results.bounds.invalid)
-    return failPreparationOnError(
-        g, cudaErrorInvalidValue, "non-finite bounds");
-  if (areas && !std::isfinite(results.area.value))
-    return failPreparationOnError(
-        g, cudaErrorInvalidValue, "non-publishable primitive area");
+  if (bounds && results.bounds.invalid) {
+    failPreparation(g, cudaErrorInvalidValue, "non-finite bounds");
+    return false;
+  }
+  if (areas && !std::isfinite(results.area.value)) {
+    failPreparation(g, cudaErrorInvalidValue, "non-publishable primitive area");
+    return false;
+  }
   if (bounds)
     m_epsilonScale = m_boundsHaveEpsilonScale ? results.bounds.value : 0.f;
   if (areas) {
@@ -614,8 +616,10 @@ bool Preprocessing::areas(Geometry *g, const PrimitiveInput &in)
     m_areaCdf.reset();
     return true;
   }
-  if (in.count > size_t(std::numeric_limits<int>::max()))
-    return failPreparationOnError(g, cudaErrorInvalidValue, "primitive count");
+  if (in.count > size_t(std::numeric_limits<int>::max())) {
+    failPreparation(g, cudaErrorInvalidValue, "primitive count");
+    return false;
+  }
   submit(g);
   m_areasSubmitted = true;
   if (in.count <= SmallGeometryBatch::MAX_PRIMITIVES) {
