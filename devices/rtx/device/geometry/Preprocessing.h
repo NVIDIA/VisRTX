@@ -131,8 +131,8 @@ SegmentInput segmentInput(const Array1D &vertices,
     const Array1D *caps,
     uint8_t capFlags);
 
-// One block handles one small geometry. Bounds and area inputs are separate:
-// a lazily requested sphere area distribution need not carry vertex positions.
+// One block handles one small geometry. bounds() and areas() fill their halves
+// independently; a half left at zero count is skipped.
 struct SmallGeometryJob
 {
   PrimitiveInput boundsInput;
