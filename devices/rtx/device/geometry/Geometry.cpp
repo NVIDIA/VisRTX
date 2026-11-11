@@ -121,7 +121,7 @@ void Geometry::commitParameters()
     m_inputBatch = InputBatch::Queued;
   if (retryBlocked())
     m_preparationState = PreparationState::Failed;
-  if (m_preparationQueued)
+  if (m_preparationPosition)
     deviceState()->collectGeometryPreparations();
   // Array observers can re-finalize without a parameter commit, but parameter
   // replacement can release the last reference to an aliased device array.
@@ -209,12 +209,11 @@ bool Geometry::canRetainPreparationInputs() const
   return present == m_preparedParameters.size();
 }
 
-void Geometry::deferPreparation()
+size_t Geometry::deferPreparation()
 {
-  if (!m_preparationQueued) {
-    deviceState()->enqueueGeometryPreparation(this);
-    m_preparationQueued = true;
-  }
+  if (!m_preparationPosition)
+    m_preparationPosition = deviceState()->enqueueGeometryPreparation(this);
+  return *m_preparationPosition;
 }
 
 void Geometry::completePreparation()
@@ -226,7 +225,7 @@ void Geometry::completePreparation()
 
 void Geometry::markPreparationCollected() noexcept
 {
-  m_preparationQueued = false;
+  m_preparationPosition.reset();
 }
 
 void Geometry::upload()
@@ -345,7 +344,7 @@ Geometry::PreparationStart Geometry::beginPreparation()
     return PreparationStart::Blocked;
   // Observer-only finalization can arrive before a prior submission is
   // collected.
-  if (m_preparationQueued)
+  if (m_preparationPosition)
     deviceState()->collectGeometryPreparations();
   if (m_preparationState == PreparationState::Reused)
     m_preparationState = PreparationState::Prepared;

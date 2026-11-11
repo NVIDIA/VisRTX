@@ -186,13 +186,16 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
   StreamRetirement renderRetirement;
   std::shared_ptr<DeviceAllocationCache> geometryInputAllocations{
       std::make_shared<DeviceAllocationCache>()};
-  GeometryReadbackPool geometryReadbacks;
+  // Scalar results of queued geometry preparations, by queue position.
+  PreparationResults preparationResults;
   struct BvhReadback
   {
     box3 bounds;
     uint64_t compactedSize;
   };
-  PinnedReadbackPool<BvhReadback> bvhReadbacks;
+  // Pinned; the first BVH build allocates it. Builds are serialized and
+  // complete before returning, so one serves them all.
+  std::unique_ptr<BvhReadback, PinnedDeleter> bvhReadback;
   SmallGeometryBatch smallGeometryBatch;
   cudaDeviceProp deviceProps;
 
@@ -296,7 +299,8 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
   cudaError_t stageGeometryArray(Array *array, helium::TimeStamp modified);
   bool collectGeometryInputUploads();
   bool collectingGeometryInputUploads() const;
-  void enqueueGeometryPreparation(Geometry *geometry);
+  // Returns the geometry's position in the preparation queue.
+  size_t enqueueGeometryPreparation(Geometry *geometry);
   bool collectGeometryPreparations();
   cudaError_t finishGeometryPreparation();
   cudaError_t waitForRenderConsumers();
