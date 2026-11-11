@@ -46,7 +46,9 @@ struct RegisteredObject : public Object
   virtual ~RegisteredObject();
 
   void finalize() override;
-  void upload();
+  // Publishes gpuData() to the registry slot. Subtypes may override to defer
+  // publication until their data is ready; virtual so finalize() honors that.
+  virtual void upload();
 
   DeviceObjectIndex index() const;
 

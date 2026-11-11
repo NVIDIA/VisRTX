@@ -76,7 +76,8 @@ struct Geometry : public RegisteredObject<GeometryGPUData>
 
   void commitParameters() override;
   void markFinalized() override;
-  void upload();
+  // Defers registry publication while preprocessing results are pending.
+  void upload() override;
   void deferPreparation();
   void completePreparation();
   void markPreparationCollected() noexcept;
