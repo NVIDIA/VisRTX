@@ -90,9 +90,6 @@ void SDF::finalize()
       "finalizing sdf geometry with %zu primitives",
       m_numPrimitives);
 
-  PrimitiveInput input;
-  input.type = GeometryType::SDF;
-  input.count = m_numPrimitives;
   const void *source = m_sdf->begin(AddressSpace::GPU);
   if (reinterpret_cast<uintptr_t>(source) % alignof(SDFPrimitive) != 0) {
     const size_t bytes = m_numPrimitives * sizeof(SDFPrimitive);
@@ -108,11 +105,12 @@ void SDF::finalize()
     m_primitives = m_alignedPrimitives.ptrAs<SDFPrimitive>();
   } else
     m_primitives = static_cast<const SDFPrimitive *>(source);
-  input.sdf = m_primitives;
+  SDFInput input{};
+  input.primitives = m_primitives;
   input.blendFactor = m_blendFactor;
   input.blendLerpFactor = m_blendLerpFactor;
   input.noiseFactor = m_noiseFactor;
-  if (!m_preprocessing.bounds(this, input, m_aabbs))
+  if (!m_preprocessing.bounds(this, {m_numPrimitives, input}, m_aabbs))
     return;
   m_aabbsBufferPtr = (CUdeviceptr)m_aabbs.ptr();
 

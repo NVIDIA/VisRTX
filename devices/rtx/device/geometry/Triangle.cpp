@@ -168,12 +168,12 @@ void Triangle::finalize()
 
 void Triangle::buildAreaData()
 {
-  PrimitiveInput input;
-  input.count = m_index ? m_index->size() : m_vertex->size() / 3;
+  TriangleInput input{};
   input.vertices = m_vertex->beginAs<vec3>(AddressSpace::GPU);
   input.indices =
       m_index ? m_index->beginAs<uvec3>(AddressSpace::GPU) : nullptr;
-  m_areaDataValid = m_preprocessing.areas(this, input);
+  const size_t count = m_index ? m_index->size() : m_vertex->size() / 3;
+  m_areaDataValid = m_preprocessing.areas(this, {count, input});
 }
 
 bool Triangle::isAreaSamplingSupported() const

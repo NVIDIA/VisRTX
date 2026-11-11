@@ -52,6 +52,21 @@ void Sphere::commitParameters()
   commitAttributes("vertex.", m_vertexAttributes);
 }
 
+PrimitiveInput Sphere::primitiveInput() const
+{
+  SphereInput input{};
+  // Area sampling reads no positions and may run without them.
+  input.vertices =
+      m_vertex ? m_vertex->beginAs<vec3>(AddressSpace::GPU) : nullptr;
+  input.indices =
+      m_index ? m_index->beginAs<uint32_t>(AddressSpace::GPU) : nullptr;
+  input.radii = m_vertexRadius
+      ? m_vertexRadius->beginAs<float>(AddressSpace::GPU)
+      : nullptr;
+  input.radius = m_globalRadius;
+  return {m_numSpheres, input};
+}
+
 void Sphere::finalize()
 {
   if (beginPreparation() != PreparationStart::Prepare)
@@ -69,17 +84,7 @@ void Sphere::finalize()
   // Calculate bounds //
 
   m_numSpheres = m_index ? m_index->size() : m_vertex->size();
-  PrimitiveInput input;
-  input.type = GeometryType::SPHERE;
-  input.count = m_numSpheres;
-  input.vertices = m_vertex->beginAs<vec3>(AddressSpace::GPU);
-  input.indices =
-      m_index ? m_index->beginAs<uint32_t>(AddressSpace::GPU) : nullptr;
-  input.radii = m_vertexRadius
-      ? m_vertexRadius->beginAs<float>(AddressSpace::GPU)
-      : nullptr;
-  input.radius = m_globalRadius;
-  if (!m_preprocessing.bounds(this, input, m_aabbs))
+  if (!m_preprocessing.bounds(this, primitiveInput(), m_aabbs))
     return;
   m_aabbsBufferPtr = (CUdeviceptr)m_aabbs.ptr();
 
@@ -98,16 +103,7 @@ void Sphere::finalize()
 
 void Sphere::buildAreaData()
 {
-  PrimitiveInput input;
-  input.type = GeometryType::SPHERE;
-  input.count = m_numSpheres;
-  input.radii = m_vertexRadius
-      ? m_vertexRadius->beginAs<float>(AddressSpace::GPU)
-      : nullptr;
-  input.indices =
-      m_index ? m_index->beginAs<uint32_t>(AddressSpace::GPU) : nullptr;
-  input.radius = m_globalRadius;
-  m_areaDataValid = m_preprocessing.areas(this, input);
+  m_areaDataValid = m_preprocessing.areas(this, primitiveInput());
 }
 
 bool Sphere::isAreaSamplingSupported() const

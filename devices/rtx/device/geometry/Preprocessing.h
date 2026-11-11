@@ -37,26 +37,99 @@
 #include "utility/DeviceBuffer.h"
 
 namespace visrtx {
+struct Array1D;
 struct Geometry;
 
-// GPU views use logical array beginnings, never application allocation bases.
-// Geometry::beginPreparation() completes authored host-array uploads before
-// these views are consumed; kernels need no legacy default-stream dependency.
+// Per-type preprocessing inputs. GPU views use logical array beginnings, never
+// application allocation bases. Geometry::beginPreparation() completes
+// authored host-array uploads before these views are consumed; kernels need no
+// legacy default-stream dependency. A null `indices` means unindexed input.
+
+struct TriangleInput
+{
+  const vec3 *vertices;
+  const uvec3 *indices; // Else consecutive vertex triples.
+};
+
+struct SphereInput
+{
+  const vec3 *vertices;
+  const uint32_t *indices; // Else one sphere per vertex.
+  const float *radii; // Per vertex; else `radius`.
+  float radius;
+};
+
+// The endpoints and caps cones and cylinders share.
+struct SegmentInput
+{
+  const vec3 *vertices;
+  const uvec2 *indices; // Else consecutive vertex pairs.
+  const uint8_t *caps; // Per vertex; else `capFlags`.
+  uint8_t capFlags;
+};
+
+struct ConeInput
+{
+  SegmentInput segments;
+  const float *radii; // Per vertex; required.
+};
+
+struct CylinderInput
+{
+  SegmentInput segments;
+  const float *radii; // Per primitive; else `radius`.
+  float radius;
+};
+
+struct SDFInput
+{
+  const SDFPrimitive *primitives;
+  float blendFactor;
+  float blendLerpFactor;
+  float noiseFactor;
+};
+
+// One geometry's preprocessing input: its primitive count and the input of
+// its type. A tagged union rather than a per-type kernel so that the small
+// geometry batch can mix types in one launch.
 struct PrimitiveInput
 {
   GeometryType type{GeometryType::TRIANGLE};
   size_t count{0};
-  const vec3 *vertices{nullptr};
-  const void *indices{nullptr};
-  const float *radii{nullptr};
-  const uint8_t *caps{nullptr};
-  float radius{0.f};
-  uint8_t capFlags{0};
-  const SDFPrimitive *sdf{nullptr};
-  float blendFactor{1.f};
-  float blendLerpFactor{0.5f};
-  float noiseFactor{0.f};
+  union
+  {
+    TriangleInput triangle;
+    SphereInput sphere;
+    ConeInput cone;
+    CylinderInput cylinder;
+    SDFInput sdf;
+  };
+
+  PrimitiveInput() : triangle{} {}
+  PrimitiveInput(size_t n, const TriangleInput &in)
+      : type(GeometryType::TRIANGLE), count(n), triangle(in)
+  {}
+  PrimitiveInput(size_t n, const SphereInput &in)
+      : type(GeometryType::SPHERE), count(n), sphere(in)
+  {}
+  PrimitiveInput(size_t n, const ConeInput &in)
+      : type(GeometryType::CONE), count(n), cone(in)
+  {}
+  PrimitiveInput(size_t n, const CylinderInput &in)
+      : type(GeometryType::CYLINDER), count(n), cylinder(in)
+  {}
+  PrimitiveInput(size_t n, const SDFInput &in)
+      : type(GeometryType::SDF), count(n), sdf(in)
+  {}
 };
+
+// Cone and cylinder endpoints: `indices` pairs vertices, else consecutive
+// vertices pair up.
+size_t segmentCount(const Array1D &vertices, const Array1D *indices);
+SegmentInput segmentInput(const Array1D &vertices,
+    const Array1D *indices,
+    const Array1D *caps,
+    uint8_t capFlags);
 
 // One block handles one small geometry. Bounds and area inputs are separate:
 // a lazily requested sphere area distribution need not carry vertex positions.

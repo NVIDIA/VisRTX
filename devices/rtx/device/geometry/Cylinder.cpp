@@ -78,19 +78,13 @@ void Cylinder::commitParameters()
 
 PrimitiveInput Cylinder::primitiveInput() const
 {
-  PrimitiveInput input;
-  input.type = GeometryType::CYLINDER;
-  input.count = m_index ? m_index->size() : m_vertex->size() / 2;
-  input.vertices = m_vertex->beginAs<vec3>(AddressSpace::GPU);
-  input.indices =
-      m_index ? m_index->beginAs<uvec2>(AddressSpace::GPU) : nullptr;
+  CylinderInput input{};
+  input.segments = segmentInput(
+      *m_vertex, m_index.get(), m_vertexCaps.get(), m_defaultCapFlags);
   input.radii =
       m_radius ? m_radius->beginAs<float>(AddressSpace::GPU) : nullptr;
-  input.caps = m_vertexCaps ? m_vertexCaps->beginAs<uint8_t>(AddressSpace::GPU)
-                            : nullptr;
   input.radius = m_globalRadius;
-  input.capFlags = m_defaultCapFlags;
-  return input;
+  return {segmentCount(*m_vertex, m_index.get()), input};
 }
 
 void Cylinder::finalize()

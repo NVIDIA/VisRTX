@@ -61,6 +61,7 @@ struct Sphere : public Geometry
   GeometryGPUData gpuData() const override;
   void cleanup();
   void buildAreaData();
+  PrimitiveInput primitiveInput() const;
 
   helium::ChangeObserverPtr<Array1D> m_index;
   helium::ChangeObserverPtr<Array1D> m_vertex;
