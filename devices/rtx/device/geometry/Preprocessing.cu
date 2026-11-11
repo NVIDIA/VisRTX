@@ -307,7 +307,7 @@ bool generateCurveIndices(Geometry *g, size_t n, DeviceBuffer &out)
         256,
         0,
         g->deviceState()->preparation.stream()>>>(n, out.ptrAs<uint32_t>());
-  return checkPreparation(g, cudaGetLastError(), "curve indices");
+  return failPreparationOnError(g, cudaGetLastError(), "curve indices");
 }
 
 bool generateCurveRadii(Geometry *g, size_t n, float radius, DeviceBuffer &out)
@@ -320,13 +320,11 @@ bool generateCurveRadii(Geometry *g, size_t n, float radius, DeviceBuffer &out)
         0,
         g->deviceState()->preparation.stream()>>>(
         n, radius, out.ptrAs<float>());
-  return checkPreparation(g, cudaGetLastError(), "curve radii");
+  return failPreparationOnError(g, cudaGetLastError(), "curve radii");
 }
 
-bool checkPreparation(Geometry *g, cudaError_t error, const char *operation)
+void failPreparation(Geometry *g, cudaError_t error, const char *operation)
 {
-  if (error == cudaSuccess)
-    return true;
   g->setPreparationFailed(true);
   // A failed dispatch/readback can follow successful queued kernels. Drain
   // preparation before retrying or freeing scratch. Keep the render-stream
@@ -338,32 +336,28 @@ bool checkPreparation(Geometry *g, cudaError_t error, const char *operation)
       "geometry preprocessing failed during %s: %s",
       operation,
       cudaGetErrorString(error));
+}
+
+bool failPreparationOnError(
+    Geometry *g, cudaError_t error, const char *operation)
+{
+  if (error == cudaSuccess)
+    return true;
+  failPreparation(g, error, operation);
   return false;
 }
 
 bool reservePreparation(Geometry *g, DeviceBuffer &buffer, size_t bytes)
 {
-  // Failed allocations can retain their requested capacity without storage.
-  // Clear it so a later preparation can retry the same-sized allocation.
-  if (!buffer)
-    buffer.reset();
-  buffer.reserve(bytes);
-  // Consume the runtime error even when missing storage identifies allocation
-  // failure. Otherwise the next successful allocation inherits this error.
-  const auto error = cudaGetLastError();
-  return checkPreparation(g,
-      error != cudaSuccess ? error
-          : bytes && (!buffer || buffer.bytes() < bytes)
-          ? cudaErrorMemoryAllocation
-          : cudaSuccess,
-      "allocating device storage");
+  return failPreparationOnError(
+      g, buffer.tryReserve(bytes), "allocating device storage");
 }
 
 bool finishPreparation(Geometry *g)
 {
   // Also establishes an explicit boundary for legacy default-stream consumers.
-  return checkPreparation(g, cudaGetLastError(), "launch")
-      && checkPreparation(g,
+  return failPreparationOnError(g, cudaGetLastError(), "launch")
+      && failPreparationOnError(g,
           g->deviceState()->finishGeometryPreparation(),
           "execution completion");
 }
@@ -377,14 +371,9 @@ SmallGeometryBatch::~SmallGeometryBatch()
 cudaError_t SmallGeometryBatch::reserveResults(size_t count)
 {
   const size_t bytes = 2 * count * sizeof(Result);
-  if (!m_results)
-    m_results.reset();
-  m_results.reserve(bytes);
-  auto error = cudaGetLastError();
+  auto error = m_results.tryReserve(bytes);
   if (error != cudaSuccess)
     return error;
-  if (!m_results || m_results.bytes() < bytes)
-    return cudaErrorMemoryAllocation;
   if (count > m_readbackCapacity) {
     void *memory = nullptr;
     error = cudaMallocHost(&memory, bytes);
@@ -472,7 +461,7 @@ bool Preprocessing::reserveReadback(Geometry *g)
 {
   if (m_readback)
     return true;
-  if (!checkPreparation(g,
+  if (!failPreparationOnError(g,
           g->deviceState()->geometryReadbacks.acquire(m_readbackLease),
           "allocating preparation readback"))
     return false;
@@ -493,9 +482,10 @@ bool Preprocessing::complete(Geometry *g)
   if (g->preparationFailed())
     return false;
   if (scale && m_readback[0].invalid)
-    return checkPreparation(g, cudaErrorInvalidValue, "non-finite bounds");
+    return failPreparationOnError(
+        g, cudaErrorInvalidValue, "non-finite bounds");
   if (total && !std::isfinite(m_readback[1].value))
-    return checkPreparation(
+    return failPreparationOnError(
         g, cudaErrorInvalidValue, "non-publishable primitive area");
   if (scale)
     *scale = m_readback[0].value;
@@ -527,7 +517,7 @@ bool Preprocessing::bounds(
   }
   if (!reservePreparation(g, aabbs, in.count * sizeof(box3))
       || !reservePreparation(g, m_result, sizeof(Result))
-      || !checkPreparation(g,
+      || !failPreparationOnError(g,
           cudaMemsetAsync(m_result.ptr(), 0, sizeof(Result), stream),
           "clearing bounds status"))
     return false;
@@ -536,8 +526,8 @@ bool Preprocessing::bounds(
         in, aabbs.ptrAs<box3>(), m_result.ptrAs<Result>());
   auto &host = m_readback[0];
   const bool sdf = in.type == GeometryType::SDF;
-  if (!checkPreparation(g, cudaGetLastError(), "bounds evaluation")
-      || !checkPreparation(g,
+  if (!failPreparationOnError(g, cudaGetLastError(), "bounds evaluation")
+      || !failPreparationOnError(g,
           cudaMemcpyAsync(sdf ? static_cast<void *>(&host.invalid) : &host,
               sdf ? static_cast<void *>(&m_result.ptrAs<Result>()->invalid)
                   : m_result.ptr(),
@@ -558,7 +548,7 @@ bool Preprocessing::areas(
     return true;
   }
   if (in.count > size_t(std::numeric_limits<int>::max()))
-    return checkPreparation(g, cudaErrorInvalidValue, "primitive count");
+    return failPreparationOnError(g, cudaErrorInvalidValue, "primitive count");
   if (!reserveReadback(g))
     return false;
   g->deferPreparation();
@@ -578,7 +568,7 @@ bool Preprocessing::areas(
   if (!reservePreparation(g, m_prefix, in.count * sizeof(double))
       || !reservePreparation(g, cdf, in.count * sizeof(float))
       || !reservePreparation(g, m_result, sizeof(Result))
-      || !checkPreparation(g,
+      || !failPreparationOnError(g,
           cudaMemsetAsync(m_result.ptr(), 0, sizeof(Result), stream),
           "clearing area status"))
     return false;
@@ -586,13 +576,13 @@ bool Preprocessing::areas(
   auto *result = m_result.ptrAs<Result>();
   primitiveAreas<<<(in.count + 255) / 256, 256, 0, stream>>>(
       in, prefix, result);
-  if (!checkPreparation(g, cudaGetLastError(), "area evaluation")
-      || !checkPreparation(g,
+  if (!failPreparationOnError(g, cudaGetLastError(), "area evaluation")
+      || !failPreparationOnError(g,
           cub::DeviceScan::InclusiveSum(
               nullptr, scratchBytes, prefix, prefix, int(in.count), stream),
           "scan workspace query")
       || !reservePreparation(g, m_scratch, scratchBytes)
-      || !checkPreparation(g,
+      || !failPreparationOnError(g,
           cub::DeviceScan::InclusiveSum(m_scratch.ptr(),
               scratchBytes,
               prefix,
@@ -603,12 +593,12 @@ bool Preprocessing::areas(
     return false;
   normalizeAreas<<<(in.count + 255) / 256, 256, 0, stream>>>(
       prefix, in.count, cdf.ptrAs<float>(), result);
-  if (!checkPreparation(g, cudaGetLastError(), "CDF normalization"))
+  if (!failPreparationOnError(g, cudaGetLastError(), "CDF normalization"))
     return false;
   publishArea<<<1, 1, 0, stream>>>(result);
   auto &host = m_readback[1];
-  if (!checkPreparation(g, cudaGetLastError(), "area publication")
-      || !checkPreparation(g,
+  if (!failPreparationOnError(g, cudaGetLastError(), "area publication")
+      || !failPreparationOnError(g,
           cudaMemcpyAsync(&host.value,
               &result->value,
               sizeof(host.value),
