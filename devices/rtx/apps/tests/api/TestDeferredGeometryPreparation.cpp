@@ -36,13 +36,17 @@
 #include <array>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <limits>
 
 namespace {
 int freed = 0;
 int errors = 0;
 int rejectedQueries = 0;
+int refusedQueryReports = 0;
+int refusedRenderReports = 0;
 anari::World callbackWorld = nullptr;
+anari::Frame callbackFrame = nullptr;
 
 void releaseDevice(const void *, const void *memory)
 {
@@ -58,10 +62,21 @@ void status(const void *,
     ANARIStatusCode,
     const char *message)
 {
+  if (severity == ANARI_SEVERITY_WARNING
+      && std::strstr(message, "geometry preparations are being collected")) {
+    refusedQueryReports += std::strstr(message, "anariGetProperty") != nullptr;
+    refusedRenderReports += std::strstr(message, "anariRenderFrame") != nullptr;
+    // Reentering from the refusal report itself must not recurse.
+    if (callbackFrame)
+      anariRenderFrame(d, callbackFrame);
+    return;
+  }
   if (severity > ANARI_SEVERITY_ERROR)
     return;
   ++errors;
   std::fprintf(stderr, "%s\n", message);
+  if (callbackFrame)
+    anariRenderFrame(d, callbackFrame);
   if (callbackWorld) {
     std::array<float, 6> bounds{};
     if (!anariGetProperty(d,
@@ -147,9 +162,15 @@ int main()
   auto invalid = anari::newObject<anari::Geometry>(d, "sphere");
   ok = position(d, invalid, std::numeric_limits<float>::quiet_NaN()) && ok;
   ok = flushGeometry(d, invalid) && ok;
+  // Each refused reentrant call is reported, naming the call.
+  auto frame = anari::newObject<anari::Frame>(d);
   callbackWorld = world;
-  ok = haveBounds() && errors == 1 && rejectedQueries == 1 && ok;
+  callbackFrame = frame;
+  ok = haveBounds() && errors == 1 && rejectedQueries == 1
+      && refusedQueryReports == 1 && refusedRenderReports == 1 && ok;
   callbackWorld = nullptr;
+  callbackFrame = nullptr;
+  anari::release(d, frame);
   anari::release(d, invalid);
 
   // The pending queue owns a last-reference geometry until device teardown.

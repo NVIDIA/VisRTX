@@ -131,6 +131,14 @@ struct VisRTXDevice : public helium::BaseDevice
   bool initDevice(); // thread safe initialization
 
  private:
+  // Refusal gates for API entry points. Each reports one message naming the
+  // refused call, except while another refusal is being reported on this
+  // thread (a status callback reentering the device must not recurse).
+  bool refuseIfDisabled(const char *call) const;
+  bool refuseDuringCollection(const char *call) const;
+  void reportRefusal(
+      ANARIStatusSeverity severity, const char *call, const char *reason) const;
+
   struct CUDADeviceScope
   {
     CUDADeviceScope(VisRTXDevice *d);
