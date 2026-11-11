@@ -74,7 +74,7 @@ void SDF::commitParameters()
 
 void SDF::finalize()
 {
-  if (!beginPreparation())
+  if (beginPreparation() != PreparationStart::Prepare)
     return;
   if (!m_sdf) {
     reportMessage(ANARI_SEVERITY_WARNING,

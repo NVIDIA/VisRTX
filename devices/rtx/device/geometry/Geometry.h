@@ -96,8 +96,10 @@ struct Geometry : public RegisteredObject<GeometryGPUData>
   virtual void ensureAreaData();
   virtual float totalArea() const;
 
+  // True in any of the failed preparation states below.
   bool preparationFailed() const;
-  void setPreparationFailed(bool failed);
+  // Fails the current generation; keeps a more specific failed state.
+  void markPreparationFailed();
 
  protected:
   // Declare once in the subtype constructor, before the first commit. List
@@ -105,9 +107,15 @@ struct Geometry : public RegisteredObject<GeometryGPUData>
   // primitive and vertex arrays. These inputs determine preparation reuse.
   void declarePreparationParameters(
       std::initializer_list<const char *> parameters);
-  // Returns false after preparation reuse and registry publication, or if
-  // preparation cannot start.
-  bool beginPreparation();
+
+  enum class PreparationStart
+  {
+    Prepare, // The subtype prepares and publishes the new generation.
+    Reused, // Inputs are unchanged; the registry is already republished.
+    Blocked, // Failed, an earlier failure awaits retry, or an input
+             // collection is in progress. The subtype returns.
+  };
+  PreparationStart beginPreparation();
   GeometryGPUData gpuData() const override = 0;
 
   void commitAttributes(const char *prefix, GeometryAttributes &attrs);
@@ -144,15 +152,75 @@ struct Geometry : public RegisteredObject<GeometryGPUData>
     bool submitted{false};
   };
   std::vector<InputUpload> m_inputUploads;
-  bool m_inputUploadsQueued{false};
-  bool m_inputUploadFailed{false};
-  helium::TimeStamp m_failedInputUpdate{0};
   std::vector<PreparationParameter> m_preparedParameters;
   std::vector<std::string> m_preparationParameterNames;
-  bool m_hasPreparedData{false};
-  bool m_preparationPreserved{false};
-  bool m_preparationFailed{false};
-  bool m_inputRetirementFailed{false};
+
+  // Preparation state of the current generation.
+  //
+  //   Unprepared         Nothing published for the current inputs: initial,
+  //                      preparing, or published while !isValid().
+  //   Prepared           Published; a commit may retain its inputs.
+  //   Reused             Prepared, and the latest finalize reused it, so
+  //                      markFinalized() leaves the BLAS change stamp alone.
+  //   Failed             The next finalize retries.
+  //   InputUploadFailed  An input upload batch failed. A parameter commit, or
+  //                      an observer update newer than m_failedInputUpdate,
+  //                      retries.
+  //   RetirementFailed   Retiring the previous inputs failed. Only a
+  //                      parameter commit retries.
+  //
+  // Transitions. An event leaves every state it does not list unchanged.
+  //
+  //   Event                             From               To
+  //   commitParameters()                InputUploadFailed  Failed
+  //                                     RetirementFailed   Failed
+  //     then retiring inputs fails      any                RetirementFailed
+  //   beginPreparation()                Reused             Prepared
+  //     observer update newer than      InputUploadFailed  Failed
+  //     m_failedInputUpdate
+  //     inputs unchanged, isValid()     Prepared           Reused
+  //     full preparation                Unprepared         Unprepared
+  //                                     Prepared           Unprepared
+  //                                     Failed             Unprepared
+  //   upload(), isValid()               Unprepared         Prepared
+  //                                     Prepared           Prepared
+  //                                     Reused             Reused
+  //   upload(), !isValid()              any not failed     Unprepared
+  //   markPreparationFailed() (every    any not failed     Failed
+  //   CUDA or numeric failure, and
+  //   retirePreparationSnapshot())
+  //   failInputUploads()                any but            InputUploadFailed
+  //                                     RetirementFailed
+  //
+  // beginPreparation() returns Blocked in InputUploadFailed and
+  // RetirementFailed (retryBlocked()). RetirementFailed outranks
+  // InputUploadFailed: both need a commit, and the commit clears both. Whether
+  // the queued input batch failed is kept in m_inputBatch, so a batch that
+  // fails in RetirementFailed still leaves its arrays dirty.
+  enum class PreparationState
+  {
+    Unprepared,
+    Prepared,
+    Reused,
+    Failed,
+    InputUploadFailed,
+    RetirementFailed,
+  };
+  PreparationState m_preparationState{PreparationState::Unprepared};
+  // lastUpdated() when the input upload batch failed (InputUploadFailed).
+  helium::TimeStamp m_failedInputUpdate{0};
+
+  bool retryBlocked() const;
+
+  // Queue membership, independent of the state above.
+  enum class InputBatch
+  {
+    None, // Not queued for input uploads.
+    Queued,
+    Failed, // Queued; the batch failed, so submit nothing and mark no array
+            // uploaded. A commit retries it.
+  };
+  InputBatch m_inputBatch{InputBatch::None};
   bool m_preparationQueued{false};
 };
 

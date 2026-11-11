@@ -93,7 +93,7 @@ PrimitiveInput Cone::primitiveInput() const
 
 void Cone::finalize()
 {
-  if (!beginPreparation())
+  if (beginPreparation() != PreparationStart::Prepare)
     return;
   if (!m_vertex) {
     reportMessage(ANARI_SEVERITY_WARNING,

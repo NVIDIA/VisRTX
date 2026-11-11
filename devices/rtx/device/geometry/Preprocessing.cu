@@ -325,7 +325,7 @@ bool generateCurveRadii(Geometry *g, size_t n, float radius, DeviceBuffer &out)
 
 void failPreparation(Geometry *g, cudaError_t error, const char *operation)
 {
-  g->setPreparationFailed(true);
+  g->markPreparationFailed();
   // A failed dispatch/readback can follow successful queued kernels. Drain
   // preparation before retrying or freeing scratch. Keep the render-stream
   // drain on this error path too: this helper also handles input retirement
