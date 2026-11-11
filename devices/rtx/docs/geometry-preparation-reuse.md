@@ -182,8 +182,9 @@ across host-vector growth and preservation of newer dirty edits.
 
 ## Geometry submission and collection
 
-Checked bounds and area-CDF preparation queue kernels and asynchronous readbacks
-into geometry-owned pinned storage. A successful submission is not publication:
+Checked bounds and area-CDF preparation queue kernels that write their scalar
+results into the device's `PreparationResults`, at the geometry's position in the
+preparation queue. A successful submission is not publication:
 scalar outputs, numeric validation, and geometry registry updates happen only
 after collection. The device queue retains each submitted geometry, and thereby
 its arrays and derived buffers, until those operations finish. Ownership stays
@@ -263,14 +264,10 @@ upload, dispatch and readback completion. Descriptors remain stable through
 fallback drains; dispatch or transfer failure invalidates the pending batch,
 while numeric failures remain local to their geometry.
 
-Small jobs write both result slots into a contiguous device-owned result buffer.
-The batch performs one asynchronous transfer into a reusable pinned host buffer,
-then scatters only completed, requested slots into the geometries' summaries.
-Even unused slots are initialized before transfer. A bounds-only flush followed
-by a later area request preserves the earlier bounds summary. Failed transfers
-or completion do not scatter partial results. Both batch buffers grow to their
-high-water size and remain alive through fallback drains; the per-geometry
-pinned leases and general-path readbacks retain their existing ownership.
+Small jobs and the general path write the same results storage, so a geometry's
+bounds and area results sit at its queue position whichever path produced them.
+Small jobs write only the results they request: a bounds-only flush followed by a
+later area request preserves the earlier bounds result.
 
 `TestSmallGeometryBatch` exercises mixed sphere/cone/cylinder/triangle batches
 at 1, 31, 32, 33, 255, 256 and 257 primitives with host and device-backed logical
@@ -292,23 +289,28 @@ and restoration with new weights discriminate weighting, order, normalization
 and stale sampling data rather than just bounds or light counts. No public debug
 property or shared production area helper is used by the oracle.
 
-Pinned readback storage is leased from the device's `GeometryReadbackPool`.
-Each page holds 256 geometry leases, each containing two result slots (a 4 KiB
-page with the current result layout). A geometry keeps its lease across updates;
-returning it after collection makes the slot reusable without a CUDA allocation.
-The pool caches pages at its high-water mark until device teardown rather than
-trimming on every geometry destruction. A lease retains its page independently
-of the pool's lifetime, so cleanup cannot free storage while a lease still exists.
-This reduces allocation count, not necessarily requested bytes for tiny scenes:
-a partially occupied page still reserves the whole page.
+`PreparationResults` holds two results per queued geometry: bounds (epsilon
+scale and validity) and total area. Kernels write its device storage; every
+`finishGeometryPreparation()` that follows a write copies the queued range to
+pinned host storage in one transfer, then synchronizes. `complete()` reads the
+host copy at the geometry's queue position. There is no per-geometry pinned
+storage and no host-side copy between pinned buffers. Device and pinned storage
+grow together, starting at 256 geometries (4 KiB each with the current result
+layout), doubling when the queue outgrows them, and staying at their high-water
+size until device teardown. The general path reserves at submission, so an
+allocation failure fails only the submitting geometry; the small batch reserves
+when it launches, so a failure there fails the whole batch. Device growth
+synchronizes the preparation stream and copies the earlier results into the new
+storage; the old pinned storage holds nothing still needed, because each
+readback completes in its own finish and the next one transfers the whole
+queued range. A failed allocation keeps existing storage and clears CUDA
+last-error state, so a retry can succeed. `TestPreparationResults` covers first
+and growth allocation failure and retry on either side, preservation across
+growth, rewrites between readbacks and the readback range.
 
-Pool/page locks protect slot accounting but are never held across CUDA allocation
-or free. A failed page allocation leaves existing leases intact and clears CUDA
-last-error state before retry. Concurrent growth may allocate an extra page;
-source/result lifetime ordering remains the collection queue's responsibility.
-`TestGeometryReadbackPool` covers first-page/growth failure and retry, slot reuse,
-move/reset, pool-before-lease teardown, concurrent leases, and asynchronous DMA
-into separate slots on a page.
+BVH builds read back their bounds and compacted size through one pinned
+`BvhReadback` owned by the device state. The first build allocates it; builds are
+serialized and complete before returning, so no transfer outlives a build.
 
 Committed host inputs now complete in a cross-geometry batch before finalizers
 run. Observer-only input updates remain conservative. Last-public-release of
@@ -321,7 +323,7 @@ independent scene generations or concurrent in-place replacement during tracing.
 `TestDeferredGeometryPreparation` covers recommitting a queued geometry, retained
 captured-device inputs, last-reference queue ownership through teardown, unrelated
 numeric failures, and collection-time callback reentry. Injection cases also
-cover pinned-readback allocation failure, completion failure across multiple
+cover results allocation failure, completion failure across multiple
 queued geometries, an intervening upload completion failure, and shared CUDA
 array retirement while preparation remains pending. `TestGeometryInputBatch`
 checks submission-before-wait across multiple geometries, shared-array dedup,

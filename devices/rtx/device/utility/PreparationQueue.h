@@ -45,8 +45,10 @@ namespace visrtx {
 template <typename Pointer>
 struct PreparationQueue
 {
-  void enqueue(Pointer object);
+  // Returns the object's position, stable until the next collection retires it.
+  size_t enqueue(Pointer object);
   bool empty() const;
+  size_t size() const;
   bool collecting() const;
   template <typename Function>
   void forEach(Function function);
@@ -59,16 +61,23 @@ struct PreparationQueue
 };
 
 template <typename Pointer>
-inline void PreparationQueue<Pointer>::enqueue(Pointer object)
+inline size_t PreparationQueue<Pointer>::enqueue(Pointer object)
 {
   assert(!m_collecting);
   m_pending.push_back(std::move(object));
+  return m_pending.size() - 1;
 }
 
 template <typename Pointer>
 inline bool PreparationQueue<Pointer>::empty() const
 {
   return m_pending.empty();
+}
+
+template <typename Pointer>
+inline size_t PreparationQueue<Pointer>::size() const
+{
+  return m_pending.size();
 }
 
 template <typename Pointer>

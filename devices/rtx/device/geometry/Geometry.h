@@ -78,7 +78,8 @@ struct Geometry : public RegisteredObject<GeometryGPUData>
   void markFinalized() override;
   // Defers registry publication while preprocessing results are pending.
   void upload() override;
-  void deferPreparation();
+  // Queues the geometry for collection once; returns its queue position.
+  size_t deferPreparation();
   void completePreparation();
   void markPreparationCollected() noexcept;
   void retirePreparationSnapshot();
@@ -218,7 +219,8 @@ struct Geometry : public RegisteredObject<GeometryGPUData>
             // uploaded. A commit retries it.
   };
   InputBatch m_inputBatch{InputBatch::None};
-  bool m_preparationQueued{false};
+  // Position in the device's preparation queue while queued.
+  std::optional<size_t> m_preparationPosition;
 };
 
 } // namespace visrtx

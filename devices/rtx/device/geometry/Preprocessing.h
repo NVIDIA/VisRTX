@@ -32,7 +32,7 @@
 #pragma once
 
 #include <vector>
-#include "ReadbackPool.h"
+#include "PreparationResults.h"
 #include "gpu/gpu_objects.h"
 #include "utility/DeviceBuffer.h"
 
@@ -66,36 +66,32 @@ struct SmallGeometryJob
   PrimitiveInput areaInput;
   box3 *bounds{nullptr};
   float *cdf{nullptr};
-  PreparationResult *results{nullptr};
+  GeometryResults *results{nullptr};
 };
 
 struct Preprocessing;
 
 // Device-owned, single-flight batch. The geometry collection queue retains
-// owners until finish() drains every queued descriptor, kernel and readback.
+// owners until the stream completes every queued descriptor and kernel.
 struct SmallGeometryBatch
 {
   static constexpr size_t MAX_PRIMITIVES = 256;
-  SmallGeometryBatch() = default;
-  ~SmallGeometryBatch();
-  SmallGeometryBatch(const SmallGeometryBatch &) = delete;
-  SmallGeometryBatch &operator=(const SmallGeometryBatch &) = delete;
   void enqueue(Preprocessing *preprocessing);
-  cudaError_t finish(cudaStream_t stream);
+  // Launches every queued job, writing each geometry's results at its queue
+  // position in `results`. Always empties the batch; the caller synchronizes
+  // `stream`.
+  cudaError_t launch(PreparationResults &results, cudaStream_t stream);
 
  private:
   std::vector<Preprocessing *> m_pending;
   std::vector<SmallGeometryJob> m_jobs;
   DeviceBuffer m_descriptors;
-  DeviceBuffer m_results;
-  PreparationResult *m_readback{nullptr};
-  size_t m_readbackCapacity{0};
-  cudaError_t reserveResults(size_t count);
 };
 
 // Per-geometry reusable workspace and the owner of its scalar results.
-// Submission retains pinned readback storage; complete() publishes the epsilon
-// scale, total area and area CDF after the device's collection barrier.
+// Submission writes the device's PreparationResults at the geometry's queue
+// position; complete() publishes the epsilon scale, total area and area CDF
+// from their readback after the device's collection barrier.
 struct Preprocessing
 {
   enum class Status
@@ -131,13 +127,14 @@ struct Preprocessing
 
  private:
   friend struct SmallGeometryBatch;
-  bool reserveReadback(Geometry *geometry);
   void enqueueSmall(Geometry *geometry);
   void submit(Geometry *geometry);
+  // Device results for a general-path submission; null after failing it.
+  GeometryResults *reserveResults(Geometry *geometry);
   SmallGeometryJob m_small;
   bool m_smallQueued{false};
-  GeometryReadbackPool::Lease m_readbackLease;
-  PreparationResult *m_readback{nullptr};
+  // Position in the device's preparation queue, set by submit().
+  size_t m_position{0};
   Status m_status{Status::Ready};
   bool m_boundsSubmitted{false};
   bool m_areasSubmitted{false};
@@ -148,7 +145,6 @@ struct Preprocessing
   DeviceBuffer m_areaCdf;
   DeviceBuffer m_prefix;
   DeviceBuffer m_scratch;
-  DeviceBuffer m_result;
 };
 
 // Marks the geometry's preparation failed, drains the preparation and render

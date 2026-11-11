@@ -102,11 +102,17 @@ bool buildOptixBVH(std::vector<OptixBuildInput> buildInput,
           "memory requirements"))
     return false;
 
-  // Acquire before submitting GPU work: allocation may throw, and a lease
-  // must never be returned while a readback still targets it.
-  PinnedReadbackPool<DeviceGlobalState::BvhReadback>::Lease readback;
-  if (!check(state.bvhReadbacks.acquire(readback), "allocating BVH readback"))
-    return false;
+  // Allocate before submitting GPU work. Every earlier build completed, so
+  // no transfer still targets the readback.
+  if (!state.bvhReadback) {
+    void *memory = nullptr;
+    const auto error =
+        cudaMallocHost(&memory, sizeof(DeviceGlobalState::BvhReadback));
+    if (!check(error, "allocating BVH readback"))
+      return false;
+    state.bvhReadback.reset(
+        static_cast<DeviceGlobalState::BvhReadback *>(memory));
+  }
 
   DeviceBuffer compactedSizeBuffer, aabbBuffer, tempBuffer, outputBuffer;
   if (!reserve(compactedSizeBuffer, sizeof(uint64_t))
@@ -136,8 +142,8 @@ bool buildOptixBVH(std::vector<OptixBuildInput> buildInput,
           "build"))
     return false;
 
-  auto &builtBounds = readback.data()->bounds;
-  auto &compactedSize = readback.data()->compactedSize;
+  auto &builtBounds = state.bvhReadback->bounds;
+  auto &compactedSize = state.bvhReadback->compactedSize;
   if (!check(cudaMemcpyAsync(&builtBounds,
                  aabbBuffer.ptr(),
                  sizeof(box3),
@@ -263,9 +269,10 @@ cudaError_t DeviceGlobalState::waitForRenderConsumers()
                                       : preparation.waitFor(stream);
 }
 
-void DeviceGlobalState::enqueueGeometryPreparation(Geometry *geometry)
+size_t DeviceGlobalState::enqueueGeometryPreparation(Geometry *geometry)
 {
-  m_geometryPreparations.enqueue(helium::IntrusivePtr<Geometry>(geometry));
+  return m_geometryPreparations.enqueue(
+      helium::IntrusivePtr<Geometry>(geometry));
 }
 
 bool DeviceGlobalState::collectingGeometryPreparations() const
@@ -284,8 +291,16 @@ cudaError_t DeviceGlobalState::finishGeometryPreparation()
 {
   // Flush deferred small jobs even at intervening upload/retirement waits:
   // their input pointers must be consumed before a backing allocation changes.
-  const auto error = smallGeometryBatch.finish(preparation.stream());
+  // Then read back every queued result in one transfer.
+  const auto stream = preparation.stream();
+  auto error = smallGeometryBatch.launch(preparationResults, stream);
+  if (error == cudaSuccess)
+    error = preparationResults.readback(m_geometryPreparations.size(), stream);
+  const auto completion = cudaStreamSynchronize(stream);
+  if (error == cudaSuccess)
+    error = completion;
   if (error != cudaSuccess) {
+    cudaGetLastError();
     // An intervening upload/legacy consumer may wait before the collection
     // point. Its stream-completion error affects all already queued results.
     m_geometryPreparations.forEach(

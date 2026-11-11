@@ -49,7 +49,7 @@
 #include <mutex>
 #include <thread>
 #include <vector>
-#include "../../../device/geometry/ReadbackPool.h"
+#include "../../../device/geometry/PreparationResults.h"
 
 namespace {
 enum class Failure
@@ -167,22 +167,18 @@ void complete(const void *, ANARIDevice, ANARIFrame)
 }
 } // namespace
 
+// Bytes of the first device or pinned allocation of geometry results.
+constexpr size_t RESULTS_BYTES =
+    visrtx::PreparationResults::MIN_CAPACITY * sizeof(visrtx::GeometryResults);
+
 extern "C" cudaError_t cudaMallocHost(void **ptr, size_t bytes)
 {
-  // BVH results contain six bounds floats and a 64-bit compaction size.
-  constexpr size_t bvhPageBytes = 2
-      * visrtx::GeometryReadbackPool::SLOTS_PER_PAGE
-      * (6 * sizeof(float) + sizeof(uint64_t));
-  if (bytes == bvhPageBytes && inject(Failure::BVH_PINNED_ALLOCATION)) {
-    *ptr = nullptr;
-    return next<decltype(&cudaMallocHost)>("cudaMallocHost")(ptr, size_t(-1));
-  }
-  constexpr size_t readbackPageBytes = 2
-      * visrtx::GeometryReadbackPool::SLOTS_PER_PAGE
-      * sizeof(visrtx::PreparationResult);
-  if ((bytes == readbackPageBytes && inject(Failure::READBACK_ALLOCATION))
-      || (bytes == 4 * sizeof(visrtx::PreparationResult)
-          && inject(Failure::SMALL_PINNED_ALLOCATION))) {
+  // The BVH readback holds six bounds floats and a 64-bit compaction size.
+  constexpr size_t BVH_BYTES = 6 * sizeof(float) + sizeof(uint64_t);
+  if ((bytes == BVH_BYTES && inject(Failure::BVH_PINNED_ALLOCATION))
+      || (bytes == RESULTS_BYTES
+          && (inject(Failure::READBACK_ALLOCATION)
+              || inject(Failure::SMALL_PINNED_ALLOCATION)))) {
     *ptr = nullptr;
     return next<decltype(&cudaMallocHost)>("cudaMallocHost")(ptr, size_t(-1));
   }
@@ -299,13 +295,11 @@ extern "C" cudaError_t cudaMemcpyAsync(void *dst,
     }
   }
   if (failure == Failure::PREPARATION_EARLY_SYNC && stream == preparationStream
-      && kind == cudaMemcpyDeviceToHost
-      && (bytes == sizeof(visrtx::PreparationResult)
-          || (bytes && bytes % (2 * sizeof(visrtx::PreparationResult)) == 0))
+      && kind == cudaMemcpyDeviceToHost && bytes
+      && bytes % sizeof(visrtx::GeometryResults) == 0
       && !pendingCompletion.queued) {
-    // Gate either the general bounds summary or the consolidated small-batch
-    // summary after kernel submission. No subsequent allocation or pageable
-    // copy can supply a hidden wait.
+    // Gate the consolidated results readback after kernel submission. No
+    // subsequent allocation or pageable copy can supply a hidden wait.
     auto error = cudaLaunchHostFunc(stream, blockPreparation, nullptr);
     if (error != cudaSuccess)
       return error;
@@ -649,8 +643,7 @@ int main(int argc, char **argv)
       failure = Failure::SMALL_READBACK;
     if (sphereFailure
         && std::strcmp(argv[1], "sphere-batch-small-result-allocation") == 0) {
-      allocationBytes =
-          4 * sizeof(visrtx::PreparationResult); // Two geometries.
+      allocationBytes = RESULTS_BYTES; // Device results of both geometries.
       failure = Failure::ALLOCATION;
     }
     if (sphereFailure
