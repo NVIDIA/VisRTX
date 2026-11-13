@@ -55,7 +55,8 @@ struct Quad : public Geometry
   void generateIndices();
   void generateTangents();
 
-  HostDeviceArray<uvec3> m_indices;
+  DeviceBuffer m_indices;
+  size_t m_numTriangles{0};
 
   helium::ChangeObserverPtr<Array1D> m_index;
   helium::ChangeObserverPtr<Array1D> m_vertex;

@@ -30,8 +30,10 @@
  */
 
 #include "Array.h"
+#include "optix_visrtx.h"
 // std
 #include <cstring>
+#include <utility>
 
 namespace visrtx {
 
@@ -163,13 +165,32 @@ void Array::unmap()
 
 void Array::privatize()
 {
+  auto &state = *static_cast<DeviceGlobalState *>(deviceState());
+  // Cleanup can release more public references after the original failure.
+  // Do not retry copies from application memory that may already be freed.
+  if (state.arrayPrivatizationFailed)
+    return;
+  bool changed = false;
   if (m_data.shared.host.isValid() && !m_data.shared.host.isOwner()) {
+    // A batched H2D copy may still use the application-owned host pointer.
+    // Draining does not release the queue's retained array references.
+    if (state.collectingGeometryInputUploads()) {
+      const auto completion = state.finishGeometryPreparation();
+      if (completion != cudaSuccess) {
+        state.arrayPrivatizationFailed = true;
+        reportMessage(ANARI_SEVERITY_FATAL_ERROR,
+            "array privatization failed; device disabled: %s",
+            cudaGetErrorString(completion));
+        return;
+      }
+    }
     reportMessage(ANARI_SEVERITY_PERFORMANCE_WARNING,
         "making private copy of shared host array (type '%s') | refs: (%i:%i)",
         anari::toString(elementType()),
         this->useCount(helium::RefType::PUBLIC),
         this->useCount(helium::RefType::INTERNAL));
     m_data.shared.host.privatize();
+    changed = true;
   }
   if (m_data.shared.device.isValid() && !m_data.shared.device.isOwner()) {
     reportMessage(ANARI_SEVERITY_PERFORMANCE_WARNING,
@@ -177,8 +198,30 @@ void Array::privatize()
         anari::toString(elementType()),
         this->useCount(helium::RefType::PUBLIC),
         this->useCount(helium::RefType::INTERNAL));
-    m_data.shared.device.privatize();
+    // Existing frames may still read the shared pointer. The application may
+    // free it as soon as this last PUBLIC release returns.
+    auto completion = state.renderRetirement.retire();
+    // Deferred preprocessing can still read this external allocation even
+    // when no frame is in flight. Retain it through that stream's completion.
+    if (completion == cudaSuccess && state.hasPendingGeometryPreparations())
+      completion = state.finishGeometryPreparation();
+    if (completion == cudaSuccess)
+      completion = m_data.shared.device.privatize();
+    if (completion != cudaSuccess) {
+      // Set before reporting: callbacks must not resume rendering or query
+      // bounds using cached aliases to the application-owned allocation.
+      state.arrayPrivatizationFailed = true;
+      reportMessage(ANARI_SEVERITY_FATAL_ERROR,
+          "array privatization failed; device disabled: %s",
+          cudaGetErrorString(completion));
+      return;
+    }
+    changed = true;
   }
+  // Geometry may alias authored arrays directly: a new backing allocation is
+  // an observable pointer change even though the array's values did not change.
+  if (changed)
+    notifyChangeObservers();
 }
 
 void Array::uploadArrayData() const
@@ -194,6 +237,52 @@ void Array::uploadArrayData() const
     m_data.managed.device = m_data.managed.host;
 
   markDataUploaded();
+}
+
+cudaError_t Array::enqueueUpload(cudaStream_t stream) const
+{
+  if (anari::isObject(elementType()))
+    return cudaErrorInvalidValue; // ObjectArray has its own handle translation.
+  if (!needToUploadData())
+    return cudaSuccess;
+
+  const HostMemoryAllocation *host = nullptr;
+  CudaMemoryAllocation *device = nullptr;
+  if (m_data.shared.host.isValid()) {
+    host = &m_data.shared.host;
+    device = &m_data.shared.device;
+  } else if (m_data.captured.host.isValid()) {
+    host = &m_data.captured.host;
+    device = &m_data.captured.device;
+  } else if (m_data.managed.host.isValid()) {
+    host = &m_data.managed.host;
+    device = &m_data.managed.device;
+  } else
+    return cudaSuccess; // Application-owned device inputs are already resident.
+
+  if (!device->isValid()) {
+    auto cache = static_cast<DeviceGlobalState *>(deviceState())
+                     ->geometryInputAllocations;
+    void *memory = nullptr;
+    const auto allocationError = cache->allocate(host->bytes(), &memory);
+    auto allocation = CudaMemoryAllocation::fromCache(
+        memory, host->bytes(), std::move(cache));
+    const auto lastError = cudaGetLastError();
+    if (allocationError != cudaSuccess)
+      return allocationError;
+    if (lastError != cudaSuccess)
+      return lastError;
+    if (!allocation)
+      return cudaErrorMemoryAllocation;
+    *device = std::move(allocation);
+  }
+  if (device->bytes() != host->bytes())
+    return cudaErrorInvalidValue;
+  return cudaMemcpyAsync(device->ptr(),
+      host->ptr(),
+      host->bytes(),
+      cudaMemcpyHostToDevice,
+      stream);
 }
 
 ANARIDataType Array::elementType() const

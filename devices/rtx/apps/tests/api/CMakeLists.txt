@@ -46,6 +46,9 @@ make_test(TestQuadLightShaping)
 make_test(TestQuadLightFocus)
 make_test(TestQuadLightTexture)
 make_test(TestDenoiserReuse)
+add_executable(TestPreparationQueue TestPreparationQueue.cpp)
+target_link_libraries(TestPreparationQueue PRIVATE nonstd::scope-lite)
+add_test(NAME TestPreparationQueue COMMAND TestPreparationQueue)
 
 if (WIN32)
   return()
@@ -78,12 +81,124 @@ target_link_libraries(TestSampleAddressing PRIVATE CUDA::cudart)
 set_tests_properties(TestSampleAddressing PROPERTIES TIMEOUT 120)
 make_test(TestPowerLightPickEnv)
 make_test(TestEmissiveGeometryLight)
+add_executable(BenchmarkCudaOrdering BenchmarkCudaOrdering.cu)
+target_link_libraries(BenchmarkCudaOrdering PRIVATE CUDA::cudart)
+set_target_properties(BenchmarkCudaOrdering PROPERTIES CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}")
+add_executable(BenchmarkGeometryPreprocessing BenchmarkGeometryPreprocessing.cpp)
+target_link_libraries(BenchmarkGeometryPreprocessing PRIVATE anari_library_visrtx anari::anari_static CUDA::cudart)
+add_executable(TestPreparationStream TestPreparationStream.cpp)
+target_link_libraries(TestPreparationStream PRIVATE CUDA::cudart Threads::Threads)
+add_test(NAME TestPreparationStream COMMAND TestPreparationStream)
+add_executable(TestRegistrySnapshot TestRegistrySnapshot.cpp
+  ../../../device/utility/MemoryAllocation.cpp)
+target_include_directories(TestRegistrySnapshot PRIVATE
+  ../../../device ../../../external/nanovdb/include ${OptiX_ROOT_DIR}/include)
+target_link_libraries(TestRegistrySnapshot PRIVATE
+  CUDA::cudart anari::anari_static visrtx::glm)
+target_compile_definitions(TestRegistrySnapshot PRIVATE GLM_ENABLE_EXPERIMENTAL)
+add_test(NAME TestRegistrySnapshot COMMAND TestRegistrySnapshot)
+make_test(TestDeferredGeometryPreparation)
+target_link_libraries(TestDeferredGeometryPreparation PRIVATE CUDA::cudart)
+make_test(TestSmallGeometryBatch)
+target_link_libraries(TestSmallGeometryBatch PRIVATE CUDA::cudart)
+make_test(TestGeometryAreaCDF)
+target_sources(TestGeometryAreaCDF PRIVATE ../../../device/utility/MemoryAllocation.cpp)
+# Inspect published device records without adding a public debug property.
+# Match private host layouts, including optional MDL fields, to the device.
+target_compile_definitions(TestGeometryAreaCDF PRIVATE
+  $<TARGET_PROPERTY:anari_library_visrtx,COMPILE_DEFINITIONS>)
+target_include_directories(TestGeometryAreaCDF PRIVATE
+  $<TARGET_PROPERTY:anari_library_visrtx,INCLUDE_DIRECTORIES>)
+target_link_libraries(TestGeometryAreaCDF PRIVATE
+  CUDA::cudart visrtx::glm nonstd::scope-lite)
+# Private layouts also require the matching built library, not a stale install
+# selected by the developer shell's LD_LIBRARY_PATH.
+set_tests_properties(TestGeometryAreaCDF PROPERTIES ENVIRONMENT
+  "LD_LIBRARY_PATH=$<TARGET_FILE_DIR:anari_library_visrtx>:$ENV{LD_LIBRARY_PATH}")
+make_test(TestGeometryPreparationReuse)
+target_link_libraries(TestGeometryPreparationReuse PRIVATE CUDA::cudart)
+make_test(TestSharedGeometryLifecycle)
+target_link_libraries(TestSharedGeometryLifecycle PRIVATE CUDA::cudart)
+make_test(TestGeometryPreprocessingFailure)
+target_link_libraries(TestGeometryPreprocessingFailure PRIVATE CUDA::cudart)
+add_test(NAME TestGeometryBoundsFailure COMMAND TestGeometryPreprocessingFailure --bounds)
+# CUDA API interposition needs ELF dynamic symbols; static cudart calls cannot
+# be intercepted. Configure with -DCMAKE_CUDA_RUNTIME_LIBRARY=Shared to run.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CUDA_RUNTIME_LIBRARY STREQUAL "Shared")
+  add_executable(TestDeviceAllocationCache TestDeviceAllocationCache.cpp
+    ../../../device/utility/MemoryAllocation.cpp)
+  target_link_libraries(TestDeviceAllocationCache PRIVATE CUDA::cudart anari::anari_static ${CMAKE_DL_LIBS} Threads::Threads)
+  set_target_properties(TestDeviceAllocationCache PROPERTIES ENABLE_EXPORTS ON)
+  add_test(NAME TestDeviceAllocationCache COMMAND TestDeviceAllocationCache)
+  add_executable(TestStreamRetirement TestStreamRetirement.cpp)
+  target_link_libraries(TestStreamRetirement PRIVATE CUDA::cudart ${CMAKE_DL_LIBS} Threads::Threads)
+  set_target_properties(TestStreamRetirement PROPERTIES ENABLE_EXPORTS ON)
+  add_test(NAME TestStreamRetirement COMMAND TestStreamRetirement)
+  target_link_libraries(TestSmallGeometryBatch PRIVATE ${CMAKE_DL_LIBS})
+  target_compile_definitions(TestSmallGeometryBatch PRIVATE VISRTX_TEST_INTERPOSE_CUDA)
+  set_target_properties(TestSmallGeometryBatch PROPERTIES ENABLE_EXPORTS ON)
+  make_test(TestFramePublicationRecovery)
+  target_link_libraries(TestFramePublicationRecovery PRIVATE CUDA::cudart ${CMAKE_DL_LIBS})
+  set_target_properties(TestFramePublicationRecovery PROPERTIES ENABLE_EXPORTS ON)
+  make_test(TestGeometryInputBatch)
+  target_link_libraries(TestGeometryInputBatch PRIVATE CUDA::cudart ${CMAKE_DL_LIBS})
+  set_target_properties(TestGeometryInputBatch PROPERTIES ENABLE_EXPORTS ON)
+  add_executable(TestGeometryReadbackPool TestGeometryReadbackPool.cpp)
+  target_link_libraries(TestGeometryReadbackPool PRIVATE
+    CUDA::cudart ${CMAKE_DL_LIBS} Threads::Threads)
+  set_target_properties(TestGeometryReadbackPool PROPERTIES ENABLE_EXPORTS ON)
+  add_test(NAME TestGeometryReadbackPool COMMAND TestGeometryReadbackPool)
+  make_test(TestCudaPreparationFailure)
+  target_link_libraries(TestCudaPreparationFailure PRIVATE CUDA::cudart ${CMAKE_DL_LIBS} Threads::Threads)
+  target_include_directories(TestCudaPreparationFailure PRIVATE ${OptiX_ROOT_DIR}/include)
+  set_target_properties(TestCudaPreparationFailure PROPERTIES ENABLE_EXPORTS ON)
+  add_test(NAME TestIsosurfacePreparationRecovery
+    COMMAND TestCudaPreparationFailure isosurface)
+  foreach(geometry sphere sphere-indexed sphere-completion sphere-dependency
+      sphere-undrained-completion
+      sphere-batch-small-copy sphere-batch-small-launch sphere-batch-small-readback
+      sphere-batch-small-result-allocation sphere-batch-small-pinned-allocation
+      sphere-readback-allocation sphere-batch-completion
+      sphere-batch-upload-completion sphere-batch-input-completion
+      sphere-upload-allocation sphere-upload-copy sphere-upload-completion
+      sphere-upload-partial sphere-upload-observer)
+    add_test(NAME TestSpherePreparationRecovery_${geometry}
+      COMMAND TestCudaPreparationFailure ${geometry})
+  endforeach()
+  foreach(failure registry-copy registry-sync registry-partial
+      instance-allocation instance-copy instance-sync world-copy world-sync)
+    add_test(NAME TestSceneUploadRecovery_${failure}
+      COMMAND TestCudaPreparationFailure ${failure})
+  endforeach()
+  foreach(failure bvh-copy bvh-sync tlas-sync bvh-pinned-allocation)
+    add_test(NAME TestBvhPreparationRecovery_${failure}
+      COMMAND TestCudaPreparationFailure ${failure})
+  endforeach()
+  foreach(failure allocation copy work-sync copy-sync pending-retirement)
+    add_test(NAME TestArrayPrivatizationFailure_${failure}
+      COMMAND TestCudaPreparationFailure ${failure})
+  endforeach()
+endif()
+make_test(TestDeviceGeometryVisibility)
+target_link_libraries(TestDeviceGeometryVisibility PRIVATE CUDA::cudart)
+add_test(NAME TestSharedGeometryInputs COMMAND TestDeviceGeometryVisibility --shared-inputs)
+add_test(NAME TestDeviceArrayRetirement COMMAND TestDeviceGeometryVisibility --retire)
+add_test(NAME TestDeviceSdfExpansion COMMAND TestDeviceGeometryVisibility sdf-expanded)
+foreach(type triangle sphere curve sdf cone cylinder)
+  add_test(NAME TestDeviceGeometryVisibility_${type} COMMAND TestDeviceGeometryVisibility ${type})
+endforeach()
 make_test(TestQuadLightSide)
 make_test(TestVisibleAreaLight)
 make_test(TestEmissiveSphereLight)
+target_link_libraries(TestEmissiveSphereLight PRIVATE CUDA::cudart)
+# Sampling radiometry retains host anchors and all-device integration;
+# individual input roles use deterministic bounds/visibility above.
 make_test(TestEmissiveInstanceScale)
 make_test(TestEmissiveSphereInstanceScale)
 make_test(TestEmissiveCylinderConeLight)
+target_link_libraries(TestEmissiveCylinderConeLight PRIVATE CUDA::cudart)
+# Each family keeps independent identity/nonuniform-transform references;
+# cap residency is isolated at identity, with all-device coverage also scaled.
 # These interleave attribute-driven emission cases, and MDL does not support
 # attributes — native-PBR only. (Textured emission itself works on the MDL
 # wrapper too; TestEmissiveMaterialParity covers it in that config.)
@@ -94,6 +209,8 @@ endif()
 make_test(TestPbrSpecularDefault)
 make_test(TestNormalMapDecode)
 make_test(TestGeneratedTangents)
+target_link_libraries(TestGeneratedTangents PRIVATE CUDA::cudart)
+add_test(NAME TestDeviceGeneratedTangents COMMAND TestGeneratedTangents --device)
 make_test(TestShadingNormalGrazing)
 if (VISRTX_USE_MDL_FOR_PHYSICALLY_BASED)
   # Its closed-form reference models the backend's diffuse lobe.

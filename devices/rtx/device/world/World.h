@@ -57,9 +57,12 @@ struct World : public Object
 
   WorldGPUData gpuData() const;
 
+  bool preparationFailed() const;
   void rebuildWorld();
 
  private:
+  template <typename... Arrays>
+  bool uploadArrays(Arrays &...arrays);
   void populateOptixInstances();
   void rebuildBLASs();
   void buildInstanceSurfaceGPUData();
@@ -98,6 +101,7 @@ struct World : public Object
   size_t m_numUserInstances{0};
   size_t m_numVolumeInstances{0};
 
+  bool m_bvhBuildFailed{false};
   box3 m_surfaceBounds;
   box3 m_volumeBounds;
   // m_surfaceBounds minus the light-proxy instance, unioned with the volumes.
@@ -153,12 +157,29 @@ struct World : public Object
 
   // Power-proportional Light Pick, rebuilt with the light instances.
   HostDeviceArray<double> m_lightPickCdf;
-  // Per-slot discrete pick probability (power_i/total), parallel to m_lightPickCdf.
+  // Per-slot discrete pick probability (power_i/total), parallel to
+  // m_lightPickCdf.
   HostDeviceArray<float> m_lightPickDelta;
   float m_totalLightPower{0.f};
   float m_hdriPower{0.f};
   float m_sceneRadius{0.f};
 };
+
+template <typename... Arrays>
+inline bool World::uploadArrays(Arrays &...arrays)
+{
+  if ((arrays.empty() && ...))
+    return true;
+  auto &state = *deviceState();
+  const auto error = state.preparation.upload(state.stream, arrays...);
+  if (error == cudaSuccess)
+    return true;
+  m_bvhBuildFailed = true;
+  reportMessage(ANARI_SEVERITY_ERROR,
+      "world upload failed: %s",
+      cudaGetErrorString(error));
+  return false;
+}
 
 } // namespace visrtx
 
