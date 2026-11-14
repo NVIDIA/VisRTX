@@ -145,8 +145,11 @@ void *Array::map()
     reportMessage(ANARI_SEVERITY_WARNING,
         "array mapped again without being previously unmapped");
   }
-  m_mapped = true;
-  return const_cast<void *>(data());
+  void *ptr = appFacingPtr();
+
+  if (ptr)
+    m_mapped = true;
+  return ptr;
 }
 
 void Array::unmap()
@@ -248,7 +251,11 @@ bool Array::isMapped() const
 const void *Array::dataGPU() const
 {
   uploadArrayData();
+  return deviceData();
+}
 
+const void *Array::deviceData() const
+{
   switch (ownership()) {
   case ArrayDataOwnership::SHARED:
     return m_data.shared.device.ptr();
@@ -269,20 +276,7 @@ const void *Array::dataGPU() const
 const void *Array::stagedDataGPU(DeviceBuffer &staging) const
 {
   const void *host = dataHost();
-  const void *device = nullptr;
-  switch (ownership()) {
-  case ArrayDataOwnership::SHARED:
-    device = m_data.shared.device.ptr();
-    break;
-  case ArrayDataOwnership::CAPTURED:
-    device = m_data.captured.device.ptr();
-    break;
-  case ArrayDataOwnership::MANAGED:
-    device = m_data.managed.device.ptr();
-    break;
-  default:
-    break;
-  }
+  const void *device = deviceData();
 
   if (device && (!host || !needToUploadData()))
     return device;
@@ -311,6 +305,16 @@ const void *Array::dataHost() const
       "VisRTX::Array unable to return host data() pointer");
 
   return nullptr;
+}
+
+void *Array::appFacingPtr() const
+{
+  // Host-backed arrays may also have an internal GPU copy. Map the
+  // application-facing allocation, not that copy, without triggering uploads.
+  const void *ptr = dataHost();
+  if (!ptr && ownership() != ArrayDataOwnership::MANAGED)
+    ptr = deviceData();
+  return const_cast<void *>(ptr);
 }
 
 void Array::evictGPU()

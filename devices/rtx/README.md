@@ -62,7 +62,8 @@ change.
 
 This extension indicates that applications can use pointers to CUDA device
 memory when created shared and captured arrays when using VisRTX. All the normal
-rules for shared and captured array data still apply.
+rules for shared and captured array data still apply. Mapping a CUDA-backed
+shared or captured array returns the supplied CUDA pointer, not a host mapping.
 
 #### "ANARI_NV_FRAME_BUFFERS_CUDA"
 
