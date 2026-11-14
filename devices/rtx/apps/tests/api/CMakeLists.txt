@@ -52,6 +52,8 @@ if (WIN32)
 endif()
 
 make_test(TestDeviceInit)
+make_test(TestArrayMapping)
+target_link_libraries(TestArrayMapping PRIVATE CUDA::cudart)
 make_test(TestEvictGPUArray)
 make_test(TestMultiThreadedObjectCreation)
 make_test(TestSpheres)
