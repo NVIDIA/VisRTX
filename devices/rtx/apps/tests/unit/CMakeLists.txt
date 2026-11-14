@@ -1,6 +1,16 @@
 # Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: BSD-3-Clause
 
+# GPU unit test using the same compiled RGB kernel as the device library.
+add_executable(rtx_test_RGBExpansion test_RGBExpansion.cpp
+  $<TARGET_OBJECTS:visrtx_cuda_rgb_expansion>)
+target_include_directories(rtx_test_RGBExpansion PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}/../../../device)
+target_link_libraries(rtx_test_RGBExpansion PRIVATE CUDA::cudart)
+target_compile_features(rtx_test_RGBExpansion PRIVATE cxx_std_17)
+add_test(NAME rtx::RGBExpansion COMMAND rtx_test_RGBExpansion)
+set_tests_properties(rtx::RGBExpansion PROPERTIES TIMEOUT 60)
+
 # Host-only unit tests for the pure analytic primitive solvers. No CUDA/OptiX/GPU
 # — these run on CPU and exercise devices/rtx/device/gpu/intersectPrimitives.h
 # directly, so the intersection math is testable without a device.
