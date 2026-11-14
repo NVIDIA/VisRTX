@@ -34,6 +34,7 @@
 #include <driver_functions.h>
 #include <driver_types.h>
 #include <texture_types.h>
+#include "CudaRGBExpansion.h"
 #include "utility/AnariTypeHelpers.h"
 
 namespace visrtx {
@@ -156,52 +157,49 @@ static cudaError_t buildNativeCudaArray(
         kind);
     const auto error = cudaMalloc3DArray(&cuArray,
         &desc,
-        make_cudaExtent(size.x, size.y, size.z <= 1 ? 0 : size.z));
+        make_cudaExtent(size.x, size.y, size.z <= 1 ? 0 : size.z),
+        nc == 3 && copyKind == cudaMemcpyDeviceToDevice
+            ? cudaArraySurfaceLoadStore
+            : cudaArrayDefault);
     if (error != cudaSuccess)
       return error;
   }
 
-  // RGB expansion runs on the CPU. Download only that case; native CUDA
-  // formats can copy directly from application-provided device storage.
-  // Keep typed RGB reads aligned for float and uint32_t components.
-  std::vector<uint32_t> downloaded;
+  // Expand RGB in its source address space; CUDA inputs never need a download.
   std::vector<uint8_t> staging;
   const void *src =
       static_cast<const uint8_t *>(data) + offset * anari::sizeOf(format);
   size_t srcChannels = size_t(nc);
   if (nc == 3) {
-    if (copyKind == cudaMemcpyDeviceToDevice) {
-      const size_t bytes = array.totalSize() * size_t(nc) * compBytes;
-      downloaded.resize((bytes + sizeof(uint32_t) - 1) / sizeof(uint32_t));
-      const auto error =
-          cudaMemcpy(downloaded.data(), src, bytes, cudaMemcpyDeviceToHost);
-      if (error != cudaSuccess)
-        return error;
-      src = downloaded.data();
-      copyKind = cudaMemcpyHostToDevice;
-    }
-    staging.resize(array.totalSize() * 4 * compBytes);
+    const size_t texels = array.totalSize();
+    const size_t bytes = texels * 4 * compBytes;
+    const bool onDevice = copyKind == cudaMemcpyDeviceToDevice;
+    // Surface writes fill the final array; only host input needs staging.
+    if (!onDevice)
+      staging.resize(bytes);
+    void *dst = staging.data();
+
+    const auto expand = [&](auto pad) {
+      using T = decltype(pad);
+      if (onDevice)
+        return expandRGBtoRGBADevice(static_cast<const T *>(src), cuArray, pad);
+      expandRGBtoRGBA<T>(src, texels, dst, pad);
+      return cudaSuccess;
+    };
+    cudaError_t error;
     if (isFloat32(format))
-      expandRGBtoRGBA<float>(src, array.totalSize(), staging.data(), 1.0f);
+      error = expand(1.0f);
     else if (isFloat16(format))
-      expandRGBtoRGBA<uint16_t>(
-          src, array.totalSize(), staging.data(), kHalfOne);
+      error = expand(kHalfOne);
     else if (compBytes == 4)
-      expandRGBtoRGBA<uint32_t>(src,
-          array.totalSize(),
-          staging.data(),
-          std::numeric_limits<uint32_t>::max());
+      error = expand(std::numeric_limits<uint32_t>::max());
     else if (compBytes == 2)
-      expandRGBtoRGBA<uint16_t>(src,
-          array.totalSize(),
-          staging.data(),
-          std::numeric_limits<uint16_t>::max());
+      error = expand(std::numeric_limits<uint16_t>::max());
     else
-      expandRGBtoRGBA<uint8_t>(src,
-          array.totalSize(),
-          staging.data(),
-          std::numeric_limits<uint8_t>::max());
-    src = staging.data();
+      error = expand(std::numeric_limits<uint8_t>::max());
+    if (error != cudaSuccess || onDevice)
+      return error;
+    src = dst;
     srcChannels = 4;
   }
 

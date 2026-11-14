@@ -243,7 +243,20 @@ if(VISRTX_ENABLE_MDL_SUPPORT)
   )
 endif()
 
-project_sources(PRIVATE ${SOURCES})
+# Share the production RGB kernel with its focused unit test without exporting
+# private symbols from the device library or compiling the CUDA source twice.
+add_library(visrtx_cuda_rgb_expansion OBJECT utility/CudaRGBExpansion.cu)
+set_target_properties(visrtx_cuda_rgb_expansion PROPERTIES
+  POSITION_INDEPENDENT_CODE ON
+  CUDA_VISIBILITY_PRESET hidden
+  CUDA_STANDARD 17 CUDA_STANDARD_REQUIRED ON)
+target_include_directories(visrtx_cuda_rgb_expansion PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR})
+target_link_libraries(visrtx_cuda_rgb_expansion PRIVATE CUDA::cudart)
+target_compile_options(visrtx_cuda_rgb_expansion PRIVATE
+  ${VISRTX_CUDA_COMPILE_OPTIONS})
+project_sources(PRIVATE ${SOURCES}
+  $<TARGET_OBJECTS:visrtx_cuda_rgb_expansion>)
 set(CUDA_SOURCES ${SOURCES})
 list(FILTER CUDA_SOURCES INCLUDE REGEX ".*\\.cu$")
 
