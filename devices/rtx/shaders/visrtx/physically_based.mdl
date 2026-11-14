@@ -165,42 +165,6 @@ float ResolveFloatInput(FloatInput input)
     return input.value;
 }
 
-float2 ResolveFloat2Input(Float2Input input)
-{
-    if (tex::texture_isvalid(input.texture)) {
-        int textureSpace = input.textureSpace;
-        return tex::lookup_float2(
-            tex: input.texture,
-            coord: float2(state::texture_coordinate(textureSpace).x, state::texture_coordinate(textureSpace).y)
-        );
-    }
-    return input.value;
-}
-
-float3 ResolveFloat3Input(Float3Input input)
-{
-    if (tex::texture_isvalid(input.texture)) {
-        int textureSpace = input.textureSpace;
-        return tex::lookup_float3(
-            tex: input.texture,
-            coord: float2(state::texture_coordinate(textureSpace).x, state::texture_coordinate(textureSpace).y)
-        );
-    }
-    return input.value;
-}
-
-float4 ResolveFloat4Input(Float4Input input)
-{
-    if (tex::texture_isvalid(input.texture)) {
-        int textureSpace = input.textureSpace;
-        return tex::lookup_float4(
-            tex: input.texture,
-            coord: float2(state::texture_coordinate(textureSpace).x, state::texture_coordinate(textureSpace).y)
-        );
-    }
-    return input.value;
-}
-
 float ResolveAlphaInput(AlphaMode alphaMode, float alphaCutoff, float alpha)
 {
     switch (alphaMode) {
