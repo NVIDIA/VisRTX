@@ -31,6 +31,7 @@
 
 #include <anari/anari_cpp/ext/std.h>
 #include <anari/ext/visrtx/makeVisRTXDevice.h>
+#include <cuda_runtime.h>
 #include <anari/anari_cpp.hpp>
 
 #include <array>
@@ -39,6 +40,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -381,6 +383,86 @@ static void checkAll(
         ok);
 }
 
+static void testSharedHostMappingAfterRender(anari::Device d, bool &ok)
+{
+  TexturedScene s(d, 2, TexFormat::FLOAT_RGB, Ownership::SHARED);
+  check("shared-host-mapping/initial", renderMeanColor(s), GREEN, ok);
+
+  // Rendering forces GPU consumption, though the sampler may use staging
+  // rather than retain a persistent linear device copy.
+  void *mapped = anariMapArray(d, s.image);
+  if (mapped != s.appMemory.data()) {
+    fprintf(stderr, "FAIL: shared host mapping changed application pointer\n");
+    ok = false;
+  }
+  if (!mapped)
+    return;
+
+  writeTexels(mapped, s.format, std::vector<vec3>(s.texelCount, RED));
+  anariUnmapArray(d, s.image);
+  check("shared-host-mapping/updated", renderMeanColor(s), RED, ok);
+}
+
+static void requireCUDA(cudaError_t result)
+{
+  if (result != cudaSuccess) {
+    fprintf(stderr, "FAIL: CUDA: %s\n", cudaGetErrorString(result));
+    std::exit(1);
+  }
+}
+
+static void freeCUDA(void *ptr)
+{
+  requireCUDA(cudaFree(ptr));
+}
+
+static void testSharedCUDAUpdates(
+    anari::Device d, int dim, TexFormat format, bool &ok)
+{
+  constexpr size_t WIDTH = 2;
+  const size_t texelCount = WIDTH << (dim - 1);
+  void *ptr = nullptr;
+  const size_t bytes = texelCount * channels(format)
+      * (isFloat(format) ? sizeof(float) : sizeof(uint8_t));
+  requireCUDA(cudaMalloc(&ptr, bytes));
+  // Destroy the scene and its shared array before freeing application memory.
+  std::unique_ptr<void, decltype(&freeCUDA)> allocation(ptr, freeCUDA);
+  TexturedScene s(d, dim, format);
+  ANARIArray image = newImage(d, dim, anariFormat(format), WIDTH, ptr);
+  if (!image) {
+    fprintf(stderr, "FAIL: CUDA image creation failed\n");
+    ok = false;
+    return;
+  }
+  anariRelease(d, s.image);
+  s.image = image;
+  setImage(d, s.samplers[0], "image", s.image, dim);
+
+  // Bind once; subsequent renders must observe writes through unmap alone.
+  int iteration = 0;
+  for (const auto &color : {GREEN, RED, BLUE}) {
+    void *mapped = anariMapArray(d, s.image);
+    if (mapped != ptr) {
+      fprintf(stderr, "FAIL: CUDA mapping changed application pointer\n");
+      ok = false;
+    }
+    if (!mapped)
+      return;
+
+    std::vector<float> texels((bytes + sizeof(float) - 1) / sizeof(float));
+    writeTexels(texels.data(), format, std::vector<vec3>(texelCount, color));
+    requireCUDA(
+        cudaMemcpy(mapped, texels.data(), bytes, cudaMemcpyHostToDevice));
+    requireCUDA(cudaDeviceSynchronize());
+    anariUnmapArray(d, s.image);
+    check("shared-cuda-update/image" + std::to_string(dim) + "D/"
+            + formatName(format) + "/" + std::to_string(iteration++),
+        renderMeanColor(s),
+        color,
+        ok);
+  }
+}
+
 static void testWindows(
     anari::Device d, TexFormat format, Ownership ownership, bool &ok)
 {
@@ -626,6 +708,13 @@ int main()
   setvbuf(stdout, nullptr, _IOLBF, 0);
   auto device = makeVisRTXDevice(statusFunc);
   bool ok = true;
+  testSharedHostMappingAfterRender(device, ok);
+  for (int dim : {1, 2, 3})
+    for (auto format : {TexFormat::FLOAT_RGB,
+             TexFormat::FLOAT_RGBA,
+             TexFormat::SRGB_RGB,
+             TexFormat::SRGB_RGBA})
+      testSharedCUDAUpdates(device, dim, format, ok);
   for (auto format : {TexFormat::SRGB_RGBA, TexFormat::SRGB_RGB})
     for (auto ownership : {Ownership::MANAGED, Ownership::SHARED})
       testWindows(device, format, ownership, ok);

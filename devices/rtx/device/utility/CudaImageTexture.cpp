@@ -131,7 +131,17 @@ static cudaError_t buildNativeCudaArray(
       ? cudaChannelFormatKindFloat
       : cudaChannelFormatKindUnsigned;
   const int storedNc = (nc == 3) ? 4 : nc;
-  if (!array.data() || nc == 0 || size.x == 0 || size.y == 0 || size.z == 0)
+  if (nc == 0 || size.x == 0 || size.y == 0 || size.z == 0)
+    return cudaErrorInvalidValue;
+
+  // Prefer host storage when present: its internal GPU copy may be stale.
+  const void *data = array.dataHost();
+  cudaMemcpyKind copyKind = cudaMemcpyHostToDevice;
+  if (!data) {
+    data = array.dataGPU();
+    copyKind = cudaMemcpyDeviceToDevice;
+  }
+  if (!data)
     return cudaErrorInvalidValue;
 
   if (!cuArray) {
@@ -147,12 +157,24 @@ static cudaError_t buildNativeCudaArray(
       return error;
   }
 
-  // Expand RGB->RGBA when needed; otherwise copy the host data straight in.
+  // RGB expansion runs on the CPU. Download only that case; native CUDA
+  // formats can copy directly from application-provided device storage.
+  std::vector<uint32_t> downloaded;
   std::vector<uint8_t> staging;
-  const void *src = static_cast<const uint8_t *>(array.data())
-      + offset * anari::sizeOf(format);
+  const void *src =
+      static_cast<const uint8_t *>(data) + offset * anari::sizeOf(format);
   size_t srcChannels = size_t(nc);
   if (nc == 3) {
+    if (copyKind == cudaMemcpyDeviceToDevice) {
+      const size_t bytes = array.totalSize() * size_t(nc) * compBytes;
+      downloaded.resize((bytes + sizeof(uint32_t) - 1) / sizeof(uint32_t));
+      const auto error =
+          cudaMemcpy(downloaded.data(), src, bytes, cudaMemcpyDeviceToHost);
+      if (error != cudaSuccess)
+        return error;
+      src = downloaded.data();
+      copyKind = cudaMemcpyHostToDevice;
+    }
     staging.resize(array.totalSize() * 4 * compBytes);
     if (isFloat32(format))
       expandRGBtoRGBA<float>(src, array.totalSize(), staging.data(), 1.0f);
@@ -186,7 +208,7 @@ static cudaError_t buildNativeCudaArray(
       size.x,
       size.y);
   p.extent = make_cudaExtent(size.x, size.y, size.z < 1 ? 1 : size.z);
-  p.kind = cudaMemcpyHostToDevice;
+  p.kind = copyKind;
   return cudaMemcpy3D(&p);
 }
 

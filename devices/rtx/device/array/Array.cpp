@@ -145,8 +145,28 @@ void *Array::map()
     reportMessage(ANARI_SEVERITY_WARNING,
         "array mapped again without being previously unmapped");
   }
-  m_mapped = true;
-  return const_cast<void *>(data());
+  // Host-backed arrays may also have an internal GPU copy. Map the
+  // application-facing allocation, not that copy.
+  void *ptr = nullptr;
+  switch (ownership()) {
+  case ArrayDataOwnership::SHARED:
+    ptr = m_data.shared.host.isValid() ? m_data.shared.host.ptr()
+                                       : m_data.shared.device.ptr();
+    break;
+  case ArrayDataOwnership::CAPTURED:
+    ptr = m_data.captured.host.isValid() ? m_data.captured.host.ptr()
+                                         : m_data.captured.device.ptr();
+    break;
+  case ArrayDataOwnership::MANAGED:
+    ptr = m_data.managed.host.ptr();
+    break;
+  default:
+    break;
+  }
+
+  if (ptr)
+    m_mapped = true;
+  return ptr;
 }
 
 void Array::unmap()
