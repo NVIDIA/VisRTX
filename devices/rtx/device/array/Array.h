@@ -114,6 +114,14 @@ struct Array : public UploadableArray
   void evictGPU();
 
  private:
+  // Current device allocation, without uploading potentially modified host
+  // data.
+  const void *deviceData() const;
+
+  // Map the application-facing allocation: host storage when present, otherwise
+  // the supplied CUDA pointer. Never upload or expose an internal GPU copy.
+  void *appFacingPtr() const;
+
   void on_NoInternalReferences() override;
   void on_NoPublicReferences() override;
 
