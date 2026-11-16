@@ -47,6 +47,9 @@ class Object<CameraOrthographic>
   float region[4];
   float aspect;
   float height;
+  // "near" and "far" parameters, 0 and FLT_MAX when not set
+  float nearClip;
+  float farClip;
 
   void calculateMatrices(float near, float far);
 
