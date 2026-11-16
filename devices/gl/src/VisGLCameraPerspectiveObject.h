@@ -48,6 +48,9 @@ class Object<CameraPerspective>
   float region[4];
   float fovy;
   float aspect;
+  // "near" and "far" parameters, 0 and FLT_MAX when not set
+  float nearClip;
+  float farClip;
 
   void calculateMatrices(float near, float far);
 
