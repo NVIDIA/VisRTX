@@ -34,6 +34,7 @@
 #include "math_util.h"
 #include <math.h>
 
+#include <cfloat>
 #include <cstdlib>
 #include <cstring>
 
@@ -59,6 +60,31 @@ void Object<CameraOrthographic>::commit()
   current.height.get(ANARI_FLOAT32, &height);
 
   normalize3(direction);
+
+  // clip distances, same rule as VisRTX : unset means no clipping, invalid
+  // values are ignored
+  nearClip = 0.0f;
+  farClip = FLT_MAX;
+  float nearValue = nearClip;
+  float farValue = farClip;
+  const bool hasNear = current.near.get(ANARI_FLOAT32, &nearValue);
+  const bool hasFar = current.far.get(ANARI_FLOAT32, &farValue);
+  if (hasNear || hasFar) {
+    if ((hasNear && !(nearValue >= 0.0f)) || !(nearValue < farValue)) {
+      anariReportStatus(device,
+          handle,
+          ANARI_CAMERA,
+          ANARI_SEVERITY_WARNING,
+          ANARI_STATUS_INVALID_ARGUMENT,
+          "camera 'near' (%f) and 'far' (%f) must satisfy 0 <= near < far; "
+          "ignoring both",
+          nearValue,
+          farValue);
+    } else {
+      nearClip = nearValue;
+      farClip = farValue;
+    }
+  }
 }
 
 void Object<CameraOrthographic>::updateAt(size_t index, float *bounds) const
@@ -66,8 +92,16 @@ void Object<CameraOrthographic>::updateAt(size_t index, float *bounds) const
   float range[2];
   projectBoundingBox(range, bounds, position, direction);
   float depth = range[1]-range[0];
-  float far = range[1] + 0.001f*depth;
-  float near = fast_maxf(0.0f, range[0] - 0.001f*depth);
+  // clip range enclosing the world, narrowed to the camera near and far when
+  // they are set
+  float far = fast_minf(farClip, range[1] + 0.001f * depth);
+  float near = fast_maxf(nearClip, range[0] - 0.001f * depth);
+  if (!(far > near) && (nearClip > 0.0f || farClip < FLT_MAX)) {
+    // the world is outside the camera clip range, nothing is visible : use that
+    // range itself
+    near = nearClip;
+    far = farClip < FLT_MAX ? farClip : near + 1.0f;
+  }
 
   float width = height * aspect;
 
