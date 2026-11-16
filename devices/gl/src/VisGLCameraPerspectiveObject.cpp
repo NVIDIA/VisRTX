@@ -34,6 +34,7 @@
 #include "math_util.h"
 #include <math.h>
 
+#include <cfloat>
 #include <cstdlib>
 #include <cstring>
 
@@ -59,14 +60,46 @@ void Object<CameraPerspective>::commit()
   current.aspect.get(ANARI_FLOAT32, &aspect);
 
   normalize3(direction);
+
+  // clip distances, same rule as VisRTX : unset means no clipping, invalid values are ignored
+  nearClip = 0.0f;
+  farClip = FLT_MAX;
+  float nearValue = nearClip;
+  float farValue = farClip;
+  const bool hasNear = current.near.get(ANARI_FLOAT32, &nearValue);
+  const bool hasFar = current.far.get(ANARI_FLOAT32, &farValue);
+  if (hasNear || hasFar) {
+    if ((hasNear && !(nearValue > 0.0f)) || !(nearValue < farValue)) {
+      anariReportStatus(device,
+          handle,
+          ANARI_CAMERA,
+          ANARI_SEVERITY_WARNING,
+          ANARI_STATUS_INVALID_ARGUMENT,
+          "camera 'near' (%f) and 'far' (%f) must satisfy 0 < near < far; ignoring both",
+          nearValue,
+          farValue);
+    } else {
+      nearClip = nearValue;
+      farClip = farValue;
+    }
+  }
 }
 
 void Object<CameraPerspective>::updateAt(size_t index, float *bounds) const
 {
   float range[2];
   projectBoundingBox(range, bounds, position, direction);
-  float far = range[1] * 1.0001f;
-  float near = fast_maxf(far * 1.0e-3, range[0] * 0.9999f);
+  // clip range enclosing the world, narrowed to the camera near and far when they are set.
+  // Without a near distance, the near plane is pushed to far/1000 to keep the depth precision :
+  // it clips the foreground when the world is much larger than the view (a globe seen from low altitude).
+  float far = fast_minf(farClip, range[1] * 1.0001f);
+  float near = nearClip > 0.0f ? fast_maxf(nearClip, range[0] * 0.9999f)
+                               : fast_maxf(far * 1.0e-3f, range[0] * 0.9999f);
+  if (!(far > near) && (nearClip > 0.0f || farClip < FLT_MAX)) {
+    // the world is outside the camera clip range, nothing is visible : use that range itself
+    near = nearClip > 0.0f ? nearClip : farClip * 1.0e-3f;
+    far = farClip < FLT_MAX ? farClip : 2.0f * near;
+  }
 
   float height = near * tanf(fovy * 0.5f);
   float width = height * aspect;
