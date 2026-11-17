@@ -30,6 +30,7 @@
  */
 
 #include "Geometry.h"
+#include "sampler/Sampler.h"
 // specific types
 #include "Cone.h"
 #include "Curve.h"
@@ -130,6 +131,33 @@ void Geometry::commitParameters()
   m_uniformAttributes.attribute3 = getUniformAttribute("attribute3");
   m_uniformAttributes.color = getUniformAttribute("color");
   m_primitiveId = getParamObject<Array1D>("primitive.id");
+
+#ifdef USE_MDL
+  std::vector<MDLSceneDataBinding> aliases;
+  constexpr std::string_view prefix = "sceneData.";
+  for (auto param = params_begin(); param != params_end(); ++param) {
+    const auto &[name, value] = *param;
+    if (name.rfind(prefix, 0) != 0)
+      continue;
+    const auto alias = std::string_view(name).substr(prefix.size());
+    const auto attribute = value.type() == ANARI_STRING
+        ? attributeFromString(value.getString())
+        : MaterialAttribute::UNKNOWN;
+    if (alias.empty() || static_cast<unsigned>(attribute) >= 5) {
+      reportMessage(ANARI_SEVERITY_WARNING,
+          "geometry parameter '%s' requires a nonempty scene-data name and "
+          "a string selecting attribute0..3 or color; binding ignored",
+          name.c_str());
+      continue;
+    }
+    aliases.push_back({attribute, deviceState()->sceneDataNames.intern(alias)});
+  }
+  m_numSceneData = static_cast<uint32_t>(aliases.size());
+  if (aliases.empty())
+    m_sceneDataBuffer.reset();
+  else
+    m_sceneDataBuffer.upload(aliases);
+#endif
 }
 
 void Geometry::markFinalized()
@@ -169,6 +197,10 @@ GeometryGPUData Geometry::gpuData() const
   retval.primitiveId =
       (const uint32_t *)(m_primitiveId ? m_primitiveId->dataGPU() : nullptr);
   retval.epsilonScale = m_epsilonScale;
+#ifdef USE_MDL
+  retval.sceneData = m_sceneDataBuffer.ptrAs<const MDLSceneDataBinding>();
+  retval.numSceneData = m_numSceneData;
+#endif
 
   return retval;
 }

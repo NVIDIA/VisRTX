@@ -320,6 +320,8 @@ struct NeuralGeometryData
 struct GeometryGPUData
 {
   GeometryType type{GeometryType::UNKNOWN};
+  const MDLSceneDataBinding *sceneData{nullptr};
+  uint32_t numSceneData{0};
   AttributeDataSet attr;
   AttributeDataSetUniform attrUniform;
   bool attrUniformPresent[5];

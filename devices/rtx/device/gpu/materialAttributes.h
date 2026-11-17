@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "gpu_decl.h"
+
 #include <cstdint>
 
 namespace visrtx {
@@ -25,6 +27,23 @@ enum class MaterialAttribute : uint8_t
 struct MDLSceneDataBinding
 {
   MaterialAttribute attribute{MaterialAttribute::UNKNOWN};
+  uint32_t nameToken{0};
 };
+
+// The material table is indexed by target-code-local string ID. Only the
+// interned token can be compared with geometry aliases from another material.
+VISRTX_HOST_DEVICE MaterialAttribute resolveSceneDataAttribute(
+    const MDLSceneDataBinding &binding,
+    const MDLSceneDataBinding *aliases,
+    uint32_t numAliases)
+{
+  if (binding.nameToken != 0) {
+    for (uint32_t i = 0; i < numAliases; ++i) {
+      if (aliases[i].nameToken == binding.nameToken)
+        return aliases[i].attribute;
+    }
+  }
+  return binding.attribute;
+}
 
 } // namespace visrtx

@@ -35,6 +35,7 @@
 #include <anari/anari_cpp/ext/std.h>
 #include <anari/anari_cpp.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdio>
@@ -42,6 +43,7 @@
 #include <limits>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 using vec2 = std::array<float, 2>;
 using vec3 = std::array<float, 3>;
@@ -50,6 +52,7 @@ using uvec2 = std::array<unsigned, 2>;
 static int errors = 0;
 static int timeWarnings = 0;
 static int metadataWarnings = 0;
+static int geometryAliasWarnings = 0;
 
 static void statusFunc(const void *,
     ANARIDevice,
@@ -66,6 +69,9 @@ static void statusFunc(const void *,
   if (severity == ANARI_SEVERITY_WARNING
       && std::strstr(message, "mdl.animationTime must be finite"))
     ++timeWarnings;
+  if (severity == ANARI_SEVERITY_WARNING
+      && std::strstr(message, "requires a nonempty scene-data name"))
+    ++geometryAliasWarnings;
   if (severity == ANARI_SEVERITY_WARNING && std::strstr(message, "sceneData.")
       && std::strstr(message, "is not a valid parameter for an MDL material")) {
     ++metadataWarnings;
@@ -143,8 +149,9 @@ struct Scene
                 ANARI_WAIT)
             != 0,
         "device extension query failed");
-    for (const char *name :
-        {"ANARI_VISRTX_MDL_SCENE_DATA", "ANARI_VISRTX_MDL_ANIMATION_TIME"}) {
+    for (const char *name : {"ANARI_VISRTX_MDL_SCENE_DATA",
+             "ANARI_VISRTX_GEOMETRY_MDL_SCENE_DATA",
+             "ANARI_VISRTX_MDL_ANIMATION_TIME"}) {
       bool found = false;
       for (auto p = extensions; p && *p; ++p)
         found |= std::strcmp(*p, name) == 0;
@@ -222,11 +229,8 @@ struct Scene
     anari::commitParameters(device, material);
   }
 
-  void check(const char *label,
-      vec3 expected,
-      anari::Frame f = nullptr,
-      unsigned xBegin = 16,
-      unsigned xEnd = 48)
+  vec3 renderMean(
+      anari::Frame f = nullptr, unsigned xBegin = 16, unsigned xEnd = 48)
   {
     f = f ? f : frame;
     anari::render(device, f);
@@ -241,6 +245,17 @@ struct Scene
         for (int c = 0; c < 3; ++c)
           mean[c] += fb.data[y * 64 + x][c] / area;
     anari::unmap(device, f, "channel.color");
+    require(errors == 0, "renderer reported an error");
+    return mean;
+  }
+
+  void check(const char *label,
+      vec3 expected,
+      anari::Frame f = nullptr,
+      unsigned xBegin = 16,
+      unsigned xEnd = 48)
+  {
+    const auto mean = renderMean(f, xBegin, xEnd);
     printf("%s: %.4f %.4f %.4f\n", label, mean[0], mean[1], mean[2]);
     for (int c = 0; c < 3; ++c)
       require(
@@ -265,6 +280,105 @@ struct Scene
     return n;
   }
 };
+
+static void testNamedLightEmission()
+{
+  Scene s;
+  const auto d = s.device;
+  // Keep emission provably nonnegative so the existing registration policy
+  // admits it as a Geometry Light even though scene data is host-unknown.
+  anari::setParameter(d, s.material, "source", R"mdl(mdl 1.7;
+import ::df::*; import ::scene::*; import ::math::*;
+export material main() = material(surface: material_surface(
+  emission: material_emission(emission: df::diffuse_edf(), intensity:
+    color(math::saturate(scene::data_lookup_float("scalar", 0.25))) * math::PI)));
+)mdl");
+  anari::commitParameters(d, s.material);
+  auto floor = anari::newObject<anari::Geometry>(d, "triangle");
+  auto matte = anari::newObject<anari::Material>(d, "matte");
+  auto floorSurface = anari::newObject<anari::Surface>(d);
+  const std::array<vec3, 6> floorVertices = {vec3{-1, -1, 0},
+      vec3{1, -1, 0},
+      vec3{1, 1, 0},
+      vec3{-1, -1, 0},
+      vec3{1, 1, 0},
+      vec3{-1, 1, 0}};
+  const std::array<vec3, 4> lightVertices = {
+      vec3{1.2f, -1, 1}, vec3{2.2f, -1, 1}, vec3{2.2f, 1, 1}, vec3{1.2f, 1, 1}};
+  anari::setParameterArray1D(
+      d, floor, "vertex.position", floorVertices.data(), 6);
+  anari::commitParameters(d, floor);
+  anari::setParameter(d, matte, "color", vec3{1, 1, 1});
+  anari::commitParameters(d, matte);
+  anari::setParameter(d, floorSurface, "geometry", floor);
+  anari::setParameter(d, floorSurface, "material", matte);
+  anari::commitParameters(d, floorSurface);
+  anari::setParameterArray1D(
+      d, s.geometry, "vertex.position", lightVertices.data(), 4);
+  anari::setParameter(d, s.geometry, "attribute2", vec4{0.4f, 0, 0, 1});
+  anari::commitParameters(d, s.geometry);
+  const std::array<anari::Surface, 2> surfaces = {s.surface, floorSurface};
+  anari::setParameterArray1D(
+      d, s.group, "surface", surfaces.data(), surfaces.size());
+  anari::commitParameters(d, s.group);
+  // With one bounce, the camera only sees the diffuse receiver. All its light
+  // comes from synthetic next-event hits on the off-camera MDL emitter.
+  anari::setParameter(d, s.renderer, "maxRayDepth", 1);
+  anari::setParameter(d, s.renderer, "pixelSamples", 128);
+  anari::commitParameters(d, s.renderer);
+  const auto baseline = s.renderMean();
+  require(baseline[0] > 0.005f,
+      "material-only geometry light did not light receiver");
+  anari::setParameter(d, s.geometry, "sceneData.scalar", "attribute2");
+  anari::commitParameters(d, s.geometry);
+  const auto aliased = s.renderMean();
+  printf("named light emission: reference %.6f, alias %.6f\n",
+      baseline[0],
+      aliased[0]);
+  for (int c = 0; c < 3; ++c)
+    require(std::isfinite(aliased[c])
+            && std::abs(aliased[c] / baseline[c] - 0.5f) < 0.04f,
+        "synthetic geometry-light hit ignored alias override");
+  // Release application refs while the scene still retains the receiver.
+  anari::release(d, floorSurface);
+  anari::release(d, matte);
+  anari::release(d, floor);
+}
+
+static void benchmarkGeometryAliases()
+{
+  Scene s;
+  const auto d = s.device;
+  anari::setParameter(d, s.frame, "size", uvec2{256, 256});
+  anari::commitParameters(d, s.frame);
+  anari::setParameter(d, s.renderer, "pixelSamples", 64);
+  anari::setParameter(d, s.renderer, "maxRayDepth", 1);
+  anari::commitParameters(d, s.renderer);
+  for (unsigned count : {0u, 8u, 32u}) {
+    for (unsigned i = 0; i + 1 < count; ++i) {
+      const auto name = "sceneData.benchmark." + std::to_string(i);
+      anari::setParameter(d, s.geometry, name.c_str(), "attribute0");
+    }
+    if (count)
+      anari::setParameter(d, s.geometry, "sceneData.scalar", "attribute0");
+    anari::commitParameters(d, s.geometry);
+    std::vector<float> durations;
+    for (unsigned i = 0; i < 20; ++i) {
+      anari::render(d, s.frame);
+      anari::wait(d, s.frame);
+      float duration = 0.f;
+      require(anari::getProperty(d, s.frame, "duration", duration, ANARI_WAIT),
+          "frame duration query failed");
+      if (i >= 4)
+        durations.push_back(duration);
+    }
+    std::sort(durations.begin(), durations.end());
+    printf("geometry aliases=%u, median GPU frame=%.3f ms (256x256, 64 spp)\n",
+        count,
+        1000.f * durations[durations.size() / 2]);
+  }
+  require(errors == 0, "benchmark reported an ANARI error");
+}
 
 static void testSharedSource(Scene &s)
 {
@@ -306,6 +420,196 @@ static void testSharedSource(Scene &s)
   anari::release(d, other);
   anari::unsetParameter(d, s.geometry, "attribute1");
   anari::commitParameters(d, s.geometry);
+}
+
+static void testGeometryAliases(Scene &s)
+{
+  const auto d = s.device;
+  s.check("material-only baseline", {0.8f, 0.8f, 0.8f});
+  uint64_t fingerprint = 0;
+  require(
+      anari::getProperty(d, d, "mdlPtxFingerprint", fingerprint, ANARI_WAIT),
+      "PTX fingerprint query failed");
+  anari::setParameter(d, s.geometry, "attribute2", vec4{0.3f, 0, 0, 1});
+  anari::setParameter(d, s.geometry, "sceneData.scalar", "attribute2");
+  anari::commitParameters(d, s.geometry);
+  s.check("geometry overrides material binding", {0.3f, 0.3f, 0.3f});
+  const auto initialSamples = s.samples();
+  s.check("unchanged alias accumulates", {0.3f, 0.3f, 0.3f});
+  require(s.samples() > initialSamples, "unchanged alias reset accumulation");
+  anari::setParameter(d, s.geometry, "sceneData.scalar", "attribute0");
+  anari::commitParameters(d, s.geometry);
+  s.check("alias-only edit resets accumulation", {0.8f, 0.8f, 0.8f});
+  require(
+      s.samples() == initialSamples, "alias edit did not reset accumulation");
+  anari::setParameter(d, s.geometry, "sceneData.scalar", "attribute2");
+  anari::setParameter(d, s.geometry, "sceneData.missing", "attribute2");
+  anari::commitParameters(d, s.geometry);
+  s.mode(8);
+  s.check("geometry-only name shares a slot", {0.3f, 0, 0});
+  anari::setParameter(d, s.geometry, "color", vec4{0.1f, 0.2f, 0.3f, 0.4f});
+  anari::setParameter(d, s.geometry, "sceneData.missing", "color");
+  anari::commitParameters(d, s.geometry);
+  s.check("geometry-only name selects color", {0.1f, 0.2f, 0.3f});
+  anari::unsetParameter(d, s.geometry, "color");
+  anari::commitParameters(d, s.geometry);
+  s.mode(5);
+  s.check("geometry alias preserves uniform constant", {0.3f, 0.3f, 0.3f});
+  const std::array<float, 4> vertex = {0.2f, 0.8f, 0.8f, 0.2f};
+  anari::setParameterArray1D(
+      d, s.geometry, "vertex.attribute2", vertex.data(), vertex.size());
+  anari::commitParameters(d, s.geometry);
+  s.check(
+      "geometry alias preserves uniform rejection", {0.125f, 0.125f, 0.125f});
+  s.mode(0);
+  s.check(
+      "geometry alias uses indexed vertex interpolation", {0.5f, 0.5f, 0.5f});
+  const std::array<float, 6> face = {0.4f, 0.4f, 0.4f, 0.4f, 0.4f, 0.4f};
+  anari::setParameterArray1D(
+      d, s.geometry, "faceVarying.attribute2", face.data(), face.size());
+  anari::commitParameters(d, s.geometry);
+  s.check("geometry alias selects face-varying data", {0.4f, 0.4f, 0.4f});
+  anari::unsetParameter(d, s.geometry, "faceVarying.attribute2");
+  anari::unsetParameter(d, s.geometry, "vertex.attribute2");
+  const std::array<float, 2> primitive = {0.6f, 0.6f};
+  anari::setParameterArray1D(d,
+      s.geometry,
+      "primitive.attribute2",
+      primitive.data(),
+      primitive.size());
+  anari::commitParameters(d, s.geometry);
+  s.check("geometry alias selects primitive data", {0.6f, 0.6f, 0.6f});
+  anari::unsetParameter(d, s.geometry, "primitive.attribute2");
+  anari::setParameter(d,
+      s.geometry,
+      "attribute2",
+      vec4{std::numeric_limits<float>::quiet_NaN(), 0, 0, 1});
+  anari::commitParameters(d, s.geometry);
+  s.check("nonfinite geometry alias returns default", {0.25f, 0.25f, 0.25f});
+  s.mode(6);
+  s.check("nonfinite geometry alias remains present", {1, 1, 1});
+  s.mode(0);
+  anari::unsetParameter(d, s.geometry, "attribute2");
+  anari::commitParameters(d, s.geometry);
+  s.check("absent aliased data does not retry material slot",
+      {0.25f, 0.25f, 0.25f});
+  s.mode(6);
+  s.check("geometry alias isvalid checks selected slot", {0, 0, 0});
+  const vec4 instanceValue{0.55f, 0, 0, 1};
+  anari::setParameterArray1D(d, s.instance, "attribute2", &instanceValue, 1);
+  anari::commitParameters(d, s.instance);
+  s.mode(5);
+  s.check("geometry alias preserves uniform instance fallback",
+      {0.55f, 0.55f, 0.55f});
+  anari::unsetParameter(d, s.instance, "attribute2");
+  anari::commitParameters(d, s.instance);
+  s.mode(0);
+  const auto warnings = geometryAliasWarnings;
+  for (const char *target : {"attribute4", "objectPosition", ""}) {
+    anari::setParameter(d, s.geometry, "sceneData.scalar", target);
+    anari::commitParameters(d, s.geometry);
+    s.check(
+        "invalid geometry slot restores material fallback", {0.8f, 0.8f, 0.8f});
+  }
+  anari::setParameter(d, s.geometry, "sceneData.scalar", 42);
+  anari::setParameter(d, s.geometry, "sceneData.", "attribute0");
+  anari::commitParameters(d, s.geometry);
+  s.check("invalid geometry name and type", {0.8f, 0.8f, 0.8f});
+  require(
+      geometryAliasWarnings == warnings + 5, "missing geometry alias warnings");
+  for (const char *name :
+      {"sceneData.scalar", "sceneData.missing", "sceneData."})
+    anari::unsetParameter(d, s.geometry, name);
+  anari::commitParameters(d, s.geometry);
+  s.check("unsetting geometry aliases restores fallback", {0.8f, 0.8f, 0.8f});
+  uint64_t after = 0;
+  require(anari::getProperty(d, d, "mdlPtxFingerprint", after, ANARI_WAIT)
+          && after == fingerprint,
+      "geometry aliases changed compiled material PTX");
+}
+
+static void testSharedMaterialAliases(Scene &s)
+{
+  const auto d = s.device;
+  auto right = anari::newObject<anari::Geometry>(d, "triangle");
+  auto rightSurface = anari::newObject<anari::Surface>(d);
+  const std::array<vec3, 4> leftVertices = {
+      vec3{-1, -1, 0}, vec3{0, -1, 0}, vec3{0, 1, 0}, vec3{-1, 1, 0}};
+  const std::array<vec3, 6> rightVertices = {vec3{0, -1, 0},
+      vec3{1, -1, 0},
+      vec3{1, 1, 0},
+      vec3{0, -1, 0},
+      vec3{1, 1, 0},
+      vec3{0, 1, 0}};
+  anari::setParameterArray1D(
+      d, s.geometry, "vertex.position", leftVertices.data(), 4);
+  anari::setParameter(d, s.geometry, "attribute2", vec4{0.3f, 0, 0, 1});
+  anari::setParameter(d, s.geometry, "sceneData.scalar", "attribute2");
+  anari::commitParameters(d, s.geometry);
+  anari::setParameterArray1D(
+      d, right, "vertex.position", rightVertices.data(), 6);
+  anari::setParameter(d, right, "attribute1", vec4{0.65f, 0, 0, 1});
+  anari::setParameter(d, right, "sceneData.scalar", "attribute1");
+  anari::commitParameters(d, right);
+  anari::setParameter(d, rightSurface, "geometry", right);
+  anari::setParameter(d, rightSurface, "material", s.material);
+  anari::commitParameters(d, rightSurface);
+  const std::array<anari::Surface, 2> surfaces = {s.surface, rightSurface};
+  anari::setParameterArray1D(
+      d, s.group, "surface", surfaces.data(), surfaces.size());
+  anari::commitParameters(d, s.group);
+  s.check("shared material left geometry alias",
+      {0.3f, 0.3f, 0.3f},
+      nullptr,
+      16,
+      28);
+  s.check("shared material right geometry alias",
+      {0.65f, 0.65f, 0.65f},
+      nullptr,
+      36,
+      48);
+
+  // A different target-code descriptor consumes the same geometry name.
+  auto other = anari::newObject<anari::Material>(d, "mdl");
+  anari::setParameter(d, other, "sourceType", "code");
+  anari::setParameter(d, other, "materialName", "main");
+  anari::setParameter(d, other, "source", R"mdl(mdl 1.7;
+import ::df::*; import ::scene::*;
+export material main() = material(surface: material_surface(
+  emission: material_emission(emission: df::diffuse_edf(), intensity:
+    (scene::data_lookup_color("another", color(0)) +
+     color(scene::data_lookup_float("scalar", 0.1))) * 3.14159265)));
+)mdl");
+  anari::commitParameters(d, other);
+  anari::setParameter(d, rightSurface, "material", other);
+  anari::commitParameters(d, rightSurface);
+  s.check("shared geometry with different material string table",
+      {0.65f, 0.65f, 0.65f},
+      nullptr,
+      36,
+      48);
+  anari::setParameter(d, rightSurface, "material", s.material);
+  anari::commitParameters(d, rightSurface);
+  s.check("material replacement retains geometry alias",
+      {0.65f, 0.65f, 0.65f},
+      nullptr,
+      36,
+      48);
+  anari::release(d, other);
+
+  const std::array<vec3, 4> original = {
+      vec3{-1, -1, 0}, vec3{1, -1, 0}, vec3{1, 1, 0}, vec3{-1, 1, 0}};
+  anari::setParameterArray1D(
+      d, s.geometry, "vertex.position", original.data(), 4);
+  anari::unsetParameter(d, s.geometry, "sceneData.scalar");
+  anari::unsetParameter(d, s.geometry, "attribute2");
+  anari::commitParameters(d, s.geometry);
+  anari::setParameterArray1D(d, s.group, "surface", &s.surface, 1);
+  anari::commitParameters(d, s.group);
+  anari::release(d, rightSurface);
+  anari::release(d, right);
+  s.check("geometry destruction leaves material fallback intact",
+      {0.8f, 0.8f, 0.8f});
 }
 
 static void testSharedAttributeCache(Scene &s)
@@ -444,10 +748,10 @@ static void testSceneData(Scene &s)
   s.mode(0);
   s.check("instance array", {0.6f, 0.6f, 0.6f});
   const std::array<std::array<float, 16>, 2> transforms = {
-      std::array<float, 16>{0.5f, 0, 0, 0, 0, 1, 0, 0,
-          0, 0, 1, 0, -0.5f, 0, 0, 1},
-      std::array<float, 16>{0.5f, 0, 0, 0, 0, 1, 0, 0,
-          0, 0, 1, 0, 0.5f, 0, 0, 1}};
+      std::array<float, 16>{
+          0.5f, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, -0.5f, 0, 0, 1},
+      std::array<float, 16>{
+          0.5f, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0.5f, 0, 0, 1}};
   const std::array<vec4, 2> instanceValues = {
       vec4{0.2f, 0, 0, 1}, vec4{0.8f, 0, 0, 1}};
   anari::setParameterArray1D(d,
@@ -474,8 +778,10 @@ static void testSceneData(Scene &s)
   anari::commitParameters(d, s.geometry);
   s.check("isvalid authored zero", {1, 1, 1});
   const std::array<float, 4> partlyNonfinite = {
-      std::numeric_limits<float>::quiet_NaN(), 0.8f,
-      0.8f, std::numeric_limits<float>::quiet_NaN()};
+      std::numeric_limits<float>::quiet_NaN(),
+      0.8f,
+      0.8f,
+      std::numeric_limits<float>::quiet_NaN()};
   anari::setParameterArray1D(
       d, s.geometry, "vertex.attribute0", partlyNonfinite.data(), 4);
   anari::commitParameters(d, s.geometry);
@@ -568,7 +874,8 @@ static void testCurve(Scene &s)
   anari::setParameterArray1D(
       d, s.geometry, "vertex.position", positions.data(), 2);
   anari::setParameterArray1D(
-      d, s.geometry, "vertex.attribute0", values.data(), 2);
+      d, s.geometry, "vertex.attribute2", values.data(), 2);
+  anari::setParameter(d, s.geometry, "sceneData.scalar", "attribute2");
   anari::setParameterArray1D(d, s.geometry, "primitive.index", &index, 1);
   anari::setParameter(d, s.geometry, "radius", 0.8f);
   anari::commitParameters(d, s.geometry);
@@ -580,8 +887,8 @@ static void testCurve(Scene &s)
   s.check("curve vertex interpolation", {0.5f, 0.5f, 0.5f});
   s.mode(5);
   s.check("uniform rejects curve interpolation", {0.125f, 0.125f, 0.125f});
-  anari::unsetParameter(d, s.geometry, "vertex.attribute0");
-  anari::setParameter(d, s.geometry, "attribute0", vec4{0.45f, 0, 0, 1});
+  anari::unsetParameter(d, s.geometry, "vertex.attribute2");
+  anari::setParameter(d, s.geometry, "attribute2", vec4{0.45f, 0, 0, 1});
   anari::commitParameters(d, s.geometry);
   s.check("curve uniform constant", {0.45f, 0.45f, 0.45f});
 }
@@ -635,15 +942,23 @@ static void testAnimation(Scene &s)
   require(timeWarnings == 2, "missing invalid-time warnings");
 }
 
-int main()
+int main(int argc, char **argv)
 {
+  std::setvbuf(stdout, nullptr, _IONBF, 0);
   try {
+    if (argc > 1 && std::strcmp(argv[1], "--benchmark") == 0) {
+      benchmarkGeometryAliases();
+      return 0;
+    }
     Scene scene;
+    testGeometryAliases(scene);
+    testSharedMaterialAliases(scene);
     testSharedSource(scene);
     testSharedAttributeCache(scene);
     testSceneData(scene);
     testCurve(scene);
     testAnimation(scene);
+    testNamedLightEmission();
     require(
         metadataWarnings == 0, "valid scene-data metadata reported invalid");
     puts("MDL scene data and animation time passed");

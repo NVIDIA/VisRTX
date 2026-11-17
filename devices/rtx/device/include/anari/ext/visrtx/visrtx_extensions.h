@@ -55,6 +55,7 @@ struct VisRTXExtensions
   int VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES;
   int VISRTX_RENDERER_FOG;
   int VISRTX_MDL_SCENE_DATA;
+  int VISRTX_GEOMETRY_MDL_SCENE_DATA;
   int VISRTX_MDL_ANIMATION_TIME;
   int VISRTX_LIGHT_QUAD_SHAPING;
   int VISRTX_LIGHT_QUAD_FOCUS;
@@ -167,6 +168,8 @@ inline void fillExtensionStruct(
       extensions->VISRTX_RENDERER_FOG = 1;
     else if (feature == "ANARI_VISRTX_MDL_SCENE_DATA")
       extensions->VISRTX_MDL_SCENE_DATA = 1;
+    else if (feature == "ANARI_VISRTX_GEOMETRY_MDL_SCENE_DATA")
+      extensions->VISRTX_GEOMETRY_MDL_SCENE_DATA = 1;
     else if (feature == "ANARI_VISRTX_MDL_ANIMATION_TIME")
       extensions->VISRTX_MDL_ANIMATION_TIME = 1;
     else if (feature == "ANARI_VISRTX_LIGHT_QUAD_SHAPING")
