@@ -49,6 +49,7 @@
 #include "mdl/Logger.h"
 #include "mdl/MaterialRegistry.h"
 #include "mdl/SamplerRegistry.h"
+#include "utility/SceneDataNames.h"
 #include "utility/TaskExecutor.h"
 #endif // defined(USE_MDL)
 // std
@@ -227,6 +228,7 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
 
   // MDL
 #ifdef USE_MDL
+  SceneDataNames sceneDataNames;
   struct MDL
   {
     libmdl::Core core;

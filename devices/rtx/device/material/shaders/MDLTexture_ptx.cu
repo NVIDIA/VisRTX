@@ -414,7 +414,10 @@ VISRTX_DEVICE unsigned int sceneDataSlot(
 {
   if (!self->sceneData || id >= self->numSceneData)
     return ~0u;
-  const auto slot = static_cast<unsigned int>(self->sceneData[id].attribute);
+  const auto slot =
+      static_cast<unsigned int>(resolveSceneDataAttribute(self->sceneData[id],
+          self->geometrySceneData,
+          self->numGeometrySceneData));
   return slot < 5 ? slot : ~0u;
 }
 

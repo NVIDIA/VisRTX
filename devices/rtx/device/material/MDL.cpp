@@ -464,7 +464,8 @@ void MDL::syncSource()
   m_uuid = acquired.uuid;
   m_argumentBlockInstance = coordinator.invokeSerial(
       [&] { return materialRegistry.createArgumentBlock(acquired.arguments); });
-  m_sceneDataInstance.emplace(acquired.sceneData);
+  m_sceneDataInstance.emplace(
+      acquired.sceneData, deviceState()->sceneDataNames);
   // A fresh instance may be entirely unbound and report no CPU-table change.
   // Discard the previous source's GPU table so the initial upload still runs.
   m_sceneDataBuffer.reset();
@@ -734,7 +735,7 @@ void MDL::syncSceneData()
   if (data.empty())
     m_sceneDataBuffer.reset();
   else if (changed || m_sceneDataBuffer.bytes() == 0)
-    m_sceneDataBuffer.upload(data.data(), data.size_bytes());
+    m_sceneDataBuffer.upload(data.data(), data.size());
 }
 
 MaterialGPUData MDL::gpuData() const

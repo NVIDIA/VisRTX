@@ -167,6 +167,9 @@ VISRTX_CALLABLE void __direct_callable__init(MDLShadingState *shadingState,
   shadingState->textureHandler.normalAdapted = false;
   shadingState->textureHandler.sceneData = md->sceneData;
   shadingState->textureHandler.numSceneData = md->numSceneData;
+  shadingState->textureHandler.geometrySceneData = hit->geometry->sceneData;
+  shadingState->textureHandler.numGeometrySceneData =
+      hit->geometry->numSceneData;
   shadingState->resData = {nullptr, &shadingState->textureHandler};
 
   // Front facing for transmission

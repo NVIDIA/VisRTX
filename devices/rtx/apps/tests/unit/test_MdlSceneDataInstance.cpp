@@ -4,6 +4,7 @@
 #include "mdl/SceneDataInstance.h"
 
 #include <cstdio>
+#include <future>
 #include <initializer_list>
 #include <stdexcept>
 #include <utility>
@@ -37,7 +38,8 @@ SceneDataDescriptor descriptor()
 
 void testSnapshots()
 {
-  SceneDataInstance instance(descriptor());
+  visrtx::SceneDataNames names;
+  SceneDataInstance instance(descriptor(), names);
   require(instance.data().size() == 6, "string IDs were compacted");
   for (const auto &binding : instance.data())
     require(binding.attribute == MaterialAttribute::UNKNOWN,
@@ -84,7 +86,8 @@ void testSnapshots()
 
 void testAttributeWhitelist()
 {
-  SceneDataInstance instance(descriptor());
+  visrtx::SceneDataNames names;
+  SceneDataInstance instance(descriptor(), names);
   for (auto attribute : {MaterialAttribute::ATTRIB_0,
            MaterialAttribute::ATTRIB_1,
            MaterialAttribute::ATTRIB_2,
@@ -121,8 +124,9 @@ void testAttributeWhitelist()
 
 void testOwnershipAndSourceChanges()
 {
+  visrtx::SceneDataNames names;
   auto source = descriptor();
-  SceneDataInstance first(source);
+  SceneDataInstance first(source, names);
   source.m_namesById[1] = "replacement";
   require(update(first, {{"temperature", MaterialAttribute::ATTRIB_0}}),
       "instance borrowed the source descriptor");
@@ -134,7 +138,7 @@ void testOwnershipAndSourceChanges()
 
   // Equal table sizes do not imply equal names or IDs.
   std::swap(source.m_namesById[1], source.m_namesById[3]);
-  SceneDataInstance second(source);
+  SceneDataInstance second(source, names);
   update(second,
       {{"temperature", MaterialAttribute::ATTRIB_0},
           {"tint", MaterialAttribute::COLOR}});
@@ -146,15 +150,66 @@ void testOwnershipAndSourceChanges()
   SceneDataDescriptor large;
   large.m_namesById.resize(65);
   large.m_namesById[64] = "last";
-  SceneDataInstance highIds(large);
+  SceneDataInstance highIds(large, names);
   require(update(highIds, {{"last", MaterialAttribute::COLOR}})
           && highIds.data()[64].attribute == MaterialAttribute::COLOR,
       "high string ID was truncated");
 
-  SceneDataInstance empty(SceneDataDescriptor{});
+  SceneDataInstance empty(SceneDataDescriptor{}, names);
   require(empty.data().empty(), "empty descriptor produced binding entries");
   require(!update(empty, {{"unused", MaterialAttribute::COLOR}}),
       "unknown name changed an empty table");
+}
+
+void testGeometryTokens()
+{
+  visrtx::SceneDataNames names;
+  SceneDataInstance first(descriptor(), names);
+  auto other = descriptor();
+  std::swap(other.m_namesById[1], other.m_namesById[3]);
+  SceneDataInstance second(other, names);
+  require(first.data()[1].nameToken != 0
+          && first.data()[1].nameToken == second.data()[3].nameToken,
+      "the same name acquired different tokens across target codes");
+  require(first.data()[0].nameToken == 0 && first.data()[2].nameToken == 0,
+      "empty string acquired a valid token");
+  require(first.data()[1].nameToken != first.data()[5].nameToken,
+      "case-sensitive names acquired the same token");
+  const auto token = first.data()[1].nameToken;
+  const visrtx::MDLSceneDataBinding aliases[] = {
+      {MaterialAttribute::COLOR, names.intern("unrelated")},
+      {MaterialAttribute::ATTRIB_2, token}};
+  update(first, {{"temperature", MaterialAttribute::ATTRIB_0}});
+  require(visrtx::resolveSceneDataAttribute(first.data()[1], aliases, 2)
+          == MaterialAttribute::ATTRIB_2,
+      "geometry alias did not override the material binding");
+  require(visrtx::resolveSceneDataAttribute(second.data()[3], aliases, 2)
+          == MaterialAttribute::ATTRIB_2,
+      "geometry alias required an explicit material binding");
+  require(visrtx::resolveSceneDataAttribute(first.data()[1], nullptr, 0)
+          == MaterialAttribute::ATTRIB_0,
+      "empty geometry aliases lost material fallback");
+  update(first, {});
+  require(first.data()[1].nameToken == token
+          && visrtx::resolveSceneDataAttribute(first.data()[1], aliases, 2)
+              == MaterialAttribute::ATTRIB_2,
+      "unsetting material bindings lost geometry name identity");
+  visrtx::SceneDataNames independent;
+  independent.intern("extra");
+  require(independent.intern("temperature") != token
+          && names.intern("temperature") == token,
+      "different devices share name-token state");
+
+  std::vector<std::future<uint32_t>> jobs;
+  for (int worker = 0; worker < 8; ++worker) {
+    jobs.push_back(std::async(std::launch::async, [&names, worker] {
+      for (int i = 0; i < 1000; ++i)
+        names.intern(std::to_string(worker) + "." + std::to_string(i));
+      return names.intern("temperature");
+    }));
+  }
+  for (auto &job : jobs)
+    require(job.get() == token, "concurrent interning changed string identity");
 }
 
 } // namespace
@@ -165,6 +220,7 @@ int main()
     testSnapshots();
     testAttributeWhitelist();
     testOwnershipAndSourceChanges();
+    testGeometryTokens();
   } catch (const std::exception &e) {
     std::fprintf(stderr, "FAIL: %s\n", e.what());
     return 1;

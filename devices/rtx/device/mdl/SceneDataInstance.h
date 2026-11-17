@@ -5,6 +5,7 @@
 
 #include "gpu/materialAttributes.h"
 #include "libmdl/SceneDataDescriptor.h"
+#include "utility/SceneDataNames.h"
 
 #include <nonstd/span.hpp>
 
@@ -22,7 +23,8 @@ class SceneDataInstance
     MaterialAttribute attribute{MaterialAttribute::UNKNOWN};
   };
 
-  explicit SceneDataInstance(const libmdl::SceneDataDescriptor &descriptor);
+  SceneDataInstance(
+      const libmdl::SceneDataDescriptor &descriptor, SceneDataNames &names);
 
   SceneDataInstance(const SceneDataInstance &) = default;
   SceneDataInstance &operator=(const SceneDataInstance &) = default;

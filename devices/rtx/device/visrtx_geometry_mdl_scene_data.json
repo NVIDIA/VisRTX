@@ -1,0 +1,59 @@
+{
+  "info": {
+    "name": "VISRTX_GEOMETRY_MDL_SCENE_DATA",
+    "type": "extension",
+    "dependencies": [
+      "visrtx_mdl_scene_data"
+    ]
+  },
+  "objects": [
+    {
+      "type": "ANARI_GEOMETRY",
+      "name": "triangle",
+      "description": "Native MDL scene-data aliases: sceneData.<name> (ANARI_STRING) selects attribute0..3 or color. A geometry alias overrides the material binding for the same exact name, including when the selected attribute is absent. Unsetting restores material fallback. Empty names, non-string values and unsupported slots warn and are ignored. Existing attribute-source precedence, interpolation and uniform eligibility apply. Dynamic names are documented rather than enumerated as literal query parameters.",
+      "parameters": []
+    },
+    {
+      "type": "ANARI_GEOMETRY",
+      "name": "quad",
+      "description": "Native MDL scene-data aliases: sceneData.<name> (ANARI_STRING) selects attribute0..3 or color. A geometry alias overrides the material binding for the same exact name, including when the selected attribute is absent. Unsetting restores material fallback. Empty names, non-string values and unsupported slots warn and are ignored. Existing attribute-source precedence, interpolation and uniform eligibility apply. Dynamic names are documented rather than enumerated as literal query parameters.",
+      "parameters": []
+    },
+    {
+      "type": "ANARI_GEOMETRY",
+      "name": "sphere",
+      "description": "Native MDL scene-data aliases: sceneData.<name> (ANARI_STRING) selects attribute0..3 or color. A geometry alias overrides the material binding for the same exact name, including when the selected attribute is absent. Unsetting restores material fallback. Empty names, non-string values and unsupported slots warn and are ignored. Existing attribute-source precedence, interpolation and uniform eligibility apply. Dynamic names are documented rather than enumerated as literal query parameters.",
+      "parameters": []
+    },
+    {
+      "type": "ANARI_GEOMETRY",
+      "name": "cylinder",
+      "description": "Native MDL scene-data aliases: sceneData.<name> (ANARI_STRING) selects attribute0..3 or color. A geometry alias overrides the material binding for the same exact name, including when the selected attribute is absent. Unsetting restores material fallback. Empty names, non-string values and unsupported slots warn and are ignored. Existing attribute-source precedence, interpolation and uniform eligibility apply. Dynamic names are documented rather than enumerated as literal query parameters.",
+      "parameters": []
+    },
+    {
+      "type": "ANARI_GEOMETRY",
+      "name": "cone",
+      "description": "Native MDL scene-data aliases: sceneData.<name> (ANARI_STRING) selects attribute0..3 or color. A geometry alias overrides the material binding for the same exact name, including when the selected attribute is absent. Unsetting restores material fallback. Empty names, non-string values and unsupported slots warn and are ignored. Existing attribute-source precedence, interpolation and uniform eligibility apply. Dynamic names are documented rather than enumerated as literal query parameters.",
+      "parameters": []
+    },
+    {
+      "type": "ANARI_GEOMETRY",
+      "name": "curve",
+      "description": "Native MDL scene-data aliases: sceneData.<name> (ANARI_STRING) selects attribute0..3 or color. A geometry alias overrides the material binding for the same exact name, including when the selected attribute is absent. Unsetting restores material fallback. Empty names, non-string values and unsupported slots warn and are ignored. Existing attribute-source precedence, interpolation and uniform eligibility apply. Dynamic names are documented rather than enumerated as literal query parameters.",
+      "parameters": []
+    },
+    {
+      "type": "ANARI_GEOMETRY",
+      "name": "sdf",
+      "description": "Native MDL scene-data aliases: sceneData.<name> (ANARI_STRING) selects attribute0..3 or color. A geometry alias overrides the material binding for the same exact name, including when the selected attribute is absent. Unsetting restores material fallback. Empty names, non-string values and unsupported slots warn and are ignored. Existing attribute-source precedence, interpolation and uniform eligibility apply. Dynamic names are documented rather than enumerated as literal query parameters.",
+      "parameters": []
+    },
+    {
+      "type": "ANARI_GEOMETRY",
+      "name": "isosurface",
+      "description": "Native MDL scene-data aliases: sceneData.<name> (ANARI_STRING) selects attribute0..3 or color. A geometry alias overrides the material binding for the same exact name, including when the selected attribute is absent. Unsetting restores material fallback. Empty names, non-string values and unsupported slots warn and are ignored. Existing attribute-source precedence, interpolation and uniform eligibility apply. Dynamic names are documented rather than enumerated as literal query parameters.",
+      "parameters": []
+    }
+  ]
+}

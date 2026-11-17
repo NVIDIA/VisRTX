@@ -263,7 +263,7 @@ if (VISRTX_ENABLE_MDL_SUPPORT)
     ${CMAKE_CURRENT_LIST_DIR}/../../../device/mdl/SceneDataInstance.cpp)
   target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/../../../device)
-  target_link_libraries(${PROJECT_NAME} PRIVATE libmdl)
+  target_link_libraries(${PROJECT_NAME} PRIVATE libmdl Threads::Threads)
   target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_17)
   add_test(NAME rtx::MdlSceneDataInstance COMMAND ${PROJECT_NAME})
 endif()
