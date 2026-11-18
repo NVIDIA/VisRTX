@@ -31,14 +31,20 @@
 
 #pragma once
 
+#include "geometry/Preprocessing.h"
 #include "gpu/gpu_objects.h"
+#include "utility/DeviceAllocationCache.h"
 #include "utility/DeviceObjectArray.h"
+#include "utility/PreparationQueue.h"
+#include "utility/PreparationStream.h"
+#include "utility/StreamRetirement.h"
 
 // helium
 #include "helium/BaseGlobalDeviceState.h"
 // anari
 #include <anari/anari_cpp.hpp>
 // optix
+#include <helium/utility/IntrusivePtr.h>
 #include <helium/utility/TimeStamp.h>
 #include <optix.h>
 #include <optix_stubs.h>
@@ -52,11 +58,13 @@
 #include "utility/TaskExecutor.h"
 #endif // defined(USE_MDL)
 // std
+#include <atomic>
 #include <filesystem>
 #include <optional>
 #include <set>
 #include <sstream>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #ifdef OPAQUE
@@ -154,6 +162,8 @@ VISRTX_ANARI_TYPEFOR_SPECIALIZATION(visrtx::box3, ANARI_FLOAT32_BOX3);
 namespace visrtx {
 
 struct Object;
+struct Geometry;
+struct Array;
 struct MDL;
 
 struct ptx_blob
@@ -166,8 +176,24 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
 {
   anari::Device anariDevice{nullptr};
 
+  // A failed last-public-release copy leaves application memory unavailable.
+  // Cached GPU pointers cannot be repaired safely: only cleanup is permitted.
+  std::atomic<bool> arrayPrivatizationFailed{false};
+
   CUcontext cudaContext;
   CUstream stream;
+  PreparationStream preparation;
+  StreamRetirement renderRetirement;
+  std::shared_ptr<DeviceAllocationCache> geometryInputAllocations{
+      std::make_shared<DeviceAllocationCache>()};
+  GeometryReadbackPool geometryReadbacks;
+  struct BvhReadback
+  {
+    box3 bounds;
+    uint64_t compactedSize;
+  };
+  PinnedReadbackPool<BvhReadback> bvhReadbacks;
+  SmallGeometryBatch smallGeometryBatch;
   cudaDeviceProp deviceProps;
 
   OptixDeviceContext optixContext;
@@ -223,6 +249,9 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
     DeviceObjectArray<LightGPUData> lights;
     DeviceObjectArray<SpatialFieldGPUData> fields;
     DeviceObjectArray<VolumeGPUData> volumes;
+
+    cudaError_t upload(
+        PreparationStream &preparation, cudaStream_t renderStream);
   } registry;
 
   // MDL
@@ -262,9 +291,26 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
 
   DeviceGlobalState(ANARIDevice d);
   ~DeviceGlobalState() override;
+
+  void enqueueGeometryInputUploads(Geometry *geometry);
+  cudaError_t stageGeometryArray(Array *array, helium::TimeStamp modified);
+  bool collectGeometryInputUploads();
+  bool collectingGeometryInputUploads() const;
+  void enqueueGeometryPreparation(Geometry *geometry);
+  bool collectGeometryPreparations();
+  cudaError_t finishGeometryPreparation();
+  cudaError_t waitForRenderConsumers();
+  bool collectingGeometryPreparations() const;
+  bool hasPendingGeometryPreparations() const;
+
+ private:
+  std::vector<helium::IntrusivePtr<Geometry>> m_geometryInputUploads;
+  std::unordered_map<const Array *, helium::TimeStamp> m_geometryInputVersions;
+  bool m_collectingGeometryInputUploads{false};
+  PreparationQueue<helium::IntrusivePtr<Geometry>> m_geometryPreparations;
 };
 
-void buildOptixBVH(std::vector<OptixBuildInput> buildInput,
+bool buildOptixBVH(std::vector<OptixBuildInput> buildInput,
     DeviceBuffer &bvh,
     OptixTraversableHandle &traversable,
     box3 &bounds,

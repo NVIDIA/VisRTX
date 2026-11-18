@@ -31,11 +31,15 @@
 
 #pragma once
 
+#include "Preprocessing.h"
 #include "RegisteredObject.h"
 #include "array/Array1D.h"
 #include "gpu/gpu_objects.h"
 // std
+#include <initializer_list>
 #include <optional>
+#include <string>
+#include <vector>
 
 namespace visrtx {
 
@@ -72,18 +76,37 @@ struct Geometry : public RegisteredObject<GeometryGPUData>
 
   void commitParameters() override;
   void markFinalized() override;
+  void upload();
+  void deferPreparation();
+  void completePreparation();
+  void markPreparationCollected() noexcept;
+  void retirePreparationSnapshot();
+  void submitInputUploads();
+  void completeInputUploads();
+  void failInputUploads();
 
   virtual void populateBuildInput(OptixBuildInput &) const = 0;
   virtual int optixGeometryType() const = 0;
 
-  // Geometry Light area sampling. Only types that can be sampled by area as an
-  // Emissive Surface override these (Stage 1: Triangle). ensureAreaData() builds
-  // the per-primitive area CDF; totalArea() is the object-space emitting area.
+  // Geometry Light area sampling. ensureAreaData() submits a per-primitive
+  // CDF if needed. Collect device geometry preparations before reading
+  // totalArea(), the object-space emitting area, or publishing a registry.
   virtual bool isAreaSamplingSupported() const;
   virtual void ensureAreaData();
   virtual float totalArea() const;
 
+  bool preparationFailed() const;
+  void setPreparationFailed(bool failed);
+
  protected:
+  // Declare once in the subtype constructor, before the first commit. List
+  // every consumed parameter except geometry-wide attributes; the base adds
+  // primitive and vertex arrays. These inputs determine preparation reuse.
+  void declarePreparationParameters(
+      std::initializer_list<const char *> parameters);
+  // Returns false after preparation reuse and registry publication, or if
+  // preparation cannot start.
+  bool beginPreparation();
   GeometryGPUData gpuData() const override = 0;
 
   void commitAttributes(const char *prefix, GeometryAttributes &attrs);
@@ -96,6 +119,40 @@ struct Geometry : public RegisteredObject<GeometryGPUData>
   // Set by analytic-primitive subtypes in finalize(); see
   // GeometryGPUData::epsilonScale.
   float m_epsilonScale{0.f};
+  Preprocessing m_preprocessing;
+
+ private:
+  struct PreparationParameter
+  {
+    size_t parameterIndex{0};
+    helium::AnariAny value;
+    helium::TimeStamp updated{0};
+    helium::TimeStamp finalized{0};
+    helium::TimeStamp modified{0};
+    const void *devicePointer{nullptr};
+
+    bool operator==(const PreparationParameter &other) const;
+  };
+  bool canRetainPreparationInputs() const;
+  void stageInputUploads();
+
+  struct InputUpload
+  {
+    helium::IntrusivePtr<Array> array;
+    helium::TimeStamp modified{0};
+    bool submitted{false};
+  };
+  std::vector<InputUpload> m_inputUploads;
+  bool m_inputUploadsQueued{false};
+  bool m_inputUploadFailed{false};
+  helium::TimeStamp m_failedInputUpdate{0};
+  std::vector<PreparationParameter> m_preparedParameters;
+  std::vector<std::string> m_preparationParameterNames;
+  bool m_hasPreparedData{false};
+  bool m_preparationPreserved{false};
+  bool m_preparationFailed{false};
+  bool m_inputRetirementFailed{false};
+  bool m_preparationQueued{false};
 };
 
 } // namespace visrtx

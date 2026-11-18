@@ -346,6 +346,10 @@ int VisRTXDevice::getProperty(ANARIObject object,
     uint64_t size,
     uint32_t mask)
 {
+  // A status callback during collection must not flush/re-finalize geometry
+  // whose readbacks and registry publication are still being resolved.
+  if (deviceState()->collectingGeometryPreparations())
+    return 0;
   if (!initDevice())
     return 0;
   CUDADeviceScope ds(this);
@@ -375,6 +379,8 @@ const void *VisRTXDevice::frameBufferMap(ANARIFrame f,
 
 void VisRTXDevice::renderFrame(ANARIFrame f)
 {
+  if (deviceState()->collectingGeometryPreparations())
+    return;
   if (!initDevice())
     return;
   CUDADeviceScope ds(this);
@@ -426,6 +432,7 @@ VisRTXDevice::~VisRTXDevice()
   // material dying here releases its samplers into the registry, so the MDL
   // teardown below must come after (also what empties the registry before its
   // "not empty on destruction" check).
+  state.collectGeometryPreparations();
   state.commitBuffer.clear();
 
 #ifdef USE_MDL
@@ -448,6 +455,10 @@ VisRTXDevice::~VisRTXDevice()
 
   optixModuleDestroy(state.intersectionModules.customIntersectors);
 
+  // Disable cached returns and free idle/pending blocks before destroying
+  // streams. Any allocation outliving the device falls back to ordinary free.
+  state.geometryInputAllocations->close();
+  state.preparation.reset();
   optixDeviceContextDestroy(state.optixContext);
 
   cudaStreamDestroy(state.stream);
@@ -455,6 +466,11 @@ VisRTXDevice::~VisRTXDevice()
 
 bool VisRTXDevice::initDevice()
 {
+  if (deviceState()->arrayPrivatizationFailed) {
+    reportMessage(ANARI_SEVERITY_ERROR,
+        "device disabled after array privatization failure; create a new device");
+    return false;
+  }
   if (m_initStatus == DeviceInitStatus::SUCCESS)
     return true;
   else if (m_initStatus == DeviceInitStatus::FAILURE) {
@@ -698,6 +714,7 @@ DeviceInitStatus VisRTXDevice::initOptix()
   OPTIX_CHECK_RETURN_VALUE(optixInit(), DeviceInitStatus::FAILURE);
   setCUDADevice();
   cudaStreamCreate(&state.stream);
+  state.renderRetirement.initialize(state.stream);
 
   cudaGetDeviceProperties(&state.deviceProps, m_gpuID);
   reportMessage(ANARI_SEVERITY_DEBUG,
@@ -845,6 +862,13 @@ DeviceInitStatus VisRTXDevice::initOptix()
       &builtinISOptions,
       &state.intersectionModules.curveIntersector));
 
+  const auto preparationStatus = state.preparation.initialize();
+  if (preparationStatus != cudaSuccess) {
+    reportMessage(ANARI_SEVERITY_FATAL_ERROR,
+        "could not initialize preparation stream: %s",
+        cudaGetErrorString(preparationStatus));
+    return DeviceInitStatus::FAILURE;
+  }
   return DeviceInitStatus::SUCCESS;
 }
 

@@ -73,7 +73,11 @@ bool Group::getProperty(const std::string_view &name,
       deviceState()->commitBuffer.flush();
       rebuildSurfaceBVHs();
       rebuildVolumeBVH();
+      if (preparationFailed())
+        return false;
     }
+    if (preparationFailed())
+      return false;
     auto bounds = m_triangleBounds;
     bounds.extend(m_curveBounds);
     bounds.extend(m_userBounds);
@@ -205,13 +209,38 @@ const std::vector<Surface *> &Group::surfacesUser() const
   return m_surfacesUser;
 }
 
+bool Group::preparationFailed() const
+{
+  return m_surfaceBuildFailed || m_volumeBuildFailed
+      || geometryPreparationFailed();
+}
+
+bool Group::geometryPreparationFailed() const
+{
+  if (!m_surfaceData)
+    return false;
+  auto surfaces = make_Span(
+      (Surface **)m_surfaceData->handlesBegin(), m_surfaceData->totalSize());
+  for (auto *s : surfaces) {
+    if (s && s->isVisible() && s->geometry()
+        && s->geometry()->preparationFailed())
+      return true;
+  }
+  return false;
+}
+
 void Group::rebuildSurfaceBVHs()
 {
+  if (!deviceState()->collectGeometryPreparations())
+    return;
+  if (geometryPreparationFailed())
+    return;
   const auto &state = *deviceState();
   if (state.objectUpdates.lastSurfaceBLASChange
       < m_objectUpdates.lastSurfaceBVHBuilt)
     return;
 
+  m_surfaceBuildFailed = false;
   partitionValidGeometriesByType();
 
   m_triangleBounds = box3();
@@ -221,13 +250,22 @@ void Group::rebuildSurfaceBVHs()
   m_traversableCurve = {};
   m_traversableUser = {};
 
+  // populateBuildInput can upload authored indices. The BVH builder imports
+  // those default-stream producers before submitting the build.
+  auto triangles = createOBI(m_surfacesTriangle);
+  auto curves = createOBI(m_surfacesCurve);
+  auto users = createOBI(m_surfacesUser);
+
   if (!m_surfacesTriangle.empty()) {
     reportMessage(ANARI_SEVERITY_DEBUG, "visrtx::Group building triangle BVH");
-    buildOptixBVH(createOBI(m_surfacesTriangle),
-        m_bvhTriangle,
-        m_traversableTriangle,
-        m_triangleBounds,
-        this);
+    if (!buildOptixBVH(std::move(triangles),
+            m_bvhTriangle,
+            m_traversableTriangle,
+            m_triangleBounds,
+            this)) {
+      m_surfaceBuildFailed = true;
+      return;
+    }
   } else {
     reportMessage(
         ANARI_SEVERITY_DEBUG, "visrtx::Group skipping triangle BVH build");
@@ -235,11 +273,14 @@ void Group::rebuildSurfaceBVHs()
 
   if (!m_surfacesCurve.empty()) {
     reportMessage(ANARI_SEVERITY_DEBUG, "visrtx::Group building curve BVH");
-    buildOptixBVH(createOBI(m_surfacesCurve),
-        m_bvhCurve,
-        m_traversableCurve,
-        m_curveBounds,
-        this);
+    if (!buildOptixBVH(std::move(curves),
+            m_bvhCurve,
+            m_traversableCurve,
+            m_curveBounds,
+            this)) {
+      m_surfaceBuildFailed = true;
+      return;
+    }
   } else {
     reportMessage(
         ANARI_SEVERITY_DEBUG, "visrtx::Group skipping curve BVH build");
@@ -247,11 +288,14 @@ void Group::rebuildSurfaceBVHs()
 
   if (!m_surfacesUser.empty()) {
     reportMessage(ANARI_SEVERITY_DEBUG, "visrtx::Group building user BVH");
-    buildOptixBVH(createOBI(m_surfacesUser),
-        m_bvhUser,
-        m_traversableUser,
-        m_userBounds,
-        this);
+    if (!buildOptixBVH(std::move(users),
+            m_bvhUser,
+            m_traversableUser,
+            m_userBounds,
+            this)) {
+      m_surfaceBuildFailed = true;
+      return;
+    }
   } else {
     reportMessage(
         ANARI_SEVERITY_DEBUG, "visrtx::Group skipping user BVH build");
@@ -269,6 +313,7 @@ void Group::rebuildVolumeBVH()
       < m_objectUpdates.lastVolumeBVHBuilt)
     return;
 
+  m_volumeBuildFailed = false;
   partitionValidVolumes();
   if (m_volumes.empty()) {
     m_volumeBounds = box3();
@@ -280,11 +325,14 @@ void Group::rebuildVolumeBVH()
   }
 
   reportMessage(ANARI_SEVERITY_DEBUG, "visrtx::Group building volume BVH");
-  buildOptixBVH(createOBI(m_volumes),
-      m_bvhVolume,
-      m_traversableVolume,
-      m_volumeBounds,
-      this);
+  if (!buildOptixBVH(createOBI(m_volumes),
+          m_bvhVolume,
+          m_traversableVolume,
+          m_volumeBounds,
+          this)) {
+    m_volumeBuildFailed = true;
+    return;
+  }
 
   buildVolumeGPUData();
 

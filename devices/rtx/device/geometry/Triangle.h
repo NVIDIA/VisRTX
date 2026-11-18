@@ -35,7 +35,6 @@
 #include "Geometry.h"
 #include "array/Array1D.h"
 #include "utility/DeviceBuffer.h"
-#include "utility/HostDeviceArray.h"
 
 namespace visrtx {
 
@@ -92,9 +91,10 @@ struct Triangle : public Geometry
   bool m_cullBackfaces{false};
 
   // Geometry Light sampling data, built lazily by ensureAreaData(). The CDF is
-  // the normalized cumulative object-space area over primitives. m_areaDataWanted
-  // persists across recommits so a re-finalize rebuilds it order-independently.
-  HostDeviceArray<float> m_primAreaCdf;
+  // the normalized cumulative object-space area over primitives.
+  // m_areaDataWanted persists across recommits so a re-finalize rebuilds it
+  // order-independently.
+  DeviceBuffer m_primAreaCdf;
   float m_totalArea{0.f};
   bool m_areaDataValid{false};
   bool m_areaDataWanted{false};

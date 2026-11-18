@@ -425,10 +425,13 @@ __global__ void resolveVec3Channel(const vec3 *__restrict__ accum,
 
 Frame::Frame(DeviceGlobalState *d) : helium::BaseFrame(d), m_denoiser(d)
 {
+  // Preparation can reject the first render before newFrame() initializes it.
+  data().fb.frameID = 0;
   data().mdlAnimationTime = 0.f;
   cudaEventCreate(&m_eventStart);
   cudaEventCreate(&m_eventEnd);
 
+  d->renderRetirement.invalidate();
   cudaEventRecord(m_eventStart, d->stream);
   cudaEventRecord(m_eventEnd, d->stream);
 }
@@ -679,6 +682,12 @@ void Frame::renderFrame()
   instrument::rangePop(); // rebuild BVHs
   instrument::rangePop(); // update scene
 
+  if (m_world->preparationFailed()) {
+    reportMessage(ANARI_SEVERITY_ERROR,
+        "skipping render after geometry preprocessing failure");
+    return;
+  }
+
   bool wasDenoising = m_denoise;
   bool wasDenoisingUsingAlbedo = m_denoiseUsingAlbedo;
   bool wasDenoisingUsingNormal = m_denoiseUsingNormal;
@@ -704,6 +713,7 @@ void Frame::renderFrame()
   if (!m_nextFrameReset && sampleLimit > 0 && hd.fb.frameID >= sampleLimit)
     return;
 
+  state.renderRetirement.invalidate();
   cudaEventRecord(m_eventStart, state.stream);
 
   m_renderer->populateFrameData(hd);
@@ -722,6 +732,17 @@ void Frame::renderFrame()
     hd.fb.buffers.trimTopK = nullptr;
   }
 
+  const auto registryUpload =
+      state.registry.upload(state.preparation, state.stream);
+  if (registryUpload != cudaSuccess) {
+    reportMessage(ANARI_SEVERITY_ERROR,
+        "skipping render after registry upload failure: %s",
+        cudaGetErrorString(registryUpload));
+    instrument::rangePop(); // frame setup
+    instrument::rangePop(); // Frame::renderFrame()
+    instrument::rangePop(); // frame + map
+    return;
+  }
   hd.registry.samplers = state.registry.samplers.devicePtr();
   hd.registry.geometries = state.registry.geometries.devicePtr();
   hd.registry.materials = state.registry.materials.devicePtr();
@@ -740,6 +761,24 @@ void Frame::renderFrame()
   instrument::rangePush("Frame::upload()");
   upload();
   instrument::rangePop(); // Frame::upload()
+
+  // Frame/renderer uploads still use legacy default-stream copies. Registries
+  // are already complete on the preparation stream; finish the remaining
+  // producers before tracing.
+  const auto publication = cudaStreamSynchronize(nullptr);
+  if (publication != cudaSuccess) {
+    // newFrame() already advanced the checkerboard phase and may have cleared
+    // accumulation buffers. Restart rather than consuming an unrendered tile
+    // or restoring counters over buffers whose previous contents are gone.
+    m_nextFrameReset = true;
+    reportMessage(ANARI_SEVERITY_ERROR,
+        "skipping render after GPU publication failure: %s",
+        cudaGetErrorString(publication));
+    instrument::rangePop(); // render all frames
+    instrument::rangePop(); // Frame::renderFrame()
+    instrument::rangePop(); // frame + map
+    return;
+  }
 
   instrument::rangePush("optixLaunch()");
   OPTIX_CHECK(optixLaunch(m_renderer->pipeline(),
@@ -1063,6 +1102,7 @@ void Frame::resolveVec3Buffer(const DeviceBuffer &accum,
   const uint32_t nPixels = uint32_t(numPixels());
   const uint32_t blockSize = 256;
   const uint32_t gridSize = (nPixels + blockSize - 1) / blockSize;
+  state.renderRetirement.invalidate();
   resolveVec3Channel<<<gridSize, blockSize, 0, state.stream>>>(
       accum.ptrAs<vec3>(),
       out.dataDevice(),

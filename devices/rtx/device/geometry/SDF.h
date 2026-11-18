@@ -33,7 +33,7 @@
 
 #include "Geometry.h"
 #include "array/Array1D.h"
-#include "utility/HostDeviceArray.h"
+#include "utility/DeviceBuffer.h"
 
 namespace visrtx {
 
@@ -78,7 +78,9 @@ struct SDF : public Geometry
   float m_distanceFromCamera{100.f};
   float m_noiseFactor{0.f};
 
-  HostDeviceArray<box3> m_aabbs;
+  DeviceBuffer m_alignedPrimitives;
+  const SDFPrimitive *m_primitives{nullptr};
+  DeviceBuffer m_aabbs;
   CUdeviceptr m_aabbsBufferPtr{};
   size_t m_numPrimitives{0};
 };

@@ -76,15 +76,17 @@ struct Group : public Object
 
   // Triangle surfaces, the Stage 1 candidates for Geometry Light synthesis.
   const std::vector<Surface *> &surfacesTriangle() const;
-  // Custom-primitive surfaces (spheres, cylinders, cones, …); the area-samplable
-  // ones (Stage 1.5: Sphere) are also Geometry Light candidates.
+  // Custom-primitive surfaces (spheres, cylinders, cones, …); the
+  // area-samplable ones (Stage 1.5: Sphere) are also Geometry Light candidates.
   const std::vector<Surface *> &surfacesUser() const;
 
+  bool preparationFailed() const;
   void rebuildSurfaceBVHs();
   void rebuildVolumeBVH();
   void rebuildLights();
 
  private:
+  bool geometryPreparationFailed() const;
   void partitionValidGeometriesByType();
   void partitionValidVolumes();
   void partitionValidLights();
@@ -120,6 +122,9 @@ struct Group : public Object
   DeviceObjectIndex m_firstHDRI{-1};
 
   // BVH //
+
+  bool m_surfaceBuildFailed{false};
+  bool m_volumeBuildFailed{false};
 
   struct ObjectUpdates
   {
