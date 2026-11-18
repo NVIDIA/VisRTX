@@ -129,7 +129,7 @@ void Geometry::commitParameters()
   const bool retain = canRetainPreparationInputs();
   if (!retain
       && !failPreparationOnError(this,
-          deviceState()->renderRetirement.retire(),
+          deviceState()->retireRenderConsumers(),
           "retiring previous geometry inputs"))
     m_preparationState = PreparationState::RetirementFailed;
   commitAttributes("primitive.", m_primitiveAttributes);

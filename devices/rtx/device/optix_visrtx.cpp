@@ -255,10 +255,16 @@ void DeviceGlobalState::failGeometryInputUploads()
 
 cudaError_t DeviceGlobalState::waitForRenderConsumers()
 {
-  // Scene submission is serialized. A completed retirement already covers
-  // these consumers; new render-stream producers invalidate that certificate.
-  return renderRetirement.isRetired() ? cudaSuccess
-                                      : preparation.waitFor(stream);
+  return cudaStreamQuery(stream) == cudaSuccess ? cudaSuccess
+                                                : preparation.waitFor(stream);
+}
+
+cudaError_t DeviceGlobalState::retireRenderConsumers()
+{
+  // Anything but success, a failed query included, takes the wait: only a
+  // completed stream permits releasing what its work reads.
+  return cudaStreamQuery(stream) == cudaSuccess ? cudaSuccess
+                                                : cudaStreamSynchronize(stream);
 }
 
 size_t DeviceGlobalState::enqueueGeometryPreparation(Geometry *geometry)

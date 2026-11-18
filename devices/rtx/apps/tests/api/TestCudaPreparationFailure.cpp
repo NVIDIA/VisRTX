@@ -371,6 +371,16 @@ extern "C" cudaError_t cudaStreamSynchronize(cudaStream_t stream)
   return result;
 }
 
+// Retirement synchronizes the render stream only when a query finds it busy,
+// and it is idle whenever a test arms WORK_SYNC. Report it busy so the wait
+// that carries the injected failure happens.
+extern "C" cudaError_t cudaStreamQuery(cudaStream_t stream)
+{
+  if (stream && stream != preparationStream && failure == Failure::WORK_SYNC)
+    return cudaErrorNotReady;
+  return next<decltype(&cudaStreamQuery)>("cudaStreamQuery")(stream);
+}
+
 int main(int argc, char **argv)
 {
   const bool pendingRetirement =
