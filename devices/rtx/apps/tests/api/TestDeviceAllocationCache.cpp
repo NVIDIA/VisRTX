@@ -40,6 +40,7 @@
 #include <mutex>
 #include <stdexcept>
 #include <thread>
+#include <utility>
 #include <vector>
 #include "../../../device/utility/DeviceAllocationCache.h"
 #include "../../../device/utility/DeviceBuffer.h"
@@ -282,6 +283,35 @@ int main()
       threw = true;
     }
     ok = threw && cache.reclaim(complete) == cudaSuccess && ok;
+  }
+  {
+    // Reusing a block while a cohort is frozen and a later return waits must
+    // leave each of the other two where it was.
+    DeviceAllocationCache cache;
+    void *ready = nullptr, *frozen = nullptr, *waiting = nullptr, *p = nullptr;
+    ok = cache.allocate(32, &ready) == cudaSuccess && ok;
+    ok = cache.allocate(48, &frozen) == cudaSuccess && ok;
+    ok = cache.allocate(64, &waiting) == cudaSuccess && ok;
+    cache.release(ready, 32);
+    ok = cache.reclaim(complete) == cudaSuccess && ok;
+    cache.release(frozen, 48);
+    ok = cache.reclaim([&] {
+      cache.release(waiting, 64);
+      ok = cache.allocate(32, &p) == cudaSuccess && p == ready && ok;
+      ok = cache.allocate(48, &p) == cudaSuccess && p != frozen && ok;
+      cache.release(p, 48);
+      return cudaSuccess;
+    }) == cudaSuccess
+        && ok;
+    ok = cache.allocate(48, &p) == cudaSuccess && p == frozen && ok;
+    void *other = nullptr;
+    ok = cache.allocate(64, &other) == cudaSuccess && other != waiting && ok;
+    ok = cache.reclaim(complete) == cudaSuccess && ok;
+    void *q = nullptr;
+    ok = cache.allocate(64, &q) == cudaSuccess && q == waiting && ok;
+    for (auto [pointer, bytes] :
+        {std::pair{ready, 32}, {p, 48}, {other, 64}, {q, 64}})
+      cache.release(pointer, bytes);
   }
   {
     DeviceAllocationCache cache;
