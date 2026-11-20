@@ -43,6 +43,7 @@ namespace {
 using vec3 = std::array<float, 3>;
 anari::Device device = nullptr;
 ANARIArray retireArray = nullptr;
+void **retireSource = nullptr;
 void *sourceA = nullptr;
 void *sourceB = nullptr;
 const void *trackedA = nullptr;
@@ -166,7 +167,7 @@ extern "C" cudaError_t cudaMemcpyAsync(void *dst,
   }
   const auto error = next<decltype(&cudaMemcpyAsync)>("cudaMemcpyAsync")(
       dst, src, bytes, kind, stream);
-  if (error == cudaSuccess && tracked && src == trackedA && retireNext) {
+  if (error == cudaSuccess && tracked && retireNext && src == *retireSource) {
     retireNext = false;
     // Reenter from the host submission path, not from a CUDA host callback.
     // Public release must wait before the application frees a pinned source.
@@ -177,9 +178,9 @@ extern "C" cudaError_t cudaMemcpyAsync(void *dst,
       std::fprintf(stderr, "host release omitted pending upload wait\n");
     }
     retireArray = nullptr;
-    if (cudaFreeHost(sourceA) != cudaSuccess)
+    if (cudaFreeHost(*retireSource) != cudaSuccess)
       ++errors;
-    sourceA = nullptr;
+    *retireSource = nullptr;
     retired = true;
   }
   return error;
@@ -312,21 +313,33 @@ int main()
   anariRelease(device, c);
   cudaFreeHost(replacement);
   replacementSource = nullptr;
+  // An observer-only update has no commit to capture it: its geometry's
+  // finalizer uploads it. A release from inside that copy must wait too.
+  resetCounts();
+  change(b, 4.f);
+  retireArray = b;
+  retireSource = &sourceB;
+  retireNext = true;
+  ok = bounds(-1.25f, 4.25f) && retired && copies == 1 && !wrongStream && ok;
+  retired = false;
   resetCounts();
   change(a, -2.f);
   commitGeometryWideAttributes(3.f);
   retireArray = a;
+  retireSource = &sourceA;
   retireNext = true;
-  ok = bounds(-2.25f, 3.25f) && retired && copies == 1 && !wrongStream && ok;
+  ok = bounds(-2.25f, 4.25f) && retired && copies == 1 && !wrongStream && ok;
   anari::release(device, world);
   for (auto geometry : geometries)
     anari::release(device, geometry);
-  if (!retired)
+  if (sourceA) {
     anariRelease(device, a);
-  anariRelease(device, b);
-  if (sourceA)
     cudaFreeHost(sourceA);
-  cudaFreeHost(sourceB);
+  }
+  if (sourceB) {
+    anariRelease(device, b);
+    cudaFreeHost(sourceB);
+  }
   anari::release(device, device);
   ok = errors == 1 && ok;
   std::printf("geometry input batches: %s\n", ok ? "PASS" : "FAIL");

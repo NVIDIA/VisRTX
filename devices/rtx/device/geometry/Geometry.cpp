@@ -391,26 +391,22 @@ Geometry::PreparationStart Geometry::beginPreparation()
       append(name);
 
     if (!pendingUploads.empty()) {
+      // No commit captured these: an observer-only update, or an array
+      // modified after its batch was submitted. Upload them the same way, as
+      // a batch of this geometry alone. Its failure is this finalize's, so
+      // the next one retries.
+      for (const auto &[index, array] : pendingUploads)
+        m_inputUploads.push_back({array, array->lastDataModified(), false});
       auto &state = *deviceState();
-      if (!failPreparationOnError(this,
-              state.preparation.waitFor(state.stream),
-              "previous array consumers"))
+      state.enqueueGeometryInputUploads(this);
+      m_inputBatch = InputBatch::Queued;
+      state.collectGeometryInputUploads();
+      if (retryBlocked()) {
+        m_preparationState = PreparationState::Failed;
         return PreparationStart::Blocked;
-      for (const auto &[index, array] : pendingUploads) {
-        if (!failPreparationOnError(this,
-                array->enqueueUpload(state.preparation.stream()),
-                "geometry array upload"))
-          return PreparationStart::Blocked;
       }
-      if (!failPreparationOnError(this,
-              state.finishGeometryPreparation(),
-              "geometry array upload completion"))
-        return PreparationStart::Blocked;
-      // Never mark a partial/failed batch uploaded: a later commit must retry.
-      for (const auto &[index, array] : pendingUploads) {
-        array->markDataUploaded();
+      for (const auto &[index, array] : pendingUploads)
         current[index].devicePointer = array->dataGPU();
-      }
     }
 
     // Observer-only updates always take the preparation path. A geometry-wide

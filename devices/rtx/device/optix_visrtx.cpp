@@ -212,11 +212,13 @@ bool DeviceGlobalState::collectGeometryInputUploads()
 {
   return m_geometryInputUploads.collect(
       [&](Geometry *first) {
+        // The only route by which a geometry's host inputs reach the device.
         // Commits capture sources; the first geometry finalizer submits every
         // input batch before waiting. No legacy finalizer sees partially
-        // uploaded arrays. Retire obsolete cached copies before allocating a
-        // whole replacement cohort. A single geometry retains the existing
-        // allocation/retirement order.
+        // uploaded arrays. A finalizer then queues what no commit captured
+        // as a batch of its own. Retire obsolete cached copies before
+        // allocating a whole replacement cohort. A single geometry retains
+        // the existing allocation/retirement order.
         if (m_geometryInputUploads.size() > 1)
           m_geometryInputUploads.forEach([](Geometry *geometry) {
             geometry->retirePreparationSnapshot();

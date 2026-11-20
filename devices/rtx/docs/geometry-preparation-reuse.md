@@ -119,10 +119,14 @@ is reused.
   submissions mark their still-current array versions uploaded. A failed
   geometry remains unprepared even if another geometry successfully shares one
   of its arrays. Legacy consumers can safely use completed copies afterward.
-- Observer-only updates, or arrays modified after submission, retain the local
-  per-geometry upload path. A later geometry commit or observer update may retry
-  a failed input generation; unchanged failed inputs cannot silently become
-  prepared. Preparation reuse does not capture or submit an upload batch.
+- Observer-only updates, and arrays modified after submission, have no commit
+  to capture them. The geometry's finalizer captures its still-dirty declared
+  host arrays and collects them through the same batch, as a batch of that
+  geometry alone: there is one upload implementation with two triggers. A
+  failure there fails that finalization, so the next one retries. A later
+  geometry commit or observer update may retry a failed input generation;
+  unchanged failed inputs cannot silently become prepared. Preparation reuse
+  does not capture or submit an upload batch.
 - These checked geometry kernels no longer import the default stream: authored
   inputs are ready before they run. Other array consumers retain their existing
   upload path.
@@ -313,7 +317,8 @@ BVH builds read back their bounds and compacted size through one pinned
 serialized and complete before returning, so no transfer outlives a build.
 
 Committed host inputs now complete in a cross-geometry batch before finalizers
-run. Observer-only input updates remain conservative. Last-public-release of
+run. Observer-only input updates take the same path one geometry at a time.
+Last-public-release of
 shared host arrays during an active upload joins the preparation stream before
 the application may free its source memory. Quad/curve generated-data completion,
 tangent generation, and field/isosurface

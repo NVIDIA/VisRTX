@@ -161,9 +161,9 @@ struct Geometry : public RegisteredObject<GeometryGPUData>
   //   Reused             Prepared, and the latest finalize reused it, so
   //                      markFinalized() leaves the BLAS change stamp alone.
   //   Failed             The next finalize retries.
-  //   InputUploadFailed  An input upload batch failed. A parameter commit, or
-  //                      an observer update newer than m_failedInputUpdate,
-  //                      retries.
+  //   InputUploadFailed  An input upload batch queued by a commit failed. A
+  //                      parameter commit, or an observer update newer than
+  //                      m_failedInputUpdate, retries.
   //   RetirementFailed   Retiring the previous inputs failed. Only a
   //                      parameter commit retries.
   //
@@ -189,6 +189,8 @@ struct Geometry : public RegisteredObject<GeometryGPUData>
   //   retirePreparationSnapshot())
   //   failInputUploads()                any but            InputUploadFailed
   //                                     RetirementFailed
+  //   beginPreparation(), the batch it  InputUploadFailed  Failed
+  //   queued itself fails
   //
   // beginPreparation() returns Blocked in InputUploadFailed and
   // RetirementFailed (retryBlocked()). RetirementFailed outranks
