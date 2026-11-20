@@ -783,6 +783,30 @@ int main(int argc, char **argv)
       anari::commitParameters(d, geometry);
       ok = haveBounds() && errors == retirementErrors && ok;
     }
+    if (observerRecovery) {
+      // An observer-only update: no commit captures the dirty array, so the
+      // geometry's own finalize uploads it. A failed copy or completion there
+      // fails that finalize only; the next observer update retries without a
+      // geometry commit.
+      for (const auto kind : {Failure::UPLOAD_COPY, Failure::UPLOAD_SYNC}) {
+        const int errorsBefore = errors;
+        const int copiesBefore = uploadCopies;
+        const int injectionsBefore = injections;
+        uploadQueued = false;
+        failure = kind;
+        if (!anariMapArray(d, array))
+          return 1;
+        anariUnmapArray(d, array);
+        ok = !haveBounds() && injections == injectionsBefore + 1
+            && errors == errorsBefore + 1 && uploadCopies == copiesBefore + 1
+            && ok;
+        if (!anariMapArray(d, array))
+          return 1;
+        anariUnmapArray(d, array);
+        ok = haveBounds() && errors == errorsBefore + 1
+            && uploadCopies == copiesBefore + 2 && !uploadOnWrongStream && ok;
+      }
+    }
     anari::release(d, array);
   } else {
     ok = haveBounds() && ok;
