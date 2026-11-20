@@ -35,8 +35,8 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
-#include <memory>
 #include <mutex>
+#include <nonstd/scope.hpp>
 
 namespace visrtx {
 
@@ -155,13 +155,9 @@ inline cudaError_t DeviceAllocationCache::reclaim(
     m_pendingCount = 0;
   }
   bool reusable = false;
-  // Restores the frozen cohort to pending on host exceptions too. This guard
-  // borrows the cache; its deleter returns blocks rather than deleting this.
-  auto restore = [&](DeviceAllocationCache *) {
-    finishCohort(cohort, count, reusable);
-  };
-  std::unique_ptr<DeviceAllocationCache, decltype(restore)> guard(
-      this, restore);
+  // Restores the frozen cohort to pending on host exceptions too.
+  auto finish =
+      nonstd::make_scope_exit([&] { finishCohort(cohort, count, reusable); });
   auto error = completeDeferred();
   // Legacy consumers and application-visible array pointers need the same
   // conservative device-wide retirement cudaFree previously provided per block.

@@ -96,7 +96,7 @@ add_executable(TestRegistrySnapshot TestRegistrySnapshot.cpp
 target_include_directories(TestRegistrySnapshot PRIVATE
   ../../../device ../../../external/nanovdb/include ${OptiX_ROOT_DIR}/include)
 target_link_libraries(TestRegistrySnapshot PRIVATE
-  CUDA::cudart anari::anari_static visrtx::glm)
+  CUDA::cudart anari::anari_static visrtx::glm nonstd::scope-lite)
 target_compile_definitions(TestRegistrySnapshot PRIVATE GLM_ENABLE_EXPERIMENTAL)
 add_test(NAME TestRegistrySnapshot COMMAND TestRegistrySnapshot)
 make_test(TestDeferredGeometryPreparation)
@@ -129,7 +129,7 @@ add_test(NAME TestGeometryBoundsFailure COMMAND TestGeometryPreprocessingFailure
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CUDA_RUNTIME_LIBRARY STREQUAL "Shared")
   add_executable(TestDeviceAllocationCache TestDeviceAllocationCache.cpp
     ../../../device/utility/MemoryAllocation.cpp)
-  target_link_libraries(TestDeviceAllocationCache PRIVATE CUDA::cudart anari::anari_static ${CMAKE_DL_LIBS} Threads::Threads)
+  target_link_libraries(TestDeviceAllocationCache PRIVATE CUDA::cudart anari::anari_static nonstd::scope-lite ${CMAKE_DL_LIBS} Threads::Threads)
   set_target_properties(TestDeviceAllocationCache PROPERTIES ENABLE_EXPORTS ON)
   add_test(NAME TestDeviceAllocationCache COMMAND TestDeviceAllocationCache)
   target_link_libraries(TestSmallGeometryBatch PRIVATE ${CMAKE_DL_LIBS})
