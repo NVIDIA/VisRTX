@@ -551,13 +551,11 @@ bool Preprocessing::complete(Geometry *g)
 {
   const bool bounds = std::exchange(m_boundsSubmitted, false);
   const bool areas = std::exchange(m_areasSubmitted, false);
-  m_status = Status::Failed;
+  m_status = Status::Ready;
   if (g->preparationFailed())
     return false;
-  if (!bounds && !areas) {
-    m_status = Status::Ready;
+  if (!bounds && !areas)
     return true;
-  }
   const auto &results = g->deviceState()->preparationResults.host(m_position);
   if (bounds && results.bounds.invalid) {
     failPreparation(g, cudaErrorInvalidValue, "non-finite bounds");
@@ -574,7 +572,6 @@ bool Preprocessing::complete(Geometry *g)
     if (m_totalArea == 0.f)
       m_areaCdf.reset();
   }
-  m_status = Status::Ready;
   return true;
 }
 

@@ -169,9 +169,9 @@ struct Preprocessing
 {
   enum class Status
   {
-    Ready, // Every submitted result is published.
+    Ready, // Nothing awaits complete(): published, or its collection failed
+           // and what it was to publish stays zero.
     Pending, // Submitted results await complete().
-    Failed, // The last collection failed; what it was to publish stays zero.
   };
 
   Preprocessing() = default;
