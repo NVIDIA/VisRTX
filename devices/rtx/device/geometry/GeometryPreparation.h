@@ -78,6 +78,12 @@ struct GeometryPreparation
   // reentered from a collection.
   bool collect();
 
+  // For a caller about to hand memory back to the application. The first
+  // waits for a host-to-device input copy in flight; the second for rendering
+  // and queued preparation that read an application-owned device array.
+  cudaError_t waitForHostReaders();
+  cudaError_t waitForDeviceReaders();
+
   // Backs device copies of authored host arrays.
   std::shared_ptr<DeviceAllocationCache> inputAllocations() const;
 

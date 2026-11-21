@@ -77,6 +77,21 @@ bool GeometryPreparation::collect()
       [] {});
 }
 
+cudaError_t GeometryPreparation::waitForHostReaders()
+{
+  // Only an input-upload collection has copies in flight. Draining does not
+  // release the queue's retained array references.
+  return uploadingInputs() ? flush() : cudaSuccess;
+}
+
+cudaError_t GeometryPreparation::waitForDeviceReaders()
+{
+  auto completion = retireRender();
+  if (completion == cudaSuccess && pending())
+    completion = flush();
+  return completion;
+}
+
 std::shared_ptr<DeviceAllocationCache> GeometryPreparation::inputAllocations()
     const
 {

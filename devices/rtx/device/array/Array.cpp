@@ -177,15 +177,13 @@ void Array::privatize()
   if (m_data.shared.host.isValid() && !m_data.shared.host.isOwner()) {
     // A batched H2D copy may still use the application-owned host pointer.
     // Draining does not release the queue's retained array references.
-    if (state.preparation.uploadingInputs()) {
-      const auto completion = state.preparation.flush();
-      if (completion != cudaSuccess) {
-        state.arrayPrivatizationFailed = true;
-        reportMessage(ANARI_SEVERITY_FATAL_ERROR,
-            "array privatization failed; device disabled: %s",
-            cudaGetErrorString(completion));
-        return;
-      }
+    const auto completion = state.preparation.waitForHostReaders();
+    if (completion != cudaSuccess) {
+      state.arrayPrivatizationFailed = true;
+      reportMessage(ANARI_SEVERITY_FATAL_ERROR,
+          "array privatization failed; device disabled: %s",
+          cudaGetErrorString(completion));
+      return;
     }
     reportMessage(ANARI_SEVERITY_PERFORMANCE_WARNING,
         "making private copy of shared host array (type '%s') | refs: (%i:%i)",
@@ -203,11 +201,9 @@ void Array::privatize()
         this->useCount(helium::RefType::INTERNAL));
     // Existing frames may still read the shared pointer. The application may
     // free it as soon as this last PUBLIC release returns.
-    auto completion = state.preparation.retireRender();
     // Deferred preprocessing can still read this external allocation even
     // when no frame is in flight. Retain it through that stream's completion.
-    if (completion == cudaSuccess && state.preparation.pending())
-      completion = state.preparation.flush();
+    auto completion = state.preparation.waitForDeviceReaders();
     if (completion == cudaSuccess)
       completion = m_data.shared.device.privatize();
     if (completion != cudaSuccess) {
