@@ -31,12 +31,10 @@
 
 #pragma once
 
-#include "geometry/Preprocessing.h"
+#include "geometry/GeometryPreparation.h"
 #include "gpu/gpu_objects.h"
-#include "utility/DeviceAllocationCache.h"
 #include "utility/DeviceObjectArray.h"
 #include "utility/PreparationQueue.h"
-#include "utility/PreparationStream.h"
 
 // helium
 #include "helium/BaseGlobalDeviceState.h"
@@ -181,20 +179,7 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
 
   CUcontext cudaContext;
   CUstream stream;
-  PreparationStream preparation;
-  std::shared_ptr<DeviceAllocationCache> geometryInputAllocations{
-      std::make_shared<DeviceAllocationCache>()};
-  // Scalar results of queued geometry preparations, by queue position.
-  PreparationResults preparationResults;
-  struct BvhReadback
-  {
-    box3 bounds;
-    uint64_t compactedSize;
-  };
-  // Pinned; the first BVH build allocates it. Builds are serialized and
-  // complete before returning, so one serves them all.
-  std::unique_ptr<BvhReadback, PinnedDeleter> bvhReadback;
-  SmallGeometryBatch smallGeometryBatch;
+  GeometryPreparation preparation;
   cudaDeviceProp deviceProps;
 
   OptixDeviceContext optixContext;
@@ -252,7 +237,7 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
     DeviceObjectArray<VolumeGPUData> volumes;
 
     cudaError_t upload(
-        PreparationStream &preparation, cudaStream_t renderStream);
+        GeometryPreparation &preparation, cudaStream_t renderStream);
   } registry;
 
   // MDL

@@ -426,7 +426,7 @@ Geometry::PreparationStart Geometry::beginPreparation()
   // Keep that dependency on the GPU; parameter-reference retirement above
   // still requires a host wait before releasing old application storage.
   return failPreparationOnError(this,
-             deviceState()->preparation.waitFor(deviceState()->stream),
+             deviceState()->preparation.orderAfter(deviceState()->stream),
              "previous geometry consumers")
       ? PreparationStart::Prepare
       : PreparationStart::Blocked;

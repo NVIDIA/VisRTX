@@ -265,7 +265,7 @@ cudaError_t Array::enqueueUpload(cudaStream_t stream) const
 
   if (!device->isValid()) {
     auto cache = static_cast<DeviceGlobalState *>(deviceState())
-                     ->geometryInputAllocations;
+                     ->preparation.inputAllocations();
     void *memory = nullptr;
     const auto allocationError = cache->allocate(host->bytes(), &memory);
     auto allocation = CudaMemoryAllocation::fromCache(

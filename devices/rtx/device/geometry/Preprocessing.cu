@@ -496,7 +496,7 @@ cudaError_t SmallGeometryBatch::launch(
 void Preprocessing::enqueueSmall(Geometry *g)
 {
   if (!m_smallQueued) {
-    g->deviceState()->smallGeometryBatch.enqueue(this);
+    g->deviceState()->preparation.m_smallBatch.enqueue(this);
     m_smallQueued = true;
   }
 }
@@ -513,11 +513,11 @@ GeometryResults *Preprocessing::reserveResults(Geometry *g)
 {
   auto *state = g->deviceState();
   if (!failPreparationOnError(g,
-          state->preparationResults.reserve(
+          state->preparation.m_results.reserve(
               m_position + 1, state->preparation.stream()),
           "allocating preparation results"))
     return nullptr;
-  return state->preparationResults.device(m_position);
+  return state->preparation.m_results.device(m_position);
 }
 
 Preprocessing::Status Preprocessing::status() const
@@ -556,7 +556,8 @@ bool Preprocessing::complete(Geometry *g)
     return false;
   if (!bounds && !areas)
     return true;
-  const auto &results = g->deviceState()->preparationResults.host(m_position);
+  const auto &results =
+      g->deviceState()->preparation.m_results.host(m_position);
   if (bounds && results.bounds.invalid) {
     failPreparation(g, cudaErrorInvalidValue, "non-finite bounds");
     return false;

@@ -60,7 +60,7 @@ bool buildOptixBVH(std::vector<OptixBuildInput> buildInput,
   auto check = [&](cudaError_t error, const char *operation) {
     if (error == cudaSuccess)
       return true;
-    preparation.finish(); // Drain queued consumers before scratch is freed.
+    preparation.sync(); // Drain queued consumers before scratch is freed.
     cudaGetLastError();
     obj->reportMessage(ANARI_SEVERITY_ERROR,
         "BVH preparation failed during %s: %s",
@@ -71,7 +71,7 @@ bool buildOptixBVH(std::vector<OptixBuildInput> buildInput,
   auto checkOptix = [&](OptixResult result, const char *operation) {
     if (result == OPTIX_SUCCESS)
       return true;
-    preparation.finish();
+    preparation.sync();
     obj->reportMessage(ANARI_SEVERITY_ERROR,
         "BVH preparation failed during %s: %s",
         operation,
@@ -86,7 +86,7 @@ bool buildOptixBVH(std::vector<OptixBuildInput> buildInput,
   // authored arrays/instance uploads on the default stream. Previous rendering
   // must also finish before the existing BVH storage can be reused.
   if (!check(state.waitForRenderConsumers(), "previous BVH consumers")
-      || !check(preparation.waitFor(nullptr), "input upload dependency"))
+      || !check(preparation.orderAfter(nullptr), "input upload dependency"))
     return false;
 
   OptixAccelBuildOptions options{};
@@ -103,15 +103,10 @@ bool buildOptixBVH(std::vector<OptixBuildInput> buildInput,
 
   // Allocate before submitting GPU work. Every earlier build completed, so
   // no transfer still targets the readback.
-  if (!state.bvhReadback) {
-    void *memory = nullptr;
-    const auto error =
-        cudaMallocHost(&memory, sizeof(DeviceGlobalState::BvhReadback));
-    if (!check(error, "allocating BVH readback"))
-      return false;
-    state.bvhReadback.reset(
-        static_cast<DeviceGlobalState::BvhReadback *>(memory));
-  }
+  cudaError_t readbackError = cudaSuccess;
+  auto *readback = preparation.bvhReadback(readbackError);
+  if (!check(readbackError, "allocating BVH readback"))
+    return false;
 
   DeviceBuffer compactedSizeBuffer, aabbBuffer, tempBuffer, outputBuffer;
   if (!reserve(compactedSizeBuffer, sizeof(uint64_t))
@@ -141,8 +136,8 @@ bool buildOptixBVH(std::vector<OptixBuildInput> buildInput,
           "build"))
     return false;
 
-  auto &builtBounds = state.bvhReadback->bounds;
-  auto &compactedSize = state.bvhReadback->compactedSize;
+  auto &builtBounds = readback->bounds;
+  auto &compactedSize = readback->compactedSize;
   if (!check(cudaMemcpyAsync(&builtBounds,
                  aabbBuffer.ptr(),
                  sizeof(box3),
@@ -155,7 +150,7 @@ bool buildOptixBVH(std::vector<OptixBuildInput> buildInput,
                     cudaMemcpyDeviceToHost,
                     stream),
           "compaction size readback")
-      || !check(preparation.finish(), "build completion"))
+      || !check(preparation.sync(), "build completion"))
     return false;
 
   if (!reserve(bvh, compactedSize)
@@ -166,7 +161,7 @@ bool buildOptixBVH(std::vector<OptixBuildInput> buildInput,
                          bvh.bytes(),
                          &built),
           "compaction")
-      || !check(preparation.finish(), "compaction completion"))
+      || !check(preparation.sync(), "compaction completion"))
     return false;
 
   // Publication and scratch destruction happen only after this stream's work
@@ -223,7 +218,7 @@ bool DeviceGlobalState::collectGeometryInputUploads()
           m_geometryInputUploads.forEach([](Geometry *geometry) {
             geometry->retirePreparationSnapshot();
           });
-        auto error = geometryInputAllocations->reclaim(
+        auto error = preparation.m_inputAllocations->reclaim(
             [&] { return finishGeometryPreparation(); });
         if (error == cudaSuccess)
           error = waitForRenderConsumers();
@@ -257,8 +252,9 @@ void DeviceGlobalState::failGeometryInputUploads()
 
 cudaError_t DeviceGlobalState::waitForRenderConsumers()
 {
-  return cudaStreamQuery(stream) == cudaSuccess ? cudaSuccess
-                                                : preparation.waitFor(stream);
+  return cudaStreamQuery(stream) == cudaSuccess
+      ? cudaSuccess
+      : preparation.orderAfter(stream);
 }
 
 cudaError_t DeviceGlobalState::retireRenderConsumers()
@@ -293,9 +289,10 @@ cudaError_t DeviceGlobalState::finishGeometryPreparation()
   // their input pointers must be consumed before a backing allocation changes.
   // Then read back every queued result in one transfer.
   const auto stream = preparation.stream();
-  auto error = smallGeometryBatch.launch(preparationResults, stream);
+  auto error = preparation.m_smallBatch.launch(preparation.m_results, stream);
   if (error == cudaSuccess)
-    error = preparationResults.readback(m_geometryPreparations.size(), stream);
+    error =
+        preparation.m_results.readback(m_geometryPreparations.size(), stream);
   const auto completion = cudaStreamSynchronize(stream);
   if (error == cudaSuccess)
     error = completion;
@@ -332,7 +329,7 @@ bool DeviceGlobalState::collectGeometryPreparations()
 }
 
 cudaError_t DeviceGlobalState::DeviceObjectRegistry::upload(
-    PreparationStream &preparation, cudaStream_t renderStream)
+    GeometryPreparation &preparation, cudaStream_t renderStream)
 {
   if (!(samplers.dirty() || geometries.dirty() || materials.dirty()
           || surfaces.dirty() || lights.dirty() || fields.dirty()
