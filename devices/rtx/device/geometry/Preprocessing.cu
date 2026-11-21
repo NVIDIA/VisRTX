@@ -419,7 +419,7 @@ void failPreparation(Geometry *g, cudaError_t error, const char *operation)
   // preparation before retrying or freeing scratch. Keep the render-stream
   // drain on this error path too: this helper also handles input retirement
   // and dependency failures, which may precede a successful producer edge.
-  g->deviceState()->finishGeometryPreparation();
+  g->deviceState()->preparation.flush();
   cudaStreamSynchronize(g->deviceState()->stream);
   g->reportMessage(ANARI_SEVERITY_ERROR,
       "geometry preprocessing failed during %s: %s",
@@ -446,9 +446,8 @@ bool finishPreparation(Geometry *g)
 {
   // Also establishes an explicit boundary for legacy default-stream consumers.
   return failPreparationOnError(g, cudaGetLastError(), "launch")
-      && failPreparationOnError(g,
-          g->deviceState()->finishGeometryPreparation(),
-          "execution completion");
+      && failPreparationOnError(
+          g, g->deviceState()->preparation.flush(), "execution completion");
 }
 
 void SmallGeometryBatch::enqueue(Preprocessing *preprocessing)

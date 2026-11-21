@@ -34,7 +34,6 @@
 #include "geometry/GeometryPreparation.h"
 #include "gpu/gpu_objects.h"
 #include "utility/DeviceObjectArray.h"
-#include "utility/PreparationQueue.h"
 
 // helium
 #include "helium/BaseGlobalDeviceState.h"
@@ -179,7 +178,6 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
 
   CUcontext cudaContext;
   CUstream stream;
-  GeometryPreparation preparation;
   cudaDeviceProp deviceProps;
 
   OptixDeviceContext optixContext;
@@ -277,23 +275,9 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
   DeviceGlobalState(ANARIDevice d);
   ~DeviceGlobalState() override;
 
-  void enqueueGeometryInputUploads(Geometry *geometry);
-  cudaError_t stageGeometryArray(Array *array, helium::TimeStamp modified);
-  bool collectGeometryInputUploads();
-  bool collectingGeometryInputUploads() const;
-  // Returns the geometry's position in the preparation queue.
-  size_t enqueueGeometryPreparation(Geometry *geometry);
-  bool collectGeometryPreparations();
-  cudaError_t finishGeometryPreparation();
-  bool collectingGeometryPreparations() const;
-  bool hasPendingGeometryPreparations() const;
-
- private:
-  void failGeometryInputUploads();
-
-  PreparationQueue<helium::IntrusivePtr<Geometry>> m_geometryInputUploads;
-  std::unordered_map<const Array *, helium::TimeStamp> m_geometryInputVersions;
-  PreparationQueue<helium::IntrusivePtr<Geometry>> m_geometryPreparations;
+  // Declared last so it is destroyed first: the geometries it still holds are
+  // released while the registry above is alive.
+  GeometryPreparation preparation;
 };
 
 bool buildOptixBVH(std::vector<OptixBuildInput> buildInput,

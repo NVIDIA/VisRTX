@@ -264,7 +264,7 @@ bool World::preparationFailed() const
 
 void World::rebuildWorld()
 {
-  if (!deviceState()->collectGeometryPreparations())
+  if (!deviceState()->preparation.collect())
     return;
   if (m_bvhBuildFailed)
     m_objectUpdates.lastTLASBuild = 0;
@@ -668,7 +668,7 @@ void World::synthesizeGeometryLights()
   for (auto *surface : candidates)
     if (surface->isSampleableEmitter())
       surface->geometry()->ensureAreaData();
-  if (!deviceState()->collectGeometryPreparations())
+  if (!deviceState()->preparation.collect())
     return;
   for (auto *surface : candidates)
     configure(surface);

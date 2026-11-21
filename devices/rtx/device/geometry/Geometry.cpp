@@ -115,14 +115,14 @@ Geometry *Geometry::createInstance(
 void Geometry::commitParameters()
 {
   if (m_inputBatch != InputBatch::None)
-    deviceState()->collectGeometryInputUploads();
+    deviceState()->preparation.uploadInputs();
   // A parameter commit retries every failure.
   if (m_inputBatch == InputBatch::Failed)
     m_inputBatch = InputBatch::Queued;
   if (retryBlocked())
     m_preparationState = PreparationState::Failed;
   if (m_preparationPosition)
-    deviceState()->collectGeometryPreparations();
+    deviceState()->preparation.collect();
   // Array observers can re-finalize without a parameter commit, but parameter
   // replacement can release the last reference to an aliased device array.
   // Complete earlier consumers before subclasses replace those references.
@@ -212,7 +212,7 @@ bool Geometry::canRetainPreparationInputs() const
 size_t Geometry::deferPreparation()
 {
   if (!m_preparationPosition)
-    m_preparationPosition = deviceState()->enqueueGeometryPreparation(this);
+    m_preparationPosition = deviceState()->preparation.defer(this);
   return *m_preparationPosition;
 }
 
@@ -275,7 +275,7 @@ void Geometry::stageInputUploads()
   }
   if (m_inputUploads.empty())
     return;
-  deviceState()->enqueueGeometryInputUploads(this);
+  deviceState()->preparation.stageInputs(this);
   m_inputBatch = InputBatch::Queued;
 }
 
@@ -304,7 +304,7 @@ void Geometry::submitInputUploads()
   for (auto &upload : m_inputUploads) {
     upload.modified = upload.array->lastDataModified();
     const auto error =
-        state.stageGeometryArray(upload.array.ptr, upload.modified);
+        state.preparation.stageArray(upload.array.ptr, upload.modified);
     upload.submitted = error == cudaSuccess;
     if (fail(error, "geometry array upload"))
       return;
@@ -340,12 +340,12 @@ void Geometry::completeInputUploads() noexcept
 
 Geometry::PreparationStart Geometry::beginPreparation()
 {
-  if (!deviceState()->collectGeometryInputUploads())
+  if (!deviceState()->preparation.uploadInputs())
     return PreparationStart::Blocked;
   // Observer-only finalization can arrive before a prior submission is
   // collected.
   if (m_preparationPosition)
-    deviceState()->collectGeometryPreparations();
+    deviceState()->preparation.collect();
   if (m_preparationState == PreparationState::Reused)
     m_preparationState = PreparationState::Prepared;
   // A later observer update is a new generation too; it may retry a failed
@@ -398,9 +398,9 @@ Geometry::PreparationStart Geometry::beginPreparation()
       for (const auto &[index, array] : pendingUploads)
         m_inputUploads.push_back({array, array->lastDataModified(), false});
       auto &state = *deviceState();
-      state.enqueueGeometryInputUploads(this);
+      state.preparation.stageInputs(this);
       m_inputBatch = InputBatch::Queued;
-      state.collectGeometryInputUploads();
+      state.preparation.uploadInputs();
       if (retryBlocked()) {
         m_preparationState = PreparationState::Failed;
         return PreparationStart::Blocked;

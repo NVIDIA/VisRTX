@@ -428,7 +428,7 @@ VisRTXDevice::~VisRTXDevice()
   // material dying here releases its samplers into the registry, so the MDL
   // teardown below must come after (also what empties the registry before its
   // "not empty on destruction" check).
-  state.collectGeometryPreparations();
+  state.preparation.collect();
   state.commitBuffer.clear();
 
 #ifdef USE_MDL
@@ -477,7 +477,7 @@ bool VisRTXDevice::refuseDuringCollection(const char *call) const
   // A status callback reported while geometry preparations are collected must
   // not flush or re-finalize geometry whose readbacks and registry publication
   // are still being resolved, so such reentrant calls do nothing.
-  if (!deviceState()->collectingGeometryPreparations())
+  if (!deviceState()->preparation.busy())
     return false;
   reportRefusal(ANARI_SEVERITY_WARNING,
       call,

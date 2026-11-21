@@ -33,17 +33,24 @@
 
 #include "Preprocessing.h"
 #include "utility/DeviceAllocationCache.h"
+#include "utility/PreparationQueue.h"
 #include "utility/PreparationStream.h"
+// helium
+#include <helium/utility/IntrusivePtr.h>
+#include <helium/utility/TimeStamp.h>
 // std
 #include <memory>
+#include <unordered_map>
 
 namespace visrtx {
 
-struct DeviceGlobalState;
+struct Array;
+struct Geometry;
 
 /*
- * Owns what geometry preparation runs on: the preparation stream, the
- * small-geometry batch, the scalar results and the input allocation cache.
+ * Owns everything that prepares geometry on the GPU: the preparation stream,
+ * the two collection queues, the small-geometry batch, the scalar results and
+ * the input allocation cache.
  */
 struct GeometryPreparation
 {
@@ -59,9 +66,17 @@ struct GeometryPreparation
   GeometryPreparation &operator=(const GeometryPreparation &) = delete;
 
   // Device lifetime. shutdown() closes the allocation cache and destroys the
-  // stream.
+  // stream; call collect() first, while objects may still be released.
   cudaError_t initialize(cudaStream_t renderStream);
   void shutdown();
+
+  // True while input uploads or results are being collected. Reentrant
+  // property queries and rendering are refused meanwhile.
+  bool busy() const;
+
+  // Publishes every queued geometry. Returns false, doing nothing, when
+  // reentered from a collection.
+  bool collect();
 
   // Backs device copies of authored host arrays.
   std::shared_ptr<DeviceAllocationCache> inputAllocations() const;
@@ -83,15 +98,28 @@ struct GeometryPreparation
   // failure.
   BvhReadback *bvhReadback(cudaError_t &error);
 
+  // Geometry protocol, in transaction order.
+  void stageInputs(Geometry *geometry);
+  bool uploadInputs();
+  cudaError_t stageArray(Array *array, helium::TimeStamp modified);
+  // Returns the geometry's position in the preparation queue, which indexes
+  // the results.
+  size_t defer(Geometry *geometry);
+  // Launches the small batch, reads back, waits. Fails all queued on error.
+  cudaError_t flush();
   // Unconditional forms: host-blocking retire, for callers about to release
   // memory that render work may still read, and the event wait that
   // Geometry::beginPreparation() takes even on an idle render stream.
   cudaError_t retireRender();
   cudaError_t orderAfterRenderAlways();
 
+  bool uploadingInputs() const;
+  bool pending() const;
+
  private:
-  friend struct DeviceGlobalState;
   friend struct Preprocessing;
+
+  void failInputUploads();
 
   cudaStream_t m_renderStream{nullptr};
   PreparationStream m_stream;
@@ -101,6 +129,10 @@ struct GeometryPreparation
   PreparationResults m_results;
   SmallGeometryBatch m_smallBatch;
   std::unique_ptr<BvhReadback, PinnedDeleter> m_bvhReadback;
+  std::unordered_map<const Array *, helium::TimeStamp> m_inputVersions;
+  // Last, so queued geometries are released before the storage above.
+  PreparationQueue<helium::IntrusivePtr<Geometry>> m_inputUploads;
+  PreparationQueue<helium::IntrusivePtr<Geometry>> m_preparations;
 };
 
 // Inlined definitions ////////////////////////////////////////////////////////

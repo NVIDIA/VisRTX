@@ -231,7 +231,7 @@ bool Group::geometryPreparationFailed() const
 
 void Group::rebuildSurfaceBVHs()
 {
-  if (!deviceState()->collectGeometryPreparations())
+  if (!deviceState()->preparation.collect())
     return;
   if (geometryPreparationFailed())
     return;

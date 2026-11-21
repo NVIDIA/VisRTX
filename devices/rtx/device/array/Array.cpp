@@ -177,8 +177,8 @@ void Array::privatize()
   if (m_data.shared.host.isValid() && !m_data.shared.host.isOwner()) {
     // A batched H2D copy may still use the application-owned host pointer.
     // Draining does not release the queue's retained array references.
-    if (state.collectingGeometryInputUploads()) {
-      const auto completion = state.finishGeometryPreparation();
+    if (state.preparation.uploadingInputs()) {
+      const auto completion = state.preparation.flush();
       if (completion != cudaSuccess) {
         state.arrayPrivatizationFailed = true;
         reportMessage(ANARI_SEVERITY_FATAL_ERROR,
@@ -206,8 +206,8 @@ void Array::privatize()
     auto completion = state.preparation.retireRender();
     // Deferred preprocessing can still read this external allocation even
     // when no frame is in flight. Retain it through that stream's completion.
-    if (completion == cudaSuccess && state.hasPendingGeometryPreparations())
-      completion = state.finishGeometryPreparation();
+    if (completion == cudaSuccess && state.preparation.pending())
+      completion = state.preparation.flush();
     if (completion == cudaSuccess)
       completion = m_data.shared.device.privatize();
     if (completion != cudaSuccess) {
