@@ -209,13 +209,6 @@ bool Geometry::canRetainPreparationInputs() const
   return present == m_preparedParameters.size();
 }
 
-size_t Geometry::deferPreparation()
-{
-  if (!m_preparationPosition)
-    m_preparationPosition = deviceState()->preparation.defer(this);
-  return *m_preparationPosition;
-}
-
 void Geometry::completePreparation()
 {
   // complete() fails the geometry whenever it returns false.
@@ -231,7 +224,7 @@ void Geometry::markPreparationCollected() noexcept
 void Geometry::upload()
 {
   if (m_preprocessing.status() == Preprocessing::Status::Pending) {
-    deferPreparation();
+    deviceState()->preparation.defer(this);
     return;
   }
   RegisteredObject<GeometryGPUData>::upload();

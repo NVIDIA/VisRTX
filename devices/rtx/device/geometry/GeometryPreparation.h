@@ -112,12 +112,15 @@ struct GeometryPreparation
   bool check(Geometry *geometry, cudaError_t error, const char *operation);
   bool finish(Geometry *geometry);
 
+ private:
+  friend struct Geometry;
+  friend struct Preprocessing;
+
   // Geometry protocol, in transaction order.
   void stageInputs(Geometry *geometry);
   bool uploadInputs();
   cudaError_t stageArray(Array *array, helium::TimeStamp modified);
-  // Returns the geometry's position in the preparation queue, which indexes
-  // the results.
+  // Queues once; returns the position that indexes m_results.
   size_t defer(Geometry *geometry);
   // Launches the small batch, reads back, waits. Fails all queued on error.
   cudaError_t flush();
@@ -129,10 +132,6 @@ struct GeometryPreparation
 
   bool uploadingInputs() const;
   bool pending() const;
-
- private:
-  friend struct Preprocessing;
-
   void failInputUploads();
 
   cudaStream_t m_renderStream{nullptr};

@@ -192,7 +192,10 @@ cudaError_t GeometryPreparation::stageArray(
 
 size_t GeometryPreparation::defer(Geometry *geometry)
 {
-  return m_preparations.enqueue(helium::IntrusivePtr<Geometry>(geometry));
+  if (!geometry->m_preparationPosition)
+    geometry->m_preparationPosition =
+        m_preparations.enqueue(helium::IntrusivePtr<Geometry>(geometry));
+  return *geometry->m_preparationPosition;
 }
 
 cudaError_t GeometryPreparation::flush()

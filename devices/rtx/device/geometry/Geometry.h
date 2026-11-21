@@ -78,14 +78,6 @@ struct Geometry : public RegisteredObject<GeometryGPUData>
   void markFinalized() override;
   // Defers registry publication while preprocessing results are pending.
   void upload() override;
-  // Queues the geometry for collection once; returns its queue position.
-  size_t deferPreparation();
-  void completePreparation();
-  void markPreparationCollected() noexcept;
-  void retirePreparationSnapshot();
-  void submitInputUploads();
-  void completeInputUploads() noexcept;
-  void failInputUploads();
 
   virtual void populateBuildInput(OptixBuildInput &) const = 0;
   virtual int optixGeometryType() const = 0;
@@ -99,8 +91,6 @@ struct Geometry : public RegisteredObject<GeometryGPUData>
 
   // True in any of the failed preparation states below.
   bool preparationFailed() const;
-  // Fails the current generation; keeps a more specific failed state.
-  void markPreparationFailed();
 
  protected:
   // Declare once in the subtype constructor, before the first commit. List
@@ -129,6 +119,18 @@ struct Geometry : public RegisteredObject<GeometryGPUData>
   Preprocessing m_preprocessing;
 
  private:
+  // The device's GeometryPreparation drives the steps below; see its header
+  // for the order.
+  friend struct GeometryPreparation;
+  void completePreparation();
+  void markPreparationCollected() noexcept;
+  void retirePreparationSnapshot();
+  void submitInputUploads();
+  void completeInputUploads() noexcept;
+  void failInputUploads();
+  // Fails the current generation; keeps a more specific failed state.
+  void markPreparationFailed();
+
   struct PreparationParameter
   {
     size_t parameterIndex{0};

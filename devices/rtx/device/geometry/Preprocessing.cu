@@ -474,7 +474,7 @@ Preprocessing::~Preprocessing() = default;
 
 void Preprocessing::submit(Geometry *g)
 {
-  m_position = g->deferPreparation();
+  m_position = g->deviceState()->preparation.defer(g);
   m_status = Status::Pending;
 }
 
