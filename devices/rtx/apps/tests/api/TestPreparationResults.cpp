@@ -76,7 +76,7 @@ bool holds(const PreparationResults &results, size_t position, float value)
       && read.area.invalid == uint32_t(position) + 1;
 }
 
-// Reads back and waits, as finishGeometryPreparation() does.
+// Reads back and waits, as GeometryPreparation::flush() does.
 bool readBackAndWait(
     PreparationResults &results, size_t count, cudaStream_t stream)
 {

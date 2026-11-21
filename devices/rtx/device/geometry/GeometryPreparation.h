@@ -51,6 +51,21 @@ struct Geometry;
  * Owns everything that prepares geometry on the GPU: the preparation stream,
  * the two collection queues, the small-geometry batch, the scalar results and
  * the input allocation cache.
+ *
+ * One scene update is one transaction:
+ *
+ *   commit     Geometry::commitParameters() captures its dirty host arrays and
+ *              queues itself (stageInputs).
+ *   upload     The first finalizer uploads every queued geometry's inputs and
+ *              waits once (uploadInputs). A finalizer whose arrays no commit
+ *              captured queues and uploads them the same way.
+ *   submit     Each finalizer queues bounds/area work; nothing is published
+ *              (defer). Small geometries are held for one batched launch.
+ *   collect    collect() launches the batch, reads all results back in one
+ *              transfer, waits once, then publishes each geometry.
+ *
+ * A CUDA failure fails every queued geometry; a numeric failure fails its own.
+ * Calls are serialized by the device's scene-update path; nothing here locks.
  */
 struct GeometryPreparation
 {
@@ -74,8 +89,8 @@ struct GeometryPreparation
   // property queries and rendering are refused meanwhile.
   bool busy() const;
 
-  // Publishes every queued geometry. Returns false, doing nothing, when
-  // reentered from a collection.
+  // Completes the transaction: publishes every queued geometry. Returns
+  // false, doing nothing, when reentered from a collection.
   bool collect();
 
   // For a caller about to hand memory back to the application. The first
@@ -124,9 +139,10 @@ struct GeometryPreparation
   size_t defer(Geometry *geometry);
   // Launches the small batch, reads back, waits. Fails all queued on error.
   cudaError_t flush();
-  // Unconditional forms: host-blocking retire, for callers about to release
-  // memory that render work may still read, and the event wait that
-  // Geometry::beginPreparation() takes even on an idle render stream.
+  // The other render dependencies: a host-blocking retire (skipped when the
+  // render stream is idle), for callers about to release memory that render
+  // work may still read, and the event wait that Geometry::beginPreparation()
+  // takes even on an idle render stream.
   cudaError_t retireRender();
   cudaError_t orderAfterRenderAlways();
 
