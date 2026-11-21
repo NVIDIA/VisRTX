@@ -236,8 +236,7 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
     DeviceObjectArray<SpatialFieldGPUData> fields;
     DeviceObjectArray<VolumeGPUData> volumes;
 
-    cudaError_t upload(
-        GeometryPreparation &preparation, cudaStream_t renderStream);
+    cudaError_t upload(GeometryPreparation &preparation);
   } registry;
 
   // MDL
@@ -286,12 +285,6 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
   size_t enqueueGeometryPreparation(Geometry *geometry);
   bool collectGeometryPreparations();
   cudaError_t finishGeometryPreparation();
-  // Both ask CUDA whether the render stream is idle, so no submission site
-  // has to announce itself. The first orders the preparation stream after
-  // outstanding render work without blocking the host; the second blocks the
-  // host, for callers about to release memory that work may still read.
-  cudaError_t waitForRenderConsumers();
-  cudaError_t retireRenderConsumers();
   bool collectingGeometryPreparations() const;
   bool hasPendingGeometryPreparations() const;
 

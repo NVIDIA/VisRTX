@@ -129,7 +129,7 @@ void Geometry::commitParameters()
   const bool retain = canRetainPreparationInputs();
   if (!retain
       && !failPreparationOnError(this,
-          deviceState()->retireRenderConsumers(),
+          deviceState()->preparation.retireRender(),
           "retiring previous geometry inputs"))
     m_preparationState = PreparationState::RetirementFailed;
   commitAttributes("primitive.", m_primitiveAttributes);
@@ -426,7 +426,7 @@ Geometry::PreparationStart Geometry::beginPreparation()
   // Keep that dependency on the GPU; parameter-reference retirement above
   // still requires a host wait before releasing old application storage.
   return failPreparationOnError(this,
-             deviceState()->preparation.orderAfter(deviceState()->stream),
+             deviceState()->preparation.orderAfterRenderAlways(),
              "previous geometry consumers")
       ? PreparationStart::Prepare
       : PreparationStart::Blocked;

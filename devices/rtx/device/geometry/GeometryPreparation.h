@@ -60,7 +60,7 @@ struct GeometryPreparation
 
   // Device lifetime. shutdown() closes the allocation cache and destroys the
   // stream.
-  cudaError_t initialize();
+  cudaError_t initialize(cudaStream_t renderStream);
   void shutdown();
 
   // Backs device copies of authored host arrays.
@@ -68,23 +68,32 @@ struct GeometryPreparation
 
   // Other work on the preparation stream (BVH builds, scene tables).
   cudaStream_t stream() const;
-  // GPU-side ordering; does not block the host.
+  // GPU-side ordering; neither blocks the host. The first asks CUDA whether
+  // the render stream is idle, so no submission site has to announce itself,
+  // and is skipped when it is.
+  cudaError_t orderAfterRender();
   cudaError_t orderAfter(cudaStream_t producer);
   // Waits for the stream only; queued geometry results are left alone.
   cudaError_t sync();
-  // Orders after `previousConsumers`, copies, waits. Sources stay stable
-  // until return.
+  // Orders after rendering, copies, waits. Sources stay stable until return.
   template <typename... Arrays>
-  cudaError_t upload(cudaStream_t previousConsumers, Arrays &...arrays);
+  cudaError_t upload(Arrays &...arrays);
   // Pinned; allocated by the first build. Builds are serialized and complete
   // before returning, so one serves them all. Null with `error` set on
   // failure.
   BvhReadback *bvhReadback(cudaError_t &error);
 
+  // Unconditional forms: host-blocking retire, for callers about to release
+  // memory that render work may still read, and the event wait that
+  // Geometry::beginPreparation() takes even on an idle render stream.
+  cudaError_t retireRender();
+  cudaError_t orderAfterRenderAlways();
+
  private:
   friend struct DeviceGlobalState;
   friend struct Preprocessing;
 
+  cudaStream_t m_renderStream{nullptr};
   PreparationStream m_stream;
   std::shared_ptr<DeviceAllocationCache> m_inputAllocations{
       std::make_shared<DeviceAllocationCache>()};
@@ -97,10 +106,9 @@ struct GeometryPreparation
 // Inlined definitions ////////////////////////////////////////////////////////
 
 template <typename... Arrays>
-inline cudaError_t GeometryPreparation::upload(
-    cudaStream_t previousConsumers, Arrays &...arrays)
+inline cudaError_t GeometryPreparation::upload(Arrays &...arrays)
 {
-  return m_stream.upload(previousConsumers, arrays...);
+  return m_stream.upload(m_renderStream, arrays...);
 }
 
 } // namespace visrtx

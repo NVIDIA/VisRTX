@@ -731,7 +731,7 @@ void Frame::renderFrame()
   }
 
   const auto registryUpload =
-      state.registry.upload(state.preparation, state.stream);
+      state.registry.upload(state.preparation);
   if (registryUpload != cudaSuccess) {
     reportMessage(ANARI_SEVERITY_ERROR,
         "skipping render after registry upload failure: %s",

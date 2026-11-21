@@ -171,7 +171,7 @@ inline bool World::uploadArrays(Arrays &...arrays)
   if ((arrays.empty() && ...))
     return true;
   auto &state = *deviceState();
-  const auto error = state.preparation.upload(state.stream, arrays...);
+  const auto error = state.preparation.upload(arrays...);
   if (error == cudaSuccess)
     return true;
   m_bvhBuildFailed = true;

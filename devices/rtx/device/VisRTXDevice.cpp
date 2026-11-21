@@ -898,7 +898,7 @@ DeviceInitStatus VisRTXDevice::initOptix()
       &builtinISOptions,
       &state.intersectionModules.curveIntersector));
 
-  const auto preparationStatus = state.preparation.initialize();
+  const auto preparationStatus = state.preparation.initialize(state.stream);
   if (preparationStatus != cudaSuccess) {
     reportMessage(ANARI_SEVERITY_FATAL_ERROR,
         "could not initialize preparation stream: %s",

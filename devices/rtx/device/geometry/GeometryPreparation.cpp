@@ -35,8 +35,9 @@ namespace visrtx {
 
 GeometryPreparation::~GeometryPreparation() = default;
 
-cudaError_t GeometryPreparation::initialize()
+cudaError_t GeometryPreparation::initialize(cudaStream_t renderStream)
 {
+  m_renderStream = renderStream;
   return m_stream.initialize();
 }
 
@@ -57,6 +58,13 @@ std::shared_ptr<DeviceAllocationCache> GeometryPreparation::inputAllocations()
 cudaStream_t GeometryPreparation::stream() const
 {
   return m_stream.stream();
+}
+
+cudaError_t GeometryPreparation::orderAfterRender()
+{
+  return cudaStreamQuery(m_renderStream) == cudaSuccess
+      ? cudaSuccess
+      : m_stream.waitFor(m_renderStream);
 }
 
 cudaError_t GeometryPreparation::orderAfter(cudaStream_t producer)
@@ -80,6 +88,20 @@ GeometryPreparation::BvhReadback *GeometryPreparation::bvhReadback(
       m_bvhReadback.reset(static_cast<BvhReadback *>(memory));
   }
   return m_bvhReadback.get();
+}
+
+cudaError_t GeometryPreparation::retireRender()
+{
+  // Anything but success, a failed query included, takes the wait: only a
+  // completed stream permits releasing what its work reads.
+  return cudaStreamQuery(m_renderStream) == cudaSuccess
+      ? cudaSuccess
+      : cudaStreamSynchronize(m_renderStream);
+}
+
+cudaError_t GeometryPreparation::orderAfterRenderAlways()
+{
+  return m_stream.waitFor(m_renderStream);
 }
 
 } // namespace visrtx

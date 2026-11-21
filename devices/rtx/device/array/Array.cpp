@@ -203,7 +203,7 @@ void Array::privatize()
         this->useCount(helium::RefType::INTERNAL));
     // Existing frames may still read the shared pointer. The application may
     // free it as soon as this last PUBLIC release returns.
-    auto completion = state.retireRenderConsumers();
+    auto completion = state.preparation.retireRender();
     // Deferred preprocessing can still read this external allocation even
     // when no frame is in flight. Retain it through that stream's completion.
     if (completion == cudaSuccess && state.hasPendingGeometryPreparations())

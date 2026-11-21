@@ -85,7 +85,7 @@ bool buildOptixBVH(std::vector<OptixBuildInput> buildInput,
   // Legacy producers include field/isosurface work on the render stream and
   // authored arrays/instance uploads on the default stream. Previous rendering
   // must also finish before the existing BVH storage can be reused.
-  if (!check(state.waitForRenderConsumers(), "previous BVH consumers")
+  if (!check(preparation.orderAfterRender(), "previous BVH consumers")
       || !check(preparation.orderAfter(nullptr), "input upload dependency"))
     return false;
 
@@ -221,7 +221,7 @@ bool DeviceGlobalState::collectGeometryInputUploads()
         auto error = preparation.m_inputAllocations->reclaim(
             [&] { return finishGeometryPreparation(); });
         if (error == cudaSuccess)
-          error = waitForRenderConsumers();
+          error = preparation.orderAfterRender();
         if (error == cudaSuccess) {
           m_geometryInputUploads.forEach(
               [](Geometry *geometry) { geometry->submitInputUploads(); });
@@ -248,21 +248,6 @@ void DeviceGlobalState::failGeometryInputUploads()
 {
   m_geometryInputUploads.forEach(
       [](Geometry *geometry) { geometry->failInputUploads(); });
-}
-
-cudaError_t DeviceGlobalState::waitForRenderConsumers()
-{
-  return cudaStreamQuery(stream) == cudaSuccess
-      ? cudaSuccess
-      : preparation.orderAfter(stream);
-}
-
-cudaError_t DeviceGlobalState::retireRenderConsumers()
-{
-  // Anything but success, a failed query included, takes the wait: only a
-  // completed stream permits releasing what its work reads.
-  return cudaStreamQuery(stream) == cudaSuccess ? cudaSuccess
-                                                : cudaStreamSynchronize(stream);
 }
 
 size_t DeviceGlobalState::enqueueGeometryPreparation(Geometry *geometry)
@@ -329,20 +314,14 @@ bool DeviceGlobalState::collectGeometryPreparations()
 }
 
 cudaError_t DeviceGlobalState::DeviceObjectRegistry::upload(
-    GeometryPreparation &preparation, cudaStream_t renderStream)
+    GeometryPreparation &preparation)
 {
   if (!(samplers.dirty() || geometries.dirty() || materials.dirty()
           || surfaces.dirty() || lights.dirty() || fields.dirty()
           || volumes.dirty()))
     return cudaSuccess;
-  const auto error = preparation.upload(renderStream,
-      samplers,
-      geometries,
-      materials,
-      surfaces,
-      lights,
-      fields,
-      volumes);
+  const auto error = preparation.upload(
+      samplers, geometries, materials, surfaces, lights, fields, volumes);
   if (error != cudaSuccess)
     return error;
   samplers.markUploaded();
