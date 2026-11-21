@@ -69,7 +69,7 @@ bool GeometryPreparation::collect()
       [&](Geometry *first) {
         const auto error = flush();
         if (error != cudaSuccess)
-          failPreparation(first, error, "batch completion");
+          fail(first, error, "batch completion");
         m_preparations.forEach(
             [](Geometry *geometry) { geometry->completePreparation(); });
       },
@@ -163,7 +163,7 @@ bool GeometryPreparation::uploadInputs()
         }
         if (error != cudaSuccess) {
           failInputUploads();
-          failPreparation(first, error, "geometry input batch completion");
+          fail(first, error, "geometry input batch completion");
         }
         m_inputVersions.clear();
       },
@@ -216,6 +216,38 @@ cudaError_t GeometryPreparation::flush()
     failInputUploads();
   }
   return error;
+}
+
+void GeometryPreparation::fail(
+    Geometry *geometry, cudaError_t error, const char *operation)
+{
+  geometry->markPreparationFailed();
+  // A failed dispatch/readback can follow successful queued kernels. Drain
+  // preparation before retrying or freeing scratch. Keep the render-stream
+  // drain on this error path too: this also handles input retirement and
+  // dependency failures, which may precede a successful producer edge.
+  flush();
+  cudaStreamSynchronize(m_renderStream);
+  geometry->reportMessage(ANARI_SEVERITY_ERROR,
+      "geometry preprocessing failed during %s: %s",
+      operation,
+      cudaGetErrorString(error));
+}
+
+bool GeometryPreparation::check(
+    Geometry *geometry, cudaError_t error, const char *operation)
+{
+  if (error == cudaSuccess)
+    return true;
+  fail(geometry, error, operation);
+  return false;
+}
+
+bool GeometryPreparation::finish(Geometry *geometry)
+{
+  // Also establishes an explicit boundary for legacy default-stream consumers.
+  return check(geometry, cudaGetLastError(), "launch")
+      && check(geometry, flush(), "execution completion");
 }
 
 cudaError_t GeometryPreparation::retireRender()

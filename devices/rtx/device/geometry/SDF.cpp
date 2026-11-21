@@ -94,7 +94,7 @@ void SDF::finalize()
   if (reinterpret_cast<uintptr_t>(source) % alignof(SDFPrimitive) != 0) {
     const size_t bytes = m_numPrimitives * sizeof(SDFPrimitive);
     if (!reservePreparation(this, m_alignedPrimitives, bytes)
-        || !failPreparationOnError(this,
+        || !deviceState()->preparation.check(this,
             cudaMemcpyAsync(m_alignedPrimitives.ptr(),
                 source,
                 bytes,

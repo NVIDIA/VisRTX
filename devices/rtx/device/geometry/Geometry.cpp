@@ -128,7 +128,7 @@ void Geometry::commitParameters()
   // Complete earlier consumers before subclasses replace those references.
   const bool retain = canRetainPreparationInputs();
   if (!retain
-      && !failPreparationOnError(this,
+      && !deviceState()->preparation.check(this,
           deviceState()->preparation.retireRender(),
           "retiring previous geometry inputs"))
     m_preparationState = PreparationState::RetirementFailed;
@@ -298,7 +298,7 @@ void Geometry::submitInputUploads()
     if (error == cudaSuccess)
       return false;
     failInputUploads();
-    failPreparation(this, error, operation);
+    state.preparation.fail(this, error, operation);
     return true;
   };
   for (auto &upload : m_inputUploads) {
@@ -425,7 +425,7 @@ Geometry::PreparationStart Geometry::beginPreparation()
   // Full preparation can overwrite derived buffers read by earlier frames.
   // Keep that dependency on the GPU; parameter-reference retirement above
   // still requires a host wait before releasing old application storage.
-  return failPreparationOnError(this,
+  return deviceState()->preparation.check(this,
              deviceState()->preparation.orderAfterRenderAlways(),
              "previous geometry consumers")
       ? PreparationStart::Prepare

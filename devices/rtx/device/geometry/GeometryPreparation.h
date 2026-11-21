@@ -104,6 +104,14 @@ struct GeometryPreparation
   // failure.
   BvhReadback *bvhReadback(cudaError_t &error);
 
+  // For geometry code. fail() marks the geometry failed, drains both streams
+  // so no queued work still targets its storage, and reports. check() returns
+  // true on cudaSuccess, otherwise fail()s. finish() waits for the geometry's
+  // submitted work, failing it on error.
+  void fail(Geometry *geometry, cudaError_t error, const char *operation);
+  bool check(Geometry *geometry, cudaError_t error, const char *operation);
+  bool finish(Geometry *geometry);
+
   // Geometry protocol, in transaction order.
   void stageInputs(Geometry *geometry);
   bool uploadInputs();

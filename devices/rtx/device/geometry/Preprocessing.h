@@ -220,15 +220,8 @@ struct Preprocessing
   DeviceBuffer m_scratch;
 };
 
-// Marks the geometry's preparation failed, drains the preparation and render
-// streams so no queued work still targets its storage, and reports the error.
-void failPreparation(
-    Geometry *geometry, cudaError_t error, const char *operation);
-// Returns true on cudaSuccess; otherwise calls failPreparation().
-bool failPreparationOnError(
-    Geometry *geometry, cudaError_t error, const char *operation);
+// Failures go through GeometryPreparation::fail() / check() / finish().
 bool reservePreparation(Geometry *geometry, DeviceBuffer &buffer, size_t bytes);
-bool finishPreparation(Geometry *geometry);
 bool generateQuadIndices(Geometry *geometry,
     const uvec4 *indices,
     size_t count,
