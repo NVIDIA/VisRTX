@@ -115,23 +115,24 @@ Geometry *Geometry::createInstance(
 void Geometry::commitParameters()
 {
   if (m_inputBatch != InputBatch::None)
-    deviceState()->collectGeometryInputUploads();
+    deviceState()->preparation.uploadInputs();
   // A parameter commit retries every failure.
   if (m_inputBatch == InputBatch::Failed)
     m_inputBatch = InputBatch::Queued;
-  if (retryBlocked())
-    m_preparationState = PreparationState::Failed;
+  if (preparationFailed())
+    m_retry = Retry::Finalize;
   if (m_preparationPosition)
-    deviceState()->collectGeometryPreparations();
+    deviceState()->preparation.collect();
   // Array observers can re-finalize without a parameter commit, but parameter
   // replacement can release the last reference to an aliased device array.
   // Complete earlier consumers before subclasses replace those references.
   const bool retain = canRetainPreparationInputs();
-  if (!retain
-      && !failPreparationOnError(this,
-          deviceState()->retireRenderConsumers(),
-          "retiring previous geometry inputs"))
-    m_preparationState = PreparationState::RetirementFailed;
+  const bool retired = retain
+      || deviceState()->preparation.check(this,
+          deviceState()->preparation.retireRender(),
+          "retiring previous geometry inputs");
+  if (!retired)
+    markPreparationFailed(Retry::Commit);
   commitAttributes("primitive.", m_primitiveAttributes);
 
   auto getUniformAttribute =
@@ -149,34 +150,34 @@ void Geometry::commitParameters()
   m_uniformAttributes.attribute3 = getUniformAttribute("attribute3");
   m_uniformAttributes.color = getUniformAttribute("color");
   m_primitiveId = getParamObject<Array1D>("primitive.id");
-  if (!retain && m_preparationState != PreparationState::RetirementFailed)
+  if (!retain && retired)
     stageInputUploads();
 }
 
 void Geometry::markFinalized()
 {
   Object::markFinalized();
-  if (m_preparationState != PreparationState::Reused)
+  if (!m_preparationReused)
     deviceState()->objectUpdates.lastSurfaceBLASChange = helium::newTimeStamp();
 }
 
-bool Geometry::isAreaSamplingSupported() const
+bool Geometry::PreparationParameter::sameInput(
+    const PreparationParameter &other) const
 {
-  return false;
+  return parameterIndex == other.parameterIndex && value == other.value
+      && updated == other.updated && finalized == other.finalized
+      && modified == other.modified;
 }
 
 bool Geometry::PreparationParameter::operator==(
     const PreparationParameter &other) const
 {
-  return parameterIndex == other.parameterIndex && value == other.value
-      && updated == other.updated && finalized == other.finalized
-      && modified == other.modified && devicePointer == other.devicePointer;
+  return sameInput(other) && devicePointer == other.devicePointer;
 }
 
 bool Geometry::canRetainPreparationInputs() const
 {
-  if ((m_preparationState != PreparationState::Prepared
-          && m_preparationState != PreparationState::Reused)
+  if (m_preparationState != PreparationState::Prepared
       || m_preparationParameterNames.empty())
     return false;
 
@@ -184,36 +185,12 @@ bool Geometry::canRetainPreparationInputs() const
   // Do not call dataGPU(): it can upload/replace storage. Pointer validation
   // remains in beginPreparation(), after references have been retained safely.
   size_t present = 0;
-  for (size_t i = 0; i < m_preparationParameterNames.size(); ++i) {
-    const auto value = getParamDirect(m_preparationParameterNames[i]);
-    if (!value.valid())
-      continue;
-    if (present == m_preparedParameters.size())
-      return false;
-    const auto &previous = m_preparedParameters[present++];
-    if (previous.parameterIndex != i || !(previous.value == value))
-      return false;
-    if (anari::isObject(value.type())) {
-      auto *object = value.getObject<helium::BaseObject>();
-      if (object) {
-        if (previous.updated != object->lastUpdated()
-            || previous.finalized != object->lastFinalized())
-          return false;
-        if (auto *array = dynamic_cast<Array *>(object)) {
-          if (previous.modified != array->lastDataModified())
-            return false;
-        }
-      }
-    }
-  }
-  return present == m_preparedParameters.size();
-}
-
-size_t Geometry::deferPreparation()
-{
-  if (!m_preparationPosition)
-    m_preparationPosition = deviceState()->enqueueGeometryPreparation(this);
-  return *m_preparationPosition;
+  const bool same = forEachPreparationParameter(
+      [&](PreparationParameter &&parameter, Array *) {
+        return present < m_preparedParameters.size()
+            && m_preparedParameters[present++].sameInput(parameter);
+      });
+  return same && present == m_preparedParameters.size();
 }
 
 void Geometry::completePreparation()
@@ -230,17 +207,19 @@ void Geometry::markPreparationCollected() noexcept
 
 void Geometry::upload()
 {
-  if (m_preprocessing.status() == Preprocessing::Status::Pending) {
-    deferPreparation();
+  if (m_preprocessing.pending()) {
+    deviceState()->preparation.defer(this);
     return;
   }
   RegisteredObject<GeometryGPUData>::upload();
   if (preparationFailed())
     return;
-  if (!isValid())
-    m_preparationState = PreparationState::Unprepared;
-  else if (m_preparationState != PreparationState::Reused)
+  if (isValid())
     m_preparationState = PreparationState::Prepared;
+  else {
+    m_preparationState = PreparationState::Unprepared;
+    m_preparationReused = false;
+  }
 }
 
 void Geometry::declarePreparationParameters(
@@ -262,20 +241,23 @@ void Geometry::declarePreparationParameters(
     m_preparationParameterNames.emplace_back(name);
 }
 
+static bool needsInputUpload(const Array *array)
+{
+  return array && array->needToUploadData() && array->dataHost();
+}
+
 void Geometry::stageInputUploads()
 {
   m_inputUploads.clear();
-  for (const auto &name : m_preparationParameterNames) {
-    const auto value = getParamDirect(name);
-    if (!anari::isObject(value.type()))
-      continue;
-    auto *array = dynamic_cast<Array *>(value.getObject<helium::BaseObject>());
-    if (array && array->needToUploadData() && array->dataHost())
-      m_inputUploads.push_back({array, array->lastDataModified(), false});
-  }
+  forEachPreparationParameter(
+      [&](PreparationParameter &&parameter, Array *array) {
+        if (needsInputUpload(array))
+          m_inputUploads.push_back({array, parameter.modified, false});
+        return true;
+      });
   if (m_inputUploads.empty())
     return;
-  deviceState()->enqueueGeometryInputUploads(this);
+  deviceState()->preparation.stageInputs(this);
   m_inputBatch = InputBatch::Queued;
 }
 
@@ -298,13 +280,13 @@ void Geometry::submitInputUploads()
     if (error == cudaSuccess)
       return false;
     failInputUploads();
-    failPreparation(this, error, operation);
+    state.preparation.fail(this, error, operation);
     return true;
   };
   for (auto &upload : m_inputUploads) {
     upload.modified = upload.array->lastDataModified();
     const auto error =
-        state.stageGeometryArray(upload.array.ptr, upload.modified);
+        state.preparation.stageArray(upload.array.ptr, upload.modified);
     upload.submitted = error == cudaSuccess;
     if (fail(error, "geometry array upload"))
       return;
@@ -314,8 +296,7 @@ void Geometry::submitInputUploads()
 void Geometry::failInputUploads()
 {
   m_inputBatch = InputBatch::Failed;
-  if (m_preparationState != PreparationState::RetirementFailed)
-    m_preparationState = PreparationState::InputUploadFailed;
+  markPreparationFailed(Retry::Update);
 }
 
 void Geometry::completeInputUploads() noexcept
@@ -338,21 +319,28 @@ void Geometry::completeInputUploads() noexcept
   m_inputUploads.clear();
 }
 
+void Geometry::finalize()
+{
+  if (beginPreparation() != PreparationStart::Prepare)
+    return;
+  if (prepare() && refreshAreaData())
+    upload();
+}
+
 Geometry::PreparationStart Geometry::beginPreparation()
 {
-  if (!deviceState()->collectGeometryInputUploads())
+  if (!deviceState()->preparation.uploadInputs())
     return PreparationStart::Blocked;
   // Observer-only finalization can arrive before a prior submission is
   // collected.
   if (m_preparationPosition)
-    deviceState()->collectGeometryPreparations();
-  if (m_preparationState == PreparationState::Reused)
-    m_preparationState = PreparationState::Prepared;
+    deviceState()->preparation.collect();
+  m_preparationReused = false;
   // A later observer update is a new generation too; it may retry a failed
   // input batch without requiring a parameter commit on the geometry.
-  if (m_preparationState == PreparationState::InputUploadFailed
+  if (preparationFailed() && m_retry == Retry::Update
       && lastUpdated() > m_failedInputUpdate)
-    m_preparationState = PreparationState::Failed;
+    m_retry = Retry::Finalize;
   if (retryBlocked())
     return PreparationStart::Blocked;
 
@@ -362,47 +350,27 @@ Geometry::PreparationStart Geometry::beginPreparation()
     // Indices remain valid if current grows; its AnariAny values retain every
     // source array until the batch completes (including on failure).
     std::vector<std::pair<size_t, Array *>> pendingUploads;
-    size_t parameterIndex = 0;
-    auto append = [&](const std::string &name) {
-      PreparationParameter parameter;
-      parameter.parameterIndex = parameterIndex++;
-      parameter.value = getParamDirect(name); // committed snapshot, not staging
-      if (!parameter.value.valid())
-        return; // Keep only present values, retaining their parameter identity.
-      if (anari::isObject(parameter.value.type())) {
-        auto *object = parameter.value.getObject<helium::BaseObject>();
-        if (object) {
-          parameter.updated = object->lastUpdated();
-          parameter.finalized = object->lastFinalized();
-          if (auto *array = dynamic_cast<Array *>(object)) {
-            parameter.modified = array->lastDataModified();
-            // Privatization can change backing pointers without changing values
-            // or the array timestamp. Never reuse cached aliases in that case.
-            if (array->needToUploadData() && array->dataHost())
-              pendingUploads.emplace_back(current.size(), array);
-            else
-              parameter.devicePointer = array->dataGPU();
-          }
-        }
-      }
-      current.push_back(std::move(parameter));
-    };
-    for (const auto &name : m_preparationParameterNames)
-      append(name);
+    forEachPreparationParameter(
+        [&](PreparationParameter &&parameter, Array *array) {
+          // Privatization can change backing pointers without changing values
+          // or the array timestamp. Never reuse cached aliases in that case.
+          if (needsInputUpload(array))
+            pendingUploads.emplace_back(current.size(), array);
+          else if (array)
+            parameter.devicePointer = array->dataGPU();
+          current.push_back(std::move(parameter));
+          return true;
+        });
 
     if (!pendingUploads.empty()) {
       // No commit captured these: an observer-only update, or an array
       // modified after its batch was submitted. Upload them the same way, as
       // a batch of this geometry alone. Its failure is this finalize's, so
       // the next one retries.
-      for (const auto &[index, array] : pendingUploads)
-        m_inputUploads.push_back({array, array->lastDataModified(), false});
-      auto &state = *deviceState();
-      state.enqueueGeometryInputUploads(this);
-      m_inputBatch = InputBatch::Queued;
-      state.collectGeometryInputUploads();
+      stageInputUploads();
+      deviceState()->preparation.uploadInputs();
       if (retryBlocked()) {
-        m_preparationState = PreparationState::Failed;
+        m_retry = Retry::Finalize;
         return PreparationStart::Blocked;
       }
       for (const auto &[index, array] : pendingUploads)
@@ -415,7 +383,7 @@ Geometry::PreparationStart Geometry::beginPreparation()
     if (m_preparationState == PreparationState::Prepared && isValid()
         && lastCommitted() > lastFinalized()
         && current == m_preparedParameters) {
-      m_preparationState = PreparationState::Reused;
+      m_preparationReused = true;
       upload();
       return PreparationStart::Reused;
     }
@@ -425,8 +393,8 @@ Geometry::PreparationStart Geometry::beginPreparation()
   // Full preparation can overwrite derived buffers read by earlier frames.
   // Keep that dependency on the GPU; parameter-reference retirement above
   // still requires a host wait before releasing old application storage.
-  return failPreparationOnError(this,
-             deviceState()->preparation.waitFor(deviceState()->stream),
+  return deviceState()->preparation.check(this,
+             deviceState()->preparationStream.orderAfterRender(),
              "previous geometry consumers")
       ? PreparationStart::Prepare
       : PreparationStart::Blocked;
@@ -434,28 +402,61 @@ Geometry::PreparationStart Geometry::beginPreparation()
 
 bool Geometry::preparationFailed() const
 {
-  return m_preparationState == PreparationState::Failed
-      || m_preparationState == PreparationState::InputUploadFailed
-      || m_preparationState == PreparationState::RetirementFailed;
+  return m_preparationState == PreparationState::Failed;
 }
 
 bool Geometry::retryBlocked() const
 {
-  return m_preparationState == PreparationState::InputUploadFailed
-      || m_preparationState == PreparationState::RetirementFailed;
+  return preparationFailed() && m_retry != Retry::Finalize;
 }
 
-void Geometry::markPreparationFailed()
+void Geometry::markPreparationFailed(Retry retry)
 {
-  if (!preparationFailed())
-    m_preparationState = PreparationState::Failed;
+  if (!preparationFailed() || retry > m_retry)
+    m_retry = retry;
+  m_preparationState = PreparationState::Failed;
+  m_preparationReused = false;
 }
 
-void Geometry::ensureAreaData() {}
+std::optional<PrimitiveInput> Geometry::areaInput() const
+{
+  return {};
+}
+
+bool Geometry::isAreaSamplingSupported() const
+{
+  return areaInput().has_value();
+}
+
+void Geometry::ensureAreaData()
+{
+  if (m_areaDataValid)
+    return;
+  const auto input = areaInput();
+  if (!input)
+    return;
+  m_areaDataWanted = true;
+  m_areaDataValid = m_preprocessing.areas(this, *input);
+  if (m_areaDataValid)
+    upload(); // republish only successfully prepared sampling data
+}
+
+bool Geometry::refreshAreaData()
+{
+  // prepare() may have changed what the CDF was computed from.
+  m_areaDataValid = false;
+  if (!m_areaDataWanted) {
+    m_preprocessing.releaseAreas();
+    return true;
+  }
+  // Wanted implies that the subtype has an area input.
+  m_areaDataValid = m_preprocessing.areas(this, *areaInput());
+  return m_areaDataValid;
+}
 
 float Geometry::totalArea() const
 {
-  return 0.f;
+  return m_preprocessing.totalArea();
 }
 
 GeometryGPUData Geometry::gpuData() const

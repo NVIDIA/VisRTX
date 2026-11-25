@@ -125,7 +125,6 @@ struct PrimitiveInput
 
 // Cone and cylinder endpoints: `indices` pairs vertices, else consecutive
 // vertices pair up.
-size_t segmentCount(const Array1D &vertices, const Array1D *indices);
 SegmentInput segmentInput(const Array1D &vertices,
     const Array1D *indices,
     const Array1D *caps,
@@ -149,14 +148,21 @@ struct Preprocessing;
 struct SmallGeometryBatch
 {
   static constexpr size_t MAX_PRIMITIVES = 256;
-  void enqueue(Preprocessing *preprocessing);
+  // `position` is the owning geometry's preparation-queue position; it holds
+  // until the geometry is collected, which is after the launch.
+  void enqueue(Preprocessing *preprocessing, size_t position);
   // Launches every queued job, writing each geometry's results at its queue
   // position in `results`. Always empties the batch; the caller synchronizes
   // `stream`.
   cudaError_t launch(PreparationResults &results, cudaStream_t stream);
 
  private:
-  std::vector<Preprocessing *> m_pending;
+  struct Pending
+  {
+    Preprocessing *preprocessing;
+    size_t position;
+  };
+  std::vector<Pending> m_pending;
   std::vector<SmallGeometryJob> m_jobs;
   DeviceBuffer m_descriptors;
 };
@@ -167,13 +173,6 @@ struct SmallGeometryBatch
 // from their readback after the device's collection barrier.
 struct Preprocessing
 {
-  enum class Status
-  {
-    Ready, // Nothing awaits complete(): published, or its collection failed
-           // and what it was to publish stays zero.
-    Pending, // Submitted results await complete().
-  };
-
   Preprocessing() = default;
   ~Preprocessing();
   Preprocessing(const Preprocessing &) = delete;
@@ -181,7 +180,8 @@ struct Preprocessing
   Preprocessing(Preprocessing &&) = delete;
   Preprocessing &operator=(Preprocessing &&) = delete;
 
-  Status status() const;
+  // True while a bounds or area submission awaits complete().
+  bool pending() const;
   // Published results. The CDF is null when the total area is zero.
   float epsilonScale() const;
   float totalArea() const;
@@ -201,14 +201,8 @@ struct Preprocessing
  private:
   friend struct SmallGeometryBatch;
   void enqueueSmall(Geometry *geometry);
-  void submit(Geometry *geometry);
-  // Device results for a general-path submission; null after failing it.
-  GeometryResults *reserveResults(Geometry *geometry);
   SmallGeometryJob m_small;
   bool m_smallQueued{false};
-  // Position in the device's preparation queue, set by submit().
-  size_t m_position{0};
-  Status m_status{Status::Ready};
   bool m_boundsSubmitted{false};
   bool m_areasSubmitted{false};
   // SDF bounds are padded per primitive and carry no epsilon scale.
@@ -220,15 +214,9 @@ struct Preprocessing
   DeviceBuffer m_scratch;
 };
 
-// Marks the geometry's preparation failed, drains the preparation and render
-// streams so no queued work still targets its storage, and reports the error.
-void failPreparation(
-    Geometry *geometry, cudaError_t error, const char *operation);
-// Returns true on cudaSuccess; otherwise calls failPreparation().
-bool failPreparationOnError(
-    Geometry *geometry, cudaError_t error, const char *operation);
+// CUDA failures go through GeometryPreparation::fail() / check() / finish();
+// rejected input through reject().
 bool reservePreparation(Geometry *geometry, DeviceBuffer &buffer, size_t bytes);
-bool finishPreparation(Geometry *geometry);
 bool generateQuadIndices(Geometry *geometry,
     const uvec4 *indices,
     size_t count,

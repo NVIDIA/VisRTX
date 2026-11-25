@@ -46,6 +46,11 @@ void UnknownGeometry::populateBuildInput(OptixBuildInput &) const
   // no-op
 }
 
+bool UnknownGeometry::prepare()
+{
+  return true;
+}
+
 GeometryGPUData UnknownGeometry::gpuData() const
 {
   return {};

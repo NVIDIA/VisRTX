@@ -63,7 +63,7 @@ void Triangle::generateTangents()
   input.positions = m_vertex.get();
   input.indices =
       m_index ? m_index->beginAs<uvec3>(AddressSpace::GPU) : nullptr;
-  input.numTriangles = m_index ? m_index->size() : m_vertex->size() / 3;
+  input.numTriangles = primitiveCount();
   input.normals = m_vertexNormal.ptr;
   input.normalsFV = m_vertexNormalFV.ptr;
   input.uvs = uvs;
@@ -87,21 +87,19 @@ void Triangle::commitParameters()
   commitAttributes("faceVarying.", m_vertexAttributesFV);
 }
 
-void Triangle::finalize()
+bool Triangle::prepare()
 {
-  if (beginPreparation() != PreparationStart::Prepare)
-    return;
   if (!m_vertex) {
     reportMessage(ANARI_SEVERITY_WARNING,
         "missing required parameter 'vertex.position' on triangle geometry");
-    return;
+    return false;
   }
 
   if (!m_index && m_vertex->size() % 3 != 0) {
     reportMessage(ANARI_SEVERITY_ERROR,
         "'vertex.position' on triangle geometry is a non-multiple of 3"
         " without 'primitive.index' present");
-    return;
+    return false;
   }
 
   if (m_vertexNormal && m_vertex->size() != m_vertexNormal->size()) {
@@ -112,7 +110,7 @@ void Triangle::finalize()
         m_vertex->size());
   }
 
-  const size_t numTriangles = m_index ? m_index->size() : m_vertex->size() / 3;
+  const size_t numTriangles = primitiveCount();
 
   if (m_vertexNormalFV && 3 * numTriangles != m_vertexNormalFV->size()) {
     reportMessage(ANARI_SEVERITY_WARNING,
@@ -152,48 +150,23 @@ void Triangle::finalize()
       m_index ? "indexed" : "soup");
 
   m_vertexBufferPtr = (CUdeviceptr)m_vertex->beginAs<vec3>(AddressSpace::GPU);
-
-  // Vertices/indices may have changed. Rebuild the Geometry Light CDF if a
-  // surface has ever requested it (order-independent of the surface commit),
-  // else drop any stale data.
-  m_areaDataValid = false;
-  if (m_areaDataWanted)
-    buildAreaData();
-  else
-    m_preprocessing.releaseAreas();
-
-  if (!preparationFailed())
-    upload();
+  return true;
 }
 
-void Triangle::buildAreaData()
+size_t Triangle::primitiveCount() const
 {
+  return m_index ? m_index->size() : m_vertex->size() / 3;
+}
+
+std::optional<PrimitiveInput> Triangle::areaInput() const
+{
+  if (!isValid())
+    return PrimitiveInput{};
   TriangleInput input{};
   input.vertices = m_vertex->beginAs<vec3>(AddressSpace::GPU);
   input.indices =
       m_index ? m_index->beginAs<uvec3>(AddressSpace::GPU) : nullptr;
-  const size_t count = m_index ? m_index->size() : m_vertex->size() / 3;
-  m_areaDataValid = m_preprocessing.areas(this, {count, input});
-}
-
-bool Triangle::isAreaSamplingSupported() const
-{
-  return true;
-}
-
-void Triangle::ensureAreaData()
-{
-  m_areaDataWanted = true;
-  if (m_areaDataValid)
-    return;
-  buildAreaData();
-  if (m_areaDataValid)
-    upload(); // republish only successfully prepared sampling data
-}
-
-float Triangle::totalArea() const
-{
-  return m_preprocessing.totalArea();
+  return PrimitiveInput{primitiveCount(), input};
 }
 
 void Triangle::populateBuildInput(OptixBuildInput &buildInput) const
@@ -256,12 +229,7 @@ GeometryGPUData Triangle::gpuData() const
       resolveTangentPtr(m_vertexTangentFV, m_vertexTangentFVFinalized);
   tri.cullBackfaces = m_cullBackfaces;
 
-  // Geometry Light sampling data; null/zero until ensureAreaData() runs.
-  tri.primAreaCdf = m_preprocessing.areaCdf();
-  tri.numPrimitives = tri.primAreaCdf
-      ? uint32_t(m_index ? m_index->size() : m_vertex->size() / 3)
-      : 0;
-  tri.totalArea = m_preprocessing.totalArea();
+  populateAreaData(tri, primitiveCount());
 
   return retval;
 }

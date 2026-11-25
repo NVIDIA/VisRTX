@@ -730,8 +730,7 @@ void Frame::renderFrame()
     hd.fb.buffers.trimTopK = nullptr;
   }
 
-  const auto registryUpload =
-      state.registry.upload(state.preparation, state.stream);
+  const auto registryUpload = state.registry.upload(state.preparationStream);
   if (registryUpload != cudaSuccess) {
     reportMessage(ANARI_SEVERITY_ERROR,
         "skipping render after registry upload failure: %s",

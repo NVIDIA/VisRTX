@@ -14,7 +14,6 @@ struct Neural : public Geometry
   ~Neural() override;
 
   void commitParameters() override;
-  void finalize() override;
   bool isValid() const override;
 
   void populateBuildInput(OptixBuildInput &) const override;
@@ -22,6 +21,7 @@ struct Neural : public Geometry
   int optixGeometryType() const override;
 
  private:
+  bool prepare() override;
   GeometryGPUData gpuData() const override;
   mutable std::vector<helium::IntrusivePtr<Array1D>> m_layers;
 

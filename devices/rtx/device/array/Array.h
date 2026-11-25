@@ -127,6 +127,15 @@ struct Array : public UploadableArray
   // the supplied CUDA pointer. Never upload or expose an internal GPU copy.
   void *appFacingPtr() const;
 
+  // The active host allocation and the device copy uploads fill; both null
+  // when the array has no host storage (application-owned device memory).
+  struct HostBacking
+  {
+    const HostMemoryAllocation *host{nullptr};
+    CudaMemoryAllocation *device{nullptr};
+  };
+  HostBacking hostBacking() const;
+
   void on_NoInternalReferences() override;
   void on_NoPublicReferences() override;
 

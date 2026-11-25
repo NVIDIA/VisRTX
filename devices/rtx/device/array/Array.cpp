@@ -173,20 +173,22 @@ void Array::privatize()
   // Do not retry copies from application memory that may already be freed.
   if (state.arrayPrivatizationFailed)
     return;
+  // Disables the device. Set before reporting: callbacks must not resume
+  // rendering or query bounds using cached aliases to the application-owned
+  // allocation.
+  auto fail = [&](cudaError_t error) {
+    state.arrayPrivatizationFailed = true;
+    reportMessage(ANARI_SEVERITY_FATAL_ERROR,
+        "array privatization failed; device disabled: %s",
+        cudaGetErrorString(error));
+  };
   bool changed = false;
   if (m_data.shared.host.isValid() && !m_data.shared.host.isOwner()) {
     // A batched H2D copy may still use the application-owned host pointer.
     // Draining does not release the queue's retained array references.
-    if (state.collectingGeometryInputUploads()) {
-      const auto completion = state.finishGeometryPreparation();
-      if (completion != cudaSuccess) {
-        state.arrayPrivatizationFailed = true;
-        reportMessage(ANARI_SEVERITY_FATAL_ERROR,
-            "array privatization failed; device disabled: %s",
-            cudaGetErrorString(completion));
-        return;
-      }
-    }
+    const auto completion = state.preparation.waitForHostReaders();
+    if (completion != cudaSuccess)
+      return fail(completion);
     reportMessage(ANARI_SEVERITY_PERFORMANCE_WARNING,
         "making private copy of shared host array (type '%s') | refs: (%i:%i)",
         anari::toString(elementType()),
@@ -203,22 +205,13 @@ void Array::privatize()
         this->useCount(helium::RefType::INTERNAL));
     // Existing frames may still read the shared pointer. The application may
     // free it as soon as this last PUBLIC release returns.
-    auto completion = state.retireRenderConsumers();
     // Deferred preprocessing can still read this external allocation even
     // when no frame is in flight. Retain it through that stream's completion.
-    if (completion == cudaSuccess && state.hasPendingGeometryPreparations())
-      completion = state.finishGeometryPreparation();
+    auto completion = state.preparation.waitForDeviceReaders();
     if (completion == cudaSuccess)
       completion = m_data.shared.device.privatize();
-    if (completion != cudaSuccess) {
-      // Set before reporting: callbacks must not resume rendering or query
-      // bounds using cached aliases to the application-owned allocation.
-      state.arrayPrivatizationFailed = true;
-      reportMessage(ANARI_SEVERITY_FATAL_ERROR,
-          "array privatization failed; device disabled: %s",
-          cudaGetErrorString(completion));
-      return;
-    }
+    if (completion != cudaSuccess)
+      return fail(completion);
     changed = true;
   }
   // Geometry may alias authored arrays directly: a new backing allocation is
@@ -232,14 +225,21 @@ void Array::uploadArrayData() const
   if (!needToUploadData())
     return;
 
-  if (m_data.shared.host.isValid())
-    m_data.shared.device = m_data.shared.host;
-  else if (m_data.captured.host.isValid())
-    m_data.captured.device = m_data.captured.host;
-  else if (m_data.managed.host.isValid())
-    m_data.managed.device = m_data.managed.host;
+  if (const auto backing = hostBacking(); backing.host)
+    *backing.device = *backing.host;
 
   markDataUploaded();
+}
+
+Array::HostBacking Array::hostBacking() const
+{
+  if (m_data.shared.host.isValid())
+    return {&m_data.shared.host, &m_data.shared.device};
+  if (m_data.captured.host.isValid())
+    return {&m_data.captured.host, &m_data.captured.device};
+  if (m_data.managed.host.isValid())
+    return {&m_data.managed.host, &m_data.managed.device};
+  return {};
 }
 
 cudaError_t Array::enqueueUpload(cudaStream_t stream) const
@@ -249,30 +249,22 @@ cudaError_t Array::enqueueUpload(cudaStream_t stream) const
   if (!needToUploadData())
     return cudaSuccess;
 
-  const HostMemoryAllocation *host = nullptr;
-  CudaMemoryAllocation *device = nullptr;
-  if (m_data.shared.host.isValid()) {
-    host = &m_data.shared.host;
-    device = &m_data.shared.device;
-  } else if (m_data.captured.host.isValid()) {
-    host = &m_data.captured.host;
-    device = &m_data.captured.device;
-  } else if (m_data.managed.host.isValid()) {
-    host = &m_data.managed.host;
-    device = &m_data.managed.device;
-  } else
+  const auto [host, device] = hostBacking();
+  if (!host)
     return cudaSuccess; // Application-owned device inputs are already resident.
 
   if (!device->isValid()) {
     auto cache = static_cast<DeviceGlobalState *>(deviceState())
-                     ->geometryInputAllocations;
+                     ->preparation.inputAllocations();
     void *memory = nullptr;
     const auto allocationError = cache->allocate(host->bytes(), &memory);
-    auto allocation = CudaMemoryAllocation::fromCache(
-        memory, host->bytes(), std::move(cache));
+    // Read on every path: this also clears the error a failed allocation left.
     const auto lastError = cudaGetLastError();
     if (allocationError != cudaSuccess)
       return allocationError;
+    // From here the owner returns the block to the cache on any early return.
+    auto allocation = CudaMemoryAllocation::fromCache(
+        memory, host->bytes(), std::move(cache));
     if (lastError != cudaSuccess)
       return lastError;
     if (!allocation)

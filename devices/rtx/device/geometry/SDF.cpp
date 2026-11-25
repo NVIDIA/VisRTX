@@ -72,14 +72,12 @@ void SDF::commitParameters()
   m_noiseFactor = glm::clamp(getParam<float>("noiseFactor", 0.f), 0.f, 1.f);
 }
 
-void SDF::finalize()
+bool SDF::prepare()
 {
-  if (beginPreparation() != PreparationStart::Prepare)
-    return;
   if (!m_sdf) {
     reportMessage(ANARI_SEVERITY_WARNING,
         "missing required parameter 'primitive.sdf' on sdf geometry");
-    return;
+    return false;
   }
 
   // primitive.sdf must be an ANARI_UINT8 array of N * sizeof(SDFPrimitive)
@@ -94,14 +92,14 @@ void SDF::finalize()
   if (reinterpret_cast<uintptr_t>(source) % alignof(SDFPrimitive) != 0) {
     const size_t bytes = m_numPrimitives * sizeof(SDFPrimitive);
     if (!reservePreparation(this, m_alignedPrimitives, bytes)
-        || !failPreparationOnError(this,
+        || !deviceState()->preparation.check(this,
             cudaMemcpyAsync(m_alignedPrimitives.ptr(),
                 source,
                 bytes,
                 cudaMemcpyDeviceToDevice,
-                deviceState()->preparation.stream()),
+                deviceState()->preparationStream.stream()),
             "aligning SDF input"))
-      return;
+      return false;
     m_primitives = m_alignedPrimitives.ptrAs<SDFPrimitive>();
   } else
     m_primitives = static_cast<const SDFPrimitive *>(source);
@@ -111,10 +109,10 @@ void SDF::finalize()
   input.blendLerpFactor = m_blendLerpFactor;
   input.noiseFactor = m_noiseFactor;
   if (!m_preprocessing.bounds(this, {m_numPrimitives, input}, m_aabbs))
-    return;
+    return false;
   m_aabbsBufferPtr = (CUdeviceptr)m_aabbs.ptr();
 
-  upload();
+  return true;
 }
 
 bool SDF::isValid() const

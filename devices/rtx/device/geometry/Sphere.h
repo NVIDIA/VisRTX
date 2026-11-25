@@ -43,24 +43,18 @@ struct Sphere : public Geometry
   ~Sphere() override;
 
   void commitParameters() override;
-  void finalize() override;
   bool isValid() const override;
 
   void populateBuildInput(OptixBuildInput &) const override;
 
   int optixGeometryType() const override;
 
-  // Build the per-primitive area CDF and object-space total area (Σ 4πr²) used
-  // to sample this sphere set as a Geometry Light. Lazy: only Emissive Surfaces
-  // call it, so ordinary sphere sets never pay for it. Mirrors Triangle.
-  bool isAreaSamplingSupported() const override;
-  void ensureAreaData() override;
-  float totalArea() const override;
-
  private:
+  bool prepare() override;
   GeometryGPUData gpuData() const override;
   void cleanup();
-  void buildAreaData();
+  // Geometry Light sampling: the object-space area is Σ 4πr².
+  std::optional<PrimitiveInput> areaInput() const override;
   PrimitiveInput primitiveInput() const;
 
   helium::ChangeObserverPtr<Array1D> m_index;
@@ -73,13 +67,6 @@ struct Sphere : public Geometry
   size_t m_numSpheres{0};
 
   float m_globalRadius{1.f};
-
-  // Geometry Light sampling data, built lazily by ensureAreaData(). The CDF is
-  // the normalized cumulative object-space area over primitives.
-  // m_areaDataWanted persists across recommits so a re-finalize rebuilds it
-  // order-independently.
-  bool m_areaDataValid{false};
-  bool m_areaDataWanted{false};
 };
 
 } // namespace visrtx

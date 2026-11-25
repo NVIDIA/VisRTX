@@ -137,6 +137,7 @@ set(SOURCES
   frame/Frame.cu
 
   geometry/ComputeTangent.cu
+  geometry/GeometryPreparation.cpp
   geometry/PreparationResults.cpp
   geometry/Preprocessing.cu
   geometry/Cone.cpp

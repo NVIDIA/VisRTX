@@ -55,12 +55,12 @@ bool buildOptixBVH(std::vector<OptixBuildInput> buildInput,
   }
 
   auto &state = *obj->deviceState();
-  auto &preparation = state.preparation;
-  const auto stream = preparation.stream();
+  auto &preparationStream = state.preparationStream;
+  const auto stream = preparationStream.stream();
   auto check = [&](cudaError_t error, const char *operation) {
     if (error == cudaSuccess)
       return true;
-    preparation.finish(); // Drain queued consumers before scratch is freed.
+    preparationStream.sync(); // Drain queued consumers before scratch is freed.
     cudaGetLastError();
     obj->reportMessage(ANARI_SEVERITY_ERROR,
         "BVH preparation failed during %s: %s",
@@ -71,7 +71,7 @@ bool buildOptixBVH(std::vector<OptixBuildInput> buildInput,
   auto checkOptix = [&](OptixResult result, const char *operation) {
     if (result == OPTIX_SUCCESS)
       return true;
-    preparation.finish();
+    preparationStream.sync();
     obj->reportMessage(ANARI_SEVERITY_ERROR,
         "BVH preparation failed during %s: %s",
         operation,
@@ -85,8 +85,9 @@ bool buildOptixBVH(std::vector<OptixBuildInput> buildInput,
   // Legacy producers include field/isosurface work on the render stream and
   // authored arrays/instance uploads on the default stream. Previous rendering
   // must also finish before the existing BVH storage can be reused.
-  if (!check(state.waitForRenderConsumers(), "previous BVH consumers")
-      || !check(preparation.waitFor(nullptr), "input upload dependency"))
+  if (!check(preparationStream.orderAfterRender(), "previous BVH consumers")
+      || !check(
+          preparationStream.orderAfter(nullptr), "input upload dependency"))
     return false;
 
   OptixAccelBuildOptions options{};
@@ -103,15 +104,16 @@ bool buildOptixBVH(std::vector<OptixBuildInput> buildInput,
 
   // Allocate before submitting GPU work. Every earlier build completed, so
   // no transfer still targets the readback.
-  if (!state.bvhReadback) {
-    void *memory = nullptr;
-    const auto error =
-        cudaMallocHost(&memory, sizeof(DeviceGlobalState::BvhReadback));
-    if (!check(error, "allocating BVH readback"))
-      return false;
-    state.bvhReadback.reset(
-        static_cast<DeviceGlobalState::BvhReadback *>(memory));
-  }
+  struct Readback
+  {
+    box3 bounds;
+    uint64_t compactedSize;
+  };
+  cudaError_t readbackError = cudaSuccess;
+  auto *readback = static_cast<Readback *>(
+      preparationStream.readback(sizeof(Readback), readbackError));
+  if (!check(readbackError, "allocating BVH readback"))
+    return false;
 
   DeviceBuffer compactedSizeBuffer, aabbBuffer, tempBuffer, outputBuffer;
   if (!reserve(compactedSizeBuffer, sizeof(uint64_t))
@@ -141,8 +143,8 @@ bool buildOptixBVH(std::vector<OptixBuildInput> buildInput,
           "build"))
     return false;
 
-  auto &builtBounds = state.bvhReadback->bounds;
-  auto &compactedSize = state.bvhReadback->compactedSize;
+  auto &builtBounds = readback->bounds;
+  auto &compactedSize = readback->compactedSize;
   if (!check(cudaMemcpyAsync(&builtBounds,
                  aabbBuffer.ptr(),
                  sizeof(box3),
@@ -155,7 +157,7 @@ bool buildOptixBVH(std::vector<OptixBuildInput> buildInput,
                     cudaMemcpyDeviceToHost,
                     stream),
           "compaction size readback")
-      || !check(preparation.finish(), "build completion"))
+      || !check(preparationStream.sync(), "build completion"))
     return false;
 
   if (!reserve(bvh, compactedSize)
@@ -166,7 +168,7 @@ bool buildOptixBVH(std::vector<OptixBuildInput> buildInput,
                          bvh.bytes(),
                          &built),
           "compaction")
-      || !check(preparation.finish(), "compaction completion"))
+      || !check(preparationStream.sync(), "compaction completion"))
     return false;
 
   // Publication and scratch destruction happen only after this stream's work
@@ -186,166 +188,15 @@ DeviceGlobalState::DeviceGlobalState(ANARIDevice d)
 
 DeviceGlobalState::~DeviceGlobalState() = default;
 
-void DeviceGlobalState::enqueueGeometryInputUploads(Geometry *geometry)
-{
-  m_geometryInputUploads.enqueue(helium::IntrusivePtr<Geometry>(geometry));
-}
-
-cudaError_t DeviceGlobalState::stageGeometryArray(
-    Array *array, helium::TimeStamp modified)
-{
-  const auto found = m_geometryInputVersions.find(array);
-  if (found != m_geometryInputVersions.end() && found->second == modified)
-    return cudaSuccess;
-  const auto error = array->enqueueUpload(preparation.stream());
-  if (error == cudaSuccess)
-    m_geometryInputVersions.insert_or_assign(array, modified);
-  return error;
-}
-
-bool DeviceGlobalState::collectingGeometryInputUploads() const
-{
-  return m_geometryInputUploads.collecting();
-}
-
-bool DeviceGlobalState::collectGeometryInputUploads()
-{
-  return m_geometryInputUploads.collect(
-      [&](Geometry *first) {
-        // The only route by which a geometry's host inputs reach the device.
-        // Commits capture sources; the first geometry finalizer submits every
-        // input batch before waiting. No legacy finalizer sees partially
-        // uploaded arrays. A finalizer then queues what no commit captured
-        // as a batch of its own. Retire obsolete cached copies before
-        // allocating a whole replacement cohort. A single geometry retains
-        // the existing allocation/retirement order.
-        if (m_geometryInputUploads.size() > 1)
-          m_geometryInputUploads.forEach([](Geometry *geometry) {
-            geometry->retirePreparationSnapshot();
-          });
-        auto error = geometryInputAllocations->reclaim(
-            [&] { return finishGeometryPreparation(); });
-        if (error == cudaSuccess)
-          error = waitForRenderConsumers();
-        if (error == cudaSuccess) {
-          m_geometryInputUploads.forEach(
-              [](Geometry *geometry) { geometry->submitInputUploads(); });
-          error = finishGeometryPreparation();
-        }
-        if (error != cudaSuccess) {
-          failGeometryInputUploads();
-          failPreparation(first, error, "geometry input batch completion");
-        }
-        m_geometryInputVersions.clear();
-      },
-      [](Geometry *geometry) noexcept { geometry->completeInputUploads(); },
-      [&] {
-        // A host allocation or callback can unwind after copies were
-        // submitted. Keep sources alive and drain before permitting public
-        // release again.
-        failGeometryInputUploads();
-        finishGeometryPreparation();
-        m_geometryInputVersions.clear();
-      });
-}
-
-void DeviceGlobalState::failGeometryInputUploads()
-{
-  m_geometryInputUploads.forEach(
-      [](Geometry *geometry) { geometry->failInputUploads(); });
-}
-
-cudaError_t DeviceGlobalState::waitForRenderConsumers()
-{
-  return cudaStreamQuery(stream) == cudaSuccess ? cudaSuccess
-                                                : preparation.waitFor(stream);
-}
-
-cudaError_t DeviceGlobalState::retireRenderConsumers()
-{
-  // Anything but success, a failed query included, takes the wait: only a
-  // completed stream permits releasing what its work reads.
-  return cudaStreamQuery(stream) == cudaSuccess ? cudaSuccess
-                                                : cudaStreamSynchronize(stream);
-}
-
-size_t DeviceGlobalState::enqueueGeometryPreparation(Geometry *geometry)
-{
-  return m_geometryPreparations.enqueue(
-      helium::IntrusivePtr<Geometry>(geometry));
-}
-
-bool DeviceGlobalState::collectingGeometryPreparations() const
-{
-  return m_geometryPreparations.collecting()
-      || m_geometryInputUploads.collecting();
-}
-
-bool DeviceGlobalState::hasPendingGeometryPreparations() const
-{
-  return m_geometryPreparations.collecting() || !m_geometryPreparations.empty()
-      || m_geometryInputUploads.collecting();
-}
-
-cudaError_t DeviceGlobalState::finishGeometryPreparation()
-{
-  // Flush deferred small jobs even at intervening upload/retirement waits:
-  // their input pointers must be consumed before a backing allocation changes.
-  // Then read back every queued result in one transfer.
-  const auto stream = preparation.stream();
-  auto error = smallGeometryBatch.launch(preparationResults, stream);
-  if (error == cudaSuccess)
-    error = preparationResults.readback(m_geometryPreparations.size(), stream);
-  const auto completion = cudaStreamSynchronize(stream);
-  if (error == cudaSuccess)
-    error = completion;
-  if (error != cudaSuccess) {
-    cudaGetLastError();
-    // An intervening upload/legacy consumer may wait before the collection
-    // point. Its stream-completion error affects all already queued results.
-    m_geometryPreparations.forEach(
-        [](Geometry *geometry) { geometry->markPreparationFailed(); });
-    failGeometryInputUploads();
-  }
-  return error;
-}
-
-bool DeviceGlobalState::collectGeometryPreparations()
-{
-  if (!collectGeometryInputUploads())
-    return false;
-  // Owners remain queued if descriptor allocation or registry publication
-  // throws. CUDA failure still invalidates the pending batch before reporting,
-  // so callbacks cannot see a partially valid generation. Numeric failures
-  // remain local to their geometries during publication. Every publication
-  // must succeed before any geometry leaves the queue.
-  return m_geometryPreparations.collect(
-      [&](Geometry *first) {
-        const auto error = finishGeometryPreparation();
-        if (error != cudaSuccess)
-          failPreparation(first, error, "batch completion");
-        m_geometryPreparations.forEach(
-            [](Geometry *geometry) { geometry->completePreparation(); });
-      },
-      [](Geometry *geometry) noexcept { geometry->markPreparationCollected(); },
-      [] {});
-}
-
 cudaError_t DeviceGlobalState::DeviceObjectRegistry::upload(
-    PreparationStream &preparation, cudaStream_t renderStream)
+    PreparationStream &stream)
 {
   if (!(samplers.dirty() || geometries.dirty() || materials.dirty()
           || surfaces.dirty() || lights.dirty() || fields.dirty()
           || volumes.dirty()))
     return cudaSuccess;
-  const auto error = preparation.upload(renderStream,
-      samplers,
-      geometries,
-      materials,
-      surfaces,
-      lights,
-      fields,
-      volumes);
+  const auto error = stream.upload(
+      samplers, geometries, materials, surfaces, lights, fields, volumes);
   if (error != cudaSuccess)
     return error;
   samplers.markUploaded();

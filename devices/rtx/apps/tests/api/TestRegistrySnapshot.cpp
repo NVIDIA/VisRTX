@@ -37,13 +37,13 @@
 int main()
 {
   visrtx::PreparationStream preparation;
-  if (preparation.initialize() != cudaSuccess)
+  if (preparation.initialize(nullptr) != cudaSuccess)
     return 1;
   visrtx::DeviceObjectArray<int> registry;
   int token = 0;
   const auto first = registry.alloc(&token);
   registry.set(first, 11);
-  if (preparation.upload(nullptr, registry) != cudaSuccess)
+  if (preparation.upload(registry) != cudaSuccess)
     return 1;
   registry.markUploaded();
   bool ok = !registry.dirty();
@@ -59,7 +59,7 @@ int main()
   for (int i = 0; i < 1024; ++i)
     last = registry.alloc(&token);
   registry.set(last, 44);
-  if (preparation.finish() != cudaSuccess)
+  if (preparation.sync() != cudaSuccess)
     return 1;
   registry.markUploaded();
   ok = registry.dirty() && ok;
@@ -69,7 +69,7 @@ int main()
           == cudaSuccess
       && value == 22 && ok;
 
-  if (preparation.upload(nullptr, registry) != cudaSuccess)
+  if (preparation.upload(registry) != cudaSuccess)
     return 1;
   registry.markUploaded();
   ok = !registry.dirty() && ok;
@@ -87,11 +87,11 @@ int main()
   visrtx::DeviceObjectArray<int> uncommitted;
   uncommitted.alloc(&token);
   uncommitted.alloc(&token);
-  if (preparation.upload(nullptr, uncommitted) != cudaSuccess)
+  if (preparation.upload(uncommitted) != cudaSuccess)
     return 1;
   uncommitted.markUploaded();
   uncommitted.set(0, 7);
-  if (preparation.upload(nullptr, uncommitted) != cudaSuccess)
+  if (preparation.upload(uncommitted) != cudaSuccess)
     return 1;
   uncommitted.markUploaded();
   int pair[2]{};
