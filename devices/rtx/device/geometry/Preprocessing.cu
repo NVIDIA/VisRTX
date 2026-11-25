@@ -33,6 +33,7 @@
 #include "Preprocessing.h"
 #include "gpu/intersectPrimitives.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cub/block/block_reduce.cuh>
 #include <cub/block/block_scan.cuh>
@@ -44,47 +45,85 @@ namespace visrtx {
 namespace {
 using Result = PreparationResult;
 
-VISRTX_DEVICE double primitiveArea(PrimitiveInput in, size_t i)
+VISRTX_DEVICE double triangleArea(const TriangleInput &in, size_t i)
 {
-  double area;
-  if (in.type == GeometryType::SPHERE) {
-    const auto *indices = static_cast<const uint32_t *>(in.indices);
-    const uint32_t v = indices ? indices[i] : uint32_t(i);
-    const float r = glm::abs(in.radii ? in.radii[v] : in.radius);
-    area = 4.0 * double(kPi) * double(r) * double(r);
-  } else if (in.type == GeometryType::CONE
-      || in.type == GeometryType::CYLINDER) {
-    const auto *indices = static_cast<const uvec2 *>(in.indices);
-    const uvec2 c = indices ? indices[i] : uvec2(2 * i, 2 * i + 1);
-    const bool cone = in.type == GeometryType::CONE;
-    const double r0 =
-        double(glm::abs(in.radii ? in.radii[cone ? c.x : i] : in.radius));
-    const double r1 = cone ? double(glm::abs(in.radii[c.y])) : r0;
-    const double len = double(glm::length(in.vertices[c.y] - in.vertices[c.x]));
-    const bool cap0 = in.caps ? in.caps[c.x] != 0 : in.capFlags & CAP_FIRST;
-    const bool cap1 = in.caps ? in.caps[c.y] != 0 : in.capFlags & CAP_SECOND;
-    area = 0.0;
-    if (len > 0.0 && (cone || r0 > 0.0)) {
-      area = cone
-          ? double(kPi) * (r0 + r1) * sqrt(len * len + (r0 - r1) * (r0 - r1))
-          : 2.0 * double(kPi) * r0 * len;
-      if (cap0)
-        area += double(kPi) * r0 * r0;
-      if (cap1)
-        area += double(kPi) * r1 * r1;
-    }
-  } else {
-    const auto *indices = static_cast<const uvec3 *>(in.indices);
-    const uvec3 t = indices ? indices[i] : uvec3(0, 1, 2) + uint32_t(3 * i);
-    area = 0.5
-        * glm::length(glm::cross(in.vertices[t.y] - in.vertices[t.x],
-            in.vertices[t.z] - in.vertices[t.x]));
-  }
+  const uvec3 t = in.indices ? in.indices[i] : uvec3(0, 1, 2) + uint32_t(3 * i);
+  const vec3 a = in.vertices[t.x], b = in.vertices[t.y], c = in.vertices[t.z];
+  return 0.5 * glm::length(glm::cross(b - a, c - a));
+}
+
+VISRTX_DEVICE double sphereArea(const SphereInput &in, size_t i)
+{
+  const uint32_t v = in.indices ? in.indices[i] : uint32_t(i);
+  const double r = glm::abs(in.radii ? in.radii[v] : in.radius);
+  return 4.0 * double(kPi) * r * r;
+}
+
+VISRTX_DEVICE uvec2 segmentEndpoints(const SegmentInput &in, size_t i)
+{
+  return in.indices ? in.indices[i] : uvec2(2 * i, 2 * i + 1);
+}
+
+VISRTX_DEVICE double segmentLength(const SegmentInput &in, uvec2 c)
+{
+  return double(glm::length(in.vertices[c.y] - in.vertices[c.x]));
+}
+
+// Adds the disk areas of a segment's capped ends, of radii r0 and r1, to its
+// side area.
+VISRTX_DEVICE double addCapAreas(
+    double side, const SegmentInput &in, uvec2 c, double r0, double r1)
+{
+  const bool cap0 = in.caps ? in.caps[c.x] != 0 : in.capFlags & CAP_FIRST;
+  const bool cap1 = in.caps ? in.caps[c.y] != 0 : in.capFlags & CAP_SECOND;
+  double area = side;
+  if (cap0)
+    area += double(kPi) * r0 * r0;
+  if (cap1)
+    area += double(kPi) * r1 * r1;
   return area;
 }
 
+VISRTX_DEVICE double coneArea(const ConeInput &in, size_t i)
+{
+  const uvec2 c = segmentEndpoints(in.segments, i);
+  const double r0 = glm::abs(in.radii[c.x]);
+  const double r1 = glm::abs(in.radii[c.y]);
+  const double len = segmentLength(in.segments, c);
+  if (!(len > 0.0))
+    return 0.0;
+  const double slant = sqrt(len * len + (r0 - r1) * (r0 - r1));
+  return addCapAreas(double(kPi) * (r0 + r1) * slant, in.segments, c, r0, r1);
+}
+
+VISRTX_DEVICE double cylinderArea(const CylinderInput &in, size_t i)
+{
+  const uvec2 c = segmentEndpoints(in.segments, i);
+  const double r = glm::abs(in.radii ? in.radii[i] : in.radius);
+  const double len = segmentLength(in.segments, c);
+  if (!(len > 0.0 && r > 0.0))
+    return 0.0;
+  return addCapAreas(2.0 * double(kPi) * r * len, in.segments, c, r, r);
+}
+
+VISRTX_DEVICE double primitiveArea(const PrimitiveInput &in, size_t i)
+{
+  switch (in.type) {
+  case GeometryType::TRIANGLE:
+    return triangleArea(in.triangle, i);
+  case GeometryType::SPHERE:
+    return sphereArea(in.sphere, i);
+  case GeometryType::CONE:
+    return coneArea(in.cone, i);
+  case GeometryType::CYLINDER:
+    return cylinderArea(in.cylinder, i);
+  default:
+    return NAN; // No area sampling; fails the area validation.
+  }
+}
+
 VISRTX_GLOBAL void primitiveAreas(
-    PrimitiveInput in, double *areas, Result *result)
+    const PrimitiveInput in, double *areas, Result *result)
 {
   const size_t i = size_t(blockIdx.x) * blockDim.x + threadIdx.x;
   if (i >= in.count)
@@ -148,45 +187,37 @@ VISRTX_DEVICE box3 computeSDFPrimitiveAABB(const SDFPrimitive &g)
   }
 }
 
-VISRTX_DEVICE Result primitiveBound(PrimitiveInput in, size_t i, box3 &bound)
+VISRTX_DEVICE Result sdfBound(const SDFInput &in, size_t i, box3 &bound)
 {
-  Result result{};
-  if (in.type == GeometryType::SDF) {
-    const SDFPrimitive &g = in.sdf[i];
-    box3 b = computeSDFPrimitiveAABB(g);
-    float padding = in.noiseFactor * glm::max(0.f, g.r0) * 0.1f;
-    if (g.numNeighbours > 0) {
-      const float r0 = glm::max(0.f, g.r0);
-      const float r1 = glm::max(0.f, g.r1 >= 0.f ? g.r1 : g.r0);
-      padding +=
-          glm::mix(glm::min(r0, r1), glm::max(r0, r1), in.blendLerpFactor)
-          * in.blendFactor;
-    }
-    b.lower -= padding;
-    b.upper += padding;
-    bound = b;
-    for (int axis = 0; axis < 3; ++axis) {
-      if (!isfinite(b.lower[axis]) || !isfinite(b.upper[axis]))
-        result.invalid = 1u;
-    }
-    return result;
+  const SDFPrimitive &g = in.primitives[i];
+  box3 b = computeSDFPrimitiveAABB(g);
+  float padding = in.noiseFactor * glm::max(0.f, g.r0) * 0.1f;
+  if (g.numNeighbours > 0) {
+    const float r0 = glm::max(0.f, g.r0);
+    const float r1 = glm::max(0.f, g.r1 >= 0.f ? g.r1 : g.r0);
+    padding += glm::mix(glm::min(r0, r1), glm::max(r0, r1), in.blendLerpFactor)
+        * in.blendFactor;
   }
-  const bool sphere = in.type == GeometryType::SPHERE;
-  const auto *indices = static_cast<const uvec2 *>(in.indices);
-  const auto *sphereIndices = static_cast<const uint32_t *>(in.indices);
-  const size_t center = sphere ? (sphereIndices ? sphereIndices[i] : i) : 0;
-  const uvec2 c = sphere ? uvec2(center)
-      : indices          ? indices[i]
-                         : uvec2(2 * i, 2 * i + 1);
-  const bool cone = in.type == GeometryType::CONE;
-  const float r = cone
-      ? glm::max(glm::abs(in.radii[c.x]), glm::abs(in.radii[c.y]))
-      : glm::abs(in.radii ? in.radii[sphere ? center : i] : in.radius);
-  const vec3 v0 = in.vertices[c.x], v1 = in.vertices[c.y];
+  b.lower -= padding;
+  b.upper += padding;
+  bound = b;
+  Result result{};
+  for (int axis = 0; axis < 3; ++axis) {
+    if (!isfinite(b.lower[axis]) || !isfinite(b.upper[axis]))
+      result.invalid = 1u;
+  }
+  return result; // SDF bounds carry no epsilon scale.
+}
+
+// Bounds of the sphere of radius r swept from v0 to v1, with the largest
+// coordinate magnitude as the epsilon scale.
+VISRTX_DEVICE Result sweptSphereBound(vec3 v0, vec3 v1, float r, box3 &bound)
+{
   const box3 b(glm::min(v0, v1) - r, glm::max(v0, v1) + r);
   bound = b;
   const vec3 m = glm::max(glm::abs(b.lower), glm::abs(b.upper));
   const float scale = glm::max(m.x, glm::max(m.y, m.z));
+  Result result{};
   if (!isfinite(r) || !isfinite(v0.x) || !isfinite(v0.y) || !isfinite(v0.z)
       || !isfinite(v1.x) || !isfinite(v1.y) || !isfinite(v1.z)
       || !isfinite(scale))
@@ -196,8 +227,49 @@ VISRTX_DEVICE Result primitiveBound(PrimitiveInput in, size_t i, box3 &bound)
   return result;
 }
 
+VISRTX_DEVICE Result sphereBound(const SphereInput &in, size_t i, box3 &bound)
+{
+  const size_t v = in.indices ? in.indices[i] : i;
+  const float r = glm::abs(in.radii ? in.radii[v] : in.radius);
+  return sweptSphereBound(in.vertices[v], in.vertices[v], r, bound);
+}
+
+VISRTX_DEVICE Result coneBound(const ConeInput &in, size_t i, box3 &bound)
+{
+  const uvec2 c = segmentEndpoints(in.segments, i);
+  const float r = glm::max(glm::abs(in.radii[c.x]), glm::abs(in.radii[c.y]));
+  const vec3 *v = in.segments.vertices;
+  return sweptSphereBound(v[c.x], v[c.y], r, bound);
+}
+
+VISRTX_DEVICE Result cylinderBound(
+    const CylinderInput &in, size_t i, box3 &bound)
+{
+  const uvec2 c = segmentEndpoints(in.segments, i);
+  const float r = glm::abs(in.radii ? in.radii[i] : in.radius);
+  const vec3 *v = in.segments.vertices;
+  return sweptSphereBound(v[c.x], v[c.y], r, bound);
+}
+
+VISRTX_DEVICE Result primitiveBound(
+    const PrimitiveInput &in, size_t i, box3 &bound)
+{
+  switch (in.type) {
+  case GeometryType::SPHERE:
+    return sphereBound(in.sphere, i, bound);
+  case GeometryType::CONE:
+    return coneBound(in.cone, i, bound);
+  case GeometryType::CYLINDER:
+    return cylinderBound(in.cylinder, i, bound);
+  case GeometryType::SDF:
+    return sdfBound(in.sdf, i, bound);
+  default:
+    return {0.f, 1u}; // No custom-primitive bounds.
+  }
+}
+
 VISRTX_GLOBAL void primitiveBounds(
-    PrimitiveInput in, box3 *bounds, Result *result)
+    const PrimitiveInput in, box3 *bounds, Result *result)
 {
   const size_t i = size_t(blockIdx.x) * blockDim.x + threadIdx.x;
   if (i >= in.count)
@@ -223,11 +295,8 @@ VISRTX_GLOBAL void smallGeometry(const SmallGeometryJob *jobs)
   __shared__ typename Scan::TempStorage scanStorage;
   const auto &job = jobs[blockIdx.x];
   const unsigned i = threadIdx.x;
-  if (i == 0) {
-    // Every transferred byte is initialized, including unused result slots.
-    job.results[0] = {};
-    job.results[1] = {};
-  }
+  // Write only the requested results: an earlier launch in this collection
+  // may have written the other one.
   if (job.bounds) {
     Result local{};
     if (i < job.boundsInput.count)
@@ -238,7 +307,7 @@ VISRTX_GLOBAL void smallGeometry(const SmallGeometryJob *jobs)
                 [] __device__(float a, float b) { return glm::max(a, b); });
     const unsigned invalid = StatusReduce(statusStorage).Sum(local.invalid);
     if (i == 0)
-      job.results[0] = {scale, invalid};
+      job.results->bounds = {scale, invalid};
     __syncthreads(); // statusStorage is reused for the area validation.
   }
   if (job.cdf) {
@@ -255,7 +324,8 @@ VISRTX_GLOBAL void smallGeometry(const SmallGeometryJob *jobs)
           total > 0.0 ? (i + 1 == n ? 1.f : float(prefix / total)) : 0.f;
     const unsigned invalid = StatusReduce(statusStorage).Sum(localInvalid);
     if (i == 0)
-      job.results[1] = {invalid ? __int_as_float(0x7fffffff) : value, invalid};
+      job.results->area = {
+          invalid ? __int_as_float(0x7fffffff) : value, invalid};
   }
 }
 
@@ -284,6 +354,25 @@ VISRTX_GLOBAL void curveRadii(size_t n, float radius, float *out)
 }
 } // namespace
 
+size_t segmentCount(const Array1D &vertices, const Array1D *indices)
+{
+  return indices ? indices->size() : vertices.size() / 2;
+}
+
+SegmentInput segmentInput(const Array1D &vertices,
+    const Array1D *indices,
+    const Array1D *caps,
+    uint8_t capFlags)
+{
+  SegmentInput input{};
+  input.vertices = vertices.beginAs<vec3>(AddressSpace::GPU);
+  input.indices =
+      indices ? indices->beginAs<uvec2>(AddressSpace::GPU) : nullptr;
+  input.caps = caps ? caps->beginAs<uint8_t>(AddressSpace::GPU) : nullptr;
+  input.capFlags = capFlags;
+  return input;
+}
+
 bool generateQuadIndices(
     Geometry *g, const uvec4 *indices, size_t n, DeviceBuffer &out)
 {
@@ -307,7 +396,7 @@ bool generateCurveIndices(Geometry *g, size_t n, DeviceBuffer &out)
         256,
         0,
         g->deviceState()->preparation.stream()>>>(n, out.ptrAs<uint32_t>());
-  return checkPreparation(g, cudaGetLastError(), "curve indices");
+  return failPreparationOnError(g, cudaGetLastError(), "curve indices");
 }
 
 bool generateCurveRadii(Geometry *g, size_t n, float radius, DeviceBuffer &out)
@@ -320,14 +409,12 @@ bool generateCurveRadii(Geometry *g, size_t n, float radius, DeviceBuffer &out)
         0,
         g->deviceState()->preparation.stream()>>>(
         n, radius, out.ptrAs<float>());
-  return checkPreparation(g, cudaGetLastError(), "curve radii");
+  return failPreparationOnError(g, cudaGetLastError(), "curve radii");
 }
 
-bool checkPreparation(Geometry *g, cudaError_t error, const char *operation)
+void failPreparation(Geometry *g, cudaError_t error, const char *operation)
 {
-  if (error == cudaSuccess)
-    return true;
-  g->setPreparationFailed(true);
+  g->markPreparationFailed();
   // A failed dispatch/readback can follow successful queued kernels. Drain
   // preparation before retrying or freeing scratch. Keep the render-stream
   // drain on this error path too: this helper also handles input retirement
@@ -338,66 +425,30 @@ bool checkPreparation(Geometry *g, cudaError_t error, const char *operation)
       "geometry preprocessing failed during %s: %s",
       operation,
       cudaGetErrorString(error));
+}
+
+bool failPreparationOnError(
+    Geometry *g, cudaError_t error, const char *operation)
+{
+  if (error == cudaSuccess)
+    return true;
+  failPreparation(g, error, operation);
   return false;
 }
 
 bool reservePreparation(Geometry *g, DeviceBuffer &buffer, size_t bytes)
 {
-  // Failed allocations can retain their requested capacity without storage.
-  // Clear it so a later preparation can retry the same-sized allocation.
-  if (!buffer)
-    buffer.reset();
-  buffer.reserve(bytes);
-  // Consume the runtime error even when missing storage identifies allocation
-  // failure. Otherwise the next successful allocation inherits this error.
-  const auto error = cudaGetLastError();
-  return checkPreparation(g,
-      error != cudaSuccess ? error
-          : bytes && (!buffer || buffer.bytes() < bytes)
-          ? cudaErrorMemoryAllocation
-          : cudaSuccess,
-      "allocating device storage");
+  return failPreparationOnError(
+      g, buffer.tryReserve(bytes), "allocating device storage");
 }
 
 bool finishPreparation(Geometry *g)
 {
   // Also establishes an explicit boundary for legacy default-stream consumers.
-  return checkPreparation(g, cudaGetLastError(), "launch")
-      && checkPreparation(g,
+  return failPreparationOnError(g, cudaGetLastError(), "launch")
+      && failPreparationOnError(g,
           g->deviceState()->finishGeometryPreparation(),
           "execution completion");
-}
-
-SmallGeometryBatch::~SmallGeometryBatch()
-{
-  if (m_readback)
-    cudaFreeHost(m_readback);
-}
-
-cudaError_t SmallGeometryBatch::reserveResults(size_t count)
-{
-  const size_t bytes = 2 * count * sizeof(Result);
-  if (!m_results)
-    m_results.reset();
-  m_results.reserve(bytes);
-  auto error = cudaGetLastError();
-  if (error != cudaSuccess)
-    return error;
-  if (!m_results || m_results.bytes() < bytes)
-    return cudaErrorMemoryAllocation;
-  if (count > m_readbackCapacity) {
-    void *memory = nullptr;
-    error = cudaMallocHost(&memory, bytes);
-    if (error != cudaSuccess)
-      return error;
-    // Previous batches were drained before reuse. Keep the old allocation on
-    // allocation failure; no in-flight transfer refers to it during growth.
-    if (m_readback)
-      cudaFreeHost(m_readback);
-    m_readback = static_cast<Result *>(memory);
-    m_readbackCapacity = count;
-  }
-  return cudaSuccess;
 }
 
 void SmallGeometryBatch::enqueue(Preprocessing *preprocessing)
@@ -405,25 +456,27 @@ void SmallGeometryBatch::enqueue(Preprocessing *preprocessing)
   m_pending.push_back(preprocessing);
 }
 
-cudaError_t SmallGeometryBatch::finish(cudaStream_t stream)
+cudaError_t SmallGeometryBatch::launch(
+    PreparationResults &results, cudaStream_t stream)
 {
   cudaError_t error = cudaSuccess;
   if (!m_pending.empty()) {
-    // No host allocations after submission: descriptors and readback sources
-    // remain stable even when an error requires a subsequent fallback drain.
+    size_t positions = 0;
+    for (auto *p : m_pending)
+      positions = std::max(positions, p->m_position + 1);
+    // No host allocations after submission: descriptors remain stable even
+    // when an error requires a subsequent fallback drain.
     m_jobs.clear();
     m_jobs.reserve(m_pending.size());
-    for (auto *p : m_pending)
-      m_jobs.push_back(p->m_small);
-    if (m_jobs.size() > size_t(std::numeric_limits<int>::max())
-        || m_jobs.size()
-            > std::numeric_limits<size_t>::max() / (2 * sizeof(Result)))
+    if (m_pending.size() > size_t(std::numeric_limits<int>::max()))
       error = cudaErrorInvalidValue;
     else
-      error = reserveResults(m_jobs.size());
+      error = results.reserve(positions, stream);
     if (error == cudaSuccess) {
-      for (size_t i = 0; i < m_jobs.size(); ++i)
-        m_jobs[i].results = m_results.ptrAs<Result>() + 2 * i;
+      for (auto *p : m_pending) {
+        m_jobs.push_back(p->m_small);
+        m_jobs.back().results = results.device(p->m_position);
+      }
       error = m_descriptors.enqueueUpload(m_jobs.data(), m_jobs.size(), stream);
     }
     if (error == cudaSuccess) {
@@ -431,31 +484,13 @@ cudaError_t SmallGeometryBatch::finish(cudaStream_t stream)
           m_descriptors.ptrAs<SmallGeometryJob>());
       error = cudaGetLastError();
     }
-    if (error == cudaSuccess)
-      error = cudaMemcpyAsync(m_readback,
-          m_results.ptr(),
-          2 * m_jobs.size() * sizeof(Result),
-          cudaMemcpyDeviceToHost,
-          stream);
   }
-  const auto completion = cudaStreamSynchronize(stream);
-  for (size_t i = 0; i < m_pending.size(); ++i) {
-    auto *p = m_pending[i];
-    // Scatter only completed results. An intervening wait may flush bounds
-    // before an area request arrives: preserve the other slot in that case.
-    if (error == cudaSuccess && completion == cudaSuccess) {
-      if (p->m_small.bounds)
-        p->m_readback[0] = m_readback[2 * i];
-      if (p->m_small.cdf)
-        p->m_readback[1] = m_readback[2 * i + 1];
-    }
+  for (auto *p : m_pending) {
     p->m_smallQueued = false;
     p->m_small = {};
   }
   m_pending.clear();
-  if (error != cudaSuccess || completion != cudaSuccess)
-    cudaGetLastError();
-  return error == cudaSuccess ? completion : error;
+  return error;
 }
 
 void Preprocessing::enqueueSmall(Geometry *g)
@@ -468,55 +503,86 @@ void Preprocessing::enqueueSmall(Geometry *g)
 
 Preprocessing::~Preprocessing() = default;
 
-bool Preprocessing::reserveReadback(Geometry *g)
+void Preprocessing::submit(Geometry *g)
 {
-  if (m_readback)
-    return true;
-  if (!checkPreparation(g,
-          g->deviceState()->geometryReadbacks.acquire(m_readbackLease),
-          "allocating preparation readback"))
-    return false;
-  m_readback = m_readbackLease.data();
-  return true;
+  m_position = g->deferPreparation();
+  m_status = Status::Pending;
 }
 
-bool Preprocessing::pending() const
+GeometryResults *Preprocessing::reserveResults(Geometry *g)
 {
-  return m_scale || m_total;
+  auto *state = g->deviceState();
+  if (!failPreparationOnError(g,
+          state->preparationResults.reserve(
+              m_position + 1, state->preparation.stream()),
+          "allocating preparation results"))
+    return nullptr;
+  return state->preparationResults.device(m_position);
+}
+
+Preprocessing::Status Preprocessing::status() const
+{
+  return m_status;
+}
+
+float Preprocessing::epsilonScale() const
+{
+  return m_epsilonScale;
+}
+
+float Preprocessing::totalArea() const
+{
+  return m_totalArea;
+}
+
+const float *Preprocessing::areaCdf() const
+{
+  return m_totalArea > 0.f ? m_areaCdf.ptrAs<float>() : nullptr;
+}
+
+void Preprocessing::releaseAreas()
+{
+  m_areasSubmitted = false;
+  m_totalArea = 0.f;
+  m_areaCdf.reset();
 }
 
 bool Preprocessing::complete(Geometry *g)
 {
-  auto *scale = std::exchange(m_scale, nullptr);
-  auto *total = std::exchange(m_total, nullptr);
-  auto *cdf = std::exchange(m_cdf, nullptr);
+  const bool bounds = std::exchange(m_boundsSubmitted, false);
+  const bool areas = std::exchange(m_areasSubmitted, false);
+  m_status = Status::Ready;
   if (g->preparationFailed())
     return false;
-  if (scale && m_readback[0].invalid)
-    return checkPreparation(g, cudaErrorInvalidValue, "non-finite bounds");
-  if (total && !std::isfinite(m_readback[1].value))
-    return checkPreparation(
-        g, cudaErrorInvalidValue, "non-publishable primitive area");
-  if (scale)
-    *scale = m_readback[0].value;
-  if (total) {
-    *total = m_readback[1].value;
-    if (*total == 0.f)
-      cdf->reset();
+  if (!bounds && !areas)
+    return true;
+  const auto &results = g->deviceState()->preparationResults.host(m_position);
+  if (bounds && results.bounds.invalid) {
+    failPreparation(g, cudaErrorInvalidValue, "non-finite bounds");
+    return false;
+  }
+  if (areas && !std::isfinite(results.area.value)) {
+    failPreparation(g, cudaErrorInvalidValue, "non-publishable primitive area");
+    return false;
+  }
+  if (bounds)
+    m_epsilonScale = m_boundsHaveEpsilonScale ? results.bounds.value : 0.f;
+  if (areas) {
+    m_totalArea = results.area.value;
+    if (m_totalArea == 0.f)
+      m_areaCdf.reset();
   }
   return true;
 }
 
 bool Preprocessing::bounds(
-    Geometry *g, const PrimitiveInput &in, DeviceBuffer &aabbs, float &scale)
+    Geometry *g, const PrimitiveInput &in, DeviceBuffer &aabbs)
 {
   const auto stream = g->deviceState()->preparation.stream();
-  scale = 0.f;
-  if (!reserveReadback(g))
-    return false;
-  g->deferPreparation();
-  m_scale = &scale;
-  m_readback[0] = {};
+  m_epsilonScale = 0.f;
+  submit(g);
+  m_boundsSubmitted = true;
+  m_boundsHaveEpsilonScale = in.type != GeometryType::SDF;
   if (in.count > 0 && in.count <= SmallGeometryBatch::MAX_PRIMITIVES) {
     if (!reservePreparation(g, aabbs, in.count * sizeof(box3)))
       return false;
@@ -525,74 +591,64 @@ bool Preprocessing::bounds(
     enqueueSmall(g);
     return true;
   }
-  if (!reservePreparation(g, aabbs, in.count * sizeof(box3))
-      || !reservePreparation(g, m_result, sizeof(Result))
-      || !checkPreparation(g,
-          cudaMemsetAsync(m_result.ptr(), 0, sizeof(Result), stream),
+  if (!reservePreparation(g, aabbs, in.count * sizeof(box3)))
+    return false;
+  auto *results = reserveResults(g);
+  auto *result = results ? &results->bounds : nullptr;
+  if (!result
+      || !failPreparationOnError(g,
+          cudaMemsetAsync(result, 0, sizeof(Result), stream),
           "clearing bounds status"))
     return false;
   if (in.count)
     primitiveBounds<<<(in.count + 255) / 256, 256, 0, stream>>>(
-        in, aabbs.ptrAs<box3>(), m_result.ptrAs<Result>());
-  auto &host = m_readback[0];
-  const bool sdf = in.type == GeometryType::SDF;
-  if (!checkPreparation(g, cudaGetLastError(), "bounds evaluation")
-      || !checkPreparation(g,
-          cudaMemcpyAsync(sdf ? static_cast<void *>(&host.invalid) : &host,
-              sdf ? static_cast<void *>(&m_result.ptrAs<Result>()->invalid)
-                  : m_result.ptr(),
-              sdf ? sizeof(host.invalid) : sizeof(host),
-              cudaMemcpyDeviceToHost,
-              stream),
-          "bounds summary"))
-    return false;
-  return true;
+        in, aabbs.ptrAs<box3>(), result);
+  return failPreparationOnError(g, cudaGetLastError(), "bounds evaluation");
 }
 
-bool Preprocessing::areas(
-    Geometry *g, const PrimitiveInput &in, DeviceBuffer &cdf, float &total)
+bool Preprocessing::areas(Geometry *g, const PrimitiveInput &in)
 {
-  total = 0.f;
+  m_totalArea = 0.f;
   if (in.count == 0) {
-    cdf.reset();
+    m_areaCdf.reset();
     return true;
   }
-  if (in.count > size_t(std::numeric_limits<int>::max()))
-    return checkPreparation(g, cudaErrorInvalidValue, "primitive count");
-  if (!reserveReadback(g))
+  if (in.count > size_t(std::numeric_limits<int>::max())) {
+    failPreparation(g, cudaErrorInvalidValue, "primitive count");
     return false;
-  g->deferPreparation();
-  m_total = &total;
-  m_cdf = &cdf;
-  m_readback[1] = {};
+  }
+  submit(g);
+  m_areasSubmitted = true;
   if (in.count <= SmallGeometryBatch::MAX_PRIMITIVES) {
-    if (!reservePreparation(g, cdf, in.count * sizeof(float)))
+    if (!reservePreparation(g, m_areaCdf, in.count * sizeof(float)))
       return false;
     m_small.areaInput = in;
-    m_small.cdf = cdf.ptrAs<float>();
+    m_small.cdf = m_areaCdf.ptrAs<float>();
     enqueueSmall(g);
     return true;
   }
   const auto stream = g->deviceState()->preparation.stream();
   size_t scratchBytes = 0;
   if (!reservePreparation(g, m_prefix, in.count * sizeof(double))
-      || !reservePreparation(g, cdf, in.count * sizeof(float))
-      || !reservePreparation(g, m_result, sizeof(Result))
-      || !checkPreparation(g,
-          cudaMemsetAsync(m_result.ptr(), 0, sizeof(Result), stream),
+      || !reservePreparation(g, m_areaCdf, in.count * sizeof(float)))
+    return false;
+  auto *results = reserveResults(g);
+  auto *result = results ? &results->area : nullptr;
+  if (!result
+      || !failPreparationOnError(g,
+          cudaMemsetAsync(result, 0, sizeof(Result), stream),
           "clearing area status"))
     return false;
   auto *prefix = m_prefix.ptrAs<double>();
-  auto *result = m_result.ptrAs<Result>();
   primitiveAreas<<<(in.count + 255) / 256, 256, 0, stream>>>(
       in, prefix, result);
-  if (!checkPreparation(g, cudaGetLastError(), "area evaluation")
-      || !checkPreparation(g,
+  if (!failPreparationOnError(g, cudaGetLastError(), "area evaluation")
+      || !failPreparationOnError(g,
           cub::DeviceScan::InclusiveSum(
               nullptr, scratchBytes, prefix, prefix, int(in.count), stream),
           "scan workspace query")
       || !reservePreparation(g, m_scratch, scratchBytes)
-      || !checkPreparation(g,
+      || !failPreparationOnError(g,
           cub::DeviceScan::InclusiveSum(m_scratch.ptr(),
               scratchBytes,
               prefix,
@@ -602,20 +658,10 @@ bool Preprocessing::areas(
           "area scan"))
     return false;
   normalizeAreas<<<(in.count + 255) / 256, 256, 0, stream>>>(
-      prefix, in.count, cdf.ptrAs<float>(), result);
-  if (!checkPreparation(g, cudaGetLastError(), "CDF normalization"))
+      prefix, in.count, m_areaCdf.ptrAs<float>(), result);
+  if (!failPreparationOnError(g, cudaGetLastError(), "CDF normalization"))
     return false;
   publishArea<<<1, 1, 0, stream>>>(result);
-  auto &host = m_readback[1];
-  if (!checkPreparation(g, cudaGetLastError(), "area publication")
-      || !checkPreparation(g,
-          cudaMemcpyAsync(&host.value,
-              &result->value,
-              sizeof(host.value),
-              cudaMemcpyDeviceToHost,
-              stream),
-          "area readback"))
-    return false;
-  return true;
+  return failPreparationOnError(g, cudaGetLastError(), "area publication");
 }
 } // namespace visrtx

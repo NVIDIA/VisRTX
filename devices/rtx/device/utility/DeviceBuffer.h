@@ -73,6 +73,9 @@ struct DeviceBuffer
 
   void reset();
   void reserve(size_t bytes);
+  // Grows storage to at least `bytes` and consumes the CUDA error the attempt
+  // leaves pending. On failure the buffer is empty, so a retry allocates.
+  cudaError_t tryReserve(size_t bytes);
 
   operator bool() const;
 
@@ -128,17 +131,9 @@ inline cudaError_t DeviceBuffer::enqueueUpload(const T *src,
           > (std::numeric_limits<size_t>::max() - byteOffsetStart) / sizeof(T))
     return cudaErrorInvalidValue;
   const auto copyBytes = bytesof<T>(numElements);
-  const auto needed = copyBytes + byteOffsetStart;
-  if (!ptr())
-    reset(); // A failed allocation may retain capacity without storage.
-  if (needed > bytes()) {
-    alloc(needed);
-    const auto error = cudaGetLastError();
-    if (error != cudaSuccess)
-      return error;
-  }
-  if (!ptr() || bytes() < needed)
-    return cudaErrorMemoryAllocation;
+  const auto error = tryReserve(copyBytes + byteOffsetStart);
+  if (error != cudaSuccess)
+    return error;
   return cudaMemcpyAsync(static_cast<uint8_t *>(ptr()) + byteOffsetStart,
       src,
       copyBytes,
@@ -191,6 +186,23 @@ inline void DeviceBuffer::reserve(size_t numBytes)
 {
   if (numBytes > bytes())
     alloc(numBytes);
+}
+
+inline cudaError_t DeviceBuffer::tryReserve(size_t numBytes)
+{
+  if (!ptr())
+    reset(); // reserve()/upload() failures retain capacity without storage.
+  if (numBytes <= bytes())
+    return cudaSuccess;
+  alloc(numBytes);
+  // Consume the runtime error even when missing storage identifies the
+  // failure. Otherwise the next successful CUDA call inherits it.
+  auto error = cudaGetLastError();
+  if (error == cudaSuccess && !ptr())
+    error = cudaErrorMemoryAllocation;
+  if (error != cudaSuccess)
+    reset();
+  return error;
 }
 
 inline DeviceBuffer::operator bool() const

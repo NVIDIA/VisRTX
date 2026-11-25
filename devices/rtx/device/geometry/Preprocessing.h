@@ -32,71 +32,148 @@
 #pragma once
 
 #include <vector>
-#include "ReadbackPool.h"
+#include "PreparationResults.h"
 #include "gpu/gpu_objects.h"
 #include "utility/DeviceBuffer.h"
 
 namespace visrtx {
+struct Array1D;
 struct Geometry;
 
-// GPU views use logical array beginnings, never application allocation bases.
-// Geometry::beginPreparation() completes authored host-array uploads before
-// these views are consumed; kernels need no legacy default-stream dependency.
+// Per-type preprocessing inputs. GPU views use logical array beginnings, never
+// application allocation bases. Geometry::beginPreparation() completes
+// authored host-array uploads before these views are consumed; kernels need no
+// legacy default-stream dependency. A null `indices` means unindexed input.
+
+struct TriangleInput
+{
+  const vec3 *vertices;
+  const uvec3 *indices; // Else consecutive vertex triples.
+};
+
+struct SphereInput
+{
+  const vec3 *vertices;
+  const uint32_t *indices; // Else one sphere per vertex.
+  const float *radii; // Per vertex; else `radius`.
+  float radius;
+};
+
+// The endpoints and caps cones and cylinders share.
+struct SegmentInput
+{
+  const vec3 *vertices;
+  const uvec2 *indices; // Else consecutive vertex pairs.
+  const uint8_t *caps; // Per vertex; else `capFlags`.
+  uint8_t capFlags;
+};
+
+struct ConeInput
+{
+  SegmentInput segments;
+  const float *radii; // Per vertex; required.
+};
+
+struct CylinderInput
+{
+  SegmentInput segments;
+  const float *radii; // Per primitive; else `radius`.
+  float radius;
+};
+
+struct SDFInput
+{
+  const SDFPrimitive *primitives;
+  float blendFactor;
+  float blendLerpFactor;
+  float noiseFactor;
+};
+
+// One geometry's preprocessing input: its primitive count and the input of
+// its type. A tagged union rather than a per-type kernel so that the small
+// geometry batch can mix types in one launch.
 struct PrimitiveInput
 {
   GeometryType type{GeometryType::TRIANGLE};
   size_t count{0};
-  const vec3 *vertices{nullptr};
-  const void *indices{nullptr};
-  const float *radii{nullptr};
-  const uint8_t *caps{nullptr};
-  float radius{0.f};
-  uint8_t capFlags{0};
-  const SDFPrimitive *sdf{nullptr};
-  float blendFactor{1.f};
-  float blendLerpFactor{0.5f};
-  float noiseFactor{0.f};
+  union
+  {
+    TriangleInput triangle;
+    SphereInput sphere;
+    ConeInput cone;
+    CylinderInput cylinder;
+    SDFInput sdf;
+  };
+
+  PrimitiveInput() : triangle{} {}
+  PrimitiveInput(size_t n, const TriangleInput &in)
+      : type(GeometryType::TRIANGLE), count(n), triangle(in)
+  {}
+  PrimitiveInput(size_t n, const SphereInput &in)
+      : type(GeometryType::SPHERE), count(n), sphere(in)
+  {}
+  PrimitiveInput(size_t n, const ConeInput &in)
+      : type(GeometryType::CONE), count(n), cone(in)
+  {}
+  PrimitiveInput(size_t n, const CylinderInput &in)
+      : type(GeometryType::CYLINDER), count(n), cylinder(in)
+  {}
+  PrimitiveInput(size_t n, const SDFInput &in)
+      : type(GeometryType::SDF), count(n), sdf(in)
+  {}
 };
 
-// One block handles one small geometry. Bounds and area inputs are separate:
-// a lazily requested sphere area distribution need not carry vertex positions.
+// Cone and cylinder endpoints: `indices` pairs vertices, else consecutive
+// vertices pair up.
+size_t segmentCount(const Array1D &vertices, const Array1D *indices);
+SegmentInput segmentInput(const Array1D &vertices,
+    const Array1D *indices,
+    const Array1D *caps,
+    uint8_t capFlags);
+
+// One block handles one small geometry. bounds() and areas() fill their halves
+// independently; a half left at zero count is skipped.
 struct SmallGeometryJob
 {
   PrimitiveInput boundsInput;
   PrimitiveInput areaInput;
   box3 *bounds{nullptr};
   float *cdf{nullptr};
-  PreparationResult *results{nullptr};
+  GeometryResults *results{nullptr};
 };
 
 struct Preprocessing;
 
 // Device-owned, single-flight batch. The geometry collection queue retains
-// owners until finish() drains every queued descriptor, kernel and readback.
+// owners until the stream completes every queued descriptor and kernel.
 struct SmallGeometryBatch
 {
   static constexpr size_t MAX_PRIMITIVES = 256;
-  SmallGeometryBatch() = default;
-  ~SmallGeometryBatch();
-  SmallGeometryBatch(const SmallGeometryBatch &) = delete;
-  SmallGeometryBatch &operator=(const SmallGeometryBatch &) = delete;
   void enqueue(Preprocessing *preprocessing);
-  cudaError_t finish(cudaStream_t stream);
+  // Launches every queued job, writing each geometry's results at its queue
+  // position in `results`. Always empties the batch; the caller synchronizes
+  // `stream`.
+  cudaError_t launch(PreparationResults &results, cudaStream_t stream);
 
  private:
   std::vector<Preprocessing *> m_pending;
   std::vector<SmallGeometryJob> m_jobs;
   DeviceBuffer m_descriptors;
-  DeviceBuffer m_results;
-  PreparationResult *m_readback{nullptr};
-  size_t m_readbackCapacity{0};
-  cudaError_t reserveResults(size_t count);
 };
 
-// Per-geometry reusable workspace. Submission retains pinned readback storage;
-// complete() publishes scalar results after the device's collection barrier.
+// Per-geometry reusable workspace and the owner of its scalar results.
+// Submission writes the device's PreparationResults at the geometry's queue
+// position; complete() publishes the epsilon scale, total area and area CDF
+// from their readback after the device's collection barrier.
 struct Preprocessing
 {
+  enum class Status
+  {
+    Ready, // Nothing awaits complete(): published, or its collection failed
+           // and what it was to publish stays zero.
+    Pending, // Submitted results await complete().
+  };
+
   Preprocessing() = default;
   ~Preprocessing();
   Preprocessing(const Preprocessing &) = delete;
@@ -104,38 +181,51 @@ struct Preprocessing
   Preprocessing(Preprocessing &&) = delete;
   Preprocessing &operator=(Preprocessing &&) = delete;
 
-  // Success means queued, not published. Small jobs defer GPU submission to
-  // the next preparation completion boundary. Output references must be owned
-  // by the retained geometry and remain valid until collection completes.
-  bool areas(Geometry *geometry,
-      const PrimitiveInput &input,
-      DeviceBuffer &cdf,
-      float &total);
-  bool bounds(Geometry *geometry,
-      const PrimitiveInput &input,
-      DeviceBuffer &aabbs,
-      float &scale);
+  Status status() const;
+  // Published results. The CDF is null when the total area is zero.
+  float epsilonScale() const;
+  float totalArea() const;
+  const float *areaCdf() const;
 
-  bool pending() const;
+  // Success means queued, not published. Small jobs defer GPU submission to
+  // the next preparation completion boundary. Submission zeroes the result it
+  // replaces until complete() publishes the new one.
+  bool areas(Geometry *geometry, const PrimitiveInput &input);
+  bool bounds(
+      Geometry *geometry, const PrimitiveInput &input, DeviceBuffer &aabbs);
+  // Drops the published area distribution and its storage, and cancels the
+  // publication of an area submission still awaiting complete().
+  void releaseAreas();
   bool complete(Geometry *geometry);
 
  private:
   friend struct SmallGeometryBatch;
-  bool reserveReadback(Geometry *geometry);
   void enqueueSmall(Geometry *geometry);
+  void submit(Geometry *geometry);
+  // Device results for a general-path submission; null after failing it.
+  GeometryResults *reserveResults(Geometry *geometry);
   SmallGeometryJob m_small;
   bool m_smallQueued{false};
-  GeometryReadbackPool::Lease m_readbackLease;
-  PreparationResult *m_readback{nullptr};
-  float *m_scale{nullptr};
-  float *m_total{nullptr};
-  DeviceBuffer *m_cdf{nullptr};
+  // Position in the device's preparation queue, set by submit().
+  size_t m_position{0};
+  Status m_status{Status::Ready};
+  bool m_boundsSubmitted{false};
+  bool m_areasSubmitted{false};
+  // SDF bounds are padded per primitive and carry no epsilon scale.
+  bool m_boundsHaveEpsilonScale{false};
+  float m_epsilonScale{0.f};
+  float m_totalArea{0.f};
+  DeviceBuffer m_areaCdf;
   DeviceBuffer m_prefix;
   DeviceBuffer m_scratch;
-  DeviceBuffer m_result;
 };
 
-bool checkPreparation(
+// Marks the geometry's preparation failed, drains the preparation and render
+// streams so no queued work still targets its storage, and reports the error.
+void failPreparation(
+    Geometry *geometry, cudaError_t error, const char *operation);
+// Returns true on cudaSuccess; otherwise calls failPreparation().
+bool failPreparationOnError(
     Geometry *geometry, cudaError_t error, const char *operation);
 bool reservePreparation(Geometry *geometry, DeviceBuffer &buffer, size_t bytes);
 bool finishPreparation(Geometry *geometry);

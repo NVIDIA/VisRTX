@@ -56,7 +56,7 @@ void Curve::commitParameters()
 
 void Curve::finalize()
 {
-  if (!beginPreparation())
+  if (beginPreparation() != PreparationStart::Prepare)
     return;
   if (!m_vertexPosition) {
     reportMessage(ANARI_SEVERITY_WARNING,

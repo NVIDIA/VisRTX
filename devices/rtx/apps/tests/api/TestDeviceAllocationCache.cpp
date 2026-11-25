@@ -40,8 +40,10 @@
 #include <mutex>
 #include <stdexcept>
 #include <thread>
+#include <utility>
 #include <vector>
 #include "../../../device/utility/DeviceAllocationCache.h"
+#include "../../../device/utility/DeviceBuffer.h"
 #include "../../../device/utility/MemoryAllocation.h"
 
 namespace {
@@ -283,6 +285,35 @@ int main()
     ok = threw && cache.reclaim(complete) == cudaSuccess && ok;
   }
   {
+    // Reusing a block while a cohort is frozen and a later return waits must
+    // leave each of the other two where it was.
+    DeviceAllocationCache cache;
+    void *ready = nullptr, *frozen = nullptr, *waiting = nullptr, *p = nullptr;
+    ok = cache.allocate(32, &ready) == cudaSuccess && ok;
+    ok = cache.allocate(48, &frozen) == cudaSuccess && ok;
+    ok = cache.allocate(64, &waiting) == cudaSuccess && ok;
+    cache.release(ready, 32);
+    ok = cache.reclaim(complete) == cudaSuccess && ok;
+    cache.release(frozen, 48);
+    ok = cache.reclaim([&] {
+      cache.release(waiting, 64);
+      ok = cache.allocate(32, &p) == cudaSuccess && p == ready && ok;
+      ok = cache.allocate(48, &p) == cudaSuccess && p != frozen && ok;
+      cache.release(p, 48);
+      return cudaSuccess;
+    }) == cudaSuccess
+        && ok;
+    ok = cache.allocate(48, &p) == cudaSuccess && p == frozen && ok;
+    void *other = nullptr;
+    ok = cache.allocate(64, &other) == cudaSuccess && other != waiting && ok;
+    ok = cache.reclaim(complete) == cudaSuccess && ok;
+    void *q = nullptr;
+    ok = cache.allocate(64, &q) == cudaSuccess && q == waiting && ok;
+    for (auto [pointer, bytes] :
+        {std::pair{ready, 32}, {p, 48}, {other, 64}, {q, 64}})
+      cache.release(pointer, bytes);
+  }
+  {
     DeviceAllocationCache cache;
     void *p = nullptr;
     ok = cache.allocate(32, &p) == cudaSuccess && ok;
@@ -315,6 +346,23 @@ int main()
       visrtx::CudaMemoryAllocation captured(p, 32, capturedDelete);
     }
     ok = capturedDeletes == 1 && ok;
+  }
+  {
+    // A failed reservation leaves the buffer empty, consumes the runtime
+    // error, and lets the same size be retried.
+    visrtx::DeviceBuffer buffer;
+    failBytes = 96;
+    ok = buffer.tryReserve(96) == cudaErrorMemoryAllocation && !buffer
+        && buffer.bytes() == 0 && cudaGetLastError() == cudaSuccess && ok;
+    ok = buffer.tryReserve(96) == cudaSuccess && buffer && buffer.bytes() >= 96
+        && ok;
+    const auto *storage = buffer.ptr();
+    ok = buffer.tryReserve(48) == cudaSuccess && buffer.ptr() == storage
+        && buffer.tryReserve(0) == cudaSuccess && buffer.ptr() == storage && ok;
+    failBytes = 192;
+    ok = buffer.tryReserve(192) == cudaErrorMemoryAllocation && !buffer
+        && buffer.bytes() == 0 && cudaGetLastError() == cudaSuccess && ok;
+    ok = buffer.tryReserve(192) == cudaSuccess && buffer.bytes() >= 192 && ok;
   }
   ok = allocations == frees && ok;
   std::printf("allocation cache allocations=%d frees=%d syncs=%d %s\n",

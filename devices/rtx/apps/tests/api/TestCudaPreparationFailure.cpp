@@ -50,7 +50,7 @@
 #include <string>
 #include <thread>
 #include <vector>
-#include "../../../device/geometry/ReadbackPool.h"
+#include "../../../device/geometry/PreparationResults.h"
 
 namespace {
 enum class Failure
@@ -183,22 +183,18 @@ void complete(const void *, ANARIDevice, ANARIFrame)
 }
 } // namespace
 
+// Bytes of the first device or pinned allocation of geometry results.
+constexpr size_t RESULTS_BYTES =
+    visrtx::PreparationResults::MIN_CAPACITY * sizeof(visrtx::GeometryResults);
+
 extern "C" cudaError_t cudaMallocHost(void **ptr, size_t bytes)
 {
-  // BVH results contain six bounds floats and a 64-bit compaction size.
-  constexpr size_t bvhPageBytes = 2
-      * visrtx::GeometryReadbackPool::SLOTS_PER_PAGE
-      * (6 * sizeof(float) + sizeof(uint64_t));
-  if (bytes == bvhPageBytes && inject(Failure::BVH_PINNED_ALLOCATION)) {
-    *ptr = nullptr;
-    return next<decltype(&cudaMallocHost)>("cudaMallocHost")(ptr, size_t(-1));
-  }
-  constexpr size_t readbackPageBytes = 2
-      * visrtx::GeometryReadbackPool::SLOTS_PER_PAGE
-      * sizeof(visrtx::PreparationResult);
-  if ((bytes == readbackPageBytes && inject(Failure::READBACK_ALLOCATION))
-      || (bytes == 4 * sizeof(visrtx::PreparationResult)
-          && inject(Failure::SMALL_PINNED_ALLOCATION))) {
+  // The BVH readback holds six bounds floats and a 64-bit compaction size.
+  constexpr size_t BVH_BYTES = 6 * sizeof(float) + sizeof(uint64_t);
+  if ((bytes == BVH_BYTES && inject(Failure::BVH_PINNED_ALLOCATION))
+      || (bytes == RESULTS_BYTES
+          && (inject(Failure::READBACK_ALLOCATION)
+              || inject(Failure::SMALL_PINNED_ALLOCATION)))) {
     *ptr = nullptr;
     return next<decltype(&cudaMallocHost)>("cudaMallocHost")(ptr, size_t(-1));
   }
@@ -315,13 +311,11 @@ extern "C" cudaError_t cudaMemcpyAsync(void *dst,
     }
   }
   if (failure == Failure::PREPARATION_EARLY_SYNC && stream == preparationStream
-      && kind == cudaMemcpyDeviceToHost
-      && (bytes == sizeof(visrtx::PreparationResult)
-          || (bytes && bytes % (2 * sizeof(visrtx::PreparationResult)) == 0))
+      && kind == cudaMemcpyDeviceToHost && bytes
+      && bytes % sizeof(visrtx::GeometryResults) == 0
       && !pendingCompletion.queued) {
-    // Gate either the general bounds summary or the consolidated small-batch
-    // summary after kernel submission. No subsequent allocation or pageable
-    // copy can supply a hidden wait.
+    // Gate the consolidated results readback after kernel submission. No
+    // subsequent allocation or pageable copy can supply a hidden wait.
     auto error = cudaLaunchHostFunc(stream, blockPreparation, nullptr);
     if (error != cudaSuccess)
       return error;
@@ -377,6 +371,16 @@ extern "C" cudaError_t cudaStreamSynchronize(cudaStream_t stream)
   return result;
 }
 
+// Retirement synchronizes the render stream only when a query finds it busy,
+// and it is idle whenever a test arms WORK_SYNC. Report it busy so the wait
+// that carries the injected failure happens.
+extern "C" cudaError_t cudaStreamQuery(cudaStream_t stream)
+{
+  if (stream && stream != preparationStream && failure == Failure::WORK_SYNC)
+    return cudaErrorNotReady;
+  return next<decltype(&cudaStreamQuery)>("cudaStreamQuery")(stream);
+}
+
 int main(int argc, char **argv)
 {
   const bool pendingRetirement =
@@ -389,6 +393,11 @@ int main(int argc, char **argv)
       sphereFailure && std::strcmp(argv[1], "sphere-undrained-completion") == 0;
   const bool batchCompletion =
       sphereFailure && std::strncmp(argv[1], "sphere-batch-", 13) == 0;
+  // Over SmallGeometryBatch::MAX_PRIMITIVES: results are reserved at
+  // submission (general path), not at small-batch launch.
+  const bool generalResults = sphereFailure
+      && (std::strcmp(argv[1], "sphere-readback-allocation") == 0
+          || std::strcmp(argv[1], "sphere-result-allocation") == 0);
   const bool inputBatchCompletion = batchCompletion
       && std::strcmp(argv[1], "sphere-batch-input-completion") == 0;
   const bool batchUploadCompletion = batchCompletion
@@ -459,6 +468,13 @@ int main(int argc, char **argv)
     anari::commitParameters(d, field);
     anari::setAndReleaseParameter(d, geometry, "field", field);
     anari::setParameter(d, geometry, "isovalue", 3.5f);
+  } else if (generalResults) {
+    std::vector<vec3> positions(300);
+    for (size_t i = 0; i < positions.size(); ++i)
+      positions[i] = {float(i % 20) * 0.1f - 1.f, float(i / 20) * 0.1f, 0.f};
+    anari::setParameterArray1D(
+        d, geometry, "vertex.position", positions.data(), positions.size());
+    anari::setParameter(d, geometry, "radius", 0.1f);
   } else {
     anari::setParameter(d, geometry, "vertex.position", array);
     anari::setParameter(d, geometry, "radius", observerRecovery ? 0.2f : 0.1f);
@@ -652,6 +668,11 @@ int main(int argc, char **argv)
     if (sphereFailure
         && std::strcmp(argv[1], "sphere-readback-allocation") == 0)
       failure = Failure::READBACK_ALLOCATION;
+    if (sphereFailure
+        && std::strcmp(argv[1], "sphere-result-allocation") == 0) {
+      allocationBytes = RESULTS_BYTES; // Device side of the reservation.
+      failure = Failure::ALLOCATION;
+    }
     if ((sphereFailure && std::strcmp(argv[1], "sphere-completion") == 0)
         || batchCompletion)
       failure = Failure::PREPARATION_SYNC;
@@ -666,8 +687,7 @@ int main(int argc, char **argv)
       failure = Failure::SMALL_READBACK;
     if (sphereFailure
         && std::strcmp(argv[1], "sphere-batch-small-result-allocation") == 0) {
-      allocationBytes =
-          4 * sizeof(visrtx::PreparationResult); // Two geometries.
+      allocationBytes = RESULTS_BYTES; // Device results of both geometries.
       failure = Failure::ALLOCATION;
     }
     if (sphereFailure
@@ -762,6 +782,30 @@ int main(int argc, char **argv)
       anari::setParameter(d, geometry, "radius", 0.4f);
       anari::commitParameters(d, geometry);
       ok = haveBounds() && errors == retirementErrors && ok;
+    }
+    if (observerRecovery) {
+      // An observer-only update: no commit captures the dirty array, so the
+      // geometry's own finalize uploads it. A failed copy or completion there
+      // fails that finalize only; the next observer update retries without a
+      // geometry commit.
+      for (const auto kind : {Failure::UPLOAD_COPY, Failure::UPLOAD_SYNC}) {
+        const int errorsBefore = errors;
+        const int copiesBefore = uploadCopies;
+        const int injectionsBefore = injections;
+        uploadQueued = false;
+        failure = kind;
+        if (!anariMapArray(d, array))
+          return 1;
+        anariUnmapArray(d, array);
+        ok = !haveBounds() && injections == injectionsBefore + 1
+            && errors == errorsBefore + 1 && uploadCopies == copiesBefore + 1
+            && ok;
+        if (!anariMapArray(d, array))
+          return 1;
+        anariUnmapArray(d, array);
+        ok = haveBounds() && errors == errorsBefore + 1
+            && uploadCopies == copiesBefore + 2 && !uploadOnWrongStream && ok;
+      }
     }
     anari::release(d, array);
   } else {

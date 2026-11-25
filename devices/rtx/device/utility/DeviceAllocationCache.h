@@ -35,17 +35,17 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
-#include <memory>
 #include <mutex>
+#include <nonstd/scope.hpp>
 
 namespace visrtx {
 
 // Device-local cache for backend-owned authored-array uploads only. Returning
-// storage NEVER makes it reusable immediately. A frozen pending cohort becomes
-// reusable only after deferred CPU submissions and all GPU consumers complete.
-// Call allocate/reclaim in the owning device's CUDA context; scene updates and
-// reclaim calls are serialized. No mutex is held across CUDA calls or
-// callbacks.
+// storage NEVER makes it reusable immediately: reclaim() freezes the blocks
+// returned so far, and they become reusable only after deferred CPU
+// submissions and all GPU consumers complete. Call allocate/reclaim in the
+// owning device's CUDA context; scene updates and reclaim calls are
+// serialized. No mutex is held across CUDA calls or callbacks.
 struct DeviceAllocationCache
 {
   static constexpr size_t MAX_BLOCKS = 256;
@@ -68,20 +68,20 @@ struct DeviceAllocationCache
     void *pointer{nullptr};
     size_t bytes{0};
   };
-  bool trimReady();
-  void finishCohort(
-      const std::array<Block, MAX_BLOCKS> &cohort, size_t count, bool reusable);
+  void *remove(size_t index);
+  bool freeBlocks(bool readyOnly);
   const size_t m_byteLimit;
   const size_t m_blockLimit;
   std::mutex m_mutex;
   bool m_enabled{true};
-  // Counts include a frozen cohort while reclaim() is outside the lock.
   size_t m_cachedBytes{0};
-  size_t m_cachedBlocks{0};
-  size_t m_pendingCount{0};
-  size_t m_readyCount{0};
-  std::array<Block, MAX_BLOCKS> m_pending;
-  std::array<Block, MAX_BLOCKS> m_ready;
+  // m_blocks holds three runs: [0, m_readyEnd) is reusable, [m_readyEnd,
+  // m_frozenEnd) is the cohort a reclaim() in progress froze, and
+  // [m_frozenEnd, m_count) was returned since and waits for the next one.
+  size_t m_readyEnd{0};
+  size_t m_frozenEnd{0};
+  size_t m_count{0};
+  std::array<Block, MAX_BLOCKS> m_blocks;
 };
 
 inline DeviceAllocationCache::DeviceAllocationCache(
@@ -101,18 +101,15 @@ inline cudaError_t DeviceAllocationCache::allocate(size_t bytes, void **pointer)
     return cudaSuccess;
   {
     std::lock_guard<std::mutex> lock(m_mutex);
-    for (size_t i = 0; i < m_readyCount; ++i) {
-      if (m_ready[i].bytes == bytes) {
-        *pointer = m_ready[i].pointer;
-        m_ready[i] = m_ready[--m_readyCount];
-        m_cachedBytes -= bytes;
-        --m_cachedBlocks;
+    for (size_t i = 0; i < m_readyEnd; ++i) {
+      if (m_blocks[i].bytes == bytes) {
+        *pointer = remove(i);
         return cudaSuccess;
       }
     }
   }
   auto error = cudaMalloc(pointer, bytes);
-  if (error == cudaErrorMemoryAllocation && trimReady()) {
+  if (error == cudaErrorMemoryAllocation && freeBlocks(true)) {
     // Release only certified idle blocks. Pending blocks are not safe to hand
     // back without a completion boundary, and are never borrowed on failure.
     cudaGetLastError();
@@ -128,11 +125,10 @@ inline void DeviceAllocationCache::release(void *pointer, size_t bytes)
     return;
   {
     std::lock_guard<std::mutex> lock(m_mutex);
-    if (m_enabled && m_cachedBlocks < m_blockLimit
+    if (m_enabled && m_count < m_blockLimit
         && bytes <= m_byteLimit - m_cachedBytes) {
-      m_pending[m_pendingCount++] = {pointer, bytes};
+      m_blocks[m_count++] = {pointer, bytes};
       m_cachedBytes += bytes;
-      ++m_cachedBlocks;
       return;
     }
   }
@@ -144,93 +140,75 @@ template <typename CompleteDeferred>
 inline cudaError_t DeviceAllocationCache::reclaim(
     CompleteDeferred completeDeferred)
 {
-  std::array<Block, MAX_BLOCKS> cohort;
-  size_t count = 0;
   {
     std::lock_guard<std::mutex> lock(m_mutex);
-    count = m_pendingCount;
-    if (!count)
+    if (m_frozenEnd == m_count)
       return cudaSuccess;
-    std::copy_n(m_pending.begin(), count, cohort.begin());
-    m_pendingCount = 0;
+    m_frozenEnd = m_count;
   }
   bool reusable = false;
-  // Restores the frozen cohort to pending on host exceptions too. This guard
-  // borrows the cache; its deleter returns blocks rather than deleting this.
-  auto restore = [&](DeviceAllocationCache *) {
-    finishCohort(cohort, count, reusable);
-  };
-  std::unique_ptr<DeviceAllocationCache, decltype(restore)> guard(
-      this, restore);
+  // Runs on host exceptions too: a cohort that was not certified idle goes
+  // back to waiting.
+  auto finish = nonstd::make_scope_exit([&] {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    if (reusable)
+      m_readyEnd = m_frozenEnd;
+    else
+      m_frozenEnd = m_readyEnd;
+  });
   auto error = completeDeferred();
-  // Legacy consumers and application-visible array pointers need the same
-  // conservative device-wide retirement cudaFree previously provided per block.
-  // One boundary covers the cohort; later returns remain pending for next time.
+  // These blocks used to be retired by cudaFree, which waits for the whole
+  // context. One wait of the same reach covers the cohort without a list of
+  // the streams that may have read it; later returns wait for the next
+  // reclaim().
   if (error == cudaSuccess)
     error = cudaDeviceSynchronize();
   reusable = error == cudaSuccess;
   return error;
 }
 
-inline void DeviceAllocationCache::finishCohort(
-    const std::array<Block, MAX_BLOCKS> &cohort, size_t count, bool reusable)
+// Call with the mutex held. The hole is filled from the end of the block's own
+// run, then from the end of each later run, so the three stay contiguous.
+inline void *DeviceAllocationCache::remove(size_t index)
 {
-  bool freeCohort = false;
-  {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    freeCohort = !m_enabled;
-    for (size_t i = 0; i < count; ++i) {
-      const auto block = cohort[i];
-      if (freeCohort) {
-        m_cachedBytes -= block.bytes;
-        --m_cachedBlocks;
-      } else if (reusable)
-        m_ready[m_readyCount++] = block;
-      else
-        m_pending[m_pendingCount++] = block;
-    }
+  const auto block = m_blocks[index];
+  if (index < m_readyEnd) {
+    m_blocks[index] = m_blocks[--m_readyEnd];
+    index = m_readyEnd;
   }
-  if (freeCohort)
-    for (size_t i = 0; i < count; ++i)
-      cudaFree(cohort[i].pointer);
+  if (index < m_frozenEnd) {
+    m_blocks[index] = m_blocks[--m_frozenEnd];
+    index = m_frozenEnd;
+  }
+  m_blocks[index] = m_blocks[--m_count];
+  m_cachedBytes -= block.bytes;
+  return block.pointer;
 }
 
-inline bool DeviceAllocationCache::trimReady()
+// Frees the reusable blocks, or every block. Returns whether any was freed.
+inline bool DeviceAllocationCache::freeBlocks(bool readyOnly)
 {
-  std::array<Block, MAX_BLOCKS> blocks;
-  size_t count = 0;
-  {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    count = m_readyCount;
-    std::copy_n(m_ready.begin(), count, blocks.begin());
-    m_readyCount = 0;
-    m_cachedBlocks -= count;
-    for (size_t i = 0; i < count; ++i)
-      m_cachedBytes -= blocks[i].bytes;
+  bool freed = false;
+  for (;;) {
+    void *pointer = nullptr;
+    {
+      std::lock_guard<std::mutex> lock(m_mutex);
+      if ((readyOnly ? m_readyEnd : m_count) == 0)
+        return freed;
+      pointer = remove(0);
+    }
+    cudaFree(pointer);
+    freed = true;
   }
-  for (size_t i = 0; i < count; ++i)
-    cudaFree(blocks[i].pointer);
-  return count != 0;
 }
 
 inline void DeviceAllocationCache::close()
 {
-  std::array<Block, MAX_BLOCKS> blocks;
-  size_t count = 0;
   {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_enabled = false;
-    for (size_t i = 0; i < m_pendingCount; ++i)
-      blocks[count++] = m_pending[i];
-    for (size_t i = 0; i < m_readyCount; ++i)
-      blocks[count++] = m_ready[i];
-    m_pendingCount = m_readyCount = 0;
-    m_cachedBlocks -= count;
-    for (size_t i = 0; i < count; ++i)
-      m_cachedBytes -= blocks[i].bytes;
   }
-  for (size_t i = 0; i < count; ++i)
-    cudaFree(blocks[i].pointer);
+  freeBlocks(false);
 }
 
 } // namespace visrtx

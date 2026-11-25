@@ -58,7 +58,7 @@ void Quad::commitParameters()
 
 void Quad::finalize()
 {
-  if (!beginPreparation())
+  if (beginPreparation() != PreparationStart::Prepare)
     return;
   if (!m_vertex) {
     reportMessage(ANARI_SEVERITY_WARNING,
