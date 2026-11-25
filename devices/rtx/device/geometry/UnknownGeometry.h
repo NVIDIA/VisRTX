@@ -47,6 +47,7 @@ struct UnknownGeometry : public Geometry
   bool isValid() const override;
 
  private:
+  bool prepare() override;
   GeometryGPUData gpuData() const override;
 };
 

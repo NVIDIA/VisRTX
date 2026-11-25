@@ -80,9 +80,14 @@ struct Group : public Object
   // area-samplable ones (Stage 1.5: Sphere) are also Geometry Light candidates.
   const std::vector<Surface *> &surfacesUser() const;
 
+  // For a caller with no build step's result in hand: one publishing bounds
+  // or a frame. It walks every surface.
   bool preparationFailed() const;
-  void rebuildSurfaceBVHs();
-  void rebuildVolumeBVH();
+  // Each returns false when this group's BVHs of that kind cannot be used: a
+  // surface's geometry failed preparation, or a build failed now or in the
+  // last attempt.
+  bool rebuildSurfaceBVHs();
+  bool rebuildVolumeBVH();
   void rebuildLights();
 
  private:

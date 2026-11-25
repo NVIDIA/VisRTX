@@ -56,30 +56,27 @@ void Quad::commitParameters()
   commitAttributes("vertex.", m_vertexAttributes);
 }
 
-void Quad::finalize()
+bool Quad::prepare()
 {
-  if (beginPreparation() != PreparationStart::Prepare)
-    return;
   if (!m_vertex) {
     reportMessage(ANARI_SEVERITY_WARNING,
         "missing required parameter 'vertex.position' on quad geometry");
-    return;
+    return false;
   }
 
   if (!m_index && m_vertex->size() % 4 != 0) {
     reportMessage(ANARI_SEVERITY_ERROR,
         "'vertex.position' on quad geometry is a non-multiple of 4"
         " without 'primitive.index' present");
-    return;
+    return false;
   }
 
   reportMessage(ANARI_SEVERITY_DEBUG,
       "finalizing %s quad geometry",
       m_index ? "indexed" : "soup");
 
-  generateIndices();
-  if (preparationFailed())
-    return;
+  if (!generateIndices())
+    return false;
 
   if (m_vertexTangent && m_vertex->size() != m_vertexTangent->size()) {
     reportMessage(ANARI_SEVERITY_WARNING,
@@ -94,7 +91,7 @@ void Quad::finalize()
 
   m_vertexBufferPtr = (CUdeviceptr)m_vertex->beginAs<vec3>(AddressSpace::GPU);
 
-  upload();
+  return true;
 }
 
 bool Quad::isValid() const
@@ -146,11 +143,11 @@ GeometryGPUData Quad::gpuData() const
   return retval;
 }
 
-void Quad::generateIndices()
+bool Quad::generateIndices()
 {
   const size_t n = m_index ? m_index->size() : m_vertex->size() / 4;
   m_numTriangles = 2 * n;
-  generateQuadIndices(this,
+  return generateQuadIndices(this,
       m_index ? m_index->beginAs<uvec4>(AddressSpace::GPU) : nullptr,
       n,
       m_indices);

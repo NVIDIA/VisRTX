@@ -44,24 +44,20 @@ struct Triangle : public Geometry
   ~Triangle() override;
 
   void commitParameters() override;
-  void finalize() override;
   bool isValid() const override;
 
   void populateBuildInput(OptixBuildInput &) const override;
 
   int optixGeometryType() const override;
 
-  // Build the per-primitive area CDF and object-space total area used to sample
-  // this geometry as a Geometry Light. Lazy: only Emissive Surfaces call it, so
-  // ordinary meshes never pay for it. Re-uploads GPU data to publish the CDF.
-  bool isAreaSamplingSupported() const override;
-  void ensureAreaData() override;
-  float totalArea() const override;
-
  private:
+  bool prepare() override;
   GeometryGPUData gpuData() const override;
   void cleanup();
-  void buildAreaData();
+  // Geometry Light sampling: the normalized cumulative object-space area over
+  // triangles.
+  std::optional<PrimitiveInput> areaInput() const override;
+  size_t primitiveCount() const;
 
   // Generate tangents that follow attribute0 when none were authored, into
   // the per-vertex or per-corner finalized buffer (see ComputeTangent.h).
@@ -89,13 +85,6 @@ struct Triangle : public Geometry
   CUdeviceptr m_vertexBufferPtr{};
 
   bool m_cullBackfaces{false};
-
-  // Geometry Light sampling data, built lazily by ensureAreaData(). The CDF is
-  // the normalized cumulative object-space area over primitives.
-  // m_areaDataWanted persists across recommits so a re-finalize rebuilds it
-  // order-independently.
-  bool m_areaDataValid{false};
-  bool m_areaDataWanted{false};
 };
 
 } // namespace visrtx

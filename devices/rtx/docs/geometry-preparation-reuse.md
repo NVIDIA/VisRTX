@@ -105,10 +105,29 @@ boundaries and local result interpretation; no historical baseline is required.
 
 Checked geometry preprocessing (bounds, area CDFs, generated quad/curve indices
 and radii, and SDF alignment) and OptiX BVH build/compaction use one device-owned
-nonblocking preparation stream. `utility/PreparationStream.h` owns its lifetime
-and the event used to import producer dependencies. Scene-update submission is
-serialized; each event wait captures the corresponding record before the event
-is reused.
+nonblocking preparation stream. `PreparationStream`
+(`utility/PreparationStream.h`, the member
+`DeviceGlobalState::preparationStream`) owns its lifetime, the event used to
+import producer dependencies and the pinned BVH readback. BVH builds, registry
+uploads and world-table uploads use it directly: `stream()`,
+`orderAfterRender()`, `orderAfter()`, `sync()`, `upload()` and `readback()`.
+`orderAfterRender()` is the one render-ordering call; it skips the event wait
+when `cudaStreamQuery` reports the render stream idle. `upload()` orders its
+copies after rendering itself and takes that wait even on an idle render
+stream. Scene-update submission is serialized; each event wait captures the corresponding record before the
+event is reused.
+
+`GeometryPreparation` (`geometry/GeometryPreparation.h`, the member
+`DeviceGlobalState::preparation`) holds a reference to that stream and owns the
+two collection queues, the small-geometry batch, the scalar results and the
+input allocation cache. Its header describes one scene update as one
+transaction (commit, upload, submit, collect) and is the place to read the
+lifecycle. Other code sees a small surface: `collect()` and `busy()`;
+`waitForHostReaders()` and `waitForDeviceReaders()` for array privatization;
+`fail()`, `check()`, `reject()` and `finish()` for geometry code; `defer()`,
+`deferSmall()`, `deviceResults()` and `hostResults()` for `Preprocessing`. The
+steps that `Geometry` and the owner call on each other are private on both
+sides. Nothing in it locks: calls are serialized by the scene-update path.
 
 - Full preparation imports prior render work before overwriting derived buffers.
 - For the seven opt-in geometry types, parameter commits capture references to
@@ -149,14 +168,15 @@ is reused.
   published only on success. Group/World failure state prevents failed builds
   from being treated as ready and permits a later retry.
 - Parameter-reference replacement and last-public-release privatization require
-  completed old render consumers. `DeviceGlobalState::retireRenderConsumers()`
+  completed old render consumers. `GeometryPreparation::retireRender()`
   asks `cudaStreamQuery` whether the render stream is idle and synchronizes it
   only when it is not, so frame submission, denoising, channel resolution,
   transfer-function opacity bounds and isosurface brick preparation need no
   bookkeeping of their own. A failed query never counts as idle: it takes the
   synchronize and reports that result. Scene submission remains serialized.
-  Error handling uses unconditional drains, not the query, before storage can
-  be retired or retried.
+  Handling a CUDA error uses unconditional drains, not the query, before
+  storage can be retired or retried. Rejected input (`reject()`) is not a CUDA
+  error and does no stream work.
 
 The existing shared-array, privatization, frame, denoiser and isosurface tests
 exercise the producer paths.
@@ -260,7 +280,7 @@ share a descriptor when both arrive before the completion boundary. Requests
 above 256 primitives retain the general multi-block/CUB path. Zero-count
 handling is unchanged. SDF bounds retain their zero epsilon-scale convention.
 
-Every `finishGeometryPreparation()` flushes these descriptors before waiting,
+Every `GeometryPreparation::flush()` flushes these descriptors before waiting,
 including intervening upload waits and shared-array privatization. This is
 necessary because a queued descriptor still references its original inputs even
 before GPU work has been launched. Collection retains owners through descriptor
@@ -295,7 +315,7 @@ property or shared production area helper is used by the oracle.
 
 `PreparationResults` holds two results per queued geometry: bounds (epsilon
 scale and validity) and total area. Kernels write its device storage; every
-`finishGeometryPreparation()` that follows a write copies the queued range to
+`GeometryPreparation::flush()` that follows a write copies the queued range to
 pinned host storage in one transfer, then synchronizes. `complete()` reads the
 host copy at the geometry's queue position. There is no per-geometry pinned
 storage and no host-side copy between pinned buffers. Device and pinned storage
@@ -313,7 +333,7 @@ and growth allocation failure and retry on either side, preservation across
 growth, rewrites between readbacks and the readback range.
 
 BVH builds read back their bounds and compacted size through one pinned
-`BvhReadback` owned by the device state. The first build allocates it; builds are
+block owned by `PreparationStream`. The first build allocates it; builds are
 serialized and complete before returning, so no transfer outlives a build.
 
 Committed host inputs now complete in a cross-geometry batch before finalizers

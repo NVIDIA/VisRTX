@@ -69,7 +69,7 @@ int main()
   cudaStream_t other{};
   cudaEvent_t done{};
   int *device = nullptr;
-  if (!check(preparation.initialize())
+  if (!check(preparation.initialize(nullptr))
       || !check(cudaStreamCreateWithFlags(&other, cudaStreamNonBlocking))
       || !check(cudaEventCreateWithFlags(&done, cudaEventDisableTiming))
       || !check(
@@ -86,7 +86,7 @@ int main()
     const cudaStream_t producer = mode == 2 ? nullptr : other;
     ok =
         check(cudaMemsetAsync(device, 0, 2 * sizeof(int), preparation.stream()))
-        && check(preparation.finish()) && ok;
+        && check(preparation.sync()) && ok;
     Gate gate;
     // Watchdog is a deadlock escape, not a latency assertion. A stream-wide
     // or device-wide accidental wait must fail rather than hang the suite.
@@ -103,11 +103,11 @@ int main()
     int result = 0;
     if (dependency) {
       ok = check(cudaMemsetAsync(device, 0x2a, sizeof(int), producer)) && ok;
-      ok = check(preparation.waitFor(producer)) && ok;
+      ok = check(preparation.orderAfter(producer)) && ok;
     } else {
       // Importing the default stream must not join an unrelated nonblocking
       // stream. The mode above separately tests a pending default producer.
-      ok = check(preparation.waitFor(nullptr)) && ok;
+      ok = check(preparation.orderAfter(nullptr)) && ok;
       ok = check(
                cudaMemsetAsync(device, 0x2a, sizeof(int), preparation.stream()))
           && ok;
@@ -126,7 +126,7 @@ int main()
     if (dependency)
       ok = cudaEventQuery(done) == cudaErrorNotReady && ok;
     else {
-      ok = check(preparation.finish()) && ok;
+      ok = check(preparation.sync()) && ok;
       ok = cudaStreamQuery(other) == cudaErrorNotReady && ok;
     }
     {
@@ -135,13 +135,13 @@ int main()
     }
     gate.condition.notify_one();
     watchdog.join();
-    ok = !gate.timedOut && check(preparation.finish()) && ok;
+    ok = !gate.timedOut && check(preparation.sync()) && ok;
     ok = check(cudaMemcpyAsync(&result,
              device + 1,
              sizeof(result),
              cudaMemcpyDeviceToHost,
              preparation.stream()))
-        && check(preparation.finish()) && result == 0x2a2a2a2a && ok;
+        && check(preparation.sync()) && result == 0x2a2a2a2a && ok;
     ok = check(cudaStreamSynchronize(producer)) && ok;
   }
   cudaFree(device);

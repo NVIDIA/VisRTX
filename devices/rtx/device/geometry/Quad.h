@@ -43,7 +43,6 @@ struct Quad : public Geometry
   ~Quad() override;
 
   void commitParameters() override;
-  void finalize() override;
   bool isValid() const override;
 
   void populateBuildInput(OptixBuildInput &) const override;
@@ -51,8 +50,9 @@ struct Quad : public Geometry
   int optixGeometryType() const override;
 
  private:
+  bool prepare() override;
   GeometryGPUData gpuData() const override;
-  void generateIndices();
+  bool generateIndices();
   void generateTangents();
 
   DeviceBuffer m_indices;

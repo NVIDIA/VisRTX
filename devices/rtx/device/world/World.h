@@ -57,17 +57,22 @@ struct World : public Object
 
   WorldGPUData gpuData() const;
 
+  // For a caller with no build step's result in hand: one publishing a frame
+  // or a property. It walks every surface of every instance.
   bool preparationFailed() const;
   void rebuildWorld();
 
  private:
+  // The build steps that can fail return false when they did; rebuildWorld()
+  // stops at the first. A failed BVH build or upload also sets
+  // m_bvhBuildFailed, which is what preparationFailed() reports afterwards.
   template <typename... Arrays>
   bool uploadArrays(Arrays &...arrays);
-  void populateOptixInstances();
-  void rebuildBLASs();
+  bool populateOptixInstances();
+  bool rebuildBLASs();
   void buildInstanceSurfaceGPUData();
   void buildInstanceVolumeGPUData();
-  void buildInstanceLightGPUData();
+  bool buildInstanceLightGPUData();
   // Power-proportional Light Pick over the light instances buildInstanceLight-
   // GPUData laid out. Split from it because the Pick Power of an infinite light
   // is scaled by the scene radius, which is an OUTPUT of the TLAS build, while
@@ -77,12 +82,13 @@ struct World : public Object
   // World bounds of the ILLUMINATED scene: geometry and volumes, with the
   // light-proxy instance excluded. See the definition for why this is a second
   // acceleration-structure build rather than a subtraction.
-  void buildIlluminatedBounds();
+  bool buildIlluminatedBounds();
   // Builds the analytic area-light proxy records, their AABBs and their BLAS
   // (ADR 0009). Must run after buildInstanceLightGPUData: proxies reference
   // light-instance slots by index.
-  void buildLightProxies();
-  void synthesizeGeometryLights();
+  bool buildLightProxies();
+  // False when a geometry whose emitting area it asked for failed.
+  bool synthesizeGeometryLights();
   size_t countGeometryLights(Group *group) const;
   void cleanup();
 
@@ -171,7 +177,7 @@ inline bool World::uploadArrays(Arrays &...arrays)
   if ((arrays.empty() && ...))
     return true;
   auto &state = *deviceState();
-  const auto error = state.preparation.upload(state.stream, arrays...);
+  const auto error = state.preparationStream.upload(arrays...);
   if (error == cudaSuccess)
     return true;
   m_bvhBuildFailed = true;

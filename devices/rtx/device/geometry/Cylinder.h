@@ -43,24 +43,19 @@ struct Cylinder : public Geometry
   ~Cylinder() override;
 
   void commitParameters() override;
-  void finalize() override;
   bool isValid() const override;
 
   void populateBuildInput(OptixBuildInput &) const override;
 
   int optixGeometryType() const override;
 
-  // Build the per-primitive area CDF and object-space total area (lateral +
-  // enabled caps) used to sample this geometry as a Geometry Light. Lazy: only
-  // Emissive Surfaces call it. Mirrors Triangle/Sphere.
-  bool isAreaSamplingSupported() const override;
-  void ensureAreaData() override;
-  float totalArea() const override;
-
  private:
+  bool prepare() override;
   GeometryGPUData gpuData() const override;
-  void buildAreaData();
+  // Geometry Light sampling: the object-space area is lateral + enabled caps.
+  std::optional<PrimitiveInput> areaInput() const override;
   PrimitiveInput primitiveInput() const;
+  size_t primitiveCount() const;
 
   helium::ChangeObserverPtr<Array1D> m_index;
   helium::ChangeObserverPtr<Array1D> m_radius;
@@ -74,11 +69,6 @@ struct Cylinder : public Geometry
   float m_globalRadius{1.f};
 
   uint8_t m_defaultCapFlags{0};
-
-  // Geometry Light sampling data, built lazily by ensureAreaData(); see
-  // Triangle.
-  bool m_areaDataValid{false};
-  bool m_areaDataWanted{false};
 };
 
 } // namespace visrtx

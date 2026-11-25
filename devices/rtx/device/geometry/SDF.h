@@ -58,13 +58,13 @@ struct SDF : public Geometry
   ~SDF() override;
 
   void commitParameters() override;
-  void finalize() override;
   bool isValid() const override;
 
   void populateBuildInput(OptixBuildInput &) const override;
   int optixGeometryType() const override;
 
  private:
+  bool prepare() override;
   GeometryGPUData gpuData() const override;
 
   helium::ChangeObserverPtr<Array1D> m_sdf;

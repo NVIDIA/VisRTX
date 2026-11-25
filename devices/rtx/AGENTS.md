@@ -57,6 +57,8 @@ Test sources: `apps/tests/api/` (e.g. `ctest -C Release -R TestSpheres`). Run vi
 - OptiX device context
 - All precompiled PTX modules (one per renderer type, one per material/sampler type)
 - `DeviceObjectArray` registries for materials, geometries, samplers, spatial fields
+- `preparationStream`, the `PreparationStream` that geometry preparation, BVH builds, registry uploads and world-table uploads submit to
+- `preparation`, the one `GeometryPreparation` that owns GPU geometry preparation (its queues, batch, results and input allocation cache); read `device/geometry/GeometryPreparation.h` for the lifecycle
 
 **Frame::renderFrame()** orchestrates each frame:
 
@@ -121,6 +123,7 @@ After rebuild, `OptixTraversableHandle`s are stored in `WorldGPUData` and passed
 | `device/renderer/Renderer.h` | Base renderer: pipeline init, SBT construction |
 | `device/world/World.h/.cpp` | BVH (TLAS/BLAS) management |
 | `device/utility/DeviceObjectArray.h` | Thread-safe GPU slot allocator / registry |
+| `device/geometry/GeometryPreparation.h` | Owner of GPU geometry preparation: one scene update as one commit/upload/submit/collect transaction |
 
 ### Renderer Types
 

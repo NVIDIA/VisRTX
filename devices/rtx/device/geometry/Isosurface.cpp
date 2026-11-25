@@ -54,10 +54,8 @@ void Isosurface::commitParameters()
       getParam("isovalue", ANARI_FLOAT32, &m_isovalueScalar);
 }
 
-void Isosurface::finalize()
+bool Isosurface::prepare()
 {
-  if (beginPreparation() != PreparationStart::Prepare)
-    return;
   m_numBricks = 0;
   m_isovaluesDev = nullptr;
   m_numIsovalues = 0;
@@ -65,7 +63,7 @@ void Isosurface::finalize()
   if (!m_field) {
     reportMessage(ANARI_SEVERITY_WARNING,
         "missing required parameter 'field' on isosurface geometry");
-    return;
+    return false;
   }
   if (m_field->m_uniformGrid.m_valueRanges == nullptr) {
     // The field's space-skipping grid isn't built yet; a field committed before
@@ -74,25 +72,25 @@ void Isosurface::finalize()
     reportMessage(ANARI_SEVERITY_WARNING,
         "isosurface 'field' space-skipping grid not ready; nothing will render "
         "yet");
-    return;
+    return false;
   }
   if (!m_isovalueArray && !m_hasScalarIsovalue) {
     reportMessage(ANARI_SEVERITY_WARNING,
         "missing required parameter 'isovalue' on isosurface geometry");
-    return;
+    return false;
   }
   if (m_isovalueArray && m_isovalueArray->size() == 0) {
     reportMessage(ANARI_SEVERITY_WARNING,
         "empty 'isovalue' array on isosurface geometry; one or more values are "
         "required, nothing will render");
-    return;
+    return false;
   }
   if (m_isovalueArray && m_isovalueArray->elementType() != ANARI_FLOAT32) {
     // beginAs<float>() only asserts the element type, so under NDEBUG a non-
     // FLOAT32 array would be silently reinterpreted as float garbage. Reject it.
     reportMessage(ANARI_SEVERITY_WARNING,
         "isosurface 'isovalue' array must be ANARI_FLOAT32; nothing will render");
-    return;
+    return false;
   }
 
   // Resolve the device isovalue array (array form preferred).
@@ -131,7 +129,7 @@ void Isosurface::finalize()
       m_numIsovalues,
       m_numBricks);
 
-  upload();
+  return true;
 }
 
 void Isosurface::dropUndersizedPrimitiveArrays()

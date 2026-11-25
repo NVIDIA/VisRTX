@@ -1008,7 +1008,7 @@ VISRTX_DEVICE void marchVoxelsMacrocellSkip(const IsosurfaceGeometryData &iso,
 // cubic (linearCrossing). The fixed-step ray march below is no longer reached
 // by built-in fields. This generic form is the ray-march fallback for fields
 // without analytic voxel boundaries (e.g. custom fields); built-in fields are
-// gated to require a space-skipping grid in Isosurface::finalize.
+// gated to require a space-skipping grid in Isosurface::prepare.
 template <typename SamplerState>
 VISRTX_DEVICE void marchIsosurfaceVoxels(const IsosurfaceGeometryData &iso,
     const SpatialFieldGPUData &field,

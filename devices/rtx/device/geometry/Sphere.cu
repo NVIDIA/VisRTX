@@ -67,14 +67,12 @@ PrimitiveInput Sphere::primitiveInput() const
   return {m_numSpheres, input};
 }
 
-void Sphere::finalize()
+bool Sphere::prepare()
 {
-  if (beginPreparation() != PreparationStart::Prepare)
-    return;
   if (!m_vertex) {
     reportMessage(ANARI_SEVERITY_WARNING,
         "missing required parameter 'vertex.position' on sphere geometry");
-    return;
+    return false;
   }
 
   reportMessage(ANARI_SEVERITY_DEBUG,
@@ -85,45 +83,14 @@ void Sphere::finalize()
 
   m_numSpheres = m_index ? m_index->size() : m_vertex->size();
   if (!m_preprocessing.bounds(this, primitiveInput(), m_aabbs))
-    return;
+    return false;
   m_aabbsBufferPtr = (CUdeviceptr)m_aabbs.ptr();
-
-  // Radii may have changed. Rebuild the Geometry Light CDF if a surface has
-  // ever requested it (order-independent of the surface commit), else drop
-  // stale data.
-  m_areaDataValid = false;
-  if (m_areaDataWanted)
-    buildAreaData();
-  else
-    m_preprocessing.releaseAreas();
-
-  if (!preparationFailed())
-    upload();
-}
-
-void Sphere::buildAreaData()
-{
-  m_areaDataValid = m_preprocessing.areas(this, primitiveInput());
-}
-
-bool Sphere::isAreaSamplingSupported() const
-{
   return true;
 }
 
-void Sphere::ensureAreaData()
+std::optional<PrimitiveInput> Sphere::areaInput() const
 {
-  m_areaDataWanted = true;
-  if (m_areaDataValid)
-    return;
-  buildAreaData();
-  if (m_areaDataValid)
-    upload();
-}
-
-float Sphere::totalArea() const
-{
-  return m_preprocessing.totalArea();
+  return isValid() ? primitiveInput() : PrimitiveInput{};
 }
 
 bool Sphere::isValid() const
@@ -160,10 +127,7 @@ GeometryGPUData Sphere::gpuData() const
   sphere.radius = m_globalRadius;
   populateAttributeDataSet(m_vertexAttributes, sphere.vertexAttr);
 
-  // Geometry Light sampling data; null/zero until ensureAreaData() runs.
-  sphere.primAreaCdf = m_preprocessing.areaCdf();
-  sphere.numPrimitives = sphere.primAreaCdf ? uint32_t(m_numSpheres) : 0;
-  sphere.totalArea = m_preprocessing.totalArea();
+  populateAreaData(sphere, m_numSpheres);
 
   return retval;
 }

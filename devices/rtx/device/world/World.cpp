@@ -42,6 +42,7 @@
 #include "utility/AnariTypeHelpers.h"
 #include "world/Group.h"
 
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <glm/gtc/matrix_inverse.hpp>
@@ -264,7 +265,7 @@ bool World::preparationFailed() const
 
 void World::rebuildWorld()
 {
-  if (!deviceState()->collectGeometryPreparations())
+  if (!deviceState()->preparation.collect())
     return;
   if (m_bvhBuildFailed)
     m_objectUpdates.lastTLASBuild = 0;
@@ -277,10 +278,14 @@ void World::rebuildWorld()
       || updates.lastVolumeBLASChange >= lastCheck
       || updates.lastLightSetChange >= lastCheck) {
     m_objectUpdates.lastTLASBuild = 0; // BLAS changed, so need to build TLAS
-    rebuildBLASs();
-  }
-  if (preparationFailed())
+    if (!rebuildBLASs())
+      return;
+  } else if (preparationFailed()) {
+    // No step ran to report a result, so ask. A failure can outlast the BLAS
+    // check: area data collected for a Geometry Light fails its geometry after
+    // the check advanced, and a group shared with another owner can fail there.
     return;
+  }
 
   if (m_objectUpdates.lastTLASBuild <= state.objectUpdates.lastTLASChange) {
     m_surfaceBounds = box3();
@@ -293,15 +298,8 @@ void World::rebuildWorld()
     // populated: the proxy BLAS is instanced into that TLAS. Their Pick Power
     // is deliberately NOT computed here -- it is scaled by the scene radius,
     // which only exists once the TLAS has been built. See buildLightPickCdf().
-    buildInstanceLightGPUData();
-    if (preparationFailed())
-      return;
-    buildLightProxies();
-    if (preparationFailed())
-      return;
-
-    populateOptixInstances();
-    if (preparationFailed())
+    if (!buildInstanceLightGPUData() || !buildLightProxies()
+        || !populateOptixInstances())
       return;
     reportMessage(ANARI_SEVERITY_DEBUG,
         "visrtx::World building surface BVH over %zu instances",
@@ -335,8 +333,7 @@ void World::rebuildWorld()
 
     // Both TLASs have reported their bounds, so the extent of the illuminated
     // scene can be resolved and the infinite lights weighted against it.
-    buildIlluminatedBounds();
-    if (preparationFailed())
+    if (!buildIlluminatedBounds())
       return;
     buildLightPickCdf();
     // These records are consumed only by tracing, not by the intervening BVH
@@ -358,7 +355,7 @@ void World::rebuildWorld()
   }
 }
 
-void World::populateOptixInstances()
+bool World::populateOptixInstances()
 {
   m_numTriangleInstances = 0;
   m_numCurveInstances = 0;
@@ -468,22 +465,30 @@ void World::populateOptixInstances()
     instID++;
   }
 
-  uploadArrays(m_optixSurfaceInstances, m_optixVolumeInstances);
+  return uploadArrays(m_optixSurfaceInstances, m_optixVolumeInstances);
 }
 
-void World::rebuildBLASs()
+bool World::rebuildBLASs()
 {
   reportMessage(ANARI_SEVERITY_DEBUG, "visrtx::World rebuilding BLASs");
 
+  // A failure does not stop the rest: the next attempt then finds every other
+  // group already built.
+  bool rebuilt = true;
   std::for_each(m_instances.begin(), m_instances.end(), [&](auto *inst) {
     auto *group = inst->group();
-    group->rebuildSurfaceBVHs();
-    group->rebuildVolumeBVH();
+    const bool surfacesBuilt = group->rebuildSurfaceBVHs();
+    const bool volumesBuilt = group->rebuildVolumeBVH();
     group->rebuildLights();
+    if (!surfacesBuilt || !volumesBuilt)
+      rebuilt = false;
   });
 
-  if (!preparationFailed())
+  // Only a check that found nothing failed is remembered, so the next
+  // rebuildWorld() comes back here until every group builds.
+  if (rebuilt)
     m_objectUpdates.lastBLASCheck = helium::newTimeStamp();
+  return rebuilt;
 }
 
 void World::buildInstanceSurfaceGPUData()
@@ -626,7 +631,7 @@ size_t World::countGeometryLights(Group *group) const
   return n;
 }
 
-void World::synthesizeGeometryLights()
+bool World::synthesizeGeometryLights()
 {
   // Configure or drop each candidate surface's Geometry Light from current
   // material + geometry state. Runs over triangle and user (custom-primitive,
@@ -635,21 +640,29 @@ void World::synthesizeGeometryLights()
   // transform like an authored light. The light carries the material's mean
   // radiance (Pick Power); the sampler evaluates the material at the sampled
   // point when its emission is not constant.
-  auto configure = [](Surface *surface) {
+  //
+  // ensureAreaData() and collect() report an area that could not be computed
+  // on its geometry, so that is where each candidate's result is read.
+  auto areaFailed = [](Surface *surface) {
+    return surface->isSampleableEmitter()
+        && surface->geometry()->preparationFailed();
+  };
+  auto configure = [&](Surface *surface) {
+    if (areaFailed(surface))
+      return false;
     if (surface->isSampleableEmitter()) {
       auto *geometry = surface->geometry();
-      if (geometry->preparationFailed())
-        return;
       const float area = geometry->totalArea();
       if (area > 0.0f) {
         surface->ensureGeometryLight()->configure(geometry->index(),
             surface->material()->index(),
             surface->material()->emissionAverage(),
             area);
-        return;
+        return true;
       }
     }
     surface->clearGeometryLight();
+    return true;
   };
 
   std::set<Group *> visited;
@@ -668,17 +681,24 @@ void World::synthesizeGeometryLights()
   for (auto *surface : candidates)
     if (surface->isSampleableEmitter())
       surface->geometry()->ensureAreaData();
-  if (!deviceState()->collectGeometryPreparations())
-    return;
-  for (auto *surface : candidates)
-    configure(surface);
+  // A refused collection (reentered from one) configures nothing: the lights
+  // keep their previous configuration, and the build goes on unless a request
+  // above already failed.
+  if (!deviceState()->preparation.collect())
+    return std::none_of(candidates.begin(), candidates.end(), areaFailed);
+  // A failure does not stop the rest: the other lights are still configured.
+  bool synthesized = true;
+  for (auto *surface : candidates) {
+    if (!configure(surface))
+      synthesized = false;
+  }
+  return synthesized;
 }
 
-void World::buildInstanceLightGPUData()
+bool World::buildInstanceLightGPUData()
 {
-  synthesizeGeometryLights();
-  if (preparationFailed())
-    return;
+  if (!synthesizeGeometryLights())
+    return false;
 
   // Calculate total lights (authored + synthesized Geometry Lights)
   size_t totalLights = 0;
@@ -786,9 +806,10 @@ void World::buildInstanceLightGPUData()
   assert(surfaceInstanceCursor == m_instanceSurfaceGPUData.size());
 
   // Keep records host-side until proxy flags and Light Pick are finalized.
+  return true;
 }
 
-void World::buildIlluminatedBounds()
+bool World::buildIlluminatedBounds()
 {
   // What a DIRECTIONAL or HDRI light shines on. Both estimate their Pick Power
   // as irradiance times the cross-section of the scene, so the extent they are
@@ -813,7 +834,7 @@ void World::buildIlluminatedBounds()
     // No proxy instance: the TLAS already covers geometry only.
     m_illuminatedBounds = m_surfaceBounds;
     m_illuminatedBounds.extend(m_volumeBounds);
-    return;
+    return true;
   }
 
   reportMessage(ANARI_SEVERITY_DEBUG,
@@ -832,11 +853,12 @@ void World::buildIlluminatedBounds()
           geometryBounds,
           this)) {
     m_bvhBuildFailed = true;
-    return;
+    return false;
   }
 
   m_illuminatedBounds = geometryBounds;
   m_illuminatedBounds.extend(m_volumeBounds);
+  return true;
 }
 
 void World::buildLightPickCdf()
@@ -922,7 +944,7 @@ void World::buildLightPickCdf()
 constexpr float LIGHT_PROXY_AABB_RELATIVE_PAD = 1.0e-4f;
 constexpr float LIGHT_PROXY_AABB_MINIMUM_PAD = 1.0e-6f;
 
-void World::buildLightProxies()
+bool World::buildLightProxies()
 {
   // Traceable stand-ins for the analytic AREA lights (ADR 0009), so a camera or
   // BSDF-continuation ray can hit them. Deliberately derived from the ALREADY
@@ -1022,11 +1044,11 @@ void World::buildLightProxies()
         "instances) -- area lights will not be directly visible",
         lightInstanceCursor,
         m_instanceLightGPUData.size());
-    return;
+    return true;
   }
 
   if (proxies.empty())
-    return;
+    return true;
 
   // Tracing records (including hasAreaProxy) are uploaded once after the TLAS
   // build; only the proxy AABBs are needed by the BLAS below.
@@ -1036,7 +1058,7 @@ void World::buildLightProxies()
   m_lightProxyAabbs.resize(aabbs.size(), false);
   std::copy(aabbs.begin(), aabbs.end(), m_lightProxyAabbs.dataHost());
   if (!uploadArrays(m_lightProxyAabbs))
-    return;
+    return false;
 
   reportMessage(ANARI_SEVERITY_DEBUG,
       "visrtx::World building light-proxy BLAS over %zu proxies",
@@ -1052,11 +1074,15 @@ void World::buildLightProxies()
   buildInput.customPrimitiveArray.numSbtRecords = 1;
 
   box3 proxyBounds;
-  m_bvhBuildFailed = !buildOptixBVH({buildInput},
-      m_bvhLightProxies,
-      m_traversableLightProxies,
-      proxyBounds,
-      this);
+  if (!buildOptixBVH({buildInput},
+          m_bvhLightProxies,
+          m_traversableLightProxies,
+          proxyBounds,
+          this)) {
+    m_bvhBuildFailed = true;
+    return false;
+  }
+  return true;
 }
 
 } // namespace visrtx

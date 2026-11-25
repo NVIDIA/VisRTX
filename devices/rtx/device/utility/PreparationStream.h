@@ -32,12 +32,19 @@
 #pragma once
 
 #include <cuda_runtime_api.h>
+// std
+#include <cstddef>
+#include <memory>
 
 namespace visrtx {
 
-// Serialized by the device's scene-update path. GPU dependencies do not block
-// the host; finish() is reserved for host readback/publication and scratch
-// reuse.
+/*
+ * The device's scene-update stream: a nonblocking CUDA stream beside the
+ * render stream. Geometry preparation, BVH builds and scene-table uploads
+ * submit to it, ordered after the work they depend on by event rather than by
+ * blocking the host. Calls are serialized by the device's scene-update path;
+ * nothing here locks.
+ */
 struct PreparationStream
 {
   PreparationStream() = default;
@@ -45,20 +52,45 @@ struct PreparationStream
   PreparationStream(const PreparationStream &) = delete;
   PreparationStream &operator=(const PreparationStream &) = delete;
 
-  cudaError_t initialize();
+  // Device lifetime. `renderStream` is the stream frames render on.
+  cudaError_t initialize(cudaStream_t renderStream);
   void reset();
   cudaStream_t stream() const;
-  cudaError_t waitFor(cudaStream_t producer);
-  cudaError_t finish();
+  cudaStream_t renderStream() const;
 
-  // All sources must remain stable until this returns. Drain a partial batch
-  // on failure; callers acknowledge dirty state only after success.
+  // GPU-side ordering; neither blocks the host. The first asks CUDA whether
+  // the render stream is idle, so no submission site has to announce itself,
+  // and is skipped when it is: an event recorded on an idle stream is already
+  // complete and orders nothing.
+  cudaError_t orderAfterRender();
+  cudaError_t orderAfter(cudaStream_t producer);
+  // Waits for this stream's submitted work.
+  cudaError_t sync();
+
+  // Orders after rendering, copies, waits. All sources must remain stable
+  // until this returns. A partial batch is drained on failure; callers
+  // acknowledge dirty state only after success.
   template <typename... Arrays>
-  cudaError_t upload(cudaStream_t previousConsumers, Arrays &...arrays);
+  cudaError_t upload(Arrays &...arrays);
+
+  // Pinned host memory of at least `bytes` for a readback that completes
+  // before its caller returns (the BVH build's), so one block serves every
+  // caller. Allocated by the first call. Null with `error` set on failure.
+  void *readback(size_t bytes, cudaError_t &error);
 
  private:
   cudaStream_t m_stream{nullptr};
+  cudaStream_t m_renderStream{nullptr};
+  struct PinnedDeleter
+  {
+    void operator()(void *memory) const
+    {
+      cudaFreeHost(memory);
+    }
+  };
   cudaEvent_t m_dependency{nullptr};
+  std::unique_ptr<void, PinnedDeleter> m_readback;
+  size_t m_readbackBytes{0};
 };
 
 // Inlined definitions ////////////////////////////////////////////////////////
@@ -68,8 +100,9 @@ inline PreparationStream::~PreparationStream()
   reset();
 }
 
-inline cudaError_t PreparationStream::initialize()
+inline cudaError_t PreparationStream::initialize(cudaStream_t renderStream)
 {
+  m_renderStream = renderStream;
   if (m_stream)
     return cudaSuccess;
   auto error = cudaStreamCreateWithFlags(&m_stream, cudaStreamNonBlocking);
@@ -97,7 +130,19 @@ inline cudaStream_t PreparationStream::stream() const
   return m_stream;
 }
 
-inline cudaError_t PreparationStream::waitFor(cudaStream_t producer)
+inline cudaStream_t PreparationStream::renderStream() const
+{
+  return m_renderStream;
+}
+
+inline cudaError_t PreparationStream::orderAfterRender()
+{
+  return cudaStreamQuery(m_renderStream) == cudaSuccess
+      ? cudaSuccess
+      : orderAfter(m_renderStream);
+}
+
+inline cudaError_t PreparationStream::orderAfter(cudaStream_t producer)
 {
   auto error = cudaEventRecord(m_dependency, producer);
   if (error == cudaSuccess)
@@ -105,25 +150,43 @@ inline cudaError_t PreparationStream::waitFor(cudaStream_t producer)
   return error;
 }
 
-inline cudaError_t PreparationStream::finish()
+inline cudaError_t PreparationStream::sync()
 {
   return cudaStreamSynchronize(m_stream);
 }
 
 template <typename... Arrays>
-inline cudaError_t PreparationStream::upload(
-    cudaStream_t previousConsumers, Arrays &...arrays)
+inline cudaError_t PreparationStream::upload(Arrays &...arrays)
 {
-  auto error = waitFor(previousConsumers);
+  // Unlike orderAfterRender(), a registry or world-table upload records and
+  // waits on the event even when the render stream is idle. Kept as it was:
+  // dropping the wait there has not been decided.
+  auto error = orderAfter(m_renderStream);
   auto enqueue = [&](auto &array) {
     if (error == cudaSuccess)
       error = array.enqueueUpload(m_stream);
   };
   (enqueue(arrays), ...);
-  const auto completion = finish();
+  const auto completion = sync();
   if (error != cudaSuccess || completion != cudaSuccess)
     cudaGetLastError(); // Keep a recoverable API error out of the next batch.
   return error == cudaSuccess ? completion : error;
+}
+
+inline void *PreparationStream::readback(size_t bytes, cudaError_t &error)
+{
+  error = cudaSuccess;
+  if (bytes > m_readbackBytes) {
+    m_readback.reset();
+    m_readbackBytes = 0;
+    void *memory = nullptr;
+    error = cudaMallocHost(&memory, bytes);
+    if (error == cudaSuccess) {
+      m_readback.reset(memory);
+      m_readbackBytes = bytes;
+    }
+  }
+  return m_readback.get();
 }
 
 } // namespace visrtx

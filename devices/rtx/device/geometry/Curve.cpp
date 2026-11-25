@@ -54,31 +54,26 @@ void Curve::commitParameters()
   commitAttributes("vertex.", m_vertexAttributes);
 }
 
-void Curve::finalize()
+bool Curve::prepare()
 {
-  if (beginPreparation() != PreparationStart::Prepare)
-    return;
   if (!m_vertexPosition) {
     reportMessage(ANARI_SEVERITY_WARNING,
         "missing required parameter 'vertex.position' on curve geometry");
-    return;
+    return false;
   }
 
   reportMessage(ANARI_SEVERITY_DEBUG,
       "finalizing %s curve geometry",
       m_index ? "indexed" : "soup");
 
-  computeIndices();
-  if (preparationFailed())
-    return;
-  computeRadii();
-  if (preparationFailed() || !finishPreparation(this))
-    return;
+  if (!computeIndices() || !computeRadii()
+      || !deviceState()->preparation.finish(this))
+    return false;
 
   m_vertexBufferPtr = (CUdeviceptr)m_vertexPosition->begin(AddressSpace::GPU);
   m_radiusBufferPtr = (CUdeviceptr)m_radii;
 
-  upload();
+  return true;
 }
 
 void Curve::populateBuildInput(OptixBuildInput &buildInput) const
@@ -114,24 +109,30 @@ bool Curve::isValid() const
   return m_vertexPosition;
 }
 
-void Curve::computeIndices()
+bool Curve::computeIndices()
 {
   m_numPrimitives = m_index ? m_index->size() : m_vertexPosition->size() / 2;
-  if (m_index)
+  if (m_index) {
     m_indices = m_index->beginAs<uint32_t>(AddressSpace::GPU);
-  else if (generateCurveIndices(this, m_numPrimitives, m_generatedIndices))
-    m_indices = m_generatedIndices.ptrAs<uint32_t>();
+    return true;
+  }
+  if (!generateCurveIndices(this, m_numPrimitives, m_generatedIndices))
+    return false;
+  m_indices = m_generatedIndices.ptrAs<uint32_t>();
+  return true;
 }
 
-void Curve::computeRadii()
+bool Curve::computeRadii()
 {
-  if (m_vertexRadius)
+  if (m_vertexRadius) {
     m_radii = m_vertexRadius->beginAs<float>(AddressSpace::GPU);
-  else if (generateCurveRadii(this,
-               m_vertexPosition->size(),
-               m_globalRadius,
-               m_generatedRadii))
-    m_radii = m_generatedRadii.ptrAs<float>();
+    return true;
+  }
+  if (!generateCurveRadii(
+          this, m_vertexPosition->size(), m_globalRadius, m_generatedRadii))
+    return false;
+  m_radii = m_generatedRadii.ptrAs<float>();
+  return true;
 }
 
 GeometryGPUData Curve::gpuData() const

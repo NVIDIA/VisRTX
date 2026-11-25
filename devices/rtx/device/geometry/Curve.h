@@ -43,7 +43,6 @@ struct Curve : public Geometry
   ~Curve() override;
 
   void commitParameters() override;
-  void finalize() override;
   bool isValid() const override;
 
   void populateBuildInput(OptixBuildInput &) const override;
@@ -51,8 +50,9 @@ struct Curve : public Geometry
   int optixGeometryType() const override;
 
  private:
-  void computeIndices();
-  void computeRadii();
+  bool prepare() override;
+  bool computeIndices();
+  bool computeRadii();
   GeometryGPUData gpuData() const override;
 
   helium::ChangeObserverPtr<Array1D> m_index;

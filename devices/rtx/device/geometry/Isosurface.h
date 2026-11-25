@@ -44,13 +44,13 @@ struct Isosurface : public Geometry
   ~Isosurface() override;
 
   void commitParameters() override;
-  void finalize() override;
   bool isValid() const override;
 
   void populateBuildInput(OptixBuildInput &) const override;
   int optixGeometryType() const override;
 
  private:
+  bool prepare() override;
   GeometryGPUData gpuData() const override;
 
   // Drops any per-primitive array shorter than m_numIsovalues (warns), so the

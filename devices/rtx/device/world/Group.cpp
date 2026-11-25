@@ -71,13 +71,15 @@ bool Group::getProperty(const std::string_view &name,
   if (name == "bounds" && type == ANARI_FLOAT32_BOX3) {
     if (flags & ANARI_WAIT) {
       deviceState()->commitBuffer.flush();
-      rebuildSurfaceBVHs();
-      rebuildVolumeBVH();
-      if (preparationFailed())
+      // Not short-circuited: a surface failure leaves the volume BVH current.
+      const bool surfacesBuilt = rebuildSurfaceBVHs();
+      const bool volumesBuilt = rebuildVolumeBVH();
+      if (!surfacesBuilt || !volumesBuilt)
         return false;
-    }
-    if (preparationFailed())
+    } else if (preparationFailed()) {
+      // No step ran to report a result, so ask.
       return false;
+    }
     auto bounds = m_triangleBounds;
     bounds.extend(m_curveBounds);
     bounds.extend(m_userBounds);
@@ -229,16 +231,18 @@ bool Group::geometryPreparationFailed() const
   return false;
 }
 
-void Group::rebuildSurfaceBVHs()
+bool Group::rebuildSurfaceBVHs()
 {
-  if (!deviceState()->collectGeometryPreparations())
-    return;
+  const bool collected = deviceState()->preparation.collect();
   if (geometryPreparationFailed())
-    return;
+    return false;
+  // Nothing to rebuild, or a refused collection (reentered from one): the
+  // BVHs stay as the last attempt left them.
   const auto &state = *deviceState();
-  if (state.objectUpdates.lastSurfaceBLASChange
-      < m_objectUpdates.lastSurfaceBVHBuilt)
-    return;
+  if (!collected
+      || state.objectUpdates.lastSurfaceBLASChange
+          < m_objectUpdates.lastSurfaceBVHBuilt)
+    return !m_surfaceBuildFailed;
 
   m_surfaceBuildFailed = false;
   partitionValidGeometriesByType();
@@ -251,67 +255,61 @@ void Group::rebuildSurfaceBVHs()
   m_traversableUser = {};
 
   // populateBuildInput can upload authored indices. The BVH builder imports
-  // those default-stream producers before submitting the build.
-  auto triangles = createOBI(m_surfacesTriangle);
-  auto curves = createOBI(m_surfacesCurve);
-  auto users = createOBI(m_surfacesUser);
+  // those default-stream producers before submitting the build. Every
+  // partition's input is created before the first build.
+  struct Partition
+  {
+    const char *name;
+    std::vector<OptixBuildInput> input;
+    DeviceBuffer &bvh;
+    OptixTraversableHandle &traversable;
+    box3 &bounds;
+  };
+  Partition partitions[] = {
+      {"triangle",
+          createOBI(m_surfacesTriangle),
+          m_bvhTriangle,
+          m_traversableTriangle,
+          m_triangleBounds},
+      {"curve",
+          createOBI(m_surfacesCurve),
+          m_bvhCurve,
+          m_traversableCurve,
+          m_curveBounds},
+      {"user",
+          createOBI(m_surfacesUser),
+          m_bvhUser,
+          m_traversableUser,
+          m_userBounds},
+  };
 
-  if (!m_surfacesTriangle.empty()) {
-    reportMessage(ANARI_SEVERITY_DEBUG, "visrtx::Group building triangle BVH");
-    if (!buildOptixBVH(std::move(triangles),
-            m_bvhTriangle,
-            m_traversableTriangle,
-            m_triangleBounds,
-            this)) {
-      m_surfaceBuildFailed = true;
-      return;
+  for (auto &p : partitions) {
+    if (p.input.empty()) {
+      reportMessage(
+          ANARI_SEVERITY_DEBUG, "visrtx::Group skipping %s BVH build", p.name);
+      continue;
     }
-  } else {
     reportMessage(
-        ANARI_SEVERITY_DEBUG, "visrtx::Group skipping triangle BVH build");
-  }
-
-  if (!m_surfacesCurve.empty()) {
-    reportMessage(ANARI_SEVERITY_DEBUG, "visrtx::Group building curve BVH");
-    if (!buildOptixBVH(std::move(curves),
-            m_bvhCurve,
-            m_traversableCurve,
-            m_curveBounds,
-            this)) {
+        ANARI_SEVERITY_DEBUG, "visrtx::Group building %s BVH", p.name);
+    if (!buildOptixBVH(
+            std::move(p.input), p.bvh, p.traversable, p.bounds, this)) {
       m_surfaceBuildFailed = true;
-      return;
+      return false;
     }
-  } else {
-    reportMessage(
-        ANARI_SEVERITY_DEBUG, "visrtx::Group skipping curve BVH build");
-  }
-
-  if (!m_surfacesUser.empty()) {
-    reportMessage(ANARI_SEVERITY_DEBUG, "visrtx::Group building user BVH");
-    if (!buildOptixBVH(std::move(users),
-            m_bvhUser,
-            m_traversableUser,
-            m_userBounds,
-            this)) {
-      m_surfaceBuildFailed = true;
-      return;
-    }
-  } else {
-    reportMessage(
-        ANARI_SEVERITY_DEBUG, "visrtx::Group skipping user BVH build");
   }
 
   buildSurfaceGPUData();
 
   m_objectUpdates.lastSurfaceBVHBuilt = helium::newTimeStamp();
+  return true;
 }
 
-void Group::rebuildVolumeBVH()
+bool Group::rebuildVolumeBVH()
 {
   const auto &state = *deviceState();
   if (state.objectUpdates.lastVolumeBLASChange
       < m_objectUpdates.lastVolumeBVHBuilt)
-    return;
+    return !m_volumeBuildFailed;
 
   m_volumeBuildFailed = false;
   partitionValidVolumes();
@@ -321,7 +319,7 @@ void Group::rebuildVolumeBVH()
     m_objectUpdates.lastVolumeBVHBuilt = helium::newTimeStamp();
     reportMessage(
         ANARI_SEVERITY_DEBUG, "visrtx::Group skipping volume BVH build");
-    return;
+    return true;
   }
 
   reportMessage(ANARI_SEVERITY_DEBUG, "visrtx::Group building volume BVH");
@@ -331,12 +329,13 @@ void Group::rebuildVolumeBVH()
           m_volumeBounds,
           this)) {
     m_volumeBuildFailed = true;
-    return;
+    return false;
   }
 
   buildVolumeGPUData();
 
   m_objectUpdates.lastVolumeBVHBuilt = helium::newTimeStamp();
+  return true;
 }
 
 void Group::rebuildLights()

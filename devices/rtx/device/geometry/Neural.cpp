@@ -27,15 +27,13 @@ void Neural::commitParameters()
   }
 }
 
-void Neural::finalize()
+bool Neural::prepare()
 {
-  if (beginPreparation() != PreparationStart::Prepare)
-    return;
-  Geometry::finalize();
   m_aabbs.resize(1);
   m_aabbs.dataHost()[0] = m_aabb;
   m_aabbs.upload();
   m_aabbsBufferPtr = (CUdeviceptr)m_aabbs.dataDevice();
+  return true;
 }
 
 bool Neural::isValid() const

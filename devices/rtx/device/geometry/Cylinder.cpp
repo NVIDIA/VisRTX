@@ -76,6 +76,11 @@ void Cylinder::commitParameters()
   commitAttributes("vertex.", m_vertexAttributes);
 }
 
+size_t Cylinder::primitiveCount() const
+{
+  return m_index ? m_index->size() : m_vertex->size() / 2;
+}
+
 PrimitiveInput Cylinder::primitiveInput() const
 {
   CylinderInput input{};
@@ -84,17 +89,15 @@ PrimitiveInput Cylinder::primitiveInput() const
   input.radii =
       m_radius ? m_radius->beginAs<float>(AddressSpace::GPU) : nullptr;
   input.radius = m_globalRadius;
-  return {segmentCount(*m_vertex, m_index.get()), input};
+  return {primitiveCount(), input};
 }
 
-void Cylinder::finalize()
+bool Cylinder::prepare()
 {
-  if (beginPreparation() != PreparationStart::Prepare)
-    return;
   if (!m_vertex) {
     reportMessage(ANARI_SEVERITY_WARNING,
         "missing required parameter 'vertex.position' on cylinders geometry");
-    return;
+    return false;
   }
 
   reportMessage(ANARI_SEVERITY_DEBUG,
@@ -102,45 +105,14 @@ void Cylinder::finalize()
       m_index ? "indexed" : "soup");
 
   if (!m_preprocessing.bounds(this, primitiveInput(), m_aabbs))
-    return;
+    return false;
   m_aabbsBufferPtr = (CUdeviceptr)m_aabbs.ptr();
-
-  // Vertices/radii/caps may have changed. Rebuild the Geometry Light CDF if a
-  // surface has ever requested it (order-independent of the surface commit),
-  // else drop stale data. Mirrors Triangle/Sphere.
-  m_areaDataValid = false;
-  if (m_areaDataWanted)
-    buildAreaData();
-  else
-    m_preprocessing.releaseAreas();
-
-  if (!preparationFailed())
-    upload();
-}
-
-void Cylinder::buildAreaData()
-{
-  m_areaDataValid = m_preprocessing.areas(this, primitiveInput());
-}
-
-bool Cylinder::isAreaSamplingSupported() const
-{
   return true;
 }
 
-void Cylinder::ensureAreaData()
+std::optional<PrimitiveInput> Cylinder::areaInput() const
 {
-  m_areaDataWanted = true;
-  if (m_areaDataValid)
-    return;
-  buildAreaData();
-  if (m_areaDataValid)
-    upload();
-}
-
-float Cylinder::totalArea() const
-{
-  return m_preprocessing.totalArea();
+  return isValid() ? primitiveInput() : PrimitiveInput{};
 }
 
 bool Cylinder::isValid() const
@@ -153,8 +125,7 @@ void Cylinder::populateBuildInput(OptixBuildInput &buildInput) const
   buildInput.type = OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
 
   buildInput.customPrimitiveArray.aabbBuffers = &m_aabbsBufferPtr;
-  buildInput.customPrimitiveArray.numPrimitives =
-      m_index ? m_index->size() : m_vertex->size() / 2;
+  buildInput.customPrimitiveArray.numPrimitives = primitiveCount();
 
   static uint32_t buildInputFlags[1] = {OPTIX_GEOMETRY_FLAG_NONE};
 
@@ -180,11 +151,7 @@ GeometryGPUData Cylinder::gpuData() const
       : nullptr;
   populateAttributeDataSet(m_vertexAttributes, cylinder.vertexAttr);
 
-  // Geometry Light sampling data; null/zero until ensureAreaData() runs.
-  cylinder.primAreaCdf = m_preprocessing.areaCdf();
-  cylinder.numPrimitives =
-      cylinder.primAreaCdf ? uint32_t(primitiveInput().count) : 0;
-  cylinder.totalArea = m_preprocessing.totalArea();
+  populateAreaData(cylinder, primitiveCount());
 
   return retval;
 }

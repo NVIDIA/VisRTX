@@ -74,6 +74,11 @@ void Cone::commitParameters()
   commitAttributes("vertex.", m_vertexAttributes);
 }
 
+size_t Cone::primitiveCount() const
+{
+  return m_index ? m_index->size() : m_vertex->size() / 2;
+}
+
 PrimitiveInput Cone::primitiveInput() const
 {
   ConeInput input{};
@@ -81,23 +86,21 @@ PrimitiveInput Cone::primitiveInput() const
       *m_vertex, m_index.get(), m_vertexCaps.get(), m_defaultCapFlags);
   input.radii =
       m_radius ? m_radius->beginAs<float>(AddressSpace::GPU) : nullptr;
-  return {segmentCount(*m_vertex, m_index.get()), input};
+  return {primitiveCount(), input};
 }
 
-void Cone::finalize()
+bool Cone::prepare()
 {
-  if (beginPreparation() != PreparationStart::Prepare)
-    return;
   if (!m_vertex) {
     reportMessage(ANARI_SEVERITY_WARNING,
         "missing required parameter 'vertex.position' on cone geometry");
-    return;
+    return false;
   }
 
   if (!m_radius) {
     reportMessage(ANARI_SEVERITY_WARNING,
         "missing required parameter 'vertex.radius' on cone geometry");
-    return;
+    return false;
   }
 
   reportMessage(ANARI_SEVERITY_DEBUG,
@@ -105,45 +108,14 @@ void Cone::finalize()
       m_index ? "indexed" : "soup");
 
   if (!m_preprocessing.bounds(this, primitiveInput(), m_aabbs))
-    return;
+    return false;
   m_aabbsBufferPtr = (CUdeviceptr)m_aabbs.ptr();
-
-  // Vertices/radii/caps may have changed. Rebuild the Geometry Light CDF if a
-  // surface has ever requested it (order-independent of the surface commit),
-  // else drop stale data. Mirrors Triangle/Sphere.
-  m_areaDataValid = false;
-  if (m_areaDataWanted)
-    buildAreaData();
-  else
-    m_preprocessing.releaseAreas();
-
-  if (!preparationFailed())
-    upload();
-}
-
-void Cone::buildAreaData()
-{
-  m_areaDataValid = m_preprocessing.areas(this, primitiveInput());
-}
-
-bool Cone::isAreaSamplingSupported() const
-{
   return true;
 }
 
-void Cone::ensureAreaData()
+std::optional<PrimitiveInput> Cone::areaInput() const
 {
-  m_areaDataWanted = true;
-  if (m_areaDataValid)
-    return;
-  buildAreaData();
-  if (m_areaDataValid)
-    upload();
-}
-
-float Cone::totalArea() const
-{
-  return m_preprocessing.totalArea();
+  return isValid() ? primitiveInput() : PrimitiveInput{};
 }
 
 bool Cone::isValid() const
@@ -156,8 +128,7 @@ void Cone::populateBuildInput(OptixBuildInput &buildInput) const
   buildInput.type = OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
 
   buildInput.customPrimitiveArray.aabbBuffers = &m_aabbsBufferPtr;
-  buildInput.customPrimitiveArray.numPrimitives =
-      m_index ? m_index->size() : m_vertex->size() / 2;
+  buildInput.customPrimitiveArray.numPrimitives = primitiveCount();
 
   static uint32_t buildInputFlags[1] = {OPTIX_GEOMETRY_FLAG_NONE};
 
@@ -185,10 +156,7 @@ GeometryGPUData Cone::gpuData() const
       : nullptr;
   populateAttributeDataSet(m_vertexAttributes, cone.vertexAttr);
 
-  // Geometry Light sampling data; null/zero until ensureAreaData() runs.
-  cone.primAreaCdf = m_preprocessing.areaCdf();
-  cone.numPrimitives = cone.primAreaCdf ? uint32_t(primitiveInput().count) : 0;
-  cone.totalArea = m_preprocessing.totalArea();
+  populateAreaData(cone, primitiveCount());
 
   return retval;
 }
