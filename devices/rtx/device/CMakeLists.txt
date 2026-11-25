@@ -431,7 +431,7 @@ endif()
 set(VISRTX_OPTIONAL_DEVICE_DEPENDENCIES_LIST "")
 if(VISRTX_ENABLE_MDL_SUPPORT)
   list(APPEND VISRTX_OPTIONAL_DEVICE_DEPENDENCIES_LIST visrtx_material_mdl
-    visrtx_mdl_scene_data visrtx_mdl_animation_time)
+    visrtx_mdl_scene_data visrtx_geometry_mdl_scene_data visrtx_mdl_animation_time)
 endif()
 if(VISRTX_ENABLE_MATERIALX_SUPPORT)
   list(APPEND VISRTX_OPTIONAL_DEVICE_DEPENDENCIES_LIST visrtx_material_materialx)

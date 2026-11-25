@@ -9,9 +9,12 @@
 namespace visrtx::mdl {
 
 SceneDataInstance::SceneDataInstance(
-    const libmdl::SceneDataDescriptor &descriptor)
+    const libmdl::SceneDataDescriptor &descriptor, SceneDataNames &names)
     : m_descriptor(descriptor), m_bindings(descriptor.m_namesById.size())
-{}
+{
+  for (size_t id = 0; id < m_bindings.size(); ++id)
+    m_bindings[id].nameToken = names.intern(descriptor.m_namesById[id]);
+}
 
 nonstd::span<const MDLSceneDataBinding> SceneDataInstance::data() const
 {
@@ -20,7 +23,9 @@ nonstd::span<const MDLSceneDataBinding> SceneDataInstance::data() const
 
 bool SceneDataInstance::update(nonstd::span<const NamedBinding> bindings)
 {
-  std::vector<MDLSceneDataBinding> next(m_descriptor.m_namesById.size());
+  auto next = m_bindings;
+  for (auto &binding : next)
+    binding.attribute = MaterialAttribute::UNKNOWN;
   for (const auto &binding : bindings) {
     const auto id = m_descriptor.find(binding.name);
     if (!id)

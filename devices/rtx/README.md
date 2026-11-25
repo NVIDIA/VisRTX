@@ -264,6 +264,46 @@ they are not enumerated as literal parameter names by the query API. Binding and
 argument edits retain the material and compiled code; changing the source builds
 a table for that source's string IDs.
 
+#### VISRTX_GEOMETRY_MDL_SCENE_DATA
+
+With native MDL enabled, triangle, quad, sphere, cylinder, cone, curve, SDF and
+isosurface geometries accept `sceneData.<name>` (`ANARI_STRING`) aliases to
+`attribute0` through `attribute3` or `color`. One material can therefore read the
+same name from different slots on different geometries:
+
+```cpp
+anariSetParameter(device, geometryA, "sceneData.temperature",
+    ANARI_STRING, "attribute0");
+anariSetParameter(device, geometryB, "sceneData.temperature",
+    ANARI_STRING, "attribute2");
+anariCommitParameters(device, geometryA);
+anariCommitParameters(device, geometryB);
+// Supply the corresponding attribute arrays or constants normally, then share
+// an mdl material that calls scene::data_lookup_float("temperature", fallback).
+```
+
+A geometry alias overrides a material binding for that exact, case-sensitive
+name. Multiple names may select the same slot. If the selected slot has no
+effective data, MDL returns its default; it does not retry the material slot.
+Unsetting an alias restores material fallback. Empty names, non-string values
+and targets other than the five supported slots produce a warning and are
+omitted from the committed snapshot, allowing material fallback.
+
+Aliases reuse the existing interpolation and attribute-source precedence,
+including instance fallback; they do not turn varying data into uniform data.
+Float/color lookups and `data_isvalid` use the same name resolution, including
+emission evaluated at geometry-light samples. These aliases add no data slots
+and do not affect built-in materials or `state::texture_coordinate` numbering.
+They are dynamic metadata and are not enumerated as literal query parameters.
+Alias edits keep the compiled material and renderer pipeline; the current
+geometry finalization path still invalidates the surface BLAS on any edit.
+
+Names are interned exactly in a synchronized, device-local table. Its strings
+and tokens remain allocated until device destruction, so memory use grows with
+the number of distinct names seen. Each material string ID carries a token;
+each lookup searches the geometry's compact alias list before using material
+fallback. Geometries without aliases require no alias-list search.
+
 #### VISRTX_MDL_ANIMATION_TIME
 
 With native MDL enabled, frame `mdl.animationTime` (`ANARI_FLOAT32`, default
@@ -364,6 +404,7 @@ The following extensions are either partially or fully implemented by VisRTX:
 - `VISRTX_MATERIAL_MATERIALX` (requires `VISRTX_ENABLE_MATERIALX_SUPPORT`)
 - `VISRTX_MATERIAL_MDL` (requires `VISRTX_ENABLE_MDL_SUPPORT`)
 - `VISRTX_MDL_SCENE_DATA` (requires `VISRTX_ENABLE_MDL_SUPPORT`)
+- `VISRTX_GEOMETRY_MDL_SCENE_DATA` (requires `VISRTX_ENABLE_MDL_SUPPORT`)
 - `VISRTX_MDL_ANIMATION_TIME` (requires `VISRTX_ENABLE_MDL_SUPPORT`)
 - `VISRTX_RENDERER_DEBUG`
 - `VISRTX_RENDERER_DEFAULT`

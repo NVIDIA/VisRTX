@@ -96,6 +96,12 @@ struct Geometry : public RegisteredObject<GeometryGPUData>
   // Set by analytic-primitive subtypes in finalize(); see
   // GeometryGPUData::epsilonScale.
   float m_epsilonScale{0.f};
+
+ private:
+#ifdef USE_MDL
+  DeviceBuffer m_sceneDataBuffer;
+  uint32_t m_numSceneData{0};
+#endif
 };
 
 } // namespace visrtx
