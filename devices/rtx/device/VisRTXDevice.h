@@ -131,6 +131,22 @@ struct VisRTXDevice : public helium::BaseDevice
   bool initDevice(); // thread safe initialization
 
  private:
+  // The gate an API entry point that needs the initialized device passes
+  // first; call is the public ANARI function name. True when the call may
+  // proceed: the device is not disabled and is initialized.
+  // enterOutsideCollection() also refuses while geometry preparations are
+  // being collected.
+  bool enter(const char *call);
+  bool enterOutsideCollection(const char *call);
+
+  // The refusals behind the gate. Each reports one message naming the
+  // refused call, except while another refusal is being reported on this
+  // thread (a status callback reentering the device must not recurse).
+  bool refuseIfDisabled(const char *call) const;
+  bool refuseDuringCollection(const char *call) const;
+  void reportRefusal(
+      ANARIStatusSeverity severity, const char *call, const char *reason) const;
+
   struct CUDADeviceScope
   {
     CUDADeviceScope(VisRTXDevice *d);
