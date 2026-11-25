@@ -76,24 +76,17 @@ void Cone::commitParameters()
 
 PrimitiveInput Cone::primitiveInput() const
 {
-  PrimitiveInput input;
-  input.type = GeometryType::CONE;
-  input.count = m_index ? m_index->size() : m_vertex->size() / 2;
-  input.vertices = m_vertex->beginAs<vec3>(AddressSpace::GPU);
-  input.indices =
-      m_index ? m_index->beginAs<uvec2>(AddressSpace::GPU) : nullptr;
+  ConeInput input{};
+  input.segments = segmentInput(
+      *m_vertex, m_index.get(), m_vertexCaps.get(), m_defaultCapFlags);
   input.radii =
       m_radius ? m_radius->beginAs<float>(AddressSpace::GPU) : nullptr;
-  input.caps = m_vertexCaps ? m_vertexCaps->beginAs<uint8_t>(AddressSpace::GPU)
-                            : nullptr;
-  input.radius = 0.f;
-  input.capFlags = m_defaultCapFlags;
-  return input;
+  return {segmentCount(*m_vertex, m_index.get()), input};
 }
 
 void Cone::finalize()
 {
-  if (!beginPreparation())
+  if (beginPreparation() != PreparationStart::Prepare)
     return;
   if (!m_vertex) {
     reportMessage(ANARI_SEVERITY_WARNING,
@@ -111,7 +104,7 @@ void Cone::finalize()
       "finalizing %s cone geometry",
       m_index ? "indexed" : "soup");
 
-  if (!m_preprocessing.bounds(this, primitiveInput(), m_aabbs, m_epsilonScale))
+  if (!m_preprocessing.bounds(this, primitiveInput(), m_aabbs))
     return;
   m_aabbsBufferPtr = (CUdeviceptr)m_aabbs.ptr();
 
@@ -121,10 +114,8 @@ void Cone::finalize()
   m_areaDataValid = false;
   if (m_areaDataWanted)
     buildAreaData();
-  else {
-    m_totalArea = 0.f;
-    m_primAreaCdf.reset();
-  }
+  else
+    m_preprocessing.releaseAreas();
 
   if (!preparationFailed())
     upload();
@@ -132,8 +123,7 @@ void Cone::finalize()
 
 void Cone::buildAreaData()
 {
-  m_areaDataValid =
-      m_preprocessing.areas(this, primitiveInput(), m_primAreaCdf, m_totalArea);
+  m_areaDataValid = m_preprocessing.areas(this, primitiveInput());
 }
 
 bool Cone::isAreaSamplingSupported() const
@@ -153,7 +143,7 @@ void Cone::ensureAreaData()
 
 float Cone::totalArea() const
 {
-  return m_totalArea;
+  return m_preprocessing.totalArea();
 }
 
 bool Cone::isValid() const
@@ -196,9 +186,9 @@ GeometryGPUData Cone::gpuData() const
   populateAttributeDataSet(m_vertexAttributes, cone.vertexAttr);
 
   // Geometry Light sampling data; null/zero until ensureAreaData() runs.
-  cone.primAreaCdf = m_totalArea > 0.f ? m_primAreaCdf.ptrAs<float>() : nullptr;
-  cone.numPrimitives = m_totalArea > 0.f ? uint32_t(primitiveInput().count) : 0;
-  cone.totalArea = m_totalArea;
+  cone.primAreaCdf = m_preprocessing.areaCdf();
+  cone.numPrimitives = cone.primAreaCdf ? uint32_t(primitiveInput().count) : 0;
+  cone.totalArea = m_preprocessing.totalArea();
 
   return retval;
 }

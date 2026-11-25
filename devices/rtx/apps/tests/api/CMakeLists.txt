@@ -96,7 +96,7 @@ add_executable(TestRegistrySnapshot TestRegistrySnapshot.cpp
 target_include_directories(TestRegistrySnapshot PRIVATE
   ../../../device ../../../external/nanovdb/include ${OptiX_ROOT_DIR}/include)
 target_link_libraries(TestRegistrySnapshot PRIVATE
-  CUDA::cudart anari::anari_static visrtx::glm)
+  CUDA::cudart anari::anari_static visrtx::glm nonstd::scope-lite)
 target_compile_definitions(TestRegistrySnapshot PRIVATE GLM_ENABLE_EXPERIMENTAL)
 add_test(NAME TestRegistrySnapshot COMMAND TestRegistrySnapshot)
 make_test(TestDeferredGeometryPreparation)
@@ -129,13 +129,9 @@ add_test(NAME TestGeometryBoundsFailure COMMAND TestGeometryPreprocessingFailure
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CUDA_RUNTIME_LIBRARY STREQUAL "Shared")
   add_executable(TestDeviceAllocationCache TestDeviceAllocationCache.cpp
     ../../../device/utility/MemoryAllocation.cpp)
-  target_link_libraries(TestDeviceAllocationCache PRIVATE CUDA::cudart anari::anari_static ${CMAKE_DL_LIBS} Threads::Threads)
+  target_link_libraries(TestDeviceAllocationCache PRIVATE CUDA::cudart anari::anari_static nonstd::scope-lite ${CMAKE_DL_LIBS} Threads::Threads)
   set_target_properties(TestDeviceAllocationCache PROPERTIES ENABLE_EXPORTS ON)
   add_test(NAME TestDeviceAllocationCache COMMAND TestDeviceAllocationCache)
-  add_executable(TestStreamRetirement TestStreamRetirement.cpp)
-  target_link_libraries(TestStreamRetirement PRIVATE CUDA::cudart ${CMAKE_DL_LIBS} Threads::Threads)
-  set_target_properties(TestStreamRetirement PROPERTIES ENABLE_EXPORTS ON)
-  add_test(NAME TestStreamRetirement COMMAND TestStreamRetirement)
   target_link_libraries(TestSmallGeometryBatch PRIVATE ${CMAKE_DL_LIBS})
   target_compile_definitions(TestSmallGeometryBatch PRIVATE VISRTX_TEST_INTERPOSE_CUDA)
   set_target_properties(TestSmallGeometryBatch PROPERTIES ENABLE_EXPORTS ON)
@@ -145,11 +141,11 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CUDA_RUNTIME_LIBRARY STREQUAL "S
   make_test(TestGeometryInputBatch)
   target_link_libraries(TestGeometryInputBatch PRIVATE CUDA::cudart ${CMAKE_DL_LIBS})
   set_target_properties(TestGeometryInputBatch PROPERTIES ENABLE_EXPORTS ON)
-  add_executable(TestGeometryReadbackPool TestGeometryReadbackPool.cpp)
-  target_link_libraries(TestGeometryReadbackPool PRIVATE
-    CUDA::cudart ${CMAKE_DL_LIBS} Threads::Threads)
-  set_target_properties(TestGeometryReadbackPool PROPERTIES ENABLE_EXPORTS ON)
-  add_test(NAME TestGeometryReadbackPool COMMAND TestGeometryReadbackPool)
+  add_executable(TestPreparationResults TestPreparationResults.cpp
+    ../../../device/geometry/PreparationResults.cpp)
+  target_link_libraries(TestPreparationResults PRIVATE CUDA::cudart ${CMAKE_DL_LIBS})
+  set_target_properties(TestPreparationResults PROPERTIES ENABLE_EXPORTS ON)
+  add_test(NAME TestPreparationResults COMMAND TestPreparationResults)
   make_test(TestCudaPreparationFailure)
   target_link_libraries(TestCudaPreparationFailure PRIVATE CUDA::cudart ${CMAKE_DL_LIBS} Threads::Threads)
   target_include_directories(TestCudaPreparationFailure PRIVATE ${OptiX_ROOT_DIR}/include)
@@ -160,7 +156,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CUDA_RUNTIME_LIBRARY STREQUAL "S
       sphere-undrained-completion
       sphere-batch-small-copy sphere-batch-small-launch sphere-batch-small-readback
       sphere-batch-small-result-allocation sphere-batch-small-pinned-allocation
-      sphere-readback-allocation sphere-batch-completion
+      sphere-readback-allocation sphere-result-allocation
+      sphere-batch-completion
       sphere-batch-upload-completion sphere-batch-input-completion
       sphere-upload-allocation sphere-upload-copy sphere-upload-completion
       sphere-upload-partial sphere-upload-observer)

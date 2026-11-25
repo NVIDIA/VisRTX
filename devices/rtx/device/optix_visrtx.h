@@ -37,7 +37,6 @@
 #include "utility/DeviceObjectArray.h"
 #include "utility/PreparationQueue.h"
 #include "utility/PreparationStream.h"
-#include "utility/StreamRetirement.h"
 
 // helium
 #include "helium/BaseGlobalDeviceState.h"
@@ -183,16 +182,18 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
   CUcontext cudaContext;
   CUstream stream;
   PreparationStream preparation;
-  StreamRetirement renderRetirement;
   std::shared_ptr<DeviceAllocationCache> geometryInputAllocations{
       std::make_shared<DeviceAllocationCache>()};
-  GeometryReadbackPool geometryReadbacks;
+  // Scalar results of queued geometry preparations, by queue position.
+  PreparationResults preparationResults;
   struct BvhReadback
   {
     box3 bounds;
     uint64_t compactedSize;
   };
-  PinnedReadbackPool<BvhReadback> bvhReadbacks;
+  // Pinned; the first BVH build allocates it. Builds are serialized and
+  // complete before returning, so one serves them all.
+  std::unique_ptr<BvhReadback, PinnedDeleter> bvhReadback;
   SmallGeometryBatch smallGeometryBatch;
   cudaDeviceProp deviceProps;
 
@@ -296,17 +297,24 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
   cudaError_t stageGeometryArray(Array *array, helium::TimeStamp modified);
   bool collectGeometryInputUploads();
   bool collectingGeometryInputUploads() const;
-  void enqueueGeometryPreparation(Geometry *geometry);
+  // Returns the geometry's position in the preparation queue.
+  size_t enqueueGeometryPreparation(Geometry *geometry);
   bool collectGeometryPreparations();
   cudaError_t finishGeometryPreparation();
+  // Both ask CUDA whether the render stream is idle, so no submission site
+  // has to announce itself. The first orders the preparation stream after
+  // outstanding render work without blocking the host; the second blocks the
+  // host, for callers about to release memory that work may still read.
   cudaError_t waitForRenderConsumers();
+  cudaError_t retireRenderConsumers();
   bool collectingGeometryPreparations() const;
   bool hasPendingGeometryPreparations() const;
 
  private:
-  std::vector<helium::IntrusivePtr<Geometry>> m_geometryInputUploads;
+  void failGeometryInputUploads();
+
+  PreparationQueue<helium::IntrusivePtr<Geometry>> m_geometryInputUploads;
   std::unordered_map<const Array *, helium::TimeStamp> m_geometryInputVersions;
-  bool m_collectingGeometryInputUploads{false};
   PreparationQueue<helium::IntrusivePtr<Geometry>> m_geometryPreparations;
 };
 

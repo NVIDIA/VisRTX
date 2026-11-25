@@ -23,8 +23,8 @@ reset remains intact. Before replacing parameter references, the input-retiremen
 check compares the declared committed preparation inputs and referenced-object
 versions with the last successful preparation. Unchanged inputs skip retirement;
 first preparation, changed inputs, failed preparation, and non-opt-in types request
-retirement. A device-local completion certificate deduplicates successful waits
-until another render/work-stream workload is submitted. This check performs no GPU uploads. Parameter lookup names are
+retirement. Retirement waits only when `cudaStreamQuery` reports outstanding
+render-stream work. This check performs no GPU uploads. Parameter lookup names are
 cached once per geometry rather than rebuilt on every finalization. Finalization
 still revalidates values, object versions, and backing pointers before reusing
 derived data: dependencies can be updated between commit and finalization, so the
@@ -119,10 +119,14 @@ is reused.
   submissions mark their still-current array versions uploaded. A failed
   geometry remains unprepared even if another geometry successfully shares one
   of its arrays. Legacy consumers can safely use completed copies afterward.
-- Observer-only updates, or arrays modified after submission, retain the local
-  per-geometry upload path. A later geometry commit or observer update may retry
-  a failed input generation; unchanged failed inputs cannot silently become
-  prepared. Preparation reuse does not capture or submit an upload batch.
+- Observer-only updates, and arrays modified after submission, have no commit
+  to capture them. The geometry's finalizer captures its still-dirty declared
+  host arrays and collects them through the same batch, as a batch of that
+  geometry alone: there is one upload implementation with two triggers. A
+  failure there fails that finalization, so the next one retries. A later
+  geometry commit or observer update may retry a failed input generation;
+  unchanged failed inputs cannot silently become prepared. Preparation reuse
+  does not capture or submit an upload batch.
 - These checked geometry kernels no longer import the default stream: authored
   inputs are ready before they run. Other array consumers retain their existing
   upload path.
@@ -145,20 +149,17 @@ is reused.
   published only on success. Group/World failure state prevents failed builds
   from being treated as ready and permits a later retry.
 - Parameter-reference replacement and last-public-release privatization require
-  completed old render consumers. `StreamRetirement` caches a successful wait
-  for the generation captured before synchronization. Frame submission,
-  denoiser setup/launch/conversion, channel resolution, transfer-function opacity
-  bounds, and isosurface brick preparation invalidate that certificate before
-  submitting work. Shared arrays
-  and different frames use the same device-local generation. A generation
-  invalidated during a wait cannot inherit that wait's certificate; errors never
-  certify completion. Scene submission remains serialized. Error handling uses
-  unconditional drains, not the cached retirement path, before storage can be
-  retired or retried.
+  completed old render consumers. `DeviceGlobalState::retireRenderConsumers()`
+  asks `cudaStreamQuery` whether the render stream is idle and synchronizes it
+  only when it is not, so frame submission, denoising, channel resolution,
+  transfer-function opacity bounds and isosurface brick preparation need no
+  bookkeeping of their own. A failed query never counts as idle: it takes the
+  synchronize and reports that result. Scene submission remains serialized.
+  Error handling uses unconditional drains, not the query, before storage can
+  be retired or retried.
 
-`TestStreamRetirement` checks repeated retirement requests, a gated producer,
-generation changes during a wait, and failure/retry. The existing shared-array,
-privatization, frame, denoiser and isosurface tests exercise the producer paths.
+The existing shared-array, privatization, frame, denoiser and isosurface tests
+exercise the producer paths.
 
 This is not concurrent in-place scene replacement. Legacy default-stream events
 can include preceding work on blocking streams; tangent generation and field-grid
@@ -182,8 +183,9 @@ across host-vector growth and preservation of newer dirty edits.
 
 ## Geometry submission and collection
 
-Checked bounds and area-CDF preparation queue kernels and asynchronous readbacks
-into geometry-owned pinned storage. A successful submission is not publication:
+Checked bounds and area-CDF preparation queue kernels that write their scalar
+results into the device's `PreparationResults`, at the geometry's position in the
+preparation queue. A successful submission is not publication:
 scalar outputs, numeric validation, and geometry registry updates happen only
 after collection. The device queue retains each submitted geometry, and thereby
 its arrays and derived buffers, until those operations finish. Ownership stays
@@ -191,6 +193,9 @@ in the queue through descriptor allocation and registry publication; queued flag
 are cleared only after every publication completes. A host exception leaves the
 owners and queued flags available for retry, including already-drained results
 whose publication must be retried. Collection reentry remains refused.
+Committed input uploads are queued and collected by the same `PreparationQueue`
+transaction; their unwind step fails and drains the batch before the owners
+become collectable again.
 
 `TestPreparationQueue` tests this ownership transaction directly with throwing
 completion/publication callbacks, orphaned owners, retry and teardown. It does
@@ -263,14 +268,10 @@ upload, dispatch and readback completion. Descriptors remain stable through
 fallback drains; dispatch or transfer failure invalidates the pending batch,
 while numeric failures remain local to their geometry.
 
-Small jobs write both result slots into a contiguous device-owned result buffer.
-The batch performs one asynchronous transfer into a reusable pinned host buffer,
-then scatters only completed, requested slots into the geometries' summaries.
-Even unused slots are initialized before transfer. A bounds-only flush followed
-by a later area request preserves the earlier bounds summary. Failed transfers
-or completion do not scatter partial results. Both batch buffers grow to their
-high-water size and remain alive through fallback drains; the per-geometry
-pinned leases and general-path readbacks retain their existing ownership.
+Small jobs and the general path write the same results storage, so a geometry's
+bounds and area results sit at its queue position whichever path produced them.
+Small jobs write only the results they request: a bounds-only flush followed by a
+later area request preserves the earlier bounds result.
 
 `TestSmallGeometryBatch` exercises mixed sphere/cone/cylinder/triangle batches
 at 1, 31, 32, 33, 255, 256 and 257 primitives with host and device-backed logical
@@ -292,26 +293,32 @@ and restoration with new weights discriminate weighting, order, normalization
 and stale sampling data rather than just bounds or light counts. No public debug
 property or shared production area helper is used by the oracle.
 
-Pinned readback storage is leased from the device's `GeometryReadbackPool`.
-Each page holds 256 geometry leases, each containing two result slots (a 4 KiB
-page with the current result layout). A geometry keeps its lease across updates;
-returning it after collection makes the slot reusable without a CUDA allocation.
-The pool caches pages at its high-water mark until device teardown rather than
-trimming on every geometry destruction. A lease retains its page independently
-of the pool's lifetime, so cleanup cannot free storage while a lease still exists.
-This reduces allocation count, not necessarily requested bytes for tiny scenes:
-a partially occupied page still reserves the whole page.
+`PreparationResults` holds two results per queued geometry: bounds (epsilon
+scale and validity) and total area. Kernels write its device storage; every
+`finishGeometryPreparation()` that follows a write copies the queued range to
+pinned host storage in one transfer, then synchronizes. `complete()` reads the
+host copy at the geometry's queue position. There is no per-geometry pinned
+storage and no host-side copy between pinned buffers. Device and pinned storage
+grow together, starting at 256 geometries (4 KiB each with the current result
+layout), doubling when the queue outgrows them, and staying at their high-water
+size until device teardown. The general path reserves at submission, so an
+allocation failure fails only the submitting geometry; the small batch reserves
+when it launches, so a failure there fails the whole batch. Device growth
+synchronizes the preparation stream and copies the earlier results into the new
+storage; the old pinned storage holds nothing still needed, because each
+readback completes in its own finish and the next one transfers the whole
+queued range. A failed allocation keeps existing storage and clears CUDA
+last-error state, so a retry can succeed. `TestPreparationResults` covers first
+and growth allocation failure and retry on either side, preservation across
+growth, rewrites between readbacks and the readback range.
 
-Pool/page locks protect slot accounting but are never held across CUDA allocation
-or free. A failed page allocation leaves existing leases intact and clears CUDA
-last-error state before retry. Concurrent growth may allocate an extra page;
-source/result lifetime ordering remains the collection queue's responsibility.
-`TestGeometryReadbackPool` covers first-page/growth failure and retry, slot reuse,
-move/reset, pool-before-lease teardown, concurrent leases, and asynchronous DMA
-into separate slots on a page.
+BVH builds read back their bounds and compacted size through one pinned
+`BvhReadback` owned by the device state. The first build allocates it; builds are
+serialized and complete before returning, so no transfer outlives a build.
 
 Committed host inputs now complete in a cross-geometry batch before finalizers
-run. Observer-only input updates remain conservative. Last-public-release of
+run. Observer-only input updates take the same path one geometry at a time.
+Last-public-release of
 shared host arrays during an active upload joins the preparation stream before
 the application may free its source memory. Quad/curve generated-data completion,
 tangent generation, and field/isosurface
@@ -321,7 +328,7 @@ independent scene generations or concurrent in-place replacement during tracing.
 `TestDeferredGeometryPreparation` covers recommitting a queued geometry, retained
 captured-device inputs, last-reference queue ownership through teardown, unrelated
 numeric failures, and collection-time callback reentry. Injection cases also
-cover pinned-readback allocation failure, completion failure across multiple
+cover results allocation failure, completion failure across multiple
 queued geometries, an intervening upload completion failure, and shared CUDA
 array retirement while preparation remains pending. `TestGeometryInputBatch`
 checks submission-before-wait across multiple geometries, shared-array dedup,

@@ -61,6 +61,7 @@ struct Sphere : public Geometry
   GeometryGPUData gpuData() const override;
   void cleanup();
   void buildAreaData();
+  PrimitiveInput primitiveInput() const;
 
   helium::ChangeObserverPtr<Array1D> m_index;
   helium::ChangeObserverPtr<Array1D> m_vertex;
@@ -77,8 +78,6 @@ struct Sphere : public Geometry
   // the normalized cumulative object-space area over primitives.
   // m_areaDataWanted persists across recommits so a re-finalize rebuilds it
   // order-independently.
-  DeviceBuffer m_primAreaCdf;
-  float m_totalArea{0.f};
   bool m_areaDataValid{false};
   bool m_areaDataWanted{false};
 };

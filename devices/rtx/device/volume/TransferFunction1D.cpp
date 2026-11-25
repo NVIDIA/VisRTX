@@ -89,7 +89,6 @@ void TransferFunction1D::finalize()
 
   discritizeTFData();
   createTFTexture();
-  deviceState()->renderRetirement.invalidate();
   m_field->m_uniformGrid.computeOpacityBounds(
       deviceState()->stream, m_textureObject, m_tfDim, m_valueRange);
   upload();

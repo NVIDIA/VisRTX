@@ -431,7 +431,6 @@ Frame::Frame(DeviceGlobalState *d) : helium::BaseFrame(d), m_denoiser(d)
   cudaEventCreate(&m_eventStart);
   cudaEventCreate(&m_eventEnd);
 
-  d->renderRetirement.invalidate();
   cudaEventRecord(m_eventStart, d->stream);
   cudaEventRecord(m_eventEnd, d->stream);
 }
@@ -713,7 +712,6 @@ void Frame::renderFrame()
   if (!m_nextFrameReset && sampleLimit > 0 && hd.fb.frameID >= sampleLimit)
     return;
 
-  state.renderRetirement.invalidate();
   cudaEventRecord(m_eventStart, state.stream);
 
   m_renderer->populateFrameData(hd);
@@ -1102,7 +1100,6 @@ void Frame::resolveVec3Buffer(const DeviceBuffer &accum,
   const uint32_t nPixels = uint32_t(numPixels());
   const uint32_t blockSize = 256;
   const uint32_t gridSize = (nPixels + blockSize - 1) / blockSize;
-  state.renderRetirement.invalidate();
   resolveVec3Channel<<<gridSize, blockSize, 0, state.stream>>>(
       accum.ptrAs<vec3>(),
       out.dataDevice(),
